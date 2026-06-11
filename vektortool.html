@@ -8087,9 +8087,10 @@ function render() {
   if (_drawHintPt && isDrawing && tool !== 'gear' && tool !== 'wheel') {
     /* [ux-feinschliff v4] Shift-Hinweis pro Werkzeug das Passende
        (Lukas 2026-06-11): Rechteck=Quadrat, Ellipse=Kreis, Rest=proportional. */
-    var _shMain = (tool === 'rect') ? '\u21e7 Shift = Quadrat'
-                : (tool === 'ellipse') ? '\u21e7 Shift = Kreis'
-                : '\u21e7 Shift = proportional';
+    var _shT = (window.t || function(s){ return s; });
+    var _shMain = (tool === 'rect') ? '\u21e7 ' + _shT('Shift = Quadrat')
+                : (tool === 'ellipse') ? '\u21e7 ' + _shT('Shift = Kreis')
+                : '\u21e7 ' + _shT('Shift = proportional'); /* [shift-i18n v1] uebersetzt */
     var _shSub = '';
     var _shFs = 13 / zoom, _shFs2 = 10 / zoom;
     var _shX = _drawHintPt.x + 20/zoom, _shY = _drawHintPt.y - 10/zoom;
@@ -43177,6 +43178,11 @@ _boxBtnEl.addEventListener('click', function() {
   }
   window.VT_I18N = { apply: apply, t: function(de){ return tr(de, cur); }, langs: LANGS, detect: detectBrowserLang, get lang(){ return cur; } };
   window.t = window.VT_I18N.t;
+  /* [shift-i18n v1] Nachtrags-Uebersetzungen fuer Strings, die nach dem
+     i18n-Compile dazukamen (Aufzieh-Shift-Hinweise). DICT ist hier im Scope. */
+  try { var _vtExtra = {"Shift = Quadrat": {"en": "Shift = square", "fr": "Shift = carré", "it": "Shift = quadrato", "es": "Shift = cuadrado", "pt": "Shift = quadrado", "nl": "Shift = vierkant", "pl": "Shift = kwadrat", "cs": "Shift = čtverec", "sk": "Shift = štvorec", "ro": "Shift = pătrat", "hu": "Shift = négyzet", "el": "Shift = τετράγωνο", "sv": "Shift = kvadrat", "da": "Shift = kvadrat", "no": "Shift = kvadrat", "fi": "Shift = neliö", "ca": "Shift = quadrat", "tr": "Shift = kare", "ru": "Shift = квадрат", "uk": "Shift = квадрат", "bg": "Shift = квадрат", "zh": "Shift = 正方形", "ja": "Shift = 正方形", "ko": "Shift = 정사각형", "vi": "Shift = hình vuông", "th": "Shift = สี่เหลี่ยมจัตุรัส", "id": "Shift = persegi", "hi": "Shift = वर्ग", "ar": "Shift = مربع", "he": "Shift = ריבוע", "fa": "Shift = مربع"}, "Shift = Kreis": {"en": "Shift = circle", "fr": "Shift = cercle", "it": "Shift = cerchio", "es": "Shift = círculo", "pt": "Shift = círculo", "nl": "Shift = cirkel", "pl": "Shift = koło", "cs": "Shift = kruh", "sk": "Shift = kruh", "ro": "Shift = cerc", "hu": "Shift = kör", "el": "Shift = κύκλος", "sv": "Shift = cirkel", "da": "Shift = cirkel", "no": "Shift = sirkel", "fi": "Shift = ympyrä", "ca": "Shift = cercle", "tr": "Shift = daire", "ru": "Shift = круг", "uk": "Shift = коло", "bg": "Shift = кръг", "zh": "Shift = 圆形", "ja": "Shift = 円", "ko": "Shift = 원", "vi": "Shift = hình tròn", "th": "Shift = วงกลม", "id": "Shift = lingkaran", "hi": "Shift = वृत्त", "ar": "Shift = دائرة", "he": "Shift = עיגול", "fa": "Shift = دایره"}, "Shift = proportional": {"en": "Shift = keep ratio", "fr": "Shift = proportionnel", "it": "Shift = proporzionale", "es": "Shift = proporcional", "pt": "Shift = proporcional", "nl": "Shift = proportioneel", "pl": "Shift = proporcjonalnie", "cs": "Shift = proporcionálně", "sk": "Shift = proporcionálne", "ro": "Shift = proporțional", "hu": "Shift = arányos", "el": "Shift = αναλογικά", "sv": "Shift = proportionell", "da": "Shift = proportional", "no": "Shift = proporsjonal", "fi": "Shift = suhteellinen", "ca": "Shift = proporcional", "tr": "Shift = orantılı", "ru": "Shift = пропорционально", "uk": "Shift = пропорційно", "bg": "Shift = пропорционално", "zh": "Shift = 等比例", "ja": "Shift = 比率を保持", "ko": "Shift = 비율 유지", "vi": "Shift = giữ tỷ lệ", "th": "Shift = สัดส่วน", "id": "Shift = proporsional", "hi": "Shift = समानुपात", "ar": "Shift = متناسب", "he": "Shift = יחסי", "fa": "Shift = متناسب"}};
+    for (var _ek in _vtExtra) { for (var _el in _vtExtra[_ek]) { if (DICT[_el]) DICT[_el][_ek] = _vtExtra[_ek][_el]; } }
+  } catch(_ee) {}
   function init(){
     var saved = "auto";
     try{ saved = localStorage.getItem("linea_lang") || "auto"; }catch(e){}
