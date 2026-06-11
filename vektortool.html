@@ -12817,9 +12817,23 @@ function finishCurve() { _finishOpenStroke(true); }
 
 /* ---- SHAPE DRAWING (rect, ellipse, polygon, star) ---- */
 var _drawHintPt = null;
+/* [shift-sofort v1] Letzte Zeichen-Maus-Position, um die Shift-Beschraenkung
+   (Kreis/Quadrat/proportional) SOFORT beim Druecken/Loslassen anzuwenden -
+   nicht erst bei der naechsten Mausbewegung (Lukas 2026-06-11). */
+var _lastShapeMovePt = null;
+(function(){
+  var SHAPE_TOOLS = {rect:1,ellipse:1,polygon:1,star:1,spiral:1,gear:1,wheel:1,solid3d:1};
+  function redraw(e){
+    if (!isDrawing || !dragStart || !_lastShapeMovePt || !SHAPE_TOOLS[tool]) return;
+    onDrawShapeMove({shiftKey: e.shiftKey}, _lastShapeMovePt);
+  }
+  document.addEventListener('keydown', function(e){ if (e.key === 'Shift') redraw(e); });
+  document.addEventListener('keyup',   function(e){ if (e.key === 'Shift') redraw(e); });
+})();
 function onDrawShapeDown(e, pt) {
   isDrawing = true;
   dragStart = {x:pt.x, y:pt.y};
+  _lastShapeMovePt = null; /* [shift-sofort v1] alte Position verwerfen: Shift vor erster Bewegung = no-op statt Sprung */
 }
 
 var CENTER_DRAW_TOOLS = ['polygon','star','spiral','gear','wheel','rect','ellipse','solid3d']; /* dedup-perf v1 */
@@ -12829,6 +12843,7 @@ var CENTER_DRAW_TOOLS = ['polygon','star','spiral','gear','wheel','rect','ellips
 var MIN_DRAW_SIZE = 2;
 function onDrawShapeMove(e, pt) {
   if (!isDrawing || !dragStart) return;
+  _lastShapeMovePt = pt; /* [shift-sofort v1] fuer sofortige Shift-Reaktion ohne Mausbewegung */
   // [VT-ZENTRUM-AUFZIEHEN v1] Alle Aufzieh-Formen aus der Mitte (Lukas-Entscheid
   // 2026-06-08): Klickpunkt = Zentrum, Ziehen legt den Radius. rect/ellipse/solid3d
   // ergaenzt; Shift bleibt proportional/kreisfoermig. else-Zweig = Ecke-Fallback.
