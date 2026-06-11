@@ -1,0 +1,49 @@
+# Patch-Backups (auto-generiert, je ~3 MB)
+*.bak-*
+*_backup_*.html
+# Temporaere Test-Kopien
+_test-*.html
+_vt_tests_bak.html
+# Python-Reste
+__pycache__/
+*.pyc
+# macOS
+.DS_Store
+
+# --- Nur Deploy-Dateien im Repo (Dev-Werkstatt bleibt lokal) ---
+agent-tasks/
+emoji-test/
+patch_*.py
+patch-*.py
+*_patch.py
+apply_*.py
+new_strings.json
+vt_translations.json
+absicherung.md
+# Alte/abgeleitete HTML-Staende (Hauptdatei vektortool.html bleibt getrackt)
+v45.html
+vektortool_v46.html
+linea_final.html
+vt-stickhide-test.html
+vt_tests.html
+# Weitere Dev-Reste (lokal, nicht ins Repo)
+.claude/
+*.json
+!.github/**/*.json
+box_*.md
+box_*.py
+box-*.js
+boxpack_*.json
+d2_*.py
+d2*.json
+einbau_*.py
+build_langpack_*.py
+merge_*.py
+find_new.py
+i18n_*.py
+i18n_*.md
+i18n_*.json
+*_patch.py
+*_patch*.py
+flex_hinge_*.py
+langpack_*.json

@@ -1,0 +1,35 @@
+# Deployment auf GitHub Pages (vektortool.app):
+# vektortool.html wird als index.html ausgeliefert, dazu preview.png (og:image).
+# Kein Build - die App bleibt eine einzelne HTML-Datei.
+name: pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Site zusammenstellen
+        run: |
+          mkdir dist
+          cp vektortool.html dist/index.html
+          cp vektortool.html dist/vektortool.html
+          cp preview.png dist/preview.png 2>/dev/null || true
+          echo "vektortool.app" > dist/CNAME
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
