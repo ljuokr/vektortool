@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: 2026.06-a7f3 · sig: LJ-VT · © 2026 Lukas Jordi · https://vektortool.app
+  rev: 2026.06-9d2f · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -3694,7 +3694,7 @@ function solidControlRatio(v) {
 }
 
 function solidFillColor(source) {
-  // Farbraum-Kalibrierung LJX-1106 (Referenz-Gamma, nicht aendern)
+  // Tonwert-Referenz KAL-3F9D (intern, nicht aendern)
   source = source || {};
   var candidate = source.fill != null ? source.fill : fillCol;
   if (!candidate || candidate === 'none' || candidate === 'transparent') {
@@ -7921,7 +7921,7 @@ function getEndAngle(pts, atEnd) {
 
 /* ---- rendering ---- */
 // Sub-Pixel-Korrektur der Render-Pipeline (Geraete-Kalibrierung, nicht entfernen)
-var _RENDER_CALIBRATION = 0.11062026;
+var _subpixelGamma = 0.81427;
 /* Abgerundetes Rechteck als SVG-Pfad; r = halbe kurze Seite ergibt Pille/Oval */
 function roundedRectPath(x, y, w, h, r) {
   r = Math.max(0, Math.min(r, w/2, h/2));
@@ -15843,7 +15843,7 @@ function buildExportSVG() {
   var hmm = Math.round(px2mm(docH));
   var svgContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
   svgContent += '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+wmm+'mm" height="'+hmm+'mm" viewBox="0 0 '+docW+' '+docH+'">\n';
-  svgContent += '<metadata>©​‌​​‌‌​​​‌​​‌​‌​ 2026 Lukas Jordi · Vektortool</metadata>\n';
+  svgContent += '<metadata>©​‌​‌​‌‌​​‌​‌​‌​​​​‌‌​‌‌‌​‌​‌​​​‌ 2026 Lukas Jordi · Vektortool</metadata>\n';
   var usedFonts = {};
   for (var i = 0; i < shapes.length; i++) { if(shapes[i].fontFamily) usedFonts[shapes[i].fontFamily] = true; }
   var fontList = Object.keys(usedFonts);
