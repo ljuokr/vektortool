@@ -20,7 +20,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Site zusammenstellen
         run: |
           mkdir dist
@@ -28,8 +28,8 @@ jobs:
           cp vektortool.html dist/vektortool.html
           cp preview.png dist/preview.png 2>/dev/null || true
           echo "vektortool.app" > dist/CNAME
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
