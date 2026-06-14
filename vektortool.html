@@ -36232,14 +36232,14 @@ function _dstLockInset(pts, fromStart) {
 }
 
 /* M1: Lock-Stiche (Tie-in/Tie-off) als kurze dstPts. anchor = aktuelle Position
-   in DST-Units, dir = Stich-Richtung. Erzeugt eine Hin-Her-Bewegung von ~0.4 mm,
+   in DST-Units, dir = Stich-Richtung. Erzeugt eine Hin-Her-Bewegung von ~0.8 mm,
    die im Stoff verschwindet und netto bei anchor endet, sodass die nachfolgende
    Stitch-Sequenz unveraendert weiterlaeuft. Der Troubleshoot-Check
    (runHasLockAtStart/End) erkennt sie als Lock (Distanz < 1 mm). */
 function _dstMakeLockStitches(anchorX, anchorY, dirX, dirY) {
   var len = Math.hypot(dirX, dirY);
   var ux = len > 1e-6 ? dirX / len : 1, uy = len > 1e-6 ? dirY / len : 0;
-  var d = 4; /* DST-Units = 0.4 mm */
+  var d = 8; /* [VT-UIFIX v1 R18] DST-Units = 0.8 mm: 0.4mm lag unter der Analyzer-Schwelle (EMDIGITIZER "Missing Tie-Ins/Offs"); 0.8mm bleibt <1mm fuer den internen Lock-Check + innerhalb (1.5mm-Inset) */
   var bx = Math.round(anchorX + ux * d), by = Math.round(anchorY + uy * d);
   if (bx === anchorX && by === anchorY) return [];
   return [
@@ -36704,8 +36704,8 @@ function _stitchExportDstBody(skipDownload) {
          Mikro-Stiche +u,-u,+u,-u (netto 0, Position bleibt fuer den echten Stich), die auf
          dem Start->Erststich-Segment liegen = innerhalb der Form. */
       var _til = Math.hypot(_odx, _ody) || 1;
-      var _tix = Math.round(_odx / _til * 4), _tiy = Math.round(_ody / _til * 4);
-      if (_tix === 0 && _tiy === 0) { _tix = 4; _tiy = 0; }
+      var _tix = Math.round(_odx / _til * 8), _tiy = Math.round(_ody / _til * 8); /* [VT-UIFIX v1 R18] 0.8mm = Analyzer-erkannte Lock-Amplitude (war 0.4mm, zu klein) */
+      if (_tix === 0 && _tiy === 0) { _tix = 8; _tiy = 0; }
       var ti1 = _dstEncodeStitch(_tix, _tiy, false, false); stitchBytes.push(ti1[0], ti1[1], ti1[2]);
       var ti2 = _dstEncodeStitch(-_tix, -_tiy, false, false); stitchBytes.push(ti2[0], ti2[1], ti2[2]);
       var ti3 = _dstEncodeStitch(_tix, _tiy, false, false); stitchBytes.push(ti3[0], ti3[1], ti3[2]);
@@ -36753,8 +36753,8 @@ function _stitchExportDstBody(skipDownload) {
        echten Stichs (zeigt vom Rand-Endpunkt zurueck ins Innere) statt fix -4/+8/-4 horizontal.
        4 Mikro-Stiche netto 0, bleiben innerhalb der Form (retrace des letzten Stichs). */
     var _tol = Math.hypot(_lastRealDx, _lastRealDy) || 1;
-    var _tox = Math.round(-_lastRealDx / _tol * 4), _toy = Math.round(-_lastRealDy / _tol * 4);
-    if (_tox === 0 && _toy === 0) { _tox = -4; _toy = 0; }
+    var _tox = Math.round(-_lastRealDx / _tol * 8), _toy = Math.round(-_lastRealDy / _tol * 8); /* [VT-UIFIX v1 R18] 0.8mm Lock-Amplitude */
+    if (_tox === 0 && _toy === 0) { _tox = -8; _toy = 0; }
     var to1 = _dstEncodeStitch(_tox, _toy, false, false); stitchBytes.push(to1[0], to1[1], to1[2]);
     var to2 = _dstEncodeStitch(-_tox, -_toy, false, false); stitchBytes.push(to2[0], to2[1], to2[2]);
     var to3 = _dstEncodeStitch(_tox, _toy, false, false); stitchBytes.push(to3[0], to3[1], to3[2]);
