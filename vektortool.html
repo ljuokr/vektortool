@@ -1909,7 +1909,7 @@ body.layer-panel-open #rsActions { display:none !important; }
         </div>
         <!-- rowSpacing -->
         <label style="font-weight:600;color:var(--fg);" title="Abstand zwischen Stich-Reihen (kleiner = dichter)">Zeilenabstand</label>
-        <input id="gpRowSpacing" type="range" min="0.1" max="1.0" value="0.3" step="0.05" style="width:100%;accent-color:var(--ac);">
+        <input id="gpRowSpacing" type="range" min="0.1" max="1.0" value="0.3" step="0.1" style="width:100%;accent-color:var(--ac);">
         <span id="gpRowSpacingVal" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">0.30 mm</span>
         <!-- stitchLength -->
         <label style="font-weight:600;color:var(--fg);" title="Länge eines einzelnen Stiches">Stichlänge</label>
@@ -1986,9 +1986,8 @@ body.layer-panel-open #rsActions { display:none !important; }
 	           "Globale Parameter" sitzt. -->
 	      <h3 id="stitchOrderTitle" title="Stickreihenfolge ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);margin:calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-4);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:none;"><span id="soCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Stickreihenfolge</span></h3>
 	      <!-- VT-STICKBEGRIFFE v1: Kurzhinweis Stichtyp-Automatik (Lukas: statt Automatik-Karten im Hilfe-Overlay). Dismiss merkt sich localStorage. -->
-	      <div id="stitchAutoHint" style="display:flex;align-items:flex-start;gap:var(--space-3);font-size:var(--fs-xs);color:var(--fg2);background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xs);padding:var(--space-2) var(--space-4);margin:0 0 var(--space-4);"><span style="flex:1;">Stichtyp automatisch: Füllung → Füllstich · dünne Linie → Laufstich · Linie ab 0,8 mm → Satinband</span><button type="button" title="Hinweis ausblenden" aria-label="Hinweis ausblenden" onclick="this.parentNode.style.display='none';try{localStorage.setItem('vtAutoHintOff','1')}catch(e){}" style="border:none;background:none;cursor:pointer;color:var(--fg3);font-size:var(--fs-sm);line-height:1;padding:0 var(--space-1);">×</button></div>
-	      <script>try{if(localStorage.getItem('vtAutoHintOff')==='1'){var _ah=document.getElementById('stitchAutoHint');if(_ah)_ah.style.display='none';}}catch(e){}</script>
-	      <div id="stitchOrder">
+	      <!-- [VT-UIFIX v1] Infobox "Stichtyp automatisch: …" entfernt (Lukas) -->
+	      	      <div id="stitchOrder">
 	        <div style="color:var(--fg3);font-size:var(--fs-sm);text-align:center;padding:var(--space-10);">Stickreihenfolge per Drag &amp; Drop anpassen.</div>
 	      </div>
     </div>
@@ -28082,7 +28081,10 @@ function _stitchMaybeUpgradeLegacyParams(shape) {
      Stitch-Dichte bei 1.33 st/mm² (HIGH RISK Warning). Diese Werte
      reduzieren die Gesamt-Dichte ohne Coverage zu verlieren. */
   if (st.type === 'fill' && st.params && !st._v33recalibrated) {
-    if (st.params.rowSpacing === 0.2) st.params.rowSpacing = 0.25;
+    /* [VT-UIFIX v1] DEAKTIVIERT (Lukas: dichte Werte werden "kaputt"): ass vom Nutzer gesetztes
+       rowSpacing 0.2 -> 0.25 (kaskadierte via rs035 weiter auf 0.35). 0.3 ist seit rs-default-03
+       der Standard; dichtere Werte sind gewollt + rendern sauber (headless verifiziert). Alte
+       Dateien sind laengst migriert. War: if (rowSpacing===0.2) rowSpacing=0.25; */
     if (st.params.underlaySpacing === 3.0) st.params.underlaySpacing = 3.5;
     if (st.params.pullCompensation === 0) st.params.pullCompensation = -0.1;
     st._v33recalibrated = true;
@@ -28093,7 +28095,9 @@ function _stitchMaybeUpgradeLegacyParams(shape) {
      dichten Rand-Saum. 0.35 mm reduziert die Reihen-Anzahl spuerbar bei guter
      Deckung. Nur der Default-Wert wird migriert — Custom-Werte (≠0.25) bleiben. */
   if (st.type === 'fill' && st.params && !st._rs035migrated) {
-    if (st.params.rowSpacing === 0.25) st.params.rowSpacing = 0.35;
+    /* [VT-UIFIX v1] DEAKTIVIERT (Lukas): ass vom Nutzer gesetztes rowSpacing 0.25 -> 0.35
+       (= "dichter ergibt spärlicher"). Dichte Werte sind gewollt + rendern sauber. War:
+       if (rowSpacing===0.25) rowSpacing=0.35; */
     st._rs035migrated = true;
     st._needleCacheKey = '';
   }
@@ -29004,7 +29008,7 @@ function _stitchUpdateTypeList() {
       html += '<select class="stitch-type-sel" data-sid="'+s2.id+'">';
       html += typeOpts.replace('value="'+(st?st.type:'none')+'"', 'value="'+(st?st.type:'none')+'" selected');
       html += '</select>';
-      html += '<span class="stitch-row-count">'+(st && st.needlePoints ? st.needlePoints.length : 0)+' St.</span>';
+      html += '<span class="stitch-row-count">'+(st && st.needlePoints ? st.needlePoints.length : 0)+' St.</span>'; /* [VT-UIFIX v1] Pro-Zeilen-Zaehler wiederhergestellt (Lukas meinte den Zaehler unter Faden trimmen = #dgpStitchCount) */
       html += '</div>';
     }
     html += '</div>';
@@ -31291,7 +31295,14 @@ function _scanSVGFillSegmentsV7(shape, dirX, dirY, perpX, perpY, spacing, minDir
     var ox = perpX * offset, oy = perpY * offset;
     var prevT = lineStart;
     var prevInside = _isPointInSVGFill(ox + dirX * prevT, oy + dirY * prevT);
-    var segStartT = prevInside ? prevT : null;
+    /* [VT-UIFIX v1] Start-Anker auf die Geometrie-Grenze (minDir) klemmen:
+       _isPointInSVGFill meldet ~2 Einheiten ueber den echten Rand hinaus „innen",
+       wodurch ein inside-startender Scan den Reihen-Anfang AUSSERHALB der Form
+       setzt. _fillReplaceOutsideRuns ersetzt diesen Aussen-Anker spaeter durch
+       einen diagonalen Chord (sichtbar als schraege/gekreuzte Reihen, je dichter
+       das Raster desto schlimmer). Eine Reihe kann nie ueber [minDir,maxDir]
+       hinausgehen, das Klemmen ist also strikt korrekt. */
+    var segStartT = prevInside ? Math.max(prevT, minDir) : null;
     var rowSegments = [];
     for (var t = prevT + sampleStep; t <= lineEnd + 1e-6; t += sampleStep) {
       var curT = Math.min(t, lineEnd);
@@ -31301,7 +31312,7 @@ function _scanSVGFillSegmentsV7(shape, dirX, dirY, perpX, perpY, spacing, minDir
         if (!prevInside && curInside) {
           segStartT = edgeT;
         } else {
-          if (segStartT === null) segStartT = prevT;
+          if (segStartT === null) segStartT = Math.max(prevT, minDir); /* [VT-UIFIX v1] s.o. — Reihen-Anfang nicht ueber den Rand hinaus */
           rowSegments.push({
             row: rowIdx,
             sx: ox + dirX * segStartT,
@@ -31316,12 +31327,21 @@ function _scanSVGFillSegmentsV7(shape, dirX, dirY, perpX, perpY, spacing, minDir
       prevT = curT;
     }
     if (prevInside && segStartT !== null) {
+      /* [VT-UIFIX v1] Reihen-Ende auf maxDir (Geometrie-Grenze) klemmen statt
+         lineEnd (= maxDir + 2*spacing). Die Tail-Klausel feuert nur, weil
+         _isPointInSVGFill ~2 Einheiten ueber den Rand hinaus „innen" meldet und
+         deshalb kein inside->outside-Uebergang gefunden wird. Ohne Klemmen liegt
+         der End-Anker AUSSERHALB der Form → _fillReplaceOutsideRuns ersetzt jeden
+         Reihen-Umkehrpunkt durch einen diagonalen Chord (Reihen wirken schraeg/
+         gekreuzt; Klippe bei Reihenabstand < ~0.13mm, wo praktisch jede Reihe
+         betroffen ist). Eine Reihe kann nie ueber maxDir hinausgehen. */
+      var _tailT = Math.min(lineEnd, maxDir);
       rowSegments.push({
         row: rowIdx,
         sx: ox + dirX * segStartT,
         sy: oy + dirY * segStartT,
-        ex: ox + dirX * lineEnd,
-        ey: oy + dirY * lineEnd
+        ex: ox + dirX * _tailT,
+        ey: oy + dirY * _tailT
       });
     }
     if (rowSegments.length) {
@@ -31400,7 +31420,7 @@ function _calcFillStitchV7(shape, opts) {
        wird. Matches v48's fix — critical for traced shapes whose saved
        params encode the desired angle as 0. */
     var angleDeg = (opts && isFinite(opts.angle)) ? opts.angle : (isFinite(params.angle) ? Number(params.angle) : 45);
-    var rowSpacingMM = (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (params.rowSpacing || FILL_ROWSPACING_FALLBACK_MM); /* [VT-STITCH-F8 v1] war 2.5 */
+    var rowSpacingMM = Math.max(0.1, (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (params.rowSpacing || FILL_ROWSPACING_FALLBACK_MM)); /* [VT-STITCH-F8 v1] war 2.5; [VT-UIFIX v1] Boden 0.1mm wie Inkstitch (fill_stitch.py:359 max(...,0.1*PIXELS_PER_MM)) */
     var stitchLenMM = (opts && isFinite(opts.stitchLength)) ? opts.stitchLength : (params.stitchLength || 3);
     var pullCompMM = (opts && isFinite(opts.pullCompensation)) ? opts.pullCompensation : (params.pullCompensation || 0);
     var adjustLast = !(params && params.adjustLastStitch === false);
@@ -31820,7 +31840,19 @@ function _thinShortStitches(pts, minPx) {
        die Reihe die Kante nicht (bei dichtem Raster ≤0.35mm sichtbar). An echten
        Spitzen (Anker fallen <0.12mm zusammen) wird weiter ausgedünnt = Nadelschutz. */
     var _thr = p._edge ? Math.min(minPx, _mm2px(0.12)) : minPx;
-    if (Math.hypot(p.x - last.x, p.y - last.y) < _thr) continue; /* gestapelt → weglassen */
+    if (Math.hypot(p.x - last.x, p.y - last.y) < _thr) {
+      /* [VT-UIFIX v1] U-TURN-SCHUTZ bei dichtem Raster: ein _edge-Anker, der zwar
+         nah am letzten Punkt liegt (Reihenabstand < 0.12mm → U-Turn-Anker zweier
+         Reihen fallen <0.12mm zusammen), dessen NACHFOLGER aber weit weg ist, ist
+         ein Reihen-Umkehrpunkt — KEINE Spitzen-Stapelung. Wegwerfen würde den
+         vertikalen U-Turn zur langen Diagonale machen (schraege/gekreuzte Reihen,
+         der Effekt verdoppelt sich beim Export). Nur droppen, wenn auch der
+         Nachfolger nah liegt (echtes Knaeuel an einer Spitze = Nadelschutz). */
+      var _nxt = pts[i + 1];
+      var _isUturn = p._edge && _nxt && !_nxt.jump &&
+                     Math.hypot(_nxt.x - last.x, _nxt.y - last.y) > minPx;
+      if (!_isUturn) continue; /* gestapelt → weglassen */
+    }
     out.push(p);
   }
   return out;
@@ -32477,7 +32509,7 @@ function _stitchScanFillD(d, shape, opts) {
   var out = [];
   try {
     var params = (shape.stitch && shape.stitch.params) || {};
-    var rowSp = _mm2px((opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (isFinite(params.rowSpacing) ? params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM)); /* [VT-STITCH-F8 v1] war 0.4 */
+    var rowSp = _mm2px(Math.max(0.1, (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (isFinite(params.rowSpacing) ? params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM))); /* [VT-STITCH-F8 v1] war 0.4; [VT-UIFIX v1] Boden 0.1mm (Inkstitch-Paritaet) */
     if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.4);
     var stLen = _mm2px((opts && isFinite(opts.stitchLength)) ? opts.stitchLength : (isFinite(params.stitchLength) ? params.stitchLength : 2.5));
     if (!(stLen > _mm2px(0.8))) stLen = _mm2px(2.5);
@@ -32747,7 +32779,7 @@ function _calcSpiralFillStitch(shape, opts) {
     try { _setupFillPath(shape); } catch(eS){console.warn('[vt:swallowed]',eS)}
     function inside(x, y) { return _fillPointInsideShape(shape, x, y, hasSVGPath, outline, nEdges); }
     var params = (shape.stitch && shape.stitch.params) || {};
-    var rowSp = _mm2px((opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (isFinite(params.rowSpacing) ? params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM)); /* [VT-STITCH-F8 v1] war 0.4 */
+    var rowSp = _mm2px(Math.max(0.1, (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (isFinite(params.rowSpacing) ? params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM))); /* [VT-STITCH-F8 v1] war 0.4; [VT-UIFIX v1] Boden 0.1mm (Inkstitch-Paritaet) */
     if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.4);
     var stLen = _mm2px((opts && isFinite(opts.stitchLength)) ? opts.stitchLength : (isFinite(params.stitchLength) ? params.stitchLength : 3));
     if (!(stLen > _mm2px(0.8))) stLen = _mm2px(3);
@@ -35967,30 +35999,58 @@ function _dstCleanupQuantizedRun(qRun) {
     var nearLine = _dstPointToSegDist(cur, prev, next) <= 0.75;
     var minU = (window._stitchGlobal && window._stitchGlobal.minStitchLenUnits) || 3;
     var isMicro = dPrev > 0 && dPrev < minU || dNext > 0 && dNext < minU;
-    if (isMicro && dDirect <= 35 && nearLine) {
+    /* [VT-UIFIX v1 R15] Mikro-Punkt nur entfernen, wenn das Weglassen KEINE lange
+       flache Diagonale erzeugt. Zwei sichere Faelle:
+         (a) nearLine = cur liegt ~kollinear (perp <= 0.75) auf prev->next -> Wegfall
+             verschiebt den Pfad praktisch nicht (kollineare Resampling-Punkte).
+         (b) dDirect <= minU*2 = der Ersatz-Stich prev->next ist selbst sehr kurz
+             (lokaler Mikro-Stub, z.B. winziges Resampling-Zickzack) -> harmlos.
+       SONST (perp > 0.75 UND langer Ersatz-Stich) ist cur eine Reihen-Umkehr-Ecke:
+       BEHALTEN, sonst wird der vertikale U-Turn zur schraegen Diagonale (Lukas: dichtes
+       0.1mm-Raster, jede 2. Reihe ein Querschlaeger). Der Eckpunkt weicht zwar nur ~0.1mm
+       von prev->next ab, aber als ~3mm-Stich im 0.1mm-Reihenraster wirkt das als Diagonale.
+       Ersetzt den frueheren cosTurn-Knick-Pfad, der die Ecke je nach Run-Reihenfolge im
+       Export faelschlich als sanften Knick (cosTurn > 0.5) ausduennte. Round-13-Schutz
+       bleibt: Reihen-Ende-Ecken (perp >= Reihen-Schritt > 0.75, langer Arm) bleiben. */
+    if (isMicro && dDirect <= 35 && (nearLine || dDirect <= minU * 2)) {
       continue;
-    }
-    /* [micro-knick v1] Mikro-Reststuecke (Resampling-Endsegmente) auch an KNICKEN ausduennen -
-       der nearLine-Pfad oben erwischt nur kollineare Punkte. Die Abweichung beim Wegfall ist
-       maximal die Stub-Laenge (< minU = 0.3 mm, unter der Fadenbreite). Haarnadel-Wenden
-       (Satin-Umkehr, echte Spitzen - das "benigne" Muster der Qualitaetspruefung: beide
-       Nachbar-Arme lang + Richtungsumkehr) bleiben erhalten, ebenso Randlagen ohne Anker. */
-    if (isMicro && dDirect <= 35) {
-      var prevAnchor2 = out.length >= 2 ? out[out.length - 2] : null;
-      var nextAnchor2 = i + 2 < qRun.length ? qRun[i + 2] : null;
-      var hairpin = true; /* konservativ: ohne beide Anker behalten */
-      if (prevAnchor2 && nextAnchor2) {
-        var liX = prev.x - prevAnchor2.x, liY = prev.y - prevAnchor2.y;
-        var loX = nextAnchor2.x - next.x, loY = nextAnchor2.y - next.y;
-        var liL = Math.hypot(liX, liY), loL = Math.hypot(loX, loY);
-        hairpin = liL >= 8 && loL >= 8 && (liX * loX + liY * loY) / (liL * loL) < -0.45;
-      }
-      if (!hairpin) continue;
     }
     out.push(cur);
   }
   var tail = qRun[qRun.length - 1];
   if (tail.x !== out[out.length - 1].x || tail.y !== out[out.length - 1].y) out.push(tail);
+  return out;
+}
+
+/* [VT-UIFIX v1 R15] Flache reihenuebergreifende Diagonalen -> achsenparallele Ecke.
+   Bei sehr dichtem Raster erzeugt der Export (Quantisierung/Run-Verkettung der sauberen
+   needlePoints) gelegentlich einen Stich, der von einem Reihen-Ende flach (dy 1-3 Einheiten
+   = 0.1-0.3mm) ueber dx>=8 Einheiten in eine Nachbarreihe laeuft - die needlePoints selbst
+   sind senkrechte U-Turns, der Querschlaeger entsteht erst hier. So ein Stich wirkt im
+   0.1mm-Reihenraster als sichtbare Diagonale quer ueber mehrere Reihen-Linien. Fix: den
+   fehlenden Eckpunkt (senkrecht auf die Zielreihe, dann waagrecht) wieder einsetzen ->
+   vertikaler Mini-Schritt + Reihen-Segment statt Diagonale. SELBST-GATE: nur wenn die
+   Mehrheit der langen Segmente nahezu waagrecht ist (= achsen-parallele Reihen, angle~0/90);
+   gedrehte Fuellungen (45° etc.) bleiben voellig unangetastet. Deterministisch, Stagger
+   bleibt erhalten (nur die Reihen-Umkehr wird begradigt). */
+function _dstReinsertShallowRowCorners(run) {
+  if (!run || run.length < 3) return run;
+  var horiz = 0, tot = 0;
+  for (var k = 1; k < run.length; k++) {
+    if (run[k].jump || run[k - 1].jump) continue;
+    var ddx = Math.abs(run[k].x - run[k - 1].x), ddy = Math.abs(run[k].y - run[k - 1].y);
+    if (ddx >= 8) { tot++; if (ddy <= 1) horiz++; }
+  }
+  if (tot < 4 || horiz / tot < 0.5) return run;   /* keine waagrechten Reihen -> nicht eingreifen */
+  var out = [run[0]];
+  for (var i = 1; i < run.length; i++) {
+    var a = out[out.length - 1], b = run[i];
+    if (!a.jump && !b.jump) {
+      var dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+      if (dy === 1 && dx >= 8) out.push({ x: a.x, y: b.y });   /* [VT-UIFIX v1 R16] NUR dy=1 (=0.1mm-Raster, senkrechte Mini-Schritte unsichtbar). Frueher dy<=8 -> auf gekruemmten/schraegen Kanten (Gecko) wurden die Bogen-Uebergaenge zu sichtbaren 0.4mm-TREPPEN (Lukas). Ab >=0.2mm jetzt natuerliche Bogen-Diagonale statt Treppe. Eck-Anker: senkrecht auf Zielreihe. */
+    }
+    out.push(b);
+  }
   return out;
 }
 
@@ -36500,7 +36560,7 @@ function _stitchExportDstBody(skipDownload) {
     for (var ri = 0; ri < es.runs.length; ri++) {
       var run = es.runs[ri];
       if (!run || !run.length) continue;
-      var qRun = _dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY));
+      var qRun = _dstReinsertShallowRowCorners(_dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY))); /* [VT-UIFIX v1 R15] flache Reihen-Diagonalen begradigen */
       if (!qRun.length) continue;
       var firstQ = qRun[0];
       var firstPx = run[0];
@@ -36621,10 +36681,12 @@ function _stitchExportDstBody(skipDownload) {
   var lastDstX = 0, lastDstY = 0;
   var stitchCount = 0;
   var _dstTieInDone = false; /* [dst-quality v1] */
+  var _lastRealDx = 1, _lastRealDy = 0; /* [VT-UIFIX v1 R15] Richtung des letzten echten Stichs (fuer Tie-Off nach innen) */
 
   for (var si = 0; si < dstPts.length; si++) {
     var dx = dstPts[si].x - lastDstX;
     var dy = dstPts[si].y - lastDstY;
+    var _odx = dx, _ody = dy; /* [VT-UIFIX v1 R15] Original-Delta vor dem Split = Stich-Richtung */
     var isJump = dstPts[si].jump || false;
     var isCC = dstPts[si].colorChange || false;
     var forceEmit = dstPts[si].forceEmit || false;
@@ -36636,13 +36698,19 @@ function _stitchExportDstBody(skipDownload) {
        Risk)"; die Shape-Locks (M1) decken nicht jeden Fall ab. */
     if (!isJump && !isCC && !_dstTieInDone) {
       _dstTieInDone = true;
-      var tieInA = _dstEncodeStitch(-4, 0, false, false);
-      stitchBytes.push(tieInA[0], tieInA[1], tieInA[2]);
-      var tieInB = _dstEncodeStitch(8, 0, false, false);
-      stitchBytes.push(tieInB[0], tieInB[1], tieInB[2]);
-      var tieInC = _dstEncodeStitch(-4, 0, false, false);
-      stitchBytes.push(tieInC[0], tieInC[1], tieInC[2]);
-      stitchCount += 3;
+      /* [VT-UIFIX v1 R15] Tie-In NACH INNEN (Lukas: Lock-Stitches in die Form versetzen).
+         Frueher fix -4/+8/-4 horizontal -> ragte an der Kante aus der Form. Jetzt entlang
+         der Richtung des ERSTEN echten Stichs (zeigt vom Rand-Startpunkt ins Innere): 4
+         Mikro-Stiche +u,-u,+u,-u (netto 0, Position bleibt fuer den echten Stich), die auf
+         dem Start->Erststich-Segment liegen = innerhalb der Form. */
+      var _til = Math.hypot(_odx, _ody) || 1;
+      var _tix = Math.round(_odx / _til * 4), _tiy = Math.round(_ody / _til * 4);
+      if (_tix === 0 && _tiy === 0) { _tix = 4; _tiy = 0; }
+      var ti1 = _dstEncodeStitch(_tix, _tiy, false, false); stitchBytes.push(ti1[0], ti1[1], ti1[2]);
+      var ti2 = _dstEncodeStitch(-_tix, -_tiy, false, false); stitchBytes.push(ti2[0], ti2[1], ti2[2]);
+      var ti3 = _dstEncodeStitch(_tix, _tiy, false, false); stitchBytes.push(ti3[0], ti3[1], ti3[2]);
+      var ti4 = _dstEncodeStitch(-_tix, -_tiy, false, false); stitchBytes.push(ti4[0], ti4[1], ti4[2]);
+      stitchCount += 4;
     }
 
     /* Break large movements into multiple pieces. For positioning JUMPs:
@@ -36670,6 +36738,7 @@ function _stitchExportDstBody(skipDownload) {
     stitchBytes.push(enc2[0], enc2[1], enc2[2]);
     lastDstX += dx; lastDstY += dy;
     stitchCount++;
+    if (!isJump && !isCC && (_odx !== 0 || _ody !== 0)) { _lastRealDx = _odx; _lastRealDy = _ody; } /* [VT-UIFIX v1 R15] Richtung fuer Tie-Off merken */
   }
   /* [dst-quality v1] fertige Stitch-Bytes fuer Diagnose exponieren
      (Memory-Lehre: bei DST-Fragen immer die .dst dekodieren) */
@@ -36680,13 +36749,17 @@ function _stitchExportDstBody(skipDownload) {
      Pattern (-2, +4, -2 DST-Units = ±0.4 mm). Sitzt direkt VOR dem EOF-Marker und
      ergibt netto-0 Position, sodass die letzte Stitch-Position erhalten bleibt. */
   if (stitchCount > 0) {
-    var tieEnc1 = _dstEncodeStitch(-4, 0, false, false);
-    stitchBytes.push(tieEnc1[0], tieEnc1[1], tieEnc1[2]);
-    var tieEnc2 = _dstEncodeStitch(8, 0, false, false);
-    stitchBytes.push(tieEnc2[0], tieEnc2[1], tieEnc2[2]);
-    var tieEnc3 = _dstEncodeStitch(-4, 0, false, false);
-    stitchBytes.push(tieEnc3[0], tieEnc3[1], tieEnc3[2]);
-    stitchCount += 3;
+    /* [VT-UIFIX v1 R15] Tie-Off NACH INNEN: entlang der RUECKwaerts-Richtung des letzten
+       echten Stichs (zeigt vom Rand-Endpunkt zurueck ins Innere) statt fix -4/+8/-4 horizontal.
+       4 Mikro-Stiche netto 0, bleiben innerhalb der Form (retrace des letzten Stichs). */
+    var _tol = Math.hypot(_lastRealDx, _lastRealDy) || 1;
+    var _tox = Math.round(-_lastRealDx / _tol * 4), _toy = Math.round(-_lastRealDy / _tol * 4);
+    if (_tox === 0 && _toy === 0) { _tox = -4; _toy = 0; }
+    var to1 = _dstEncodeStitch(_tox, _toy, false, false); stitchBytes.push(to1[0], to1[1], to1[2]);
+    var to2 = _dstEncodeStitch(-_tox, -_toy, false, false); stitchBytes.push(to2[0], to2[1], to2[2]);
+    var to3 = _dstEncodeStitch(_tox, _toy, false, false); stitchBytes.push(to3[0], to3[1], to3[2]);
+    var to4 = _dstEncodeStitch(-_tox, -_toy, false, false); stitchBytes.push(to4[0], to4[1], to4[2]);
+    stitchCount += 4;
   }
   /* End-of-file marker */
   stitchBytes.push(0x00, 0x00, 0xF3);
@@ -37105,6 +37178,15 @@ function _simUpdateProgress(idx, total) {
      `state` const+IIFE-scoped ist und ausserhalb der Main-IIFE nicht
      existiert — frühere Variante war silent no-op. */
   function _v44BulkSetParam(paramName, value) {
+    /* [VT-UIFIX v1] Aktuellen Wert fuer NEU gezeichnete Shapes merken (Lukas: neue Zeichnungen nutzten
+       alte Params). In die Presets schreiben - version-gated _stitchApplyTypePreset clobbert bestehende
+       Shapes NICHT (die sind _paramPresetVersion 4). Stil/Verbindung stehen nicht in den Presets -> gezielt. */
+    try {
+      var _tps = ['fill','satin','satincol','zigzag','running','bean'];
+      for (var _ti = 0; _ti < _tps.length; _ti++) { var _pp = _STITCH_TYPE_PRESETS[_tps[_ti]]; if (_pp && Object.prototype.hasOwnProperty.call(_pp, paramName)) _pp[paramName] = value; }
+      if (paramName === 'fillStyle')   { _STITCH_TYPE_PRESETS.fill.fillStyle = value; }
+      if (paramName === 'fillConnect') { _STITCH_TYPE_PRESETS.fill.fillConnect = value; window._fillConnect = value; }
+    } catch (e) { console.warn('[vt:swallowed]', e); }
     var ss = (typeof window !== 'undefined' && window.shapes) ? window.shapes : null;
     if (!ss || !ss.length) return 0;
     var hits = 0;
@@ -38095,7 +38177,7 @@ window.__LINEA_DEBUG__ = {
     <!-- v44: Globale Parameter — kompakt, alle Fill-Params. Wirken auf
          ALLE Shapes des Designs. Wird im merged Modus an den top des
          stitchPanel-Head verschoben (siehe _v44SyncStitchPanelInModal). -->
-    <h3 id="dstvGlobalParamsTitle" title="Einstellungen ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:none;"><span id="dgpCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Einstellungen</span><!-- [stickhead v1] Neu berechnen + Auto auf gleicher Höhe wie die Überschrift, Auto ganz rechts --><span id="dstvGpHeadActions" style="margin-left:auto;display:flex;align-items:center;gap:var(--space-4);cursor:default;"><button id="dstvResetView" title="Ansicht/Zoom zur&uuml;cksetzen (R)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></span></h3>
+    <h3 id="dstvGlobalParamsTitle" title="Einstellungen ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:none;"><span id="dgpCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Einstellungen</span><!-- [VT-UIFIX v1] Aktions-Buttons (Zurücksetzen/Neu berechnen/Auto) von hier unter "Verbindung" verschoben --></h3>
     <div class="dstv-grp dgp-compact" id="dstvGlobalParams" style="background:var(--white);border-bottom:1px solid var(--border);padding:var(--space-3) var(--space-6) var(--space-4);">
       <!-- Globaler Stichtyp — bulk-apply auf alle Shapes.
            Vektortool Ink: nur Füllstich, daher ausgeblendet (display:none). -->
@@ -38106,7 +38188,7 @@ window.__LINEA_DEBUG__ = {
         </select>
       </div>
       <!-- Grid: label | input | value -->
-      <div style="display:grid;grid-template-columns:auto 1fr 56px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
+      <div style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
         <!-- v50: Versatz-Slider entfernt (nicht mehr benoetigt). Stagger
              laeuft fest ueber das lineare 4er-Verfahren, _stitchOffsetAmount=0. -->
 
@@ -38116,108 +38198,122 @@ window.__LINEA_DEBUG__ = {
           <option value="parallel">Parallel (Reihen)</option>
           <option value="spiral">Kontur (folgt Form)</option>
         </select>
-        <span></span>
 
         <!-- Verbindung: wie Sprünge/Übergänge zwischen Bereichen geführt werden.
              [kontur-connect-sichtbar v1] immer sichtbar (Lukas 2026-06-10);
              der fuellstil-kongruenz-v1-Wrapper #dgpFillConnectRow bleibt als Hook. -->
         <div id="dgpFillConnectRow" style="display:contents">
-        <label style="font-weight:600;">Verbindung</label><!-- [tooltip-raus v1] Kacheln + Untertexte erklaeren die Verbindung, kein title mehr (Lukas) -->
+        <label id="dgpVerbindungLabel" style="font-weight:600;">Verbindung</label><!-- [tooltip-raus v1] [VT-UIFIX v1] (i)-Verweis wieder da (Lukas): erklaert wie der Faden zwischen Elementen wandert -->
         <select id="dgpFillConnect" style="font-size:var(--fs-sm);padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);color:var(--fg);background:var(--white);">
           <option value="jump">Sprünge (getrimmt)</option>
           <option value="continuous" selected>Durchgehend</option>
         </select>
-        <span></span>
 
         </div><!-- /dgpFillConnectRow -->
 
-        <!-- Winkel (angle) — neu, war nur im Parameter-Tab -->
+        <!-- [VT-UIFIX v1] Trennlinie direkt nach den Verbindungs-Kacheln (Lukas) -->
+        <div style="grid-column:1 / -1;border-top:1px dashed var(--border);margin:2px 0 4px;"></div>
+
+        <!-- [VT-UIFIX v1] Zurücksetzen / Neu berechnen / Auto aus der Titelzeile hierher (unter Verbindung) verschoben (Lukas) -->
+        <div id="dstvGpHeadActions" style="grid-column:1 / -1;display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin-top:2px;margin-bottom:2px;"><button id="dstvResetView" title="Ansicht/Zoom zur&uuml;cksetzen (R)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></div>
+
+        <!-- [VT-UIFIX v1] Reihenfolge + Begriffe (Lukas): Abstand zwischen Reihen / Abstand zwischen Stichen / Winkel -->
+        <!-- Zeilenabstand (rowSpacing) -->
+        <label title="Abstand zwischen Stich-Reihen (kleiner = dichter)" style="font-weight:600;">Abstand zwischen Reihen</label>
+        <input id="dgpRowSpacing" type="range" min="0.10" max="1.00" value="0.3" step="0.1" style="accent-color:var(--fg);">
+        <span id="dgpRowSpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
+
+        <!-- Stichlänge (stitchLength) -->
+        <label title="Länge eines einzelnen Stichs" style="font-weight:600;">Abstand zwischen Stichen</label>
+        <input id="dgpStitchLength" type="range" min="1.0" max="6.0" value="3.0" step="0.1" style="accent-color:var(--fg);">
+        <span id="dgpStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">3.0 mm</span>
+
+        <!-- Winkel (angle) -->
         <label title="Stick-Richtung in Grad. 0=horizontal, 90=vertikal." style="font-weight:600;">Winkel</label>
         <input id="dgpAngle" type="range" min="0" max="180" value="0" step="5" style="accent-color:var(--fg);">
         <span id="dgpAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0°</span>
 
-        <!-- Zeilenabstand -->
-        <label title="Abstand zwischen Stich-Reihen (kleiner = dichter)" style="font-weight:600;">Reihe</label>
-        <input id="dgpRowSpacing" type="range" min="0.10" max="0.80" value="0.3" step="0.01" style="accent-color:var(--fg);">
-        <span id="dgpRowSpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
-
-        <!-- Stichlänge -->
-        <label title="Länge eines einzelnen Stichs" style="font-weight:600;">Stich</label>
-        <input id="dgpStitchLength" type="range" min="1.0" max="6.0" value="3.0" step="0.1" style="accent-color:var(--fg);">
-        <span id="dgpStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">3.0 mm</span>
-
-        <!-- Pull-Kompensation -->
-        <label title="Korrigiert den Faden-Zug — verschiebt Stiche nach aussen" style="font-weight:600;">Pull</label>
-        <input id="dgpPullComp" type="range" min="-0.3" max="0.5" value="-0.1" step="0.01" style="accent-color:var(--fg);"><!-- [stickui-pull v1] min auf -0.3: der echte Default ist -0.1 (Kanten-Spikes/Halo + Dichte), der war mit min=0 unsichtbar -->
-        <span id="dgpPullCompVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">-0.10 mm</span>
-
-        <!-- vt: Zufaelliger Versatz — bricht die diagonalen Punkt-Korridore (Moiré) im Parallel-Fuellstil.
-             Schaltet global window._stitchOffsetAmount ein (Zufalls-Phase pro Reihe statt festem 4er-Stagger). -->
-        <label title="Streut die Stich-Reihen gleichmaessig (Blue-Noise, golden ratio) statt im festen 4er-Treppenmuster. Bricht die diagonalen Punkt-Linien UND vermeidet Anhaeufungen — reiner Zufall wuerde clumpen, gleichmaessige Streuung nicht." style="font-weight:600;">Versatz</label>
-        <label style="display:flex;align-items:center;gap:var(--space-3);cursor:pointer;font-weight:600;">
-          <input id="dgpRandomOffset" type="checkbox" checked style="cursor:pointer;">
-          <span>Gestreut (bricht Diagonalen)</span>
+        <!-- [VT-UIFIX v1] Pull-Kompensation: Label "Pull" mit EINEM Zahnrad + (i); Schieber (wie Stich) erst auf Zahnrad-Klick (Lukas) -->
+        <label id="dgpPullLabel" style="font-weight:600;display:flex;align-items:center;gap:var(--space-2);">
+          <span>Pull</span>
+          <button id="dgpPullGear" type="button" title="Pull-Kompensation ein-/ausklappen" aria-label="Pull-Kompensation ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
         </label>
+        <input id="dgpPullComp" class="dgpPullSlider" type="range" min="-0.3" max="0.5" value="-0.1" step="0.01" style="display:none;accent-color:var(--fg);"><!-- [stickui-pull v1] min auf -0.3: der echte Default ist -0.1 (Kanten-Spikes/Halo + Dichte), der war mit min=0 unsichtbar -->
+        <span id="dgpPullCompVal" class="dgpPullSlider" style="display:none;font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">-0.10 mm</span>
+
+        <!-- [VT-UIFIX v1] Versatz "Gestreut (bricht Diagonalen)" wird jetzt unten links neben Abschlusskontur gerendert (Lukas: "drin lassen, links neben kontur"); #dgpRandomOffset lebt dort. -->
         <!-- [viewer-ui3 v1] Wuerfel/Seed-Reroll ausgeblendet; Element bleibt fuer die JS-Refs (click-Handler, style.visibility-Setter) im DOM, display:none gewinnt. -->
         <button id="dgpRandomOffsetReroll" title="Andere Streuung wuerfeln" style="display:none;font-size:var(--fs-base);line-height:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;visibility:visible;">🎲</button>
       </div>
 
-      <!-- Underlay-Block: Toggle + Sub-Params nur sichtbar wenn Underlay aktiv -->
-      <div style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--border);">
-        <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;margin-bottom:4px;">
-          <input id="dgpUnderlay" type="checkbox" checked style="cursor:pointer;">
-          <span>Underlay</span>
-          <!-- "Rand anpassen" (adjustLastStitch) aus dem UI entfernt — bleibt intern auf an (Default).
-               Verstecktes Input erhalten, damit bestehendes JS-Wiring nicht ins Leere greift. -->
-          <input id="dgpAdjustLast" type="checkbox" checked style="display:none;">
+      <!-- [VT-UIFIX v1] Stick-Optionen GESTAPELT (Lukas: "untereinander"), eine Trennlinie + einheitliche Abstaende (var(--space-3)); je Toggle ggf. Sub eingerueckt darunter. -->
+      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:var(--space-3);">
+        <!-- Underlay -->
+        <div>
+          <div style="display:flex;align-items:center;gap:var(--space-2);">
+            <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;">
+              <input id="dgpUnderlay" type="checkbox" checked style="cursor:pointer;">
+              <span>Underlay</span>
+              <!-- "Rand anpassen" (adjustLastStitch) aus dem UI entfernt — bleibt intern auf an (Default). -->
+              <input id="dgpAdjustLast" type="checkbox" checked style="display:none;">
+            </label>
+            <button id="dgpUnderlayGear" type="button" title="Underlay-Einstellungen ein-/ausklappen" aria-label="Underlay-Einstellungen ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
+          </div>
+          <!-- [underlay-neutral v1] Underlay-Sub neutral; [VT-UIFIX v1] eingeklappt, Zahnrad oeffnet -->
+          <div id="dgpUnderlaySub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
+            <label title="Winkel der Underlay-Reihen (typ. 90° zum Main-Fill)">Winkel</label>
+            <input id="dgpUnderlayAngle" type="range" min="0" max="180" value="90" step="5" style="accent-color:var(--fg);">
+            <span id="dgpUnderlayAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">90°</span>
+
+            <label title="Abstand zwischen Underlay-Reihen">Reihe</label>
+            <input id="dgpUnderlaySpacing" type="range" min="1.0" max="6.0" value="4.5" step="0.1" style="accent-color:var(--fg);">
+            <span id="dgpUnderlaySpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">4.5 mm</span>
+
+            <label title="Stichlänge der Underlay-Stiche">Stich</label>
+            <input id="dgpUnderlayStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
+            <span id="dgpUnderlayStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
+          </div>
+        </div>
+        <!-- Faden trimmen -->
+        <div>
+          <div style="display:flex;align-items:center;gap:var(--space-2);">
+            <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Lange Sprünge werden geschnitten, sofern die Maschine dies unterstützt. (Sprünge länger als die Schwelle werden beim Export geschnitten, kein Faden quer über die Form; aus = lange Verbindungsfäden bleiben.)">
+              <input id="toplineTrim" type="checkbox" style="cursor:pointer;">
+              <span>✂ Faden trimmen</span>
+            </label>
+            <button id="dgpTrimGear" type="button" title="Trim-Schwelle ein-/ausklappen" aria-label="Trim-Schwelle ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
+          </div>
+          <!-- [VT-UIFIX v1] Faden-trimmen Schwellen-Sub (per #dgpTrimGear) -->
+          <div id="dgpTrimSub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
+            <label title="Schwelle in mm: Sprünge länger als dieser Wert werden geschnitten">Schwelle</label>
+            <input id="toplineTrimMM" type="range" min="2" max="100" value="10" step="1" style="accent-color:var(--fg);" title="Schwelle in mm" aria-label="Trim-Schwelle in mm">
+            <span id="toplineTrimMMVal" style="text-align:right;font-family:'SF Mono',Menlo,monospace;font-weight:700;">10 mm</span>
+          </div>
+        </div>
+        <!-- Versatz (kein Sub) -->
+        <label id="dgpVersatzLabel" style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Versatz: streut die Stich-Reihen gleichmaessig (Blue-Noise) statt im festen 4er-Treppenmuster. Bricht die diagonalen Punkt-Linien im Parallel-Fuellstil.">
+          <input id="dgpRandomOffset" type="checkbox" checked style="cursor:pointer;">
+          <span>Versatz</span>
         </label>
-        <!-- [underlay-neutral v1] Underlay-Sub neutral (var(--fg)) statt USP-Orange
-             (--usp/--usp-tx) - wirkte wie eine Warnung, ist aber keine. -->
-        <div id="dgpUnderlaySub" style="display:grid;grid-template-columns:auto 1fr 56px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;">
-          <label title="Winkel der Underlay-Reihen (typ. 90° zum Main-Fill)">Winkel</label>
-          <input id="dgpUnderlayAngle" type="range" min="0" max="180" value="90" step="5" style="accent-color:var(--fg);">
-          <span id="dgpUnderlayAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">90°</span>
-
-          <label title="Abstand zwischen Underlay-Reihen">Reihe</label>
-          <input id="dgpUnderlaySpacing" type="range" min="1.0" max="6.0" value="4.5" step="0.1" style="accent-color:var(--fg);">
-          <span id="dgpUnderlaySpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">4.5 mm</span>
-
-          <label title="Stichlänge der Underlay-Stiche">Stich</label>
-          <input id="dgpUnderlayStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
-          <span id="dgpUnderlayStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
+        <!-- Abschlusskontur -->
+        <div>
+          <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Abschlusskontur: ein Laufstich entlang der Form-Kontur wird NACH der Fuellung gestickt. Deckt die Reihen-Enden am Rand ab (glatte Aussenkante), wie der Schlichtgang beim CNC-Fraesen.">
+            <input id="dgpOutline" type="checkbox" style="cursor:pointer;">
+            <span>Abschlusskontur</span>
+          </label>
+          <div id="dgpOutlineSub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
+            <label title="Stichlaenge des Kontur-Laufstichs">Stich</label>
+            <input id="dgpOutlineStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
+            <span id="dgpOutlineStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
+          </div>
         </div>
       </div>
 
-      <!-- [fill-endkante v1] Abschlusskontur: Laufstich entlang der Form-Kontur NACH der Fuellung
-           (CNC-"Finishing Pass"). Engine (params.outline -> _withFillOutline) und dstv-Wiring
-           (_dgpApplyParam('outline'/'outlineStitchLength'), Sync, Sub-Visibility) existieren
-           bereits - hier nur das fehlende HTML mit den vom Wiring erwarteten IDs. -->
-      <div id="dgpOutlineRow" style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--border);">
-        <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;margin-bottom:4px;" title="Abschlusskontur: ein Laufstich entlang der Form-Kontur wird NACH der Fuellung gestickt. Deckt die Reihen-Enden am Rand ab (glatte Aussenkante), wie der Schlichtgang beim CNC-Fraesen.">
-          <input id="dgpOutline" type="checkbox" style="cursor:pointer;">
-          <span>Abschlusskontur</span>
-        </label>
-        <div id="dgpOutlineSub" style="display:none;grid-template-columns:auto 1fr 56px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;">
-          <label title="Stichlaenge des Kontur-Laufstichs">Stich</label>
-          <input id="dgpOutlineStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
-          <span id="dgpOutlineStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
-        </div>
-      </div>
-      <!-- [stickui-fs-trim v1] Faden-Trimmen — aus der Topline hierher verschoben (weniger prominent) -->
-      <div id="dgpTrimRow" style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--border);display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);">
-        <label style="display:flex;align-items:center;gap:var(--space-3);cursor:pointer;font-weight:600;white-space:nowrap;" title="Faden trimmen: Sprünge länger als die Schwelle werden beim Export geschnitten (kein Faden quer über die Form). Aus = lange Verbindungsfäden bleiben.">
-          <input id="toplineTrim" type="checkbox" checked style="cursor:pointer;">
-          <span>✂ Faden trimmen</span>
-        </label>
-        <input id="toplineTrimMM" type="range" min="2" max="100" value="10" step="1" style="flex:1;min-width:60px;accent-color:var(--fg);" title="Schwelle in mm" aria-label="Trim-Schwelle in mm">
-        <span id="toplineTrimMMVal" style="min-width:46px;text-align:right;font-family:'SF Mono',Menlo,monospace;font-weight:700;">10 mm</span>
-      </div>
-
-      <!-- Punkte Toggle (Render-only) + Apply-Status -->
-      <div style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);">
+      <!-- Punkte Toggle (Render-only) + Apply-Status [VT-UIFIX v1] ueberfluessige Trennlinie entfernt (Zaehler #dgpStitchCount darunter ist ausgeblendet) -->
+      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);">
         <!-- [stickui-dots v1] Sidebar-Toggle "Stich-Punkte anzeigen" (#dgpDotsToggle) entfernt -
              jetzt steuert nur noch die Topbar-Checkbox #dstvShowDots (Lukas: Dublette raus). -->
-        <span id="dgpStitchCount" style="font-family:'SF Mono',Menlo,monospace;color:var(--fg);font-size:var(--fs-xs);"></span><!-- [ux-feinschliff v2] -->
+        <span id="dgpStitchCount" style="display:none;font-family:'SF Mono',Menlo,monospace;color:var(--fg);font-size:var(--fs-xs);"></span><!-- [VT-UIFIX v1] Stichzaehler unter "Faden trimmen" ausgeblendet (Lukas: "den zähler unter trimmen"); Element bleibt fuer JS-Updater im DOM -->
       </div>
       <div id="dgpApplyStatus" style="margin-top:4px;font-size:var(--fs-xs);color:var(--fg2);font-style:italic;"></div><!-- [ux-feinschliff v2] -->
       <div id="dgpStickWarn" style="display:none;margin-top:6px;font-size:var(--fs-xs);color:var(--warn-tx);background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);line-height:1.5;"></div>
@@ -39235,7 +39331,11 @@ window.__LINEA_DEBUG__ = {
       parsed.records.length + ' / ' + parsed.records.length;
     _dstvUpdateSide();
     _dstvResize();
-    _dstvFit();
+    /* [VT-UIFIX v1] Zoom/Pan beim Recalc erhalten (Lukas: "zoom nicht bei jeder neuen einstellung anpassen").
+       NUR ueber fitDone steuern - NICHT ueber filename: der Recalc laeuft via _dstvAutoOpenWithBuffer mit
+       filename='vektortool-stickerei.dst' (nicht leer), das wuerde sonst jedes Mal fitten. fitDone wird
+       beim frischen Oeffnen (_dstvOpen) + bei externem Datei-Load zurueckgesetzt. */
+    if (!_dstvState.fitDone) { _dstvFit(); _dstvState.fitDone = true; }
     _dstvRender();
     _dstvRenderJumpReport();
   }
@@ -39311,6 +39411,7 @@ window.__LINEA_DEBUG__ = {
   function _dstvOpen() {
     var modal = document.getElementById('dstvModal');
     modal.classList.add('open');
+    _dstvState.fitDone = false; /* [VT-UIFIX v1] frisch geoeffnet -> erstes Laden fittet, danach Recalc Zoom erhalten */
     /* v50 FIX: Der Vorschau-Balken (.dstv-bot) lag im HTML in #dstvSide,
        das per CSS dauerhaft display:none ist → der Balken wurde mitversteckt
        (Kind eines display:none-Elements rendert nie, egal welches eigene CSS).
@@ -39611,6 +39712,7 @@ window.__LINEA_DEBUG__ = {
     document.getElementById('dstvFileInput').addEventListener('change', function(e) {
       var f = e.target.files[0];
       if (!f) return;
+      _dstvState.fitDone = false; /* [VT-UIFIX v1] externe Datei -> einpassen */
       f.arrayBuffer().then(function(buf) { _dstvLoadBuf(buf, f.name); });
     });
 
@@ -39646,7 +39748,7 @@ window.__LINEA_DEBUG__ = {
       setRadio('dgpRStyle', 'parallel');
       setRadio('dgpRConn', 'continuous');
       var rng = {dgpAngle:0, dgpRowSpacing:0.3, dgpStitchLength:3.0, dgpPullComp:-0.1, dgpUnderlayAngle:90, dgpUnderlaySpacing:4.5, dgpUnderlayStitchLength:2.5, dgpOutlineStitchLength:2.5, toplineTrimMM:10}; /* [rs-default-03 v1] */
-      var chk = {dgpRandomOffset:true, dgpUnderlay:true, dgpOutline:false, toplineTrim:true};
+      var chk = {dgpRandomOffset:true, dgpUnderlay:true, dgpOutline:false, toplineTrim:false}; /* [VT-UIFIX v1] Faden-Trimmen Standard aus */
       Object.keys(rng).forEach(function(id){ var el = document.getElementById(id); if (el){ el.value = rng[id]; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); } });
       Object.keys(chk).forEach(function(id){ var el = document.getElementById(id); if (el && el.checked !== chk[id]){ el.checked = chk[id]; el.dispatchEvent(new Event('change', {bubbles:true})); } });
       if (typeof _dstvFit === 'function') { _dstvFit(); _dstvRender(); }
@@ -39738,10 +39840,14 @@ window.__LINEA_DEBUG__ = {
       arCheckbox.addEventListener('change', function() {
         window._dstvAutoRecalc = !!this.checked;
         console.info('[v44] Auto-Recalc:', window._dstvAutoRecalc ? 'ON' : 'OFF');
-        /* Wenn gerade aktiviert UND debounced Recalc anstehend: sofort feuern */
-        if (this.checked && arDebouncer) {
-          clearTimeout(arDebouncer); arDebouncer = null;
+        /* [VT-UIFIX v1] Auto aktiviert -> Hinweis ausblenden + sofort neu berechnen; abgewaehlt -> Hinweis sofort setzen (Lukas) */
+        var _st = document.getElementById('dgpApplyStatus');
+        if (this.checked) {
+          if (_st) { _st.innerHTML = ''; _st.style.color = ''; }
+          if (arDebouncer) { clearTimeout(arDebouncer); arDebouncer = null; }
           if (typeof window._dstvReloadFromLinea === 'function') window._dstvReloadFromLinea();
+        } else {
+          if (_st) { _st.innerHTML = '<b style="color:#c87b1c;">⏸ Auto-Berechnung aus — "Neu berechnen" klicken</b>'; _st.style.color = '#c87b1c'; _st.style.fontStyle = 'normal'; }
         }
       });
     }
@@ -39852,7 +39958,7 @@ window.__LINEA_DEBUG__ = {
     modal.addEventListener('drop', function(e) {
       e.preventDefault(); document.body.classList.remove('dstv-dropzone-active');
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) f.arrayBuffer().then(function(buf) { _dstvLoadBuf(buf, f.name); });
+      if (f) { _dstvState.fitDone = false; /* [VT-UIFIX v1] externe Datei -> einpassen */ f.arrayBuffer().then(function(buf) { _dstvLoadBuf(buf, f.name); }); }
     });
 
     /* Keyboard: ESC to close, Space to play/pause, R to reset view. Only when modal open. */
@@ -39948,6 +40054,8 @@ window.__LINEA_DEBUG__ = {
       var _dgpDebounce = null;
       var _dgpDoneFlashTimer = null;
       function _dgpScheduleRefresh() {
+        /* [VT-UIFIX v1] Waehrend des Slider-Ziehens NICHT neu berechnen (Lukas) - erst beim Loslassen (s. _dgpRelease) */
+        if (window._dgpSliderActive) return;
         if (window._dstvAutoRecalc === false) {
           _dgpShowProgress('pending');
           if (dgpStatus) {
@@ -39986,6 +40094,28 @@ window.__LINEA_DEBUG__ = {
           });
         }, 350);
       }
+
+      /* [VT-UIFIX v1] Recalc erst beim LOSLASSEN des Sliders (Lukas: "während ich den slider bewege
+         noch nicht neu berechnen, erst wenn ich diesen loslasse"). Solange ein Range-Slider in
+         #dstvGlobalParams gezogen wird (pointerdown..pointerup) ist _dgpSliderActive=true und
+         _dgpScheduleRefresh() returnt frueh; beim Loslassen wird einmalig nachgeholt. Werte/Anzeige
+         aktualisieren live weiter (input-Handler), nur der DST-Rebuild wartet. */
+      (function() {
+        window._dgpSliderActive = false;
+        var gpBox = document.getElementById('dstvGlobalParams');
+        if (!gpBox) return;
+        gpBox.addEventListener('pointerdown', function(e) {
+          if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'range') window._dgpSliderActive = true;
+        }, true);
+        function _dgpRelease() {
+          if (window._dgpSliderActive) {
+            window._dgpSliderActive = false;
+            _dgpScheduleRefresh();
+          }
+        }
+        document.addEventListener('pointerup', _dgpRelease, true);
+        document.addEventListener('pointercancel', _dgpRelease, true);
+      })();
 
       /* Bulk-Apply Helper, ruft das vorhandene _v44ApplyParamToAllShapes auf
          (ohne dessen automatisches _stitchRecalcAll, weil DST-Reload das
@@ -40130,6 +40260,46 @@ window.__LINEA_DEBUG__ = {
         });
       }
       _updateOutlineSubVisibility();
+      /* [VT-UIFIX v1] Underlay + Faden trimmen: bei geoeffnetem Sub die beiden Einheiten untereinander stapeln
+         (#dgpUlTrimWrap auf 1fr), sonst nebeneinander (Lukas: "uebereinander anordnen") */
+      function _updateUlTrimLayout() {
+        var wrap = document.getElementById('dgpUlTrimWrap');
+        var us = document.getElementById('dgpUnderlaySub');
+        var ts = document.getElementById('dgpTrimSub');
+        var anyOpen = (us && us.dataset.open === '1') || (ts && ts.dataset.open === '1');
+        if (wrap) wrap.style.gridTemplateColumns = anyOpen ? '1fr' : '1fr 1fr';
+      }
+      /* [VT-UIFIX v1] Faden-Trimmen: Schwellen-Regler per Zahnrad #dgpTrimGear auf-/zuklappen (wie Underlay),
+         entkoppelt vom on/off-Haken. Status in sub.dataset.open. */
+      function _updateTrimSubVisibility() {
+        var sub = document.getElementById('dgpTrimSub');
+        if (sub) sub.style.display = (sub.dataset.open === '1') ? 'grid' : 'none';
+      }
+      var dgpTrimGear = document.getElementById('dgpTrimGear');
+      if (dgpTrimGear) dgpTrimGear.addEventListener('click', function() {
+        var sub = document.getElementById('dgpTrimSub');
+        if (!sub) return;
+        sub.dataset.open = (sub.dataset.open === '1') ? '0' : '1';
+        _updateTrimSubVisibility();
+        _updateUlTrimLayout();
+      });
+      _updateTrimSubVisibility();
+      /* [VT-UIFIX v1] Pull: nur ein Zahnrad #dgpPullGear; Klick blendet den Schieber (Ansicht wie Stich) ein/aus (Lukas) */
+      var dgpPullGear = document.getElementById('dgpPullGear');
+      function _updatePullVisibility() {
+        var open = dgpPullGear && dgpPullGear.dataset.open === '1';
+        var sl = document.getElementById('dgpPullComp');
+        var vl = document.getElementById('dgpPullCompVal');
+        if (sl) sl.style.display = open ? '' : 'none';
+        /* _dgpEnableManualEntry erzwingt das Wertfeld auf inline-block -> hier explizit ueberschreiben (Lukas: Balken erschien ohne Klick) */
+        if (vl) vl.style.display = open ? 'inline-block' : 'none';
+      }
+      if (dgpPullGear) dgpPullGear.addEventListener('click', function(e) {
+        e.preventDefault();
+        dgpPullGear.dataset.open = (dgpPullGear.dataset.open === '1') ? '0' : '1';
+        _updatePullVisibility();
+      });
+      _updatePullVisibility();
       /* v44: zusätzliche globale Params — Winkel + Underlay-Sub-Params */
       var dgpAng = document.getElementById('dgpAngle');
       var dgpAngV = document.getElementById('dgpAngleVal');
@@ -40167,14 +40337,22 @@ window.__LINEA_DEBUG__ = {
           _dgpApplyParam('underlayStitchLength', v);
         });
       }
-      /* Underlay-Sub-Params nur sichtbar wenn Underlay aktiv ist */
+      /* [VT-UIFIX v1] Underlay-Sub standardmaessig eingeklappt; Zahnrad #dgpUnderlayGear klappt auf/zu (Lukas).
+         Status in sub.dataset.open, entkoppelt vom on/off-Haken (#dgpUnderlay bleibt rein funktional). */
       function _updateUnderlaySubVisibility() {
         var sub = document.getElementById('dgpUnderlaySub');
-        var ul = document.getElementById('dgpUnderlay');
-        if (sub && ul) sub.style.display = ul.checked ? 'grid' : 'none';
+        if (sub) sub.style.display = (sub.dataset.open === '1') ? 'grid' : 'none';
       }
-      if (dgpUL) dgpUL.addEventListener('change', _updateUnderlaySubVisibility);
+      var dgpUlGear = document.getElementById('dgpUnderlayGear');
+      if (dgpUlGear) dgpUlGear.addEventListener('click', function() {
+        var sub = document.getElementById('dgpUnderlaySub');
+        if (!sub) return;
+        sub.dataset.open = (sub.dataset.open === '1') ? '0' : '1';
+        _updateUnderlaySubVisibility();
+        _updateUlTrimLayout();
+      });
       _updateUnderlaySubVisibility();
+      _updateUlTrimLayout();
 
       /* v50: "Globale Parameter" einklappbar — Klick auf den Titel blendet
          die ganze Parameter-Box aus, damit die Reihenfolge-Liste mehr Platz
@@ -40320,9 +40498,9 @@ window.__LINEA_DEBUG__ = {
           var dgpUSLEl = document.getElementById('dgpUnderlayStitchLength');
           var dgpUSLVEl = document.getElementById('dgpUnderlayStitchLengthVal');
           if (dgpUSLEl && isFinite(p.underlayStitchLength)) { dgpUSLEl.value = p.underlayStitchLength; if (dgpUSLVEl) dgpUSLVEl.textContent = Number(p.underlayStitchLength).toFixed(1) + ' mm'; }
-          /* Underlay-Sub-Params nach Sync-Check sichtbarkeit anpassen */
+          /* [VT-UIFIX v1] Underlay-Sub-Sichtbarkeit folgt dem Zahnrad-Status (sub.dataset.open), nicht dem on/off-Haken */
           var subEl = document.getElementById('dgpUnderlaySub');
-          if (subEl && dgpUL) subEl.style.display = dgpUL.checked ? 'grid' : 'none';
+          if (subEl) subEl.style.display = (subEl.dataset.open === '1') ? 'grid' : 'none';
           /* Abschlusskontur sync */
           var dgpOutlineEl = document.getElementById('dgpOutline');
           if (dgpOutlineEl) dgpOutlineEl.checked = p.outline === true;
@@ -40351,7 +40529,7 @@ window.__LINEA_DEBUG__ = {
              damit als anklickbares Feld erkennbar (Lukas: Striche reichen nicht). */
           span.style.cursor = 'text';
           span.style.display = 'inline-block';
-          span.style.minWidth = '3.4em';
+          span.style.minWidth = '4.2em'; /* [VT-UIFIX v1] Box etwas breiter, damit Wert+Einheit nicht heraustritt */
           span.style.padding = '1px 6px';
           span.style.border = '1px solid var(--border-strong)';
           span.style.borderRadius = 'var(--radius-xs)';
@@ -40385,6 +40563,8 @@ window.__LINEA_DEBUG__ = {
         });
       }
       _dgpEnableManualEntry();
+      /* [VT-UIFIX v1] Pull-Sichtbarkeit NACH _dgpEnableManualEntry erneut setzen - sonst bleibt das Wertfeld sichtbar (Lukas) */
+      if (typeof _updatePullVisibility === 'function') _updatePullVisibility();
     })();
 
     _dstvUpdateSide();
@@ -44811,7 +44991,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     <div class="vth-grid">
       <div class="vth-card" data-card="neuberechnen"><div class="vth-ill"><span class="vth-big">&#x21BB;</span><span class="vth-pill vth-pill2">&#x2713; Auto</span></div><p class="vth-t">Neu berechnen</p><p class="vth-s">Auto rechnet von selbst</p></div>
       <div class="vth-card" data-card="stil"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><line class="a" x1="10" y1="14" x2="50" y2="14"/><line class="a" x1="10" y1="21" x2="50" y2="21"/><line class="a" x1="10" y1="28" x2="50" y2="28"/><line class="a" x1="10" y1="35" x2="50" y2="35"/><line class="a" x1="10" y1="42" x2="50" y2="42"/><line class="b" x1="60" y1="10" x2="60" y2="46"/><rect class="a" x="68" y="12" width="42" height="32" rx="10"/><rect class="a" x="74" y="18" width="30" height="20" rx="7"/><rect class="a" x="80" y="24" width="18" height="8" rx="4"/></svg></div><p class="vth-t">Stil</p><p class="vth-s">Reihen oder der Form folgend</p></div>
-      <div class="vth-card vth-wide" data-card="verbindung"><svg viewBox="0 0 200 64" width="100%" aria-hidden="true"><path class="a" d="M6 10 H38 V30 H62 V10 H94 V52 H6 Z"/><circle class="af" cx="13" cy="17" r="1.9"/><circle class="af" cx="23" cy="17" r="1.9"/><circle class="af" cx="33" cy="17" r="1.9"/><circle class="af" cx="67" cy="17" r="1.9"/><circle class="af" cx="77" cy="17" r="1.9"/><circle class="af" cx="87" cy="17" r="1.9"/><circle class="af" cx="13" cy="25" r="1.9"/><circle class="af" cx="23" cy="25" r="1.9"/><circle class="af" cx="33" cy="25" r="1.9"/><circle class="af" cx="67" cy="25" r="1.9"/><circle class="af" cx="77" cy="25" r="1.9"/><circle class="af" cx="87" cy="25" r="1.9"/><circle class="af" cx="13" cy="35" r="1.9"/><circle class="af" cx="23" cy="35" r="1.9"/><circle class="af" cx="33" cy="35" r="1.9"/><circle class="af" cx="43" cy="35" r="1.9"/><circle class="af" cx="53" cy="35" r="1.9"/><circle class="af" cx="63" cy="35" r="1.9"/><circle class="af" cx="73" cy="35" r="1.9"/><circle class="af" cx="83" cy="35" r="1.9"/><circle class="af" cx="13" cy="44" r="1.9"/><circle class="af" cx="23" cy="44" r="1.9"/><circle class="af" cx="33" cy="44" r="1.9"/><circle class="af" cx="43" cy="44" r="1.9"/><circle class="af" cx="53" cy="44" r="1.9"/><circle class="af" cx="63" cy="44" r="1.9"/><circle class="af" cx="73" cy="44" r="1.9"/><circle class="af" cx="83" cy="44" r="1.9"/><line class="m" x1="35" y1="20" x2="65" y2="20" stroke-dasharray="3 2.5"/><path class="a" d="M106 10 H138 V30 H162 V10 H194 V52 H106 Z"/><circle class="af" cx="113" cy="17" r="1.9"/><circle class="af" cx="123" cy="17" r="1.9"/><circle class="af" cx="133" cy="17" r="1.9"/><circle class="af" cx="167" cy="17" r="1.9"/><circle class="af" cx="177" cy="17" r="1.9"/><circle class="af" cx="187" cy="17" r="1.9"/><circle class="af" cx="113" cy="25" r="1.9"/><circle class="af" cx="123" cy="25" r="1.9"/><circle class="af" cx="133" cy="25" r="1.9"/><circle class="af" cx="167" cy="25" r="1.9"/><circle class="af" cx="177" cy="25" r="1.9"/><circle class="af" cx="187" cy="25" r="1.9"/><circle class="af" cx="113" cy="35" r="1.9"/><circle class="af" cx="123" cy="35" r="1.9"/><circle class="af" cx="133" cy="35" r="1.9"/><circle class="af" cx="143" cy="35" r="1.9"/><circle class="af" cx="153" cy="35" r="1.9"/><circle class="af" cx="163" cy="35" r="1.9"/><circle class="af" cx="173" cy="35" r="1.9"/><circle class="af" cx="183" cy="35" r="1.9"/><circle class="af" cx="113" cy="44" r="1.9"/><circle class="af" cx="123" cy="44" r="1.9"/><circle class="af" cx="133" cy="44" r="1.9"/><circle class="af" cx="143" cy="44" r="1.9"/><circle class="af" cx="153" cy="44" r="1.9"/><circle class="af" cx="163" cy="44" r="1.9"/><circle class="af" cx="173" cy="44" r="1.9"/><circle class="af" cx="183" cy="44" r="1.9"/><path class="m" d="M134 26 C 140 46, 160 48, 166 24" stroke-dasharray="3.5 2.5"/></svg><div class="vth-cap"><span>Sprünge: mehr Fäden<br>zum Abschneiden</span><span>Durchgehend: kompakter, kann zu<br>dicht werden oder optisch stören</span></div><p class="vth-t">Verbindung</p></div>
+      <div class="vth-card vth-wide" data-card="verbindung"><svg viewBox="0 0 200 64" width="100%" aria-hidden="true"><path class="a" d="M6 10 H38 V30 H62 V10 H94 V52 H6 Z"/><circle class="af" cx="13" cy="17" r="1.9"/><circle class="af" cx="23" cy="17" r="1.9"/><circle class="af" cx="33" cy="17" r="1.9"/><circle class="af" cx="67" cy="17" r="1.9"/><circle class="af" cx="77" cy="17" r="1.9"/><circle class="af" cx="87" cy="17" r="1.9"/><circle class="af" cx="13" cy="25" r="1.9"/><circle class="af" cx="23" cy="25" r="1.9"/><circle class="af" cx="33" cy="25" r="1.9"/><circle class="af" cx="67" cy="25" r="1.9"/><circle class="af" cx="77" cy="25" r="1.9"/><circle class="af" cx="87" cy="25" r="1.9"/><circle class="af" cx="13" cy="35" r="1.9"/><circle class="af" cx="23" cy="35" r="1.9"/><circle class="af" cx="33" cy="35" r="1.9"/><circle class="af" cx="43" cy="35" r="1.9"/><circle class="af" cx="53" cy="35" r="1.9"/><circle class="af" cx="63" cy="35" r="1.9"/><circle class="af" cx="73" cy="35" r="1.9"/><circle class="af" cx="83" cy="35" r="1.9"/><circle class="af" cx="13" cy="44" r="1.9"/><circle class="af" cx="23" cy="44" r="1.9"/><circle class="af" cx="33" cy="44" r="1.9"/><circle class="af" cx="43" cy="44" r="1.9"/><circle class="af" cx="53" cy="44" r="1.9"/><circle class="af" cx="63" cy="44" r="1.9"/><circle class="af" cx="73" cy="44" r="1.9"/><circle class="af" cx="83" cy="44" r="1.9"/><line class="m" x1="35" y1="20" x2="65" y2="20" stroke-dasharray="3 2.5"/><path class="a" d="M106 10 H138 V30 H162 V10 H194 V52 H106 Z"/><circle class="af" cx="113" cy="17" r="1.9"/><circle class="af" cx="123" cy="17" r="1.9"/><circle class="af" cx="133" cy="17" r="1.9"/><circle class="af" cx="167" cy="17" r="1.9"/><circle class="af" cx="177" cy="17" r="1.9"/><circle class="af" cx="187" cy="17" r="1.9"/><circle class="af" cx="113" cy="25" r="1.9"/><circle class="af" cx="123" cy="25" r="1.9"/><circle class="af" cx="133" cy="25" r="1.9"/><circle class="af" cx="167" cy="25" r="1.9"/><circle class="af" cx="177" cy="25" r="1.9"/><circle class="af" cx="187" cy="25" r="1.9"/><circle class="af" cx="113" cy="35" r="1.9"/><circle class="af" cx="123" cy="35" r="1.9"/><circle class="af" cx="133" cy="35" r="1.9"/><circle class="af" cx="143" cy="35" r="1.9"/><circle class="af" cx="153" cy="35" r="1.9"/><circle class="af" cx="163" cy="35" r="1.9"/><circle class="af" cx="173" cy="35" r="1.9"/><circle class="af" cx="183" cy="35" r="1.9"/><circle class="af" cx="113" cy="44" r="1.9"/><circle class="af" cx="123" cy="44" r="1.9"/><circle class="af" cx="133" cy="44" r="1.9"/><circle class="af" cx="143" cy="44" r="1.9"/><circle class="af" cx="153" cy="44" r="1.9"/><circle class="af" cx="163" cy="44" r="1.9"/><circle class="af" cx="173" cy="44" r="1.9"/><circle class="af" cx="183" cy="44" r="1.9"/><path class="m" d="M134 26 C 140 46, 160 48, 166 24" stroke-dasharray="3.5 2.5"/></svg><p class="vth-t">Verbindung</p><p class="vth-s">Wie der Faden von einer Form zur nächsten geführt wird - durchgehend oder als Sprung.</p></div>
       <div class="vth-card" data-card="winkel"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><rect class="b" x="24" y="10" width="72" height="36" rx="6"/><line class="a" x1="32" y1="44" x2="64" y2="12"/><line class="a" x1="42" y1="44" x2="74" y2="12"/><line class="a" x1="52" y1="44" x2="84" y2="12"/><line class="a" x1="62" y1="44" x2="94" y2="12"/><line class="m" x1="28" y1="44" x2="58" y2="44" stroke-dasharray="3 2.5"/><path class="m" d="M48 44 A 16 16 0 0 0 43 33"/></svg></div><p class="vth-t">Winkel</p><p class="vth-s">Richtung der Stichreihen</p></div>
       <div class="vth-card" data-card="reihe"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><line class="a" x1="16" y1="10" x2="52" y2="10"/><line class="a" x1="16" y1="15" x2="52" y2="15"/><line class="a" x1="16" y1="20" x2="52" y2="20"/><line class="a" x1="16" y1="25" x2="52" y2="25"/><line class="a" x1="16" y1="30" x2="52" y2="30"/><line class="a" x1="16" y1="35" x2="52" y2="35"/><line class="a" x1="68" y1="10" x2="104" y2="10"/><line class="a" x1="68" y1="22" x2="104" y2="22"/><line class="a" x1="68" y1="34" x2="104" y2="34"/><line class="trk" x1="16" y1="47" x2="104" y2="47"/><circle class="th" cx="58" cy="47" r="5"/></svg></div><p class="vth-t">Reihe</p><p class="vth-s">Enger = deckender</p></div>
       <div class="vth-card" data-card="stich"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><line class="a" x1="8" y1="26" x2="52" y2="26"/><circle class="af" cx="10" cy="26" r="1.9"/><circle class="af" cx="18" cy="26" r="1.9"/><circle class="af" cx="26" cy="26" r="1.9"/><circle class="af" cx="34" cy="26" r="1.9"/><circle class="af" cx="42" cy="26" r="1.9"/><circle class="af" cx="50" cy="26" r="1.9"/><line class="b" x1="60" y1="10" x2="60" y2="46"/><line class="a" x1="68" y1="26" x2="112" y2="26"/><circle class="af" cx="70" cy="26" r="1.9"/><circle class="af" cx="90" cy="26" r="1.9"/><circle class="af" cx="110" cy="26" r="1.9"/><path class="m" d="M70 34 V38 H90 V34"/></svg></div><p class="vth-t">Stich</p><p class="vth-s">Länge der Einzelstiche</p></div>
@@ -44819,7 +44999,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       <div class="vth-card" data-card="versatz"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><line class="b" x1="11" y1="12" x2="22" y2="43"/><line class="b" x1="25" y1="12" x2="36" y2="43"/><line class="b" x1="39" y1="12" x2="50" y2="43"/><circle class="af" cx="12" cy="13" r="1.8"/><circle class="af" cx="26" cy="13" r="1.8"/><circle class="af" cx="40" cy="13" r="1.8"/><circle class="af" cx="15" cy="23" r="1.8"/><circle class="af" cx="29" cy="23" r="1.8"/><circle class="af" cx="43" cy="23" r="1.8"/><circle class="af" cx="18" cy="33" r="1.8"/><circle class="af" cx="32" cy="33" r="1.8"/><circle class="af" cx="46" cy="33" r="1.8"/><circle class="af" cx="21" cy="42" r="1.8"/><circle class="af" cx="35" cy="42" r="1.8"/><circle class="af" cx="49" cy="42" r="1.8"/><line class="b" x1="60" y1="10" x2="60" y2="46"/><circle class="af" cx="72" cy="13" r="1.8"/><circle class="af" cx="87" cy="13" r="1.8"/><circle class="af" cx="103" cy="13" r="1.8"/><circle class="af" cx="78" cy="23" r="1.8"/><circle class="af" cx="93" cy="23" r="1.8"/><circle class="af" cx="107" cy="23" r="1.8"/><circle class="af" cx="70" cy="33" r="1.8"/><circle class="af" cx="90" cy="33" r="1.8"/><circle class="af" cx="101" cy="33" r="1.8"/><circle class="af" cx="81" cy="42" r="1.8"/><circle class="af" cx="96" cy="42" r="1.8"/><circle class="af" cx="110" cy="42" r="1.8"/></svg></div><p class="vth-t">Versatz</p><p class="vth-s">Bricht Diagonal-Muster</p></div>
       <div class="vth-card" data-card="unterlage"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><rect class="m" x="20" y="18" width="56" height="30" rx="6"/><line class="m" x1="30" y1="22" x2="30" y2="44"/><line class="m" x1="42" y1="22" x2="42" y2="44"/><line class="m" x1="54" y1="22" x2="54" y2="44"/><line class="m" x1="66" y1="22" x2="66" y2="44"/><rect class="uo" x="44" y="8" width="56" height="30" rx="6"/><line class="a" x1="50" y1="14" x2="94" y2="14"/><line class="a" x1="50" y1="19" x2="94" y2="19"/><line class="a" x1="50" y1="24" x2="94" y2="24"/><line class="a" x1="50" y1="29" x2="94" y2="29"/></svg></div><p class="vth-t">Unterlage</p><p class="vth-s">Stützstiche unter der Füllung</p></div>
       <div class="vth-card" data-card="abschlusskontur"><div class="vth-ill"><svg viewBox="0 0 120 56" width="112" height="52" aria-hidden="true"><rect class="b" x="32" y="16" width="56" height="24" rx="7"/><line class="m" x1="38" y1="22" x2="82" y2="22"/><line class="m" x1="38" y1="28" x2="82" y2="28"/><line class="m" x1="38" y1="34" x2="82" y2="34"/><rect class="a2" x="26" y="10" width="68" height="36" rx="11" stroke-dasharray="6 3.5"/></svg></div><p class="vth-t">Abschlusskontur</p><p class="vth-s">Sauberer Rand zum Schluss</p></div>
-      <div class="vth-card" data-card="trimmen"><div class="vth-ill"><span class="vth-big">&#x2702;</span><svg width="64" height="24" viewBox="0 0 64 24" aria-hidden="true"><line class="m" x1="2" y1="12" x2="26" y2="12" stroke-dasharray="4 3"/><line class="m" x1="38" y1="12" x2="62" y2="12" stroke-dasharray="4 3"/></svg></div><p class="vth-t">Faden trimmen</p><p class="vth-s">Lange Sprünge werden geschnitten</p></div>
+      <div class="vth-card" data-card="trimmen"><div class="vth-ill"><span class="vth-big">&#x2702;</span><svg width="64" height="24" viewBox="0 0 64 24" aria-hidden="true"><line class="m" x1="2" y1="12" x2="26" y2="12" stroke-dasharray="4 3"/><line class="m" x1="38" y1="12" x2="62" y2="12" stroke-dasharray="4 3"/></svg></div><p class="vth-t">Faden trimmen</p><p class="vth-s">Lange Sprünge werden geschnitten, sofern die Maschine dies unterstützt.</p></div>
     </div>
     <div class="vth-sec">Stickreihenfolge</div>
     <div class="vth-grid">
@@ -44872,7 +45052,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     var src = ov.querySelector('.vth-grid [data-card="' + card + '"]');
     if (!src) return;
     pop.innerHTML = '';
-    pop.appendChild(src.cloneNode(true));
+    var _cl = src.cloneNode(true);
+    if (card === 'verbindung') { /* [VT-UIFIX v1] Verbindung-(i): nur Text als Karte (Lukas "reicht der text, bitte als karte") - Diagramm raus, schmal; Original-SVG bleibt fuer die Radio-Kacheln (cardSvg) erhalten */
+      _cl.classList.remove('vth-wide');
+      var _cs = _cl.querySelector('svg'); if (_cs) _cs.remove();
+    }
+    pop.appendChild(_cl);
     ov.classList.add('vth-pop');
     ov.hidden = false;
     pop.style.left = '0px'; pop.style.top = '0px';   /* erst messen, dann platzieren */
@@ -44955,9 +45140,22 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     var wrap = el.closest('label'); var lb = wrap && wrap.previousElementSibling;
     if (lb && lb.tagName === 'LABEL') { lb.appendChild(mkBtn('versatz')); lb.removeAttribute('title'); } /* [tooltip-no-card v1] */
   })();
-  afterInnerSpan('dgpUnderlay', 'unterlage');
+  /* [VT-UIFIX v1] (i)-Karte NACH dem Zahnrad einfuegen (Lukas: "zahnrädchen vor i") */
+  function afterGearBtn(id, card, gearId) {
+    var el = document.getElementById(id); if (!el) return;
+    var lb = el.closest('label');
+    var gear = document.getElementById(gearId);
+    if (gear) gear.insertAdjacentElement('afterend', mkBtn(card));
+    else if (lb) { var sp = lb.querySelector('span'); if (sp) sp.insertAdjacentElement('afterend', mkBtn(card)); }
+    if (lb) lb.removeAttribute('title'); el.removeAttribute('title');
+  }
+  afterGearBtn('dgpUnderlay', 'unterlage', 'dgpUnderlayGear');
   afterInnerSpan('dgpOutline', 'abschlusskontur');
-  afterInnerSpan('toplineTrim', 'trimmen');
+  afterGearBtn('toplineTrim', 'trimmen', 'dgpTrimGear');
+  /* [VT-UIFIX v1] Verbindung wieder mit (i) (Lukas: "unter verbindung braucht es wohl auch noch ein i"); Karte erklaert das Faden-Wandern zwischen Elementen */
+  (function(){ var l = document.getElementById('dgpVerbindungLabel'); if (l) { l.appendChild(mkBtn('verbindung')); l.removeAttribute('title'); } })();
+  /* [VT-UIFIX v1] Versatz mit (i) (Lukas: "i da lassen"); Label = nur "Versatz", die 'versatz'-Karte erklaert das Diagonalen-Brechen */
+  (function(){ var l = document.getElementById('dgpVersatzLabel'); if (l) { l.appendChild(mkBtn('versatz')); l.removeAttribute('title'); } })();
   /* [stickui-dots v1] "Einstellungen"-Titel: i-Verweis entfernt (Lukas: braucht kein i). */
   (function () {
     var h = document.getElementById('stitchOrderTitle'); if (!h) return;
@@ -44980,8 +45178,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if (!document.getElementById('dgpRadioCss')) {
     var st = document.createElement('style'); st.id = 'dgpRadioCss';
     st.textContent =
-      '.dgp-radio{display:flex;gap:6px;min-width:0;}'+
-      '.dgp-rtile{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:border-color var(--dur,0.15s),background var(--dur,0.15s);}'+
+      '.dgp-radio{display:flex;gap:5px;min-width:0;grid-column:1 / -1;}'+/* [VT-UIFIX v1] minim kompakter; volle Breite (entkoppelt von der Slider-Label-Spalte, sonst quetschen lange Labels die Kacheln) */
+      '.dgp-rtile{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 3px 5px;border:1.5px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;text-align:center;transition:border-color var(--dur,0.15s),background var(--dur,0.15s);}'+
       '.dgp-rtile:hover{border-color:var(--ac2);}'+
       '.dgp-rtile.sel{border-color:var(--ac);background:rgba(var(--ac-rgb),0.07);}'+
       '.dgp-rtile.dgp-disabled{opacity:0.38;pointer-events:none;cursor:not-allowed;filter:grayscale(0.6);}'+
@@ -44993,7 +45191,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       '.dgp-rsub{font-size:var(--fs-2xs);color:var(--fg3);line-height:1.12;margin-top:1px;}'+
       /* [stickui-dots v1] Stil-Kacheln (Parallel/Kontur) etwas kleiner - Grafik schmaler, weniger Padding (Lukas). Nur Stil, Verbindung bleibt. */
       '.dgp-radio-sm .dgp-rill{max-width:72px;margin-left:auto;margin-right:auto;}'+
-      '.dgp-radio-sm .dgp-rtile{padding:4px 4px 5px;}'+
+      '.dgp-radio-sm .dgp-rtile{padding:3px 3px 4px;}'+
       '.dgp-radio svg .a{stroke:var(--ac);fill:none;stroke-width:1.6;}'+
       '.dgp-radio svg .a2{stroke:var(--ac);fill:none;stroke-width:2;}'+
       '.dgp-radio svg .af{fill:var(--ac);stroke:none;}'+
@@ -45230,7 +45428,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     var src = ov.querySelector('[data-card="' + card + '"]');
     if (!src) return;
     pop.innerHTML = '';
-    pop.appendChild(src.cloneNode(true));
+    var _cl = src.cloneNode(true);
+    if (card === 'verbindung') { /* [VT-UIFIX v1] Verbindung-(i): nur Text als Karte (Lukas "reicht der text, bitte als karte") - Diagramm raus, schmal; Original-SVG bleibt fuer die Radio-Kacheln (cardSvg) erhalten */
+      _cl.classList.remove('vth-wide');
+      var _cs = _cl.querySelector('svg'); if (_cs) _cs.remove();
+    }
+    pop.appendChild(_cl);
     ov.classList.add('vth-pop');
     ov.hidden = false;
     pop.style.left = '0px'; pop.style.top = '0px';   /* erst messen, dann platzieren */
