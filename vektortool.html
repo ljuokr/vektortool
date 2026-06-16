@@ -2515,10 +2515,10 @@ body.layer-panel-open #rsActions { display:none !important; }
         <div class="tracer-row" id="tracerClosePointsRow" title="Punkte n&#xE4;her als dieser Prozentsatz der Pfadl&#xE4;nge werden zusammengef&#xFC;hrt."><label>Min. Abstand</label><input type="range" id="tracerClosePointsDist" min="0.5" max="8" value="1" step="0.5"><span class="tval" id="tracerClosePointsDistVal">1%</span></div>
         <input type="checkbox" id="tracerFilterInterior" style="display:none"><!-- [VT-TRACER-NOHOLE] Default AUS: loeschte sonst eingeschlossene gleichfarbige Inseln (z.B. Creme in der Schwanzschlaufe) per Punkt-in-Polygon ohne Loch-Beachtung -->
         <input type="checkbox" id="tracerFilterInteriorPts" style="display:none">
-        <label class="tracer-check" title="Entfernt sehr kleine geschlossene Formen (Rauschen, Pixelartefakte)."><input type="checkbox" id="tracerFilterTinyShapes" checked>Kleine Formen entfernen</label>
+        <label class="tracer-check" title="Entfernt sehr kleine geschlossene Formen (Rauschen, Pixelartefakte)."><input type="checkbox" id="tracerFilterTinyShapes">Kleine Formen entfernen</label>
         <div class="tracer-row" id="tracerTinyRow" title="Formen kleiner als dieser Wert in Pixeln werden entfernt."><label>Min. Gr&#xF6;sse</label><input type="range" id="tracerTinyThreshold" min="1" max="50" value="8" step="1"><span class="tval" id="tracerTinyThresholdVal">8 px</span></div>
-        <label class="tracer-check" title="Entfernt d&#xFC;nne Linien und Treppenstufen-Artefakte vom Pixelraster."><input type="checkbox" id="tracerFilterThinLines" checked>Artefakte entfernen</label>
-        <input type="checkbox" id="tracerFilterLowFill" checked style="display:none">
+        <label class="tracer-check" title="Entfernt d&#xFC;nne Linien und Treppenstufen-Artefakte vom Pixelraster."><input type="checkbox" id="tracerFilterThinLines">Artefakte entfernen</label>
+        <input type="checkbox" id="tracerFilterLowFill" style="display:none">
         <input type="checkbox" id="tracerGapSeal" style="display:none">
         <label class="tracer-check"><input type="checkbox" id="tracerSmoothPaths" checked>Kurven gl&#xE4;tten</label>
         <div class="tracer-row" title="St&#xE4;rke der Kurvengl&#xE4;ttung. 0 = keine, h&#xF6;her = weichere Kurven."><label>Gl&#xE4;ttung</label><input type="range" id="tracerSmoothStrength" min="0" max="5" value="0" step="0.5"><span class="tval" id="tracerSmoothStrengthVal">0</span></div>
@@ -23045,7 +23045,7 @@ function _tracerSimplifySvg(svgMarkup, tolerance, cornerAngle, smooth) {
       var pMinX=Infinity,pMinY=Infinity,pMaxX=-Infinity,pMaxY=-Infinity;
       for(var k=0;k<pts.length;k++){pMinX=Math.min(pMinX,pts[k].x);pMinY=Math.min(pMinY,pts[k].y);pMaxX=Math.max(pMaxX,pts[k].x);pMaxY=Math.max(pMaxY,pts[k].y);}
       var pw=pMaxX-pMinX, ph=pMaxY-pMinY, pMin=Math.min(pw,ph);
-      if(pMin<1.5||pw*ph<3) continue;
+      if(pMin<=0||pw*ph<=0) continue; /* [VT-TRACER-NOHOLE v2] nur echt degenerierte 0-Flaechen ueberspringen, keine duennen Slivers mehr wegwerfen */
       var pArea2=0, pPerim2=0;
       for(var fa2=0;fa2<pts.length;fa2++){var fb2=(fa2+1)%pts.length;pArea2+=pts[fa2].x*pts[fb2].y-pts[fb2].x*pts[fa2].y;var pdx2=pts[fb2].x-pts[fa2].x,pdy2=pts[fb2].y-pts[fa2].y;pPerim2+=Math.sqrt(pdx2*pdx2+pdy2*pdy2);}
       pArea2=Math.abs(pArea2)/2;
@@ -23193,8 +23193,10 @@ function _tracerSimplifySvg(svgMarkup, tolerance, cornerAngle, smooth) {
     if (newD) {
       pathEl.setAttribute('d', newD);
     } else {
-      /* All sub-paths were filtered out — hide this path */
-      pathEl.setAttribute('display', 'none');
+      /* [VT-TRACER-NOHOLE v2] Treu zum Trace: nie eine Form verschlucken. Wenn die
+         Vereinfachung alle Sub-Pfade leert (winzige Tupfer, die RDP auf <2 Punkte zieht),
+         den ORIGINAL-d wieder ausgeben statt display:none -> volle Deckung. */
+      pathEl.setAttribute('d', d);
     }
   }
 
