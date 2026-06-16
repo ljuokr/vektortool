@@ -25086,6 +25086,7 @@ function _applyTracerResult() {
   var silhouetteImport = _tracerIsSilhouetteMode();
   var silhouetteFilled = silhouetteImport && _tEl('tracerSilhouetteFilled').checked;
   var silhouetteInk = '#000000';
+  var _ccByColor = {}, _ccSeq = []; /* [VT-TRACER-CONSOLIDATE v1] gleichfarbige Fragmente sammeln -> eine Form pro Farbe */
 
   for (var pi = 0; pi < pathEls.length; pi++) {
     var pathEl = pathEls[pi];
@@ -25111,42 +25112,38 @@ function _applyTracerResult() {
     /* Skip mask/def paths */
     var parent = pathEl.parentNode;
     if (parent && (parent.tagName === 'mask' || parent.tagName === 'defs' || parent.tagName === 'clipPath')) continue;
-    var pathBBox = _getSvgPathBBox(d);
-    if (!pathBBox) {
-      pathBBox = {
-        x: vbParts ? (vbParts[0] || 0) : 0,
-        y: vbParts ? (vbParts[1] || 0) : 0,
-        w: svgW,
-        h: svgH
-      };
-    }
+    /* [VT-TRACER-CONSOLIDATE v1] Gleichfarbige Fragmente sammeln statt sofort je Pfad
+       eine Form anzulegen (sonst tausende Formen). Emit pro Farbe nach dem Loop. */
+    var _ccKey = silhouetteImport ? '__sil__' : fill;
+    if (!_ccByColor[_ccKey]) { _ccByColor[_ccKey] = { fill: fill, ds: [] }; _ccSeq.push(_ccKey); }
+    _ccByColor[_ccKey].ds.push(d);
+  }
+
+  /* [VT-TRACER-CONSOLIDATE v1] Pro Farbe EINE svgpath-Form (alle gleichfarbigen Fragmente
+     als Subpfade) statt tausender Einzel-Formen. Volle Deckung + Loecher bleiben (gleiche
+     Farbe -> Union ist optisch identisch, nonzero erhaelt die Windungen der Loecher), aber
+     ~10 statt ~4800 Formen = handhabbar, schnelleres Rendern, saubere Stickerei (eine
+     Fuellflaeche pro Fadenfarbe). Quell-Koordinatenraum ist fuer alle Pfade gleich, darum
+     ist das Verketten der d-Strings gueltig. Reihenfolge = Layer-Reihenfolge (z-Order). */
+  for (var _ci = 0; _ci < _ccSeq.length; _ci++) {
+    var _grp = _ccByColor[_ccSeq[_ci]];
+    var _cd = _grp.ds.join(' ');
+    var _bb = _getSvgPathBBox(_cd) || { x: vbParts ? (vbParts[0]||0) : 0, y: vbParts ? (vbParts[1]||0) : 0, w: svgW, h: svgH };
     var ns = {
       type: 'svgpath',
-      svgD: d,
-      svgFillRule: pathEl.getAttribute('fill-rule') || (parent && parent.getAttribute ? parent.getAttribute('fill-rule') : null) || 'nonzero',
-      svgOrigX: pathBBox.x,
-      svgOrigY: pathBBox.y,
-      svgOrigW: pathBBox.w,
-      svgOrigH: pathBBox.h,
-      x: pathBBox.x * sc + offX,
-      y: pathBBox.y * sc + offY,
-      w: pathBBox.w * sc,
-      h: pathBBox.h * sc,
+      svgD: _cd,
+      svgFillRule: 'nonzero',
+      svgOrigX: _bb.x, svgOrigY: _bb.y, svgOrigW: _bb.w, svgOrigH: _bb.h,
+      x: _bb.x * sc + offX, y: _bb.y * sc + offY, w: _bb.w * sc, h: _bb.h * sc,
       stroke: silhouetteImport && !silhouetteFilled ? silhouetteInk : 'none',
       strokeWidth: silhouetteImport && !silhouetteFilled ? lineW : 0,
-      fill: silhouetteImport ? (silhouetteFilled ? silhouetteInk : 'none') : fill,
+      fill: silhouetteImport ? (silhouetteFilled ? silhouetteInk : 'none') : _grp.fill,
       fillEnabled: silhouetteImport ? silhouetteFilled : true,
-      lineStyle: 0,
-      closed: true,
-      flipX: false,
-      flipY: false
+      lineStyle: 0, closed: true, flipX: false, flipY: false
     };
     ns.id = mkId(); ns.gid = mkId();
     shapes.push(ns);
-    if (_enableSvgPathNodeEditing(ns)) {
-      ns.svgNodeSmooth = true;
-      _syncEditableSvgPathShape(ns);
-    }
+    if (_enableSvgPathNodeEditing(ns)) { ns.svgNodeSmooth = true; _syncEditableSvgPathShape(ns); }
     newIds.push(ns.id);
   }
 
