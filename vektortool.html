@@ -25091,11 +25091,12 @@ function _applyTracerResult() {
     var pathEl = pathEls[pi];
     var d = pathEl.getAttribute('d');
     var fill = (pathEl.getAttribute('fill') || '#000000').toLowerCase();
-    /* Apply color merge map — resolve chains */
-    if (_tState.colorMap) {
-      var _seen = {};
-      while (_tState.colorMap[fill] && !_seen[fill]) { _seen[fill] = true; fill = _tState.colorMap[fill]; }
-    }
+    /* [VT-TRACER-WYSIWYG] KEINE colorMap-Aufloesung der Fuellfarbe mehr: die Vorschau
+       zeigt die ROHEN Trace-Farben (die Auto-Gruppierung organisiert nur fuers Ausblenden,
+       sie MERGED nicht). Frueher fasste das Uebernehmen die Gruppen zusammen (z.B. Bauch-
+       Gelb -> Gruen, 10 -> 4 Farben) = Canvas != Vorschau, "weniger Farben". Jetzt behaelt
+       jede Form ihre rohe Trace-Farbe = exakt wie in der Vorschau. Ausblenden bleibt korrekt:
+       _effHidden expandiert Gruppen selbst und prueft die rohe Fuellfarbe. */
     var display = pathEl.getAttribute('display');
     if (!d || display === 'none') continue;
     if (!silhouetteImport) {
