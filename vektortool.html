@@ -23883,6 +23883,12 @@ function _tracerAutoGroupColors(targetGroups, mode) {
 
 /* Hellste Gruppen-Repräsentanten ausblenden (typisch Hintergrund). */
 function _tracerAutoHideBrightest() {
+  /* [VT-TRACER-NOHOLE] Automatisches Ausblenden der hellsten Gruppe ABGESCHALTET.
+     Es blendete die Creme-/Hintergrundgruppe pauschal aus -> "Farben werden nicht
+     miterfasst" (Gecko/Tail-Loop auf transparentem Grund). Lukas will ALLE Farben
+     erfasst + Ausblenden NUR manuell per Auge (_tState.hiddenColors bleibt voll
+     funktionsfaehig). Rest = toter Code, nur zur Doku. */
+  return;
   if (!_tState.detectedColors || !_tState.detectedColors.length) return;
   /* Gruppen-Repräsentanten ermitteln */
   var targets = {};
