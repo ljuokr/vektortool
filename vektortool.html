@@ -40017,6 +40017,13 @@ window.__LINEA_DEBUG__ = {
     var arDebouncer = null;
     window._dstvScheduleAutoRecalc = function() {
       if (window._dstvAutoRecalc === false) return;
+      /* [stick-nur-auf-klick v1] Im Hintergrund (Stick-Viewer zu) NICHT rechnen.
+         Editor-Aenderungen wie die Strichstaerke sollen die Stickerei nicht von
+         selbst starten. Die Stickerei wird erst berechnet, wenn der Viewer offen
+         ist - das passiert ueber den Stick-Button (_dstvOpenAndLoadFromLinea
+         laedt direkt, nicht ueber diesen Scheduler). */
+      var _arModal = document.getElementById('dstvModal');
+      if (!_arModal || !_arModal.classList.contains('open')) return;
       if (arDebouncer) clearTimeout(arDebouncer);
       arDebouncer = setTimeout(function() {
         arDebouncer = null;
