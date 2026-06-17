@@ -25700,7 +25700,7 @@ function _silApplyExclusion() {
       cv.getContext('2d').drawImage(vid, 0, 0, cv.width, cv.height);
       var dataUrl = cv.toDataURL('image/png');
       close();
-      _tracerLoadImage(dataUrl, 'kamera.png');
+      _tracerLoadImage(dataUrl, 'kamera.png').then(function(){ _tracerSetStatus('Foto geladen. SVG wird erzeugt...'); _tracerRunVectorize(); }); /* [VT-TRACER-CAM v1] wie alle Lade-Pfade auto-vektorisieren */
     });
     flip.addEventListener('click', function(){ facing = (facing === 'environment') ? 'user' : 'environment'; start(); });
     cancel.addEventListener('click', close);
