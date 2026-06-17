@@ -2,6 +2,7 @@
 
 ## 2026-06-17
 - Text on a path: distance slider (outside / on the line / inside), arc side, letter spacing and text colour; glyphs now sit straight on rectangles, polygons and stars
+- Image tracer: camera capture and a test-image button
 - English README and repository metadata
 
 ## 2026-06-16

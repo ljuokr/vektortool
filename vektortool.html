@@ -2405,6 +2405,16 @@ body.layer-panel-open #rsActions { display:none !important; }
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Bild laden
         </button>
+        <!-- [VT-TRACER-CAM v1] Kamera-Button: direkt fotografieren -> ins Nachzeichnen -->
+        <button id="tracerCamBtn" style="display:flex;align-items:center;justify-content:center;gap:var(--space-4);flex-shrink:0;padding:var(--space-4) var(--space-8);border:1.5px solid var(--ac);border-radius:var(--radius-sm);background:var(--white);color:var(--ac);cursor:pointer;font-size:var(--fs-base);font-weight:600;transition:background 0.15s;" title="Mit der Kamera fotografieren" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='var(--white)'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Kamera
+        </button>
+        <!-- [VT-TRACER-TESTBILD v1] Testbild laden: das eingebaute Demo-Bild (Gecko) zum schnellen Ausprobieren. -->
+        <button id="tracerTestBtn" style="display:flex;align-items:center;justify-content:center;gap:var(--space-4);flex-shrink:0;padding:var(--space-4) var(--space-8);border:1.5px solid var(--ac);border-radius:var(--radius-sm);background:var(--white);color:var(--ac);cursor:pointer;font-size:var(--fs-base);font-weight:600;transition:background 0.15s;" title="Beispielbild zum Ausprobieren laden" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='var(--white)'">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5-4 4-2-2L3 19"/></svg>
+          Testbild
+        </button>
       </div>
       <div class="tracer-topbar-actions">
         <label class="tracer-check" style="margin:0;font-size:var(--fs-base);font-weight:600;color:var(--fg2);"><input type="checkbox" id="tracerMoreOptsToggle"> Weitere Optionen</label>
@@ -25649,6 +25659,71 @@ function _silApplyExclusion() {
     _tEl('tracerFileInput').click();
   });
 
+  /* [VT-TRACER-CAM v1] Kamera: Live-Vorschau -> Foto -> direkt ins Nachzeichnen
+     (gleicher Pfad wie Datei-Import via _tracerLoadImage). Braucht getUserMedia
+     (HTTPS oder localhost; auf file:// nicht verfuegbar). */
+  function _tracerOpenCamera() {
+    var T = (typeof window !== 'undefined' && window.t) ? window.t : function(x){ return x; };
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert(T('Kamera wird hier nicht unterstützt (nötig: HTTPS oder localhost).'));
+      return;
+    }
+    var ov = document.createElement('div');
+    ov.id = 'tracerCamOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;';
+    var vid = document.createElement('video');
+    vid.autoplay = true; vid.muted = true; vid.setAttribute('playsinline', ''); vid.setAttribute('muted', '');
+    vid.style.cssText = 'max-width:92vw;max-height:70vh;border-radius:12px;background:#000;';
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center;';
+    function mkBtn(txt, primary){ var b=document.createElement('button'); b.textContent=txt; b.style.cssText='padding:12px 22px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;'+(primary?'border:none;background:#fff;color:#111;':'border:1px solid #fff;background:transparent;color:#fff;font-weight:600;'); return b; }
+    var shot = mkBtn('📷 ' + T('Foto aufnehmen'), true);
+    var flip = mkBtn(T('Kamera wechseln'), false);
+    var cancel = mkBtn(T('Abbrechen'), false);
+    bar.appendChild(shot); bar.appendChild(flip); bar.appendChild(cancel);
+    ov.appendChild(vid); ov.appendChild(bar); document.body.appendChild(ov);
+    var stream = null, facing = 'environment';
+    function stop(){ if (stream){ stream.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} }); stream = null; } }
+    function close(){ stop(); if (ov.parentNode) ov.parentNode.removeChild(ov); }
+    function start(){
+      stop();
+      var ok = function(st){ stream = st; vid.srcObject = st; var p = vid.play(); if (p && p.catch) p.catch(function(){}); };
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false }).then(ok).catch(function(){
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(ok).catch(function(e2){
+          close(); alert(T('Kamerazugriff nicht möglich') + ': ' + ((e2 && e2.name) || e2));
+        });
+      });
+    }
+    shot.addEventListener('click', function(){
+      if (!vid.videoWidth) return;
+      var cv = document.createElement('canvas'); cv.width = vid.videoWidth; cv.height = vid.videoHeight;
+      cv.getContext('2d').drawImage(vid, 0, 0, cv.width, cv.height);
+      var dataUrl = cv.toDataURL('image/png');
+      close();
+      _tracerLoadImage(dataUrl, 'kamera.png');
+    });
+    flip.addEventListener('click', function(){ facing = (facing === 'environment') ? 'user' : 'environment'; start(); });
+    cancel.addEventListener('click', close);
+    ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
+    document.addEventListener('keydown', function _esc(e){ if (e.key === 'Escape'){ document.removeEventListener('keydown', _esc); close(); } });
+    start();
+  }
+  if (_tEl('tracerCamBtn')) _tEl('tracerCamBtn').addEventListener('click', _tracerOpenCamera);
+
+  /* [VT-TRACER-TESTBILD v2] "Testbild" laedt das eingebaute Demo-Bild (Gecko) und
+     vektorisiert es - genau das Bild, das beim Oeffnen automatisch erscheint. */
+  function _tracerLoadTestImage() {
+    var _afterTest = function(){ _tracerSetStatus('Testbild geladen. SVG wird erzeugt...'); _tracerRunVectorize(); };
+    if (typeof _TRACER_DEMO_IMG === 'string' && _TRACER_DEMO_IMG) {
+      _tracerLoadImage(_TRACER_DEMO_IMG, 'Demo (Gecko)').then(_afterTest);
+    } else {
+      fetch('Gr%C3%BCner%20Gecko%20auf%20neutralem%20Hintergrund.jpg').then(function(r){ if (!r.ok) throw new Error('not found'); return r.blob(); }).then(function(blob){
+        var reader = new FileReader(); reader.onload = function(ev){ _tracerLoadImage(ev.target.result, 'Demo (Gecko)').then(_afterTest); }; reader.readAsDataURL(blob);
+      }).catch(function(){});
+    }
+  }
+  if (_tEl('tracerTestBtn')) _tEl('tracerTestBtn').addEventListener('click', _tracerLoadTestImage);
+
   /* [tracer2-sidebar v1] Checkbox toggelt die zweite Sidebar-Spalte via Modal-Klasse */
   if (_tEl('tracerMoreOptsToggle')) _tEl('tracerMoreOptsToggle').addEventListener('change', function() {
     if (_tEl('tracerModal')) _tEl('tracerModal').classList.toggle('more-opts-open', this.checked);
@@ -44937,6 +45012,14 @@ _boxBtnEl.addEventListener('click', function() {
   try { var _vtExtraLW = {"Laufweite": {"en": "Letter spacing", "fr": "Interlettrage", "it": "Spaziatura", "es": "Espaciado", "pt": "Espaçamento", "nl": "Letterspatiëring", "pl": "Odstęp liter", "cs": "Prostrkání", "sk": "Rozpal písmen", "ro": "Spațiere litere", "hu": "Betűköz", "el": "Διαγραμμάτωση", "sv": "Teckenmellanrum", "da": "Bogstavafstand", "no": "Tegnavstand", "fi": "Merkkiväli", "ca": "Espaiat", "tr": "Harf aralığı", "ru": "Межбуквенный интервал", "uk": "Міжлітерний інтервал", "bg": "Разредка", "zh": "字间距", "ja": "字間", "ko": "자간", "vi": "Giãn cách chữ", "th": "ระยะห่างตัวอักษร", "id": "Spasi huruf", "hi": "अक्षर रिक्ति", "ar": "تباعد الأحرف", "he": "מרווח אותיות", "fa": "فاصله حروف"}, "Schriftfarbe": {"en": "Text color", "fr": "Couleur du texte", "it": "Colore testo", "es": "Color del texto", "pt": "Cor do texto", "nl": "Tekstkleur", "pl": "Kolor tekstu", "cs": "Barva textu", "sk": "Farba textu", "ro": "Culoare text", "hu": "Szövegszín", "el": "Χρώμα κειμένου", "sv": "Textfärg", "da": "Tekstfarve", "no": "Tekstfarge", "fi": "Tekstin väri", "ca": "Color del text", "tr": "Metin rengi", "ru": "Цвет текста", "uk": "Колір тексту", "bg": "Цвят на текста", "zh": "文字颜色", "ja": "文字色", "ko": "글자 색", "vi": "Màu chữ", "th": "สีข้อความ", "id": "Warna teks", "hi": "टेक्स्ट रंग", "ar": "لون النص", "he": "צבע טקסט", "fa": "رنگ متن"}};
     for (var _wk in _vtExtraLW) { for (var _wl in _vtExtraLW[_wk]) { if (DICT[_wl]) DICT[_wl][_wk] = _vtExtraLW[_wk][_wl]; } }
   } catch(_we) {}
+  /* [VT-I18N-CAM v1] Kamera-Button + Overlay-Texte in 31 Sprachen. */
+  try { var _vtExtraCAM = {"Kamera": {"en": "Camera", "fr": "Caméra", "it": "Fotocamera", "es": "Cámara", "pt": "Câmera", "nl": "Camera", "pl": "Aparat", "cs": "Kamera", "sk": "Kamera", "ro": "Cameră", "hu": "Kamera", "el": "Κάμερα", "sv": "Kamera", "da": "Kamera", "no": "Kamera", "fi": "Kamera", "ca": "Càmera", "tr": "Kamera", "ru": "Камера", "uk": "Камера", "bg": "Камера", "zh": "相机", "ja": "カメラ", "ko": "카메라", "vi": "Máy ảnh", "th": "กล้อง", "id": "Kamera", "hi": "कैमरा", "ar": "الكاميرا", "he": "מצלמה", "fa": "دوربین"}, "Foto aufnehmen": {"en": "Take photo", "fr": "Prendre une photo", "it": "Scatta foto", "es": "Tomar foto", "pt": "Tirar foto", "nl": "Foto maken", "pl": "Zrób zdjęcie", "cs": "Pořídit fotku", "sk": "Odfotografovať", "ro": "Fă o fotografie", "hu": "Fénykép készítése", "el": "Λήψη φωτογραφίας", "sv": "Ta foto", "da": "Tag billede", "no": "Ta bilde", "fi": "Ota kuva", "ca": "Fes una foto", "tr": "Fotoğraf çek", "ru": "Сделать фото", "uk": "Зробити фото", "bg": "Направи снимка", "zh": "拍照", "ja": "写真を撮る", "ko": "사진 촬영", "vi": "Chụp ảnh", "th": "ถ่ายรูป", "id": "Ambil foto", "hi": "फ़ोटो लें", "ar": "التقاط صورة", "he": "צלם תמונה", "fa": "گرفتن عکس"}, "Kamera wechseln": {"en": "Switch camera", "fr": "Changer de caméra", "it": "Cambia fotocamera", "es": "Cambiar cámara", "pt": "Trocar de câmera", "nl": "Camera wisselen", "pl": "Przełącz aparat", "cs": "Přepnout kameru", "sk": "Prepnúť kameru", "ro": "Schimbă camera", "hu": "Kamera váltása", "el": "Εναλλαγή κάμερας", "sv": "Byt kamera", "da": "Skift kamera", "no": "Bytt kamera", "fi": "Vaihda kameraa", "ca": "Canvia de càmera", "tr": "Kamerayı değiştir", "ru": "Сменить камеру", "uk": "Змінити камеру", "bg": "Смени камерата", "zh": "切换相机", "ja": "カメラを切り替え", "ko": "카메라 전환", "vi": "Đổi máy ảnh", "th": "สลับกล้อง", "id": "Ganti kamera", "hi": "कैमरा बदलें", "ar": "تبديل الكاميرا", "he": "החלف מצלמה", "fa": "تعویض دوربین"}, "Kamerazugriff nicht möglich": {"en": "Camera access not possible", "fr": "Accès à la caméra impossible", "it": "Accesso alla fotocamera non possibile", "es": "No se puede acceder a la cámara", "pt": "Não é possível acessar a câmera", "nl": "Toegang tot camera niet mogelijk", "pl": "Brak dostępu do aparatu", "cs": "Přístup ke kameře není možný", "sk": "Prístup ku kamere nie je možný", "ro": "Accesul la cameră nu este posibil", "hu": "A kamera elérése nem lehetséges", "el": "Δεν είναι δυνατή η πρόσβαση στην κάμερα", "sv": "Det går inte att komma åt kameran", "da": "Adgang til kamera er ikke mulig", "no": "Tilgang til kamera er ikke mulig", "fi": "Kameran käyttö ei onnistu", "ca": "No es pot accedir a la càmera", "tr": "Kameraya erişilemiyor", "ru": "Доступ к камере невозможен", "uk": "Доступ до камери неможливий", "bg": "Достъпът до камерата не е възможен", "zh": "无法访问相机", "ja": "カメラにアクセスできません", "ko": "카메라에 접근할 수 없습니다", "vi": "Không thể truy cập máy ảnh", "th": "ไม่สามารถเข้าถึงกล้องได้", "id": "Tidak dapat mengakses kamera", "hi": "कैमरा एक्सेस संभव नहीं है", "ar": "تعذّر الوصول إلى الكاميرا", "he": "לא ניתן לגשת למצלמה", "fa": "دسترسی به دوربین ممکن نیست"}, "Kamera wird hier nicht unterstützt (nötig: HTTPS oder localhost).": {"en": "Camera is not supported here (requires HTTPS or localhost).", "fr": "La caméra n'est pas prise en charge ici (HTTPS ou localhost requis).", "it": "La fotocamera non è supportata qui (richiede HTTPS o localhost).", "es": "La cámara no es compatible aquí (se requiere HTTPS o localhost).", "pt": "A câmera não é suportada aqui (requer HTTPS ou localhost).", "nl": "Camera wordt hier niet ondersteund (HTTPS of localhost vereist).", "pl": "Aparat nie jest tu obsługiwany (wymagany HTTPS lub localhost).", "cs": "Kamera zde není podporována (vyžaduje HTTPS nebo localhost).", "sk": "Kamera tu nie je podporovaná (vyžaduje HTTPS alebo localhost).", "ro": "Camera nu este acceptată aici (necesită HTTPS sau localhost).", "hu": "A kamera itt nem támogatott (HTTPS vagy localhost szükséges).", "el": "Η κάμερα δεν υποστηρίζεται εδώ (απαιτείται HTTPS ή localhost).", "sv": "Kameran stöds inte här (kräver HTTPS eller localhost).", "da": "Kameraet understøttes ikke her (kræver HTTPS eller localhost).", "no": "Kameraet støttes ikke her (krever HTTPS eller localhost).", "fi": "Kameraa ei tueta täällä (vaatii HTTPS:n tai localhostin).", "ca": "La càmera no és compatible aquí (cal HTTPS o localhost).", "tr": "Kamera burada desteklenmiyor (HTTPS veya localhost gerekir).", "ru": "Камера здесь не поддерживается (требуется HTTPS или localhost).", "uk": "Камера тут не підтримується (потрібен HTTPS або localhost).", "bg": "Камерата не се поддържа тук (необходим е HTTPS или localhost).", "zh": "此处不支持相机（需要 HTTPS 或 localhost）。", "ja": "ここではカメラを使用できません（HTTPS または localhost が必要）。", "ko": "여기서는 카메라를 사용할 수 없습니다 (HTTPS 또는 localhost 필요).", "vi": "Máy ảnh không được hỗ trợ ở đây (cần HTTPS hoặc localhost).", "th": "ไม่รองรับกล้องที่นี่ (ต้องใช้ HTTPS หรือ localhost)", "id": "Kamera tidak didukung di sini (memerlukan HTTPS atau localhost).", "hi": "यहाँ कैमरा समर्थित नहीं है (HTTPS या localhost आवश्यक है)।", "ar": "الكاميرا غير مدعومة هنا (يلزم HTTPS أو localhost).", "he": "המצלמה אינה נתמכת כאן (נדרש HTTPS או localhost).", "fa": "دوربین در اینجا پشتیبانی نمی‌شود (به HTTPS یا localhost نیاز است)."}};
+    for (var _ck in _vtExtraCAM) { for (var _cl in _vtExtraCAM[_ck]) { if (DICT[_cl]) DICT[_cl][_ck] = _vtExtraCAM[_ck][_cl]; } }
+  } catch(_ce) {}
+  /* [VT-I18N-TESTBILD v1] Testbild-Button (Label + Tooltip) 31 Sprachen. */
+  try { var _vtExtraTB = {"Testbild": {"en": "Test image", "fr": "Image test", "it": "Immagine di prova", "es": "Imagen de prueba", "pt": "Imagem de teste", "nl": "Testafbeelding", "pl": "Obraz testowy", "cs": "Testovací obrázek", "sk": "Testovací obrázok", "ro": "Imagine de test", "hu": "Tesztkép", "el": "Δοκιμαστική εικόνα", "sv": "Testbild", "da": "Testbillede", "no": "Testbilde", "fi": "Testikuva", "ca": "Imatge de prova", "tr": "Test görüntüsü", "ru": "Тестовое изображение", "uk": "Тестове зображення", "bg": "Тестово изображение", "zh": "测试图片", "ja": "テスト画像", "ko": "테스트 이미지", "vi": "Ảnh thử", "th": "ภาพทดสอบ", "id": "Gambar uji", "hi": "परीक्षण छवि", "ar": "صورة اختبار", "he": "תמונת בדיקה", "fa": "تصویر آزمایشی"}, "Beispielbild zum Ausprobieren laden": {"en": "Load a sample image to try out", "fr": "Charger une image d'exemple pour tester", "it": "Carica un'immagine di esempio per provare", "es": "Cargar una imagen de ejemplo para probar", "pt": "Carregar uma imagem de exemplo para testar", "nl": "Voorbeeldafbeelding laden om uit te proberen", "pl": "Wczytaj przykładowy obraz do wypróbowania", "cs": "Načíst ukázkový obrázek k vyzkoušení", "sk": "Načítať ukážkový obrázok na vyskúšanie", "ro": "Încarcă o imagine exemplu pentru testare", "hu": "Példakép betöltése kipróbáláshoz", "el": "Φόρτωση δείγματος εικόνας για δοκιμή", "sv": "Ladda en exempelbild att prova", "da": "Indlæs et eksempelbillede at prøve", "no": "Last inn et eksempelbilde å prøve", "fi": "Lataa esimerkkikuva kokeiltavaksi", "ca": "Carrega una imatge d'exemple per provar", "tr": "Denemek için örnek görüntü yükle", "ru": "Загрузить пример изображения для пробы", "uk": "Завантажити зразок зображення для проби", "bg": "Зареди примерно изображение за проба", "zh": "加载示例图片试用", "ja": "お試し用のサンプル画像を読み込む", "ko": "체험용 샘플 이미지 불러오기", "vi": "Tải ảnh mẫu để thử", "th": "โหลดภาพตัวอย่างเพื่อทดลอง", "id": "Muat gambar contoh untuk dicoba", "hi": "आज़माने के लिए नमूना छवि लोड करें", "ar": "تحميل صورة نموذجية للتجربة", "he": "טען תמונת דוגמה לניסיון", "fa": "بارگذاری تصویر نمونه برای امتحان"}};
+    for (var _bk in _vtExtraTB) { for (var _bl in _vtExtraTB[_bk]) { if (DICT[_bl]) DICT[_bl][_bk] = _vtExtraTB[_bk][_bl]; } }
+  } catch(_be) {}
   function init(){
     var saved = "auto";
     try{ saved = localStorage.getItem("linea_lang") || "auto"; }catch(e){}
