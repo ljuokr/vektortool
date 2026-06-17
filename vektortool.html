@@ -10385,6 +10385,14 @@ function _renderSpiral(s, sc, sw, fc) {
 }
 
 function _offsetPathPoints(refShape, dist) {
+  /* [VT-TEXTPATH-OFFSET-FIX] Eckige GESCHLOSSENE Formen (Rect/Polygon/Stern): sauberer
+     Miter-Offset der ECHTEN Eckpunkte statt 60-Sample + Pro-Punkt-Normale. Letzteres
+     brach an der Schliess-Naht (erste Ecke gespalten/asymmetrisch versetzt) und liess
+     die Glyphen schraeg um den Pfad laufen. offsetClosedPolyline behandelt die Naht
+     korrekt (modulo) und gibt saubere Kanten + scharfe Ecken -> Text steht tangential. */
+  if (refShape.points && refShape.points.length >= 3 && refShape.closed && !_shapeUsesSmoothPointCurves(refShape)) {
+    return offsetClosedPolyline(refShape.points, dist);
+  }
   /* Sample points along the path, then offset each by dist along the normal */
   var pts = null;
   if (refShape.points && refShape.points.length >= 2) {
@@ -10415,6 +10423,131 @@ function _offsetPathPoints(refShape, dist) {
   return result;
 }
 
+/* [VT-TEXTPATH-SIDE v2] Signierter Versatz Text<->Linie (eine Quelle fuer
+   _vtTextPathGeom + _vtTextPathSnapOffset). s.pathDist in px: NEGATIV = aussen
+   (ueber der Linie), 0 = auf der Linie, POSITIV = innen. Positive Werte werden
+   gegen die Innen-Halbausdehnung gedeckelt, sonst zieht _offsetPathPoints bei
+   kleiner Form jeden Punkt durch das Zentrum (invertiert). Default: knapp aussen.
+   WICHTIG: flip aendert NUR die Leserichtung (Punkt-Reverse in _vtTextPathGeom),
+   NICHT die Seite - der Offset nutzt immer die Vorwaerts-Normale. Darum hier
+   KEINE Vorzeichen-Kompensation fuer flip (das war der Innen+Unten-Bug). */
+function _vtTextPathDist(refShape, s) {
+  var _pathSw = refShape.strokeWidth || 1;
+  var pd;
+  if (s && s.pathDist != null) pd = s.pathDist;
+  else if (s && s.pathSide === 'inside') pd = ((s.fontSize || 24) * 0.80 + _pathSw / 2); /* Fallback alte Testdaten */
+  else pd = -(_pathSw / 2 + 1); /* Default: knapp aussen */
+  if (pd > 0) {
+    var half = null;
+    var bb = (typeof geoBBox === 'function') ? geoBBox(refShape) : null;
+    if (bb && bb.w != null && bb.h != null) half = Math.min(bb.w, bb.h) / 2;
+    else if (refShape.w != null && refShape.h != null) half = Math.min(refShape.w, refShape.h) / 2;
+    if (half && half > 0 && pd > half * 0.85) pd = half * 0.85;
+  }
+  return pd;
+}
+
+/* [VT-TEXTPATH-SIDE v2] Einheitlicher textPath-d-Builder fuer "Text auf Pfad".
+   EINE Quelle fuer BEIDE Render-Pfade (Canvas _renderText + Stickerei
+   _vtTextOnPathLayout), damit Editor und Stickerei nie auseinanderlaufen.
+   Steuert ueber zwei Shape-Properties:
+   - s.pathDist (px, signiert): Abstand Text<->Linie. NEGATIV = aussen/ueber der
+                 Linie, 0 = auf der Linie, POSITIV = innen (s. _vtTextPathDist).
+   - s.pathFlip: true = Punkt-Reihenfolge umkehren -> Leserichtung dreht (damit
+                 Text z.B. unten am Kreis aufrecht lesbar steht statt kopf). Aendert
+                 NICHT die Seite (Offset nutzt immer die Vorwaerts-Normale).
+   Versatz laeuft fuer ALLE Formen (inkl. Ellipse) ueber _offsetPathPoints.
+   Rueckgabe { d, baseD } in Welt-Koordinaten (baseD = unversetzter Pfad fuer die
+   showPath-Linie) oder null. */
+function _vtTextPathGeom(refShape, s) {
+  if (!refShape) return null;
+  var isClosed = !!(refShape.closed || s.pathClosed);
+  var flip = !!s.pathFlip;
+  var refIsCurve = refShape.points ? _shapeUsesSmoothPointCurves(refShape) : false;
+  /* Basis-Pfad (unversetzt) - showPath-Linie + Fallback. */
+  var baseD = null;
+  if (refShape.points) {
+    if (isClosed) baseD = buildPointPathD(refShape.points, true, refIsCurve);
+    else {
+      var _f = buildPointPathD(refShape.points, false, refIsCurve);
+      var _r = buildPointPathD(refShape.points.slice().reverse(), false, refIsCurve);
+      baseD = _f + _r.replace(/^M[^A-DF-Za-df-z]*/, '');
+    }
+  } else if (refShape.type === 'ellipse') {
+    var ecx = refShape.x + refShape.w/2, ecy = refShape.y + refShape.h/2;
+    var erx = refShape.w/2, ery = refShape.h/2;
+    baseD = 'M'+(ecx-erx)+','+ecy+'A'+erx+','+ery+' 0 1,1 '+(ecx+erx)+','+ecy+'A'+erx+','+ery+' 0 1,1 '+(ecx-erx)+','+ecy+'Z';
+  } else if (refShape.type === 'polygon' || refShape.type === 'star' || refShape.type === 'rect') {
+    var cpts = refShape.points;
+    if (cpts && cpts.length >= 3) baseD = linePath(cpts) + 'Z';
+  }
+  if (!baseD) return null;
+  /* Versatz senkrecht zur Linie (gedeckelt gegen Innen-Radius, s. _vtTextPathDist). */
+  var dist = _vtTextPathDist(refShape, s); /* signiert: <0 aussen, >0 innen. flip dreht NUR die Leserichtung (Reverse), NICHT die Seite */
+  var d = baseD;
+  var singleLen = 0;
+  var offPts = _offsetPathPoints(refShape, dist);
+  if (offPts && offPts.length >= 2) {
+    if (flip) offPts = offPts.slice().reverse();
+    var _li;
+    for (_li = 1; _li < offPts.length; _li++) singleLen += Math.hypot(offPts[_li].x - offPts[_li-1].x, offPts[_li].y - offPts[_li-1].y);
+    if (isClosed) singleLen += Math.hypot(offPts[0].x - offPts[offPts.length-1].x, offPts[0].y - offPts[offPts.length-1].y);
+    /* [VT-TEXTPATH-OVERFLOW v1] Text darf UEBERLAUFEN statt zu verschwinden:
+       geschlossene Form -> Versatz-Spur mehrfach wiederholen (Text wickelt sich
+       weiter um den Kreis), offener Pfad -> am Ende tangential verlaengern. Bedarf
+       grob aus Zeichenzahl + Schriftgroesse + Laufweite geschaetzt (Ueberschaetzung
+       schadet nicht - ueberzaehliger Pfad bleibt nur ungenutzt). */
+    var fs = (s && s.fontSize) || 24;
+    var ls = (s && s.pathLetterSpacing) || 0;
+    var txt = String((s && s.text) || '');
+    var needLen = ((((s && s.pathOffset) || 0) / 100) * singleLen) + txt.length * (fs * 0.66 + ls) + fs;
+    if (singleLen > 0 && needLen > singleLen) {
+      if (isClosed) {
+        var reps = Math.min(8, Math.max(2, Math.ceil(needLen / singleLen) + 1)), rep = [], _r2;
+        for (_r2 = 0; _r2 < reps; _r2++) rep = rep.concat(offPts);
+        d = buildPointPathD(rep, false, false) || d;
+      } else {
+        var pN = offPts[offPts.length-1], pP = offPts[offPts.length-2];
+        var ex = pN.x - pP.x, ey = pN.y - pP.y, el = Math.hypot(ex, ey) || 1;
+        var ext = offPts.concat([{ x: pN.x + ex/el*(needLen - singleLen + fs), y: pN.y + ey/el*(needLen - singleLen + fs) }]);
+        d = buildPointPathD(ext, false, false) || d;
+      }
+    } else {
+      d = buildPointPathD(offPts, isClosed, false) || baseD;
+    }
+  }
+  /* startOffset ABSOLUT (px) statt % - damit Pfad-Wiederholung/Verlaengerung die
+     Position nicht verschiebt (px-Position bleibt identisch zur einfachen Spur). */
+  var startOffsetAbs = ((((s && s.pathOffset) || 0) / 100) * (singleLen || 0));
+  return { d: d, baseD: baseD, startOffset: startOffsetAbs };
+}
+
+/* [VT-TEXTPATH-SIDE v1] startOffset% so, dass der Text auf dem oberen ('top')
+   bzw. unteren ('bottom') Bogen einer geschlossenen Form zentriert sitzt.
+   Nutzt denselben (versetzten, ggf. geflippten) Pfad wie _vtTextPathGeom,
+   damit die Position mit dem Rendering uebereinstimmt. */
+function _vtTextPathSnapOffset(refShape, s, where) {
+  if (!refShape) return s.pathOffset || 0;
+  var flip = !!s.pathFlip;
+  var fs = (s && s.fontSize) || 24;
+  var dist = _vtTextPathDist(refShape, s); /* signiert, gedeckelt - identisch zu _vtTextPathGeom; flip nur Leserichtung */
+  var pts = _offsetPathPoints(refShape, dist);
+  if (!pts || pts.length < 3) return s.pathOffset || 0;
+  if (flip) pts = pts.slice().reverse();
+  var segLen = [0], total = 0, i;
+  for (i = 1; i < pts.length; i++) { total += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y); segLen.push(total); }
+  var totalC = total + Math.hypot(pts[0].x - pts[pts.length-1].x, pts[0].y - pts[pts.length-1].y);
+  if (totalC <= 0) return s.pathOffset || 0;
+  var extIdx = 0, extY = pts[0].y;
+  for (i = 1; i < pts.length; i++) {
+    if (where === 'bottom' ? (pts[i].y > extY) : (pts[i].y < extY)) { extY = pts[i].y; extIdx = i; }
+  }
+  var tw = String(s.text || '').length * fs * 0.55; /* grobe Textbreite zum Zentrieren */
+  var startLen = segLen[extIdx] - tw / 2;
+  var pct = (((startLen % totalC) + totalC) % totalC) / totalC * 100;
+  return Math.round(pct);
+}
+
 /* VT-TEXTPFAD-STICH v2: Layout von Text-auf-Pfad fuer die Stick-Engine.
    Spiegelt die tpd-/Offset-Konstruktion aus _renderText (bei Aenderungen DORT
    diese Funktion mitziehen!) und laesst den Browser die Glyphen per hidden
@@ -10427,44 +10560,9 @@ window._vtTextOnPathLayout = function(s) {
   if (!s || !s.onPath || !s.pathId) return null;
   var refShape = findShape(s.pathId);
   if (!refShape) return null;
-  var tpd = null;
-  var isClosed = refShape.closed || s.pathClosed;
-  if (refShape.points) {
-    var refIsCurve = _shapeUsesSmoothPointCurves(refShape);
-    if (isClosed) {
-      tpd = buildPointPathD(refShape.points, true, refIsCurve);
-    } else {
-      var fwdPath = buildPointPathD(refShape.points, false, refIsCurve);
-      var revPath = buildPointPathD(refShape.points.slice().reverse(), false, refIsCurve);
-      tpd = fwdPath + revPath.replace(/^M[^A-DF-Za-df-z]*/, '');
-    }
-  } else if (refShape.type === 'ellipse') {
-    var ecx = refShape.x + refShape.w/2, ecy = refShape.y + refShape.h/2;
-    var erx = refShape.w/2, ery = refShape.h/2;
-    tpd = 'M'+(ecx-erx)+','+ecy+'A'+erx+','+ery+' 0 1,1 '+(ecx+erx)+','+ecy+'A'+erx+','+ery+' 0 1,1 '+(ecx-erx)+','+ecy+'Z';
-  } else if (refShape.type === 'polygon' || refShape.type === 'star' || refShape.type === 'rect') {
-    var cpts = refShape.points;
-    if (cpts && cpts.length >= 3) tpd = linePath(cpts) + 'Z';
-  }
-  if (!tpd) return null;
-  var _pathSw = refShape.strokeWidth || 1;
-  var _pathDy = -(_pathSw / 2 + 1);
-  var _textPathD = tpd;
-  if (_pathDy !== 0) {
-    var _offIsCurve = refShape.points ? _shapeUsesSmoothPointCurves(refShape) : false;
-    var _isClosed = !!(refShape.closed || s.pathClosed);
-    var _offFwdPts = _offsetPathPoints(refShape, _pathDy);
-    if (_offFwdPts && _offFwdPts.length >= 2) {
-      var _offFwd = buildPointPathD(_offFwdPts, _isClosed, _offIsCurve);
-      if (!_isClosed) {
-        var _offRevPts = _offsetPathPoints(refShape, -_pathDy);
-        if (_offRevPts && _offRevPts.length >= 2) {
-          _offFwd += buildPointPathD(_offRevPts.slice().reverse(), false, _offIsCurve).replace(/^M[^A-DF-Za-df-z]*/, '');
-        }
-      }
-      _textPathD = _offFwd;
-    }
-  }
+  var _g = _vtTextPathGeom(refShape, s); /* [VT-TEXTPATH-SIDE v1] */
+  if (!_g) return null;
+  var _textPathD = _g.d;
   var ns = 'http://www.w3.org/2000/svg';
   var svg = document.createElementNS(ns, 'svg');
   svg.setAttribute('width', '10'); svg.setAttribute('height', '10');
@@ -10477,10 +10575,11 @@ window._vtTextOnPathLayout = function(s) {
   var te = document.createElementNS(ns, 'text');
   te.setAttribute('font-family', "'" + (s.fontFamily || 'Nunito') + "'");
   te.setAttribute('font-size', s.fontSize || 24);
+  if (s.pathLetterSpacing) te.setAttribute('letter-spacing', s.pathLetterSpacing); /* [VT-TEXTPATH-SIDE v2] Laufweite ins Stick-Layout */
   var tpEl = document.createElementNS(ns, 'textPath');
   tpEl.setAttribute('href', '#vtTplLayoutPath');
   tpEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#vtTplLayoutPath');
-  tpEl.setAttribute('startOffset', (s.pathOffset || 0) + '%');
+  tpEl.setAttribute('startOffset', (_g.startOffset || 0)); /* [VT-TEXTPATH-OVERFLOW v1] absolut px */
   tpEl.textContent = String(s.text || '');
   te.appendChild(tpEl); svg.appendChild(te);
   document.body.appendChild(svg);
@@ -10525,64 +10624,20 @@ function _renderText(s, sc, sw, fc, rot) {
   var ff = s.fontFamily || 'Nunito';
   if (s.onPath && s.pathId) {
     var refShape = findShape(s.pathId);
-    var tpd = null;
-    if (refShape && refShape.points) {
-      var isClosed = refShape.closed || s.pathClosed;
-      var refIsCurve = _shapeUsesSmoothPointCurves(refShape);
-      if (isClosed) {
-        tpd = buildPointPathD(refShape.points, true, refIsCurve);
-      } else {
-        var fwd = refShape.points;
-        var fwdPath = buildPointPathD(fwd, false, refIsCurve);
-        var rev = fwd.slice().reverse();
-        var revPath = buildPointPathD(rev, false, refIsCurve);
-        /* Strip the M command from revPath and append as continuation */
-        var revCont = revPath.replace(/^M[^A-DF-Za-df-z]*/, '');
-        tpd = fwdPath + revCont;
-      }
-    } else if (refShape && refShape.type === 'ellipse') {
-      var ecx = refShape.x + refShape.w/2, ecy = refShape.y + refShape.h/2;
-      var erx = refShape.w/2, ery = refShape.h/2;
-      tpd = 'M'+(ecx-erx)+','+ecy+'A'+erx+','+ery+' 0 1,1 '+(ecx+erx)+','+ecy+'A'+erx+','+ery+' 0 1,1 '+(ecx-erx)+','+ecy+'Z';
-    } else if (refShape && (refShape.type === 'polygon' || refShape.type === 'star' || refShape.type === 'rect')) {
-      var cpts = refShape.points;
-      if (cpts && cpts.length >= 3) {
-        tpd = linePath(cpts) + 'Z';
-      }
-    }
-    if (tpd) {
+    var _g = refShape ? _vtTextPathGeom(refShape, s) : null; /* [VT-TEXTPATH-SIDE v1] */
+    if (_g) {
+      var tpd = _g.baseD;
+      var _textPathD = _g.d;
       var pid = 'tp_' + s.id;
       var refRot = refShape ? _renderPointRot(refShape) : '';
       if (refRot) html += '<g'+refRot+'>';
-      /* Build offset path: shift text clear of the path stroke */
-      var _pathSw = refShape ? (refShape.strokeWidth || 1) : 1;
-      var _pathDy = -(_pathSw / 2 + 1);
-      var _textPathD = tpd;
-      if (_pathDy !== 0 && refShape) {
-        var _offIsCurve = refShape.points ? _shapeUsesSmoothPointCurves(refShape) : false;
-        var _isClosed = !!(refShape.closed || s.pathClosed);
-        /* Forward path: offset above */
-        var _offFwdPts = _offsetPathPoints(refShape, _pathDy);
-        if (_offFwdPts && _offFwdPts.length >= 2) {
-          var _offFwd = buildPointPathD(_offFwdPts, _isClosed, _offIsCurve);
-          if (!_isClosed) {
-            /* Return path: offset below (inverted) so upside-down text also clears the stroke */
-            var _offRevPts = _offsetPathPoints(refShape, -_pathDy);
-            if (_offRevPts && _offRevPts.length >= 2) {
-              var _offRev = buildPointPathD(_offRevPts.slice().reverse(), false, _offIsCurve);
-              var _offRevCont = _offRev.replace(/^M[^A-DF-Za-df-z]*/, '');
-              _offFwd += _offRevCont;
-            }
-          }
-          _textPathD = _offFwd;
-        }
-      }
       html += '<defs><path id="'+pid+'" d="'+_textPathD+'"/></defs>';
       if (s.showPath !== false && !refShape) {
         html += '<path d="'+tpd+'" fill="none" stroke="'+(s.pathStroke||sc)+'" stroke-width="'+(s.pathStrokeWidth||sw)+'"/>';
       }
       var tfc2 = s.textColor || (s.fill && s.fill !== 'none' ? s.fill : null) || sc;
-      html += '<text font-family="\''+ff+'\'" font-size="'+fs+'" fill="'+tfc2+'"><textPath href="#'+pid+'" xlink:href="#'+pid+'" startOffset="'+(s.pathOffset||0)+'%">'+escHtml(s.text||'')+'</textPath></text>';
+      var _lsp = s.pathLetterSpacing ? ' letter-spacing="'+s.pathLetterSpacing+'"' : ''; /* [VT-TEXTPATH-SIDE v2] Laufweite */
+      html += '<text font-family="\''+ff+'\'" font-size="'+fs+'" fill="'+tfc2+'"'+_lsp+'><textPath href="#'+pid+'" xlink:href="#'+pid+'" startOffset="'+(_g.startOffset||0)+'">'+escHtml(s.text||'')+'</textPath></text>'; /* [VT-TEXTPATH-OVERFLOW v1] startOffset absolut px */
       if (refRot) html += '</g>';
     }
   } else {
@@ -13855,6 +13910,7 @@ function onTextDown(e, pt) {
     var pathClosed = isClosedPath || isEllipsePath;
     ns = { type:'text', text:'Text', fontFamily:textFont, fontSize:textSize, onPath:true, pathId:hitShape.id,
       textColor:strokeCol, pathOffset:0, showPath:true, pathStroke:strokeCol, pathStrokeWidth:1, pathClosed:pathClosed,
+      pathDist:-3, pathFlip:false, pathLetterSpacing:0, /* [VT-TEXTPATH-SIDE v2] Abstand signiert (-=aussen), Laufweite */
       x:pt.x, y:pt.y, stroke:strokeCol, strokeWidth:lineW, fill:'none', fillEnabled:false };
     ns.id = mkId(); ns.gid = mkId();
     shapes.push(ns);
@@ -18574,8 +18630,40 @@ function makeTextSettings(s) {
   html += '</div>';
   if (s.onPath) {
     html += '<div class="rp-row"><label>Position</label><input type="range" class="sset" data-prop="pathOffset" min="0" max="100" value="'+(s.pathOffset||0)+'"><span class="val">'+(s.pathOffset||0)+'%</span></div>';
-    var _psc = s.pathStroke || s.stroke || '#2b2b2b';
-    html += '<div class="rp-row"><label>Pfadfarbe</label><div class="rp-path-swatch" style="width:26px;height:26px;border-radius:var(--radius-xs);cursor:pointer;box-shadow:inset 0 0 0 13px '+_psc+';border:1px solid var(--border)" data-cur-color="'+_psc+'"></div><input type="color" class="rp-color rp-path-color-input" data-prop="pathStroke" value="'+_psc+'" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0"></div>';
+    /* [VT-TEXTPATH-SIDE v1] Textseite kontextsensitiv: geschlossene Form (Kreis)
+       -> Aussen/Innen + Bogen Oben/Unten (Unten dreht den Text, damit er unten
+       aufrecht lesbar bleibt); offener Pfad -> Oben/Unten (ueber/unter der Linie). */
+    var _tpT = (typeof window !== 'undefined' && window.t) ? window.t : function(x){ return x; };
+    var _tpBtn = function(txt, prop, val, active){
+      return '<button class="tp-seg-btn'+(active?' active':'')+'" data-tpprop="'+prop+'" data-tpval="'+val+'" style="flex:1;padding:4px 2px;border:1px solid var(--border);background:'+(active?'var(--ac)':'var(--bg)')+';color:'+(active?'#fff':'var(--fg)')+';cursor:pointer;font-size:var(--fs-sm);font-weight:600">'+txt+'</button>';
+    };
+    var _tpRow = function(label, btns){
+      return '<div class="rp-row"><label>'+_tpT(label)+'</label><div style="display:flex;flex:1;border-radius:var(--radius-sm);overflow:hidden">'+btns+'</div></div>';
+    };
+    var _tpFlip = !!s.pathFlip;
+    /* Geschlossenheit live aus dem Referenz-Pfad ableiten (gleiche Quelle wie
+       _vtTextPathGeom) - s.pathClosed allein waere stale, falls der Pfad nach
+       dem Anhaengen des Textes geschlossen/geoeffnet wurde. */
+    var _tpRef = (typeof findShape === 'function') ? findShape(s.pathId) : null;
+    var _tpClosed = !!((_tpRef && _tpRef.closed) || s.pathClosed);
+    /* [VT-TEXTPATH-SIDE v2] Abstand Text<->Linie als stufenloser Schieber statt
+       binaerem Aussen/Innen: negativ = aussen/ueber der Linie, 0 = auf der Linie,
+       positiv = innen/unter der Linie. Ersetzt das alte (verwirrende + bei
+       Innen+Unten fehlerhafte) Aussen/Innen-Knopf-Paar. */
+    var _tpDist = (s.pathDist != null) ? s.pathDist : -3;
+    html += '<div class="rp-row"><label>'+_tpT('Abstand')+'</label><input type="range" class="sset" data-prop="pathDist" min="-50" max="80" step="1" value="'+_tpDist+'"><span class="val">'+_tpDist+'</span></div>';
+    /* Bogen Oben/Unten (Lesbarkeits-Flip) nur fuer geschlossene Formen sinnvoll. */
+    if (_tpClosed) {
+      html += _tpRow('Bogen', _tpBtn(_tpT('Oben'),'pathFlip','0',!_tpFlip) + _tpBtn(_tpT('Unten'),'pathFlip','1',_tpFlip));
+    }
+    var _tpLS = (s.pathLetterSpacing != null) ? s.pathLetterSpacing : 0;
+    html += '<div class="rp-row"><label>'+_tpT('Laufweite')+'</label><input type="range" class="sset" data-prop="pathLetterSpacing" min="-5" max="40" step="1" value="'+_tpLS+'"><span class="val">'+_tpLS+'</span></div>';
+    /* [VT-TEXTPATH-SCHRIFTFARBE v1] Schriftfarbe (Text-Farbe, s.textColor) - die
+       redundante "Pfadfarbe" (Traegerlinien-Kontur) ist raus, aber die Farbe des
+       TEXTES braucht ein eigenes Control. Nutzt dieselbe Swatch-Mechanik wie zuvor
+       (.rp-path-swatch oeffnet den .rp-color-Picker; .rp-color setzt data-prop). */
+    var _tcol = s.textColor || s.stroke || '#2b2b2b';
+    html += '<div class="rp-row"><label>'+_tpT('Schriftfarbe')+'</label><div class="rp-path-swatch" style="width:26px;height:26px;border-radius:var(--radius-xs);cursor:pointer;box-shadow:inset 0 0 0 13px '+_tcol+';border:1px solid var(--border)" data-cur-color="'+_tcol+'"></div><input type="color" class="rp-color rp-path-color-input" data-prop="textColor" value="'+_tcol+'" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0"></div>';
   }
   html += '</div>';
   return html;
@@ -19338,6 +19426,28 @@ function _bindEditorEvents(container) {
       getAllSelectedShapes().forEach(function(s){ s.fontFamily = f; });
       container.querySelectorAll('.rp-font').forEach(function(x){ x.classList.remove('active'); });
       this.classList.add('active');
+      render();
+    });
+  });
+  /* [VT-TEXTPATH-SIDE v1] Textseite (Aussen/Innen bzw. Oben/Unten) + Bogen-Flip */
+  container.querySelectorAll('.tp-seg-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (!selId) return;
+      pu();
+      var prop = this.getAttribute('data-tpprop');
+      var raw = this.getAttribute('data-tpval');
+      var val = (prop === 'pathFlip') ? (raw === '1') : raw;
+      getAllSelectedShapes().forEach(function(s){
+        if (!s.onPath) return;
+        s[prop] = val;
+        /* Bogen Oben/Unten: Position auf den oberen/unteren Bogen zentrieren,
+           damit "Unten" den Text sofort lesbar unten platziert. */
+        if (prop === 'pathFlip') {
+          var ref = findShape(s.pathId);
+          if (ref) { var snap = _vtTextPathSnapOffset(ref, s, val ? 'bottom' : 'top'); if (snap != null) s.pathOffset = snap; }
+        }
+      });
+      updateRightPanel();
       render();
     });
   });
@@ -44819,6 +44929,14 @@ _boxBtnEl.addEventListener('click', function() {
   try { var _vtExtra = {"Shift = Quadrat": {"en": "Shift = square", "fr": "Shift = carré", "it": "Shift = quadrato", "es": "Shift = cuadrado", "pt": "Shift = quadrado", "nl": "Shift = vierkant", "pl": "Shift = kwadrat", "cs": "Shift = čtverec", "sk": "Shift = štvorec", "ro": "Shift = pătrat", "hu": "Shift = négyzet", "el": "Shift = τετράγωνο", "sv": "Shift = kvadrat", "da": "Shift = kvadrat", "no": "Shift = kvadrat", "fi": "Shift = neliö", "ca": "Shift = quadrat", "tr": "Shift = kare", "ru": "Shift = квадрат", "uk": "Shift = квадрат", "bg": "Shift = квадрат", "zh": "Shift = 正方形", "ja": "Shift = 正方形", "ko": "Shift = 정사각형", "vi": "Shift = hình vuông", "th": "Shift = สี่เหลี่ยมจัตุรัส", "id": "Shift = persegi", "hi": "Shift = वर्ग", "ar": "Shift = مربع", "he": "Shift = ריבוע", "fa": "Shift = مربع"}, "Shift = Kreis": {"en": "Shift = circle", "fr": "Shift = cercle", "it": "Shift = cerchio", "es": "Shift = círculo", "pt": "Shift = círculo", "nl": "Shift = cirkel", "pl": "Shift = koło", "cs": "Shift = kruh", "sk": "Shift = kruh", "ro": "Shift = cerc", "hu": "Shift = kör", "el": "Shift = κύκλος", "sv": "Shift = cirkel", "da": "Shift = cirkel", "no": "Shift = sirkel", "fi": "Shift = ympyrä", "ca": "Shift = cercle", "tr": "Shift = daire", "ru": "Shift = круг", "uk": "Shift = коло", "bg": "Shift = кръг", "zh": "Shift = 圆形", "ja": "Shift = 円", "ko": "Shift = 원", "vi": "Shift = hình tròn", "th": "Shift = วงกลม", "id": "Shift = lingkaran", "hi": "Shift = वृत्त", "ar": "Shift = دائرة", "he": "Shift = עיגול", "fa": "Shift = دایره"}, "Shift = proportional": {"en": "Shift = keep ratio", "fr": "Shift = proportionnel", "it": "Shift = proporzionale", "es": "Shift = proporcional", "pt": "Shift = proporcional", "nl": "Shift = proportioneel", "pl": "Shift = proporcjonalnie", "cs": "Shift = proporcionálně", "sk": "Shift = proporcionálne", "ro": "Shift = proporțional", "hu": "Shift = arányos", "el": "Shift = αναλογικά", "sv": "Shift = proportionell", "da": "Shift = proportional", "no": "Shift = proporsjonal", "fi": "Shift = suhteellinen", "ca": "Shift = proporcional", "tr": "Shift = orantılı", "ru": "Shift = пропорционально", "uk": "Shift = пропорційно", "bg": "Shift = пропорционално", "zh": "Shift = 等比例", "ja": "Shift = 比率を保持", "ko": "Shift = 비율 유지", "vi": "Shift = giữ tỷ lệ", "th": "Shift = สัดส่วน", "id": "Shift = proporsional", "hi": "Shift = समानुपात", "ar": "Shift = متناسب", "he": "Shift = יחסי", "fa": "Shift = متناسب"}};
     for (var _ek in _vtExtra) { for (var _el in _vtExtra[_ek]) { if (DICT[_el]) DICT[_el][_ek] = _vtExtra[_ek][_el]; } }
   } catch(_ee) {}
+  /* [VT-I18N-TEXTPATH-SIDE v1] Labels fuer Text-auf-Pfad (Seite/Aussen/Innen/Bogen) in 31 Sprachen; Oben/Unten/Abstand existieren bereits. */
+  try { var _vtExtraTP = {"Seite": {"en": "Side", "fr": "Côté", "it": "Lato", "es": "Lado", "pt": "Lado", "nl": "Zijde", "pl": "Strona", "cs": "Strana", "sk": "Strana", "ro": "Latură", "hu": "Oldal", "el": "Πλευρά", "sv": "Sida", "da": "Side", "no": "Side", "fi": "Puoli", "ca": "Costat", "tr": "Taraf", "ru": "Сторона", "uk": "Сторона", "bg": "Страна", "zh": "侧", "ja": "側", "ko": "쪽", "vi": "Phía", "th": "ด้าน", "id": "Sisi", "hi": "ओर", "ar": "الجهة", "he": "צד", "fa": "سمت"}, "Aussen": {"en": "Outside", "fr": "Extérieur", "it": "Esterno", "es": "Exterior", "pt": "Externo", "nl": "Buiten", "pl": "Na zewnątrz", "cs": "Vně", "sk": "Vonku", "ro": "Exterior", "hu": "Kívül", "el": "Έξω", "sv": "Utsida", "da": "Udvendig", "no": "Utside", "fi": "Ulkona", "ca": "Exterior", "tr": "Dış", "ru": "Снаружи", "uk": "Зовні", "bg": "Отвън", "zh": "外侧", "ja": "外側", "ko": "바깥쪽", "vi": "Bên ngoài", "th": "ด้านนอก", "id": "Luar", "hi": "बाहर", "ar": "خارج", "he": "מבחוץ", "fa": "بیرون"}, "Innen": {"en": "Inside", "fr": "Intérieur", "it": "Interno", "es": "Interior", "pt": "Interno", "nl": "Binnen", "pl": "Wewnątrz", "cs": "Uvnitř", "sk": "Vnútri", "ro": "Interior", "hu": "Belül", "el": "Μέσα", "sv": "Insida", "da": "Indvendig", "no": "Innside", "fi": "Sisällä", "ca": "Interior", "tr": "İç", "ru": "Внутри", "uk": "Всередині", "bg": "Отвътре", "zh": "内侧", "ja": "内側", "ko": "안쪽", "vi": "Bên trong", "th": "ด้านใน", "id": "Dalam", "hi": "अंदर", "ar": "داخل", "he": "מבפנים", "fa": "درون"}, "Bogen": {"en": "Arc", "fr": "Arc", "it": "Arco", "es": "Arco", "pt": "Arco", "nl": "Boog", "pl": "Łuk", "cs": "Oblouk", "sk": "Oblúk", "ro": "Arc", "hu": "Ív", "el": "Τόξο", "sv": "Båge", "da": "Bue", "no": "Bue", "fi": "Kaari", "ca": "Arc", "tr": "Yay", "ru": "Дуга", "uk": "Дуга", "bg": "Дъга", "zh": "弧", "ja": "円弧", "ko": "호", "vi": "Cung", "th": "ส่วนโค้ง", "id": "Busur", "hi": "चाप", "ar": "قوس", "he": "קשת", "fa": "قوس"}};
+    for (var _tk in _vtExtraTP) { for (var _tl in _vtExtraTP[_tk]) { if (DICT[_tl]) DICT[_tl][_tk] = _vtExtraTP[_tk][_tl]; } }
+  } catch(_te) {}
+  /* [VT-I18N-TEXTPATH-LW v1] "Laufweite" + "Schriftfarbe" (31 Sprachen); "Abstand" existiert schon. */
+  try { var _vtExtraLW = {"Laufweite": {"en": "Letter spacing", "fr": "Interlettrage", "it": "Spaziatura", "es": "Espaciado", "pt": "Espaçamento", "nl": "Letterspatiëring", "pl": "Odstęp liter", "cs": "Prostrkání", "sk": "Rozpal písmen", "ro": "Spațiere litere", "hu": "Betűköz", "el": "Διαγραμμάτωση", "sv": "Teckenmellanrum", "da": "Bogstavafstand", "no": "Tegnavstand", "fi": "Merkkiväli", "ca": "Espaiat", "tr": "Harf aralığı", "ru": "Межбуквенный интервал", "uk": "Міжлітерний інтервал", "bg": "Разредка", "zh": "字间距", "ja": "字間", "ko": "자간", "vi": "Giãn cách chữ", "th": "ระยะห่างตัวอักษร", "id": "Spasi huruf", "hi": "अक्षर रिक्ति", "ar": "تباعد الأحرف", "he": "מרווח אותיות", "fa": "فاصله حروف"}, "Schriftfarbe": {"en": "Text color", "fr": "Couleur du texte", "it": "Colore testo", "es": "Color del texto", "pt": "Cor do texto", "nl": "Tekstkleur", "pl": "Kolor tekstu", "cs": "Barva textu", "sk": "Farba textu", "ro": "Culoare text", "hu": "Szövegszín", "el": "Χρώμα κειμένου", "sv": "Textfärg", "da": "Tekstfarve", "no": "Tekstfarge", "fi": "Tekstin väri", "ca": "Color del text", "tr": "Metin rengi", "ru": "Цвет текста", "uk": "Колір тексту", "bg": "Цвят на текста", "zh": "文字颜色", "ja": "文字色", "ko": "글자 색", "vi": "Màu chữ", "th": "สีข้อความ", "id": "Warna teks", "hi": "टेक्स्ट रंग", "ar": "لون النص", "he": "צבע טקסט", "fa": "رنگ متن"}};
+    for (var _wk in _vtExtraLW) { for (var _wl in _vtExtraLW[_wk]) { if (DICT[_wl]) DICT[_wl][_wk] = _vtExtraLW[_wk][_wl]; } }
+  } catch(_we) {}
   function init(){
     var saved = "auto";
     try{ saved = localStorage.getItem("linea_lang") || "auto"; }catch(e){}
