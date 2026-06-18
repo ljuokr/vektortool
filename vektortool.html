@@ -22278,6 +22278,30 @@ function _silOtsuThreshold(data, len) {
 }
 window._vtSilOtsu = _silOtsuThreshold;
 
+/* [sil-median-50 v1] Median-Schwellwert: liefert die Schwelle, bei der ~50 % der
+   Pixel erfasst werden. Die Binarisierung weiter unten fuellt die dunkle Klasse
+   (gray < threshold), darum dieselbe Luminanz-Formel 0.299/0.587/0.114 wie dort.
+   Schwelle = kleinster Wert, ab dem die kumulierte dunkle Klasse die Haelfte der
+   Pixel erreicht (geklemmt 1..254). Bei Invert ist die Aufteilung spiegelsymmetrisch,
+   der Median bleibt derselbe. data = RGBA-Array, len = data.length. */
+function _silMedianThreshold(data, len) {
+  var hist = new Uint32Array(256), total = 0, i;
+  for (i = 0; i < len; i += 4) {
+    var g = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    hist[g < 0 ? 0 : (g > 255 ? 255 : Math.round(g))]++;
+    total++;
+  }
+  if (!total) return 0;
+  var half = total / 2, cum = 0, t;
+  for (t = 0; t < 256; t++) {
+    cum += hist[t];
+    if (cum >= half) break;
+  }
+  /* Klasse [0..t] ist die dunkle Haelfte -> Schwelle t+1 erfasst ~50 %. */
+  return Math.max(1, Math.min(254, t + 1));
+}
+window._vtSilMedian = _silMedianThreshold;
+
 /* [silhouette-threshold-ux v1] Grosse Live-Masken-Vorschau beim Schieben des
    Schwellwerts: zeigt sofort die Schwarz/Weiss-Maske im Vorschaubereich
    (gecachter, verkleinerter Luminanz-Puffer aus _tState.preQuantizedData -
@@ -22483,16 +22507,17 @@ function _tracerRenderProcessed() {
   var mode = _tEl('tracerMode').value;
 
   if (mode === 'monochrome') {
-    /* [silhouette-threshold-ux v1] Otsu-Auto-Schwellwert: einmal pro Bild,
-       VOR der Binarisierung (data ist hier noch unbinarisiert), damit der
+    /* [sil-median-50 v1] Auto-Schwellwert (~50 % der Pixel erfasst): einmal pro
+       Bild, VOR der Binarisierung (data ist hier noch unbinarisiert), damit der
        folgende Trace direkt mit der automatischen Schwelle laeuft. Manuelle
-       Slider-Aenderung loescht das Flag (Nutzerwahl gewinnt). */
-    if (false && _tState._silAutoThresh && _tracerIsSilhouetteMode()) { /* [sil-defaults v1] Otsu-Auto deaktiviert - Start fix 212 */
+       Slider-Aenderung loescht das Flag (Nutzerwahl gewinnt). Ersetzt die fruehere
+       Otsu-Automatik (sil-defaults v1) durch den von Lukas gewuenschten 50-%-Median. */
+    if (_tState._silAutoThresh && _tracerIsSilhouetteMode()) {
       _tState._silAutoThresh = false;
-      var _silOt = _silOtsuThreshold(data, data.length);
-      if (_silOt > 0) {
-        _tEl('tracerThreshold').value = String(_silOt);
-        _tEl('tracerThresholdVal').textContent = String(_silOt);
+      var _silMed = _silMedianThreshold(data, data.length);
+      if (_silMed > 0) {
+        _tEl('tracerThreshold').value = String(_silMed);
+        _tEl('tracerThresholdVal').textContent = String(_silMed);
       }
     }
     var thresh = Number(_tEl('tracerThreshold').value) || 128;
@@ -24607,7 +24632,7 @@ async function _tracerLoadImage(dataUrl, name) {
   _tState.image = img;
   _tState.imageName = name;
   _tState.imageUrl = dataUrl;
-  _tState._silAutoThresh = false; /* [sil-defaults v1] Otsu-Automatik raus - Schwellwert-Start bleibt fix 212 bzw. Nutzerwert */
+  _tState._silAutoThresh = true; /* [sil-median-50 v1] frisches Bild: Auto-Schwellwert (~50 % erfasst) beim ersten Umriss-Trace */
   _tState.crop = null;
   _tState.settingsGen = (_tState.settingsGen || 0) + 1;   /* [tracer-stale-guard v1] laufenden Trace des ALTEN Bilds invalidieren */
   _tState.detectedColors = []; /* Reset so preview uses k-means until new SVG is ready */
@@ -24744,7 +24769,7 @@ function _openTracerModal(prevTool, requestedMode) {
     _tEl('tracerSilhouetteKeepInner').checked = true;
     _tEl('tracerSilhouetteFilled').checked = false;
     _tEl('tracerThreshold').value = '212';
-    _tState._silAutoThresh = false; /* [sil-defaults v1] Otsu-Automatik raus - Schwellwert-Start fix 212 (Lukas) */
+    _tState._silAutoThresh = true; /* [sil-median-50 v1] Umriss-Eintritt: Auto-Schwellwert (~50 % erfasst); 212 bleibt Fallback bis der Median greift */
     _tEl('tracerMinArea').value = '6'; /* [sil-defaults v1] Min-Flaeche-Standard im Umriss-Modus */
     if (_tEl('tracerSimplify')) _tEl('tracerSimplify').value = '0'; /* [sil-defaults v1] defensiv: Regler entfernt */
     _tEl('tracerPathSimplify').value = '0.4';
