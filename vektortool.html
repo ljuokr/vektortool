@@ -28738,6 +28738,51 @@ function _shapeColor(s) {
   return (s.fillEnabled && s.fill && s.fill !== 'none') ? s.fill : s.stroke || '#2b2b2b';
 }
 
+/* [umriss-2farbe v2] Liefert die Umriss-/Strichfarbe als EIGENE Stickfarbe,
+   SOBALD eine GEFUELLTE Form einen sichtbaren Umriss in einer ANDEREN Farbe als
+   die Fuellung hat (Lukas 2026-06-17: "sobald die Umrissfarbe anders ist ->
+   zwei Flaechen sticken"). Dann werden ZWEI Flaechen exportiert: die Fuellung in
+   der Fuellfarbe + der Umriss als eigenes Satin-Band (Farbwechsel) in der
+   Umrissfarbe. null nur wenn kein eigener Umriss-Faden noetig ist: keine
+   Fuellung, kein sichtbarer Umriss (strokeWidth 0 / none), oder Umriss ==
+   Fuellung. KEINE Standard-Tinte-Ausnahme mehr - jede abweichende Umrissfarbe
+   zaehlt (auch dunkel). */
+function _stitchOutlineColorFor(shape) {
+  if (!shape) return null;
+  var st = shape.stitch;
+  if (!st || st.type !== 'fill') return null;
+  if (!shape.fillEnabled) return null;
+  if (!(Number(shape.strokeWidth) > 0)) return null;
+  var fill = (shape.fill || '').toString().trim().toLowerCase();
+  var stroke = (shape.stroke || '').toString().trim().toLowerCase();
+  if (!fill || fill === 'none' || fill === 'transparent') return null;
+  if (!stroke || stroke === 'none' || stroke === 'transparent') return null;
+  if (stroke === fill) return null;
+  return shape.stroke; /* Originalwert (Gross-/Kleinschreibung) als Faden-Farbe */
+}
+
+/* [umriss-2farbe v2] Umriss-FLAECHE: die Form-Kontur als Satin-BAND in der
+   Strichbreite (echte Flaeche, nicht nur eine Laufstich-Linie). Nutzt
+   _calcStrokeBandStitch ueber eine Proxy-Shape; type:'none' verhindert, dass
+   _ensureStitch den Typ auf 'fill' zurueckzwingt (Proxy erbt fillEnabled). Die
+   Bandbreite zieht _calcStrokeBandStitch aus shape.strokeWidth. Faellt bei
+   Bedarf auf die Laufstich-Kontur zurueck. */
+function _stitchOutlineAreaPoints(shape) {
+  if (!shape) return [];
+  if (typeof _calcStrokeBandStitch === 'function') {
+    try {
+      var proxy = Object.create(shape);
+      proxy.stitch = { type: 'none', params: { stitchLength: 0.4 } };
+      var pts = _calcStrokeBandStitch(proxy);
+      if (pts && pts.length >= 2) return pts;
+    } catch (e) { /* faellt unten auf die Laufstich-Kontur zurueck */ }
+  }
+  if (typeof _calcFillOutlineStitch === 'function') {
+    try { return _calcFillOutlineStitch(shape) || []; } catch (e2) { return []; }
+  }
+  return [];
+}
+
 function _stitchShapeColor(shape) {
   if (!shape) return '#2b2b2b';
   var st = _ensureStitch(shape);
@@ -29682,13 +29727,67 @@ function _stitchCollectOverlayPolys(shape) {
 
 /* Hauptfunktion: bereinigte Füllgeometrie als evenodd-d-String (Welt-Koord),
    '' wenn komplett ausgestanzt, oder null wenn Clipping nicht möglich. */
+/* [VT-TRACER-MULTIFILL v1] Klassifiziert eine flache Ring-Liste (Outer + Loecher,
+   beliebig viele DISJUNKTE Teilflaechen) per Schachtelungstiefe in eine korrekte
+   polygon-clipping-MultiPolygon-Struktur. OHNE diese Klassifikation interpretiert
+   pc.union([rings]) den GESAMTEN Ring-Array als EIN Polygon (Ring 0 = Outer, alle
+   uebrigen = Loecher) - bei mehreren disjunkten gleichfarbigen Flaechen (Tracer-
+   Konsolidierung pro Farbe) verschwinden dann alle ausser der ersten Flaeche, weil
+   die anderen als nicht-enthaltene "Loecher" wegnormalisiert werden. Jede Flaeche
+   muss ihr eigenes Polygon sein, ihre echten Loecher angehaengt. */
+function _stitchRingsToPolys(rings) {
+  if (!rings || !rings.length) return [];
+  if (rings.length === 1) return [[rings[0]]];
+  function pip(pt, ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  /* Schachtelungstiefe je Ring: gerade = Outer (Flaeche), ungerade = Loch. */
+  var depth = rings.map(function (r, idx) {
+    var cnt = 0;
+    for (var k = 0; k < rings.length; k++) {
+      if (k === idx || rings[k].length < 3) continue;
+      if (pip(r[0], rings[k])) cnt++;
+    }
+    return cnt;
+  });
+  var polys = [], outerIdx = [];
+  for (var i = 0; i < rings.length; i++) {
+    if (rings[i].length < 4) continue;
+    if (depth[i] % 2 === 0) { outerIdx.push(polys.length); polys.push([rings[i], i]); }
+  }
+  /* Loecher der kleinsten enthaltenden Outer-Flaeche zuordnen. */
+  for (var h = 0; h < rings.length; h++) {
+    if (rings[h].length < 4 || depth[h] % 2 === 0) continue;
+    var best = -1, bestDepth = -1;
+    for (var p = 0; p < polys.length; p++) {
+      var oi = polys[p][polys[p].length - 1]; /* gespeicherter Ring-Index am Ende */
+      if (typeof oi !== 'number') continue;
+      if (pip(rings[h][0], rings[oi]) && depth[oi] > bestDepth) { best = p; bestDepth = depth[oi]; }
+    }
+    if (best >= 0) polys[best].splice(polys[best].length - 1, 0, rings[h]);
+  }
+  /* Die gespeicherten Ring-Indizes am Polygon-Ende wieder entfernen. */
+  return polys.map(function (poly) { return poly.filter(function (r) { return Array.isArray(r); }); });
+}
+
 function _stitchCleanGeometry(shape) {
   var pc = window.polygonClipping;
   if (!shape || !pc) return null;
   var rings = _stitchSampleWorldRings(shape);
   if (!rings || !rings.length) return null;
   var self;
-  try { self = pc.union([rings]); } catch (e) { return null; }
+  try {
+    /* [VT-TRACER-MULTIFILL v1] Ringe nach Schachtelung gruppieren (s.o.), dann
+       jedes Polygon einzeln an union uebergeben - so bleiben disjunkte gleich-
+       farbige Teilflaechen erhalten und echte Loecher werden weiter ausgestanzt. */
+    var _polys = _stitchRingsToPolys(rings);
+    self = _polys.length ? pc.union.apply(pc, _polys) : pc.union([rings]);
+  } catch (e) { return null; }
   if (!self || !self.length) return null;
   var overlays = _stitchCollectOverlayPolys(shape);
   var result = self;
@@ -34184,6 +34283,10 @@ function _calcFillOutlineStitch(shape) {
 function _withFillOutline(shape, mainPts) {
   var st = shape && shape.stitch;
   var params = (st && st.params) || {};
+  /* [umriss-2farbe v1] Gefuellte Form mit andersfarbigem Umriss: die Kontur
+     wird beim Export als eigener Farbblock in der Umrissfarbe gestickt. Darum
+     hier KEINE gleichfarbige Abschlusskontur anhaengen (sonst Rand doppelt). */
+  if (_stitchOutlineColorFor(shape)) return mainPts || [];
   if (params.outline !== true) return mainPts || [];
   if (!mainPts) mainPts = [];
   var outlinePts = _calcFillOutlineStitch(shape);
@@ -36484,6 +36587,25 @@ function _stitchExportDstBody(skipDownload) {
     for (var j = 0; j < nps.length; j++) {
       var rp = nps[j];
       if (rp) rawPts.push({ x: rp.x, y: rp.y });
+    }
+    /* [umriss-2farbe v2] Gefuellte Form mit andersfarbigem Umriss: der Umriss
+       wird als ZWEITE FLAECHE (Satin-Band in Strichbreite) in der Umrissfarbe
+       direkt nach dem Fuell-Block exportiert. Der Farbwechsel-Mechanismus weiter
+       unten (es.color !== lastColor) erzeugt den Farbwechsel automatisch. */
+    var _olCol = _stitchOutlineColorFor(ss[i]);
+    if (_olCol) {
+      var _olPts = _stitchOutlineAreaPoints(ss[i]);
+      if (_olPts && _olPts.length >= 2) {
+        exportShapes.push({
+          shape: ss[i],
+          color: _olCol,
+          runs: _stitchPointRuns(_olPts)
+        });
+        for (var jo = 0; jo < _olPts.length; jo++) {
+          var rpo = _olPts[jo];
+          if (rpo) rawPts.push({ x: rpo.x, y: rpo.y });
+        }
+      }
     }
   }
   if (!rawPts.length) return;
