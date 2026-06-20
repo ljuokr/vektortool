@@ -29316,14 +29316,21 @@ function _stitchMiterBandPoints(shape, pitchMM) {
       var ox = O[i].x + (O[j].x - O[i].x) * t, oy = O[i].y + (O[j].y - O[i].y) * t;
       var ix = I[i].x + (I[j].x - I[i].x) * t, iy = I[i].y + (I[j].y - I[i].y) * t;
       if (side) { /* Aussen-Rail O */
-        if (lastFullO && Math.hypot(ox - lastFullO.x, oy - lastFullO.y) < minSpace) {
-          pts.push({ x: ox + (ix - ox) * shortF, y: oy + (iy - oy) * shortF }); /* Kurzstich, lastFull bleibt */
+        var _ddO = lastFullO ? Math.hypot(ox - lastFullO.x, oy - lastFullO.y) : Infinity;
+        if (_ddO < minSpace) {
+          /* [satin-graded v1] Graduierter Kurzstich: je naeher sich die Endpunkte
+             beruehren, desto kuerzer. Knapp an der Beruehrung = langer ~75%-Stich
+             (sf=0.25), starkes Gedraenge = kurzer ~25%-Stich (sf=0.75). */
+          var _sfO = 0.25 + (1 - _ddO / minSpace) * 0.5;
+          pts.push({ x: ox + (ix - ox) * _sfO, y: oy + (iy - oy) * _sfO }); /* Kurzstich, lastFull bleibt */
         } else {
           pts.push({ x: ox, y: oy }); lastFullO = { x: ox, y: oy };
         }
       } else { /* Innen-Rail I */
-        if (lastFullI && Math.hypot(ix - lastFullI.x, iy - lastFullI.y) < minSpace) {
-          pts.push({ x: ix + (ox - ix) * shortF, y: iy + (oy - iy) * shortF });
+        var _ddI = lastFullI ? Math.hypot(ix - lastFullI.x, iy - lastFullI.y) : Infinity;
+        if (_ddI < minSpace) {
+          var _sfI = 0.25 + (1 - _ddI / minSpace) * 0.5; /* [satin-graded v1] 75%..25% je nach Naehe */
+          pts.push({ x: ix + (ox - ix) * _sfI, y: iy + (oy - iy) * _sfI });
         } else {
           pts.push({ x: ix, y: iy }); lastFullI = { x: ix, y: iy };
         }
@@ -39937,6 +39944,26 @@ window.__LINEA_DEBUG__ = {
        zoom = Bildschirm-px pro Unit → 0.4mm = 4 Units × zoom. Min damit beim
        Auszoomen sichtbar. */
     var thread3d = Math.max(1.2, 4.0 * _dstvState.zoom);
+    /* [VT-REALBILD v1] Realistischer Faden-Render (aus Font-Builder portiert) statt der
+       einfachen Linsen-Geometrie: pro Farbblock EIN drawReal-Aufruf (fuer Twist-
+       Kontinuitaet). Faellt auf die Inline-Linse zurueck, falls die Engine fehlt. */
+    var _realbild = mode3d && (typeof VTSatinEngine !== 'undefined') && VTSatinEngine && VTSatinEngine.drawReal;
+    if (_realbild) {
+      var _rbFit = { k: _dstvState.zoom,
+        X: function (x) { return _dstvState.panX + x * _dstvState.zoom; },
+        Y: function (y) { return _dstvState.panY - y * _dstvState.zoom; } };
+      var _rbPpmm = _dstvState.zoom * 10;
+      var _rbCol = _dstvColor(0), _rbPts = [];
+      var _rbFlush = function () { if (_rbPts.length > 1) { try { VTSatinEngine.drawReal(_dstvCtx, _rbPts, _rbFit, { color: _rbCol, canvasPxPerMm: _rbPpmm }); } catch (e) { console.warn('[vt:realbild]', e && e.message); } } _rbPts = []; };
+      for (var _rbi = 0; _rbi < limit; _rbi++) {
+        var _rbr = recs[_rbi];
+        if (_rbr.type === 'end') break;
+        if (_rbr.type === 'color_change') { _rbFlush(); _rbCol = _dstvColor(_rbr.colorIndex); continue; }
+        if (_rbr.type === 'jump') { _rbPts.push({ x: _rbr.x, y: _rbr.y, jump: true }); continue; }
+        _rbPts.push({ x: _rbr.x, y: _rbr.y });
+      }
+      _rbFlush();
+    }
     for (var i = 0; i < limit; i++) {
       var r = recs[i];
       if (r.type === 'end') break;
@@ -39958,7 +39985,7 @@ window.__LINEA_DEBUG__ = {
           }
           /* 3D: Sprünge sind getrimmte Trims (kein Faden auf Stoff) → nicht zeichnen. */
         } else {
-          if (mode3d) {
+          if (mode3d && !_realbild) {
             /* Realistischer Faden als LINSE: in der Mitte volle Stärke, an den Stich-
                Endpunkten eingeschnürt = die EINSTICHE (Nadel taucht ins Material).
                Canvas-Farbe, ~0.4mm. Gezeichnet in Stickreihenfolge → die deckende
@@ -48345,6 +48372,100 @@ function wordStitches(){
   }
   return filtered;
 }
+/* === VT-REALBILD v1 (2026-06-20): realistischer Faden-Render. Eigener canvas-2D-Code
+   (prozedurale Tube-/Twist-/Sheen-Sprites), Look an gaengigen Online-Stickviewern
+   orientiert - KEIN fremder Code/Asset. Aus font-builder-test.html portiert und fuer
+   beliebige Faden-Farbe + Canvas-Massstab parametrisiert. drawReal(ctx,pts,fit,opts):
+   pts={x,y,jump,travel} (Viewer-Einheit), fit={k,X(x),Y(y)} mappt auf Canvas-px,
+   opts={color:'#hex' | rgb:[r,g,b], canvasPxPerMm}. === */
+var _RT_NA=32, _RT_TILEMM=8, _RT_NTILE=2, _RT_PPMM=8;
+var _RT_LIGHT={x:-0.70,y:-0.71};
+var _RT_cache={};
+function _rtClamp(v){ v=v|0; return v<0?0:v>255?255:v; }
+function _rtMixW(c,t){ return [c[0]+(255-c[0])*t, c[1]+(255-c[1])*t, c[2]+(255-c[2])*t]; }
+function _rtScale(c,f){ return [c[0]*f, c[1]*f, c[2]*f]; }
+function _rtHexRgb(hex){ hex=String(hex||'#b01e1a').replace('#',''); if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2]; var n=parseInt(hex,16); if(!isFinite(n)) return [176,30,26]; return [(n>>16)&255,(n>>8)&255,n&255]; }
+function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
+  var hw=tw*0.5, pad=2, W=tilePx*_RT_NTILE, H=Math.ceil(tw+pad*2), cy=H/2;
+  var c=document.createElement('canvas'); c.width=W; c.height=H; var o=c.getContext('2d');
+  var nx=-Math.sin(a), ny=Math.cos(a), ndl=nx*_RT_LIGHT.x+ny*_RT_LIGHT.y;
+  var ridge=0.50-0.16*ndl, lit=0.80+0.20*Math.max(0,ndl)-0.06*Math.max(0,-ndl);
+  function R(v){ return _rtClamp(v*lit); }
+  var g=o.createLinearGradient(0, cy-hw, 0, cy+hw);
+  function cs(off, base){ g.addColorStop(Math.max(0,Math.min(1,off)), 'rgb('+R(base[0])+','+R(base[1])+','+R(base[2])+')'); }
+  cs(0.00, _rtScale(C,0.85));
+  cs(ridge-0.34, C);
+  cs(ridge-0.12, _rtMixW(C,0.42));
+  cs(ridge,      _rtMixW(C,0.72));
+  cs(ridge+0.14, _rtMixW(C,0.16));
+  cs(ridge+0.38, _rtScale(C,0.92));
+  cs(1.00, _rtScale(C,0.76));
+  o.fillStyle=g; o.fillRect(0, cy-hw, W, tw);
+  var shadeTop=ndl<0;
+  var sg=o.createLinearGradient(0, shadeTop?cy-hw:cy+hw, 0, shadeTop?cy-hw+tw*0.42:cy+hw-tw*0.42);
+  sg.addColorStop(0,'rgba(18,8,4,0.22)'); sg.addColorStop(1,'rgba(18,8,4,0)');
+  o.fillStyle=sg; o.fillRect(0, cy-hw, W, tw);
+  o.save(); o.beginPath(); o.rect(0, cy-hw, W, tw); o.clip(); o.globalCompositeOperation='overlay';
+  var slope=Math.tan(27*Math.PI/180), dxOverH=tw*slope, step=Math.max(2.0, tilePx/9), off=(phase||0)*step*0.5, s;
+  for(s=-dxOverH-W; s<W+dxOverH; s+=step){
+    var lv=0.5+0.5*Math.sin(s*(6.283185/(step*6))), val=lv>0.5?178:118;
+    o.strokeStyle='rgba('+val+','+val+','+val+',0.13)'; o.lineWidth=step*0.42;
+    o.beginPath(); o.moveTo(s+off, cy-hw-1); o.lineTo(s+off+dxOverH, cy+hw+1); o.stroke();
+  }
+  o.restore();
+  o.globalCompositeOperation='source-over';
+  var ry=cy-hw+ridge*tw;
+  o.strokeStyle='rgba(255,250,240,'+(0.26+0.14*Math.max(0,ndl)).toFixed(2)+')'; o.lineWidth=Math.max(0.8, tw*0.18);
+  o.beginPath(); o.moveTo(0, ry-tw*0.04); o.lineTo(W, ry-tw*0.04); o.stroke();
+  o.strokeStyle='rgba(8,5,2,0.13)'; o.lineWidth=Math.max(0.6, tw*0.10);
+  var gy=cy-hw+Math.min(0.92, ridge+0.40)*tw;
+  o.beginPath(); o.moveTo(0, gy); o.lineTo(W, gy); o.stroke();
+  return { cv:c, h:H };
+}
+function _rtEnsure(tw, colorKey, C){
+  var k=Math.round(tw*4)+'|'+colorKey;
+  if(_RT_cache[k]) return _RT_cache[k];
+  var tilePx=Math.max(12, Math.round(_RT_TILEMM*_RT_PPMM)), ppx=tilePx/_RT_TILEMM, sprites=[], a;
+  for(a=0; a<_RT_NA; a++){ sprites.push(_rtBakeSprite((a/_RT_NA)*6.283185, tw, tilePx, ppx, a, C)); }
+  var RT={ tw:tw, sprites:sprites, tilePx:tilePx, ppx:ppx, W:tilePx*_RT_NTILE };
+  _RT_cache[k]=RT; return RT;
+}
+function drawReal(ctx, pts, fit, opts){
+  opts=opts||{};
+  var C=opts.rgb || _rtHexRgb(opts.color || '#b01e1a');
+  var colorKey=(C[0]|0)+'_'+(C[1]|0)+'_'+(C[2]|0);
+  var ppmm=opts.canvasPxPerMm || (_mm2px(1)*(fit.k||1));
+  var tw=Math.max(2.0, 0.40*ppmm), hw=tw*0.5, i, p, x, y, prev;
+  var RT=_rtEnsure(tw, colorKey, C), sp=RT.sprites, NA=_RT_NA, spW=RT.W, ppmmSrc=RT.ppx;
+  var srcPerCanvasPx=ppmmSrc/ppmm;
+  ctx.lineCap='butt'; ctx.lineJoin='miter'; ctx.miterLimit=2;
+  ctx.strokeStyle='rgb('+_rtClamp(C[0]*0.92)+','+_rtClamp(C[1]*0.92)+','+_rtClamp(C[2]*0.92)+')'; ctx.lineWidth=tw; ctx.lineCap='round'; prev=null;
+  ctx.beginPath();
+  for(i=0;i<pts.length;i++){ p=pts[i]; if(p.jump){prev=null;continue;} x=fit.X(p.x); y=fit.Y(p.y); if(prev&&!p.travel){ctx.moveTo(prev.x,prev.y);ctx.lineTo(x,y);} prev={x:x,y:y}; }
+  ctx.stroke(); ctx.lineCap='butt';
+  prev=null; var savedT=ctx.getTransform?ctx.getTransform():null, uOff=0;
+  ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
+  for(i=0;i<pts.length;i++){ p=pts[i]; if(p.jump){prev=null;continue;} x=fit.X(p.x); y=fit.Y(p.y);
+    if(prev&&!p.travel){ var dx=x-prev.x,dy=y-prev.y,len=Math.hypot(dx,dy);
+      if(len>0.25){ var ang=Math.atan2(dy,dx), bk=((Math.round(ang/6.283185*NA)%NA)+NA)%NA, spr=sp[bk], H=spr.h, srcW=len*srcPerCanvasPx, u0=uOff%spW; if(u0<0)u0+=spW;
+        ctx.translate(prev.x,prev.y); ctx.rotate(ang);
+        if(u0+srcW<=spW){ ctx.drawImage(spr.cv,u0,0,srcW,H,0,-H/2,len,H); }
+        else { var firstSrc=spW-u0, firstDst=len*(firstSrc/srcW); ctx.drawImage(spr.cv,u0,0,firstSrc,H,0,-H/2,firstDst,H); var remSrc=srcW-firstSrc, remDst=len-firstDst; ctx.drawImage(spr.cv,0,0,remSrc,H,firstDst,-H/2,remDst,H); }
+        if(savedT) ctx.setTransform(savedT); else { ctx.rotate(-ang); ctx.translate(-prev.x,-prev.y); }
+        uOff+=srcW;
+      }
+    }
+    prev={x:x,y:y};
+  }
+  var kf=_rtMixW(C,0.14); ctx.fillStyle='rgb('+_rtClamp(kf[0])+','+_rtClamp(kf[1])+','+_rtClamp(kf[2])+')';
+  var pA=null,pB=null;
+  for(i=0;i<pts.length;i++){ p=pts[i]; if(p.jump||p.travel){pA=null;pB=null;continue;} var cx=fit.X(p.x),cyy=fit.Y(p.y);
+    if(pA&&pB){ var ux=pB.x-pA.x,uy=pB.y-pA.y,vx=cx-pB.x,vy=cyy-pB.y, ul=Math.hypot(ux,uy)||1, vl=Math.hypot(vx,vy)||1, dot=(ux*vx+uy*vy)/(ul*vl);
+      if(dot>0.17&&dot<0.6){ ctx.beginPath(); ctx.arc(pB.x,pB.y,hw*0.42,0,6.283185); ctx.fill(); } }
+    pA=pB; pB={x:cx,y:cyy};
+  }
+}
+
 function textToStitches(opts){
   opts=opts||{};
   state.font=opts.fontFamily||'Nunito'; state.text=String(opts.text||'');
@@ -48355,7 +48476,7 @@ function textToStitches(opts){
   var r=wordStitches();
   return r||[];
 }
-return { textToStitches:textToStitches, _mm2px:_mm2px, _px2mm:_px2mm };
+return { textToStitches:textToStitches, drawReal:drawReal, _mm2px:_mm2px, _px2mm:_px2mm };
 })();
 
 </script>
