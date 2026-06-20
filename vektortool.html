@@ -29201,12 +29201,23 @@ function _stitchMiterBandPoints(shape, pitchMM) {
   var pts = [], side = 0;
   var lastFullI = null, lastFullO = null;
   var minSpace = pitchPx * 1.7, shortF = 0.4; /* Kurzstich erreicht 60% Richtung Innenkante */
+  /* [satin-curve-dichte v1] Einstiche im Pitch-Abstand entlang des LAENGEREN Rails
+     (aussen auf Kurven) setzen, mit Rest-Uebertrag ueber Kanten (kein Pro-Kante-
+     Rundungsverlust - das war der Grund, warum eine reine round(seg/pitch)-Aenderung
+     nichts brachte). So bekommt der Aussenbogen vollen Pitch (keine Luecken/zu duenn),
+     der Innenbogen mehr Einstiche -> der Kurzstich-Ausgleich verteilt sie sauber
+     (= aussen dichter, innen gleichmaessig wie an der Gehrung). Auf Geraden sind beide
+     Rails gleich lang -> Verhalten wie zuvor. */
+  var acc = 0; /* zurueckgelegte Distanz auf dem Takt-Rail seit letztem Einstich */
   for (var i = 0; i < EC; i++) {
     var j = closed ? (i + 1) % n : (i + 1);
-    var seg = Math.hypot(P[j].x - P[i].x, P[j].y - P[i].y);
-    var steps = Math.max(1, Math.round(seg / pitchPx));
-    for (var k = 0; k < steps; k++) {
-      var t = k / steps;
+    var _segO = Math.hypot(O[j].x - O[i].x, O[j].y - O[i].y);
+    var _segI = Math.hypot(I[j].x - I[i].x, I[j].y - I[i].y);
+    var driveLen = Math.max(_segO, _segI, 1e-6); /* laengerer Rail = Dichte-Taktgeber */
+    var dpos = 0;
+    while (acc + (driveLen - dpos) >= pitchPx) {
+      dpos += (pitchPx - acc); acc = 0;
+      var t = dpos / driveLen;
       var ox = O[i].x + (O[j].x - O[i].x) * t, oy = O[i].y + (O[j].y - O[i].y) * t;
       var ix = I[i].x + (I[j].x - I[i].x) * t, iy = I[i].y + (I[j].y - I[i].y) * t;
       if (side) { /* Aussen-Rail O */
@@ -29224,6 +29235,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
       }
       side ^= 1;
     }
+    acc += (driveLen - dpos);
   }
   var lastIdx = closed ? 0 : (n - 1);
   if (pts.length) pts.push(side ? { x: O[lastIdx].x, y: O[lastIdx].y } : { x: I[lastIdx].x, y: I[lastIdx].y });
