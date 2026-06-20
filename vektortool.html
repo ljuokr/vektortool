@@ -1320,7 +1320,7 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 #ctxMenu .ctx-parent:hover > .ctx-submenu { display:block; }
 #finishBanner { display:none; position:fixed; top:calc(var(--topbar-h) + var(--tabbar-h) + 8px); left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:var(--space-4) var(--space-8); border-radius:var(--radius); font-size:var(--fs-lg); z-index:200; box-shadow:0 2px 8px rgba(0,0,0,0.1); white-space:nowrap; align-items:center; gap:var(--space-4); }
 #finishBanner.show { display:flex; }
-#finishBanner .fb-btn { padding:var(--space-4) var(--space-10); border-radius:var(--radius-sm); border:none; cursor:pointer; font-size:var(--fs-lg); font-weight:600; }
+#finishBanner .fb-btn { padding:var(--space-4) var(--space-10); border-radius:var(--radius-sm); border:none; cursor:pointer; font-size:var(--fs-md); font-weight:600; } /* [pen-del v1] fs-md = gleiche Groesse wie die Hinweise */
 #finishBanner .fb-finish { background:var(--ac); color:white; }
 #finishBanner .fb-finish:hover { opacity:0.85; }
 #finishBanner .fb-cancel { background:var(--bg2); color:var(--fg2); }
@@ -2331,7 +2331,7 @@ body.layer-panel-open #rsActions { display:none !important; }
   </div>
 </div>
 
-<div id="finishBanner"><button class="fb-btn fb-finish" id="fbFinish">Fertig (Enter)</button><button class="fb-btn fb-cancel" id="fbCancel">Abbrechen (Escape)</button><span class="fb-hint" id="fbHint">⇧ Shift = Ecke</span></div>
+<div id="finishBanner"><button class="fb-btn fb-finish" id="fbFinish">Fertig (Enter)</button><button class="fb-btn fb-cancel" id="fbCancel">Abbrechen (Escape)</button><span class="fb-hint" id="fbHint">⇧ Shift = Ecke</span><span class="fb-hint" id="fbHintDel">⌫ Del = letzter Punkt</span></div>
 
 <!-- v44: Stick-Modus Toggle — kombiniert Preview + Settings in einem Fenster -->
 <button id="stickModeToggle" title="Stick-Modus: kombinierte Preview + Settings Ansicht">&#x25A6; Stick-Modus</button>
@@ -7403,10 +7403,17 @@ function _bakeCurvePointHandles(idx) {
       p.h1x = cpOut.b1x - p.x; p.h1y = cpOut.b1y - p.y;
     } else { p.h1x = 0; p.h1y = 0; }
   }
+  /* [pen-freeze v1] REGEL (Lukas): einmal gesetzte Linie NICHT mehr glaetten.
+     Der Ein-Griff (h2) wird NUR gesetzt, wenn er noch nicht existiert - niemals
+     nachgezogen. Frueher (pen-delle v1/v2) wurde h2 eines inneren Punkts auf die
+     vorausschauende Innen-Tangente nachgezogen, sobald ein Nachfolger kam; das hat
+     die kleine Anfangs-Delle entfernt, aber das BEREITS gezeichnete eingehende
+     Segment veraendert, sobald man weiterzeichnet (= nachtraegliches Glaetten).
+     Das ist unerwuenscht: gesetzte Segmente frieren ein. */
   if (p.h2x === undefined) {
     if (idx > 0) {
       var cpIn = getCrCP(drawPoints, idx - 1);        // b2 = Ein-Griff von p[idx]
-      p.h2x = cpIn.b2x - p.x; p.h2y = cpIn.b2y - p.y;
+      p.h2x = cpIn.b2x - p.x; p.h2y = cpIn.b2y - p.y; p._h2cr = true;
     } else { p.h2x = 0; p.h2y = 0; }
   }
 }
@@ -7422,7 +7429,7 @@ function _freezeLastPointInHandle() {
   var p = drawPoints[li];
   if (p.h2x !== undefined) return;
   var cp = getCrCP(drawPoints, li - 1);  // Segment (li-1 -> li), b2 = Ein-Griff von li (li ist Endpunkt -> geklemmt)
-  p.h2x = cp.b2x - p.x; p.h2y = cp.b2y - p.y;
+  p.h2x = cp.b2x - p.x; p.h2y = cp.b2y - p.y; p._h2cr = true; /* [pen-del v1] markiert: Ein-Griff stammt aus CR (nicht vom Nutzer gezogen) - nur solche frischt der Loeschen-Handler neu auf */
 }
 
 function linePath(pts) {
@@ -13834,7 +13841,7 @@ function onCurveMove(e, pt) {
       var last = drawPoints[drawPoints.length - 1];
       last.x = curveDragStart.x;
       last.y = curveDragStart.y;
-      last.h2x = -dx; last.h2y = -dy;  // Ein-Griff gespiegelt = glatte Tangente (formt das sichtbare Eingangs-Segment)
+      last.h2x = -dx; last.h2y = -dy; last._h2cr = false;  // [pen-del v1] Nutzer-Griff (gezogen) -> _h2cr=false, der Loeschen-Handler laesst ihn in Ruhe. Ein-Griff gespiegelt = glatte Tangente (formt das sichtbare Eingangs-Segment)
       last._sh1x = dx; last._sh1y = dy; // [VT-PEN-HANDLE v1] glatten Aus-Griff merken, fuer Shift-Toggle
       _applyLastCurveCorner();          // Aus-Griff = 0 (Ecke) wenn Shift, sonst _sh1 (glatt) - live
       _curveHandleGuide = {x:curveDragStart.x, y:curveDragStart.y, dx:dx, dy:dy};
@@ -14249,6 +14256,39 @@ document.addEventListener('keydown', function(e) {
   if ((k === 'enter' || k === 'escape') && (tool === 'line' || tool === 'curve') && drawPoints.length >= 1) {
     if (k === 'escape') { drawPoints = []; pendingSnapLinks = []; previewShapes = null; activeSnapPt = null; _snapSuppressOrigin = null; $('finishBanner').classList.remove('show'); $('stDrawSize').textContent = ''; render(); } /* [VT-SEGLEN v1] Anzeige leeren */
     else { if (drawPoints.length >= 2) { if (tool === 'line') finishLine(); else finishCurve(); } }
+    e.preventDefault(); return;
+  }
+
+  /* [pen-del v1] Beim Zeichnen (Kurve/Linie): Del/Backspace loescht den ZULETZT
+     gesetzten Punkt (statt das ganze Werkzeug). Danach den neuen letzten Punkt
+     wieder "live" machen: Aus-Griff frei fuers Gummiband, Ein-Griff als
+     Endpunkt-Tangente. Bei 0 Punkten -> Vorschau/Banner weg. */
+  if ((k === 'delete' || k === 'backspace') && (tool === 'line' || tool === 'curve') && drawPoints.length >= 1 && !inInput) {
+    drawPoints.pop();
+    pendingSnapLinks = [];
+    _curveHandleGuide = null; curveDragging = false; curveDragStart = null;
+    if (drawPoints.length === 0) {
+      previewShapes = null; activeSnapPt = null; _snapSuppressOrigin = null;
+      $('finishBanner').classList.remove('show');
+      $('stDrawSize').textContent = '';
+    } else {
+      if (tool === 'curve') {
+        var _nlDel = drawPoints[drawPoints.length - 1];
+        if (_nlDel._h2cr) { delete _nlDel.h2x; delete _nlDel.h2y; } /* CR-Eingangsgriff zuruecksetzen -> als Endpunkt neu einfrieren */
+        _freezeLastPointInHandle();
+        _applyLastCurveCorner();
+      }
+      var _delPts = (tool === 'curve' && _lastCurveMovePt) ? drawPoints.concat([{x:_lastCurveMovePt.x, y:_lastCurveMovePt.y}]) : drawPoints.slice();
+      var _delTfs = getMirrorTransforms();
+      previewShapes = [];
+      for (var _dI = 0; _dI < _delTfs.length; _dI++) {
+        var _dTf = _delTfs[_dI], _dPts = [];
+        for (var _dJ = 0; _dJ < _delPts.length; _dJ++) _dPts.push(applyTfWithHandles(_delPts[_dJ], _dTf));
+        previewShapes.push(applyOpenStrokeProps({type:'path', points:_dPts, stroke:strokeCol, strokeWidth:lineW, fill:'none', fillEnabled:false, curved:(tool === 'curve')}));
+      }
+      if (drawPoints.length < 2) $('finishBanner').classList.remove('show');
+    }
+    render();
     e.preventDefault(); return;
   }
   /* Eyedropper (Feature 1): ESC bricht ab */
