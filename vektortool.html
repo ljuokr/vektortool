@@ -1325,6 +1325,7 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 #finishBanner .fb-finish:hover { opacity:0.85; }
 #finishBanner .fb-cancel { background:var(--bg2); color:var(--fg2); }
 #finishBanner .fb-cancel:hover { background:var(--border); }
+#finishBanner .fb-hint { color:var(--fg2); font-size:var(--fs-md); white-space:nowrap; opacity:0.85; } /* [VT-PEN-HANDLE v1] Hinweis: Shift = Knick */
 
 .style-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-2); }
 .style-item { border:2px solid transparent; border-radius:var(--radius-sm); cursor:pointer; padding:var(--space-1); display:flex; align-items:center; justify-content:center; height:32px; background:var(--white); }
@@ -2330,7 +2331,7 @@ body.layer-panel-open #rsActions { display:none !important; }
   </div>
 </div>
 
-<div id="finishBanner"><button class="fb-btn fb-finish" id="fbFinish">Fertig (Enter)</button><button class="fb-btn fb-cancel" id="fbCancel">Abbrechen (Escape)</button></div>
+<div id="finishBanner"><button class="fb-btn fb-finish" id="fbFinish">Fertig (Enter)</button><button class="fb-btn fb-cancel" id="fbCancel">Abbrechen (Escape)</button><span class="fb-hint" id="fbHint">⇧ Shift = Ecke</span></div>
 
 <!-- v44: Stick-Modus Toggle — kombiniert Preview + Settings in einem Fenster -->
 <button id="stickModeToggle" title="Stick-Modus: kombinierte Preview + Settings Ansicht">&#x25A6; Stick-Modus</button>
@@ -7230,6 +7231,23 @@ function applyTf(pt, tf) {
   return {x:x, y:y};
 }
 
+/* [VT-PEN-HANDLE v1] applyTf fuer einen Punkt MIT expliziten Bezier-Griffen
+   (h1/h2 sind relative Deltas). Die Griff-Endpunkte werden als Punkte
+   transformiert und wieder als Delta zum transformierten Anker abgelegt -
+   so bleiben Spiegelungen/Rotationen der Vorschau korrekt. */
+function applyTfWithHandles(pt, tf) {
+  var np = applyTf(pt, tf);
+  if (pt.h1x !== undefined) {
+    var e1 = applyTf({x: pt.x + pt.h1x, y: pt.y + pt.h1y}, tf);
+    np.h1x = e1.x - np.x; np.h1y = e1.y - np.y;
+  }
+  if (pt.h2x !== undefined) {
+    var e2 = applyTf({x: pt.x + pt.h2x, y: pt.y + pt.h2y}, tf);
+    np.h2x = e2.x - np.x; np.h2y = e2.y - np.y;
+  }
+  return np;
+}
+
 function inverseTf(pt, tf) {
   var x = pt.x, y = pt.y;
   // Undo tilt (reverse rotation around center)
@@ -7290,7 +7308,7 @@ function addShapeWithMirror(base) {
     s.mirrorTf = {sx:tf.sx||1, sy:tf.sy||1, cx:tf.cx, cy:tf.cy, angle:tf.angle||0, flip:!!tf.flip, tx:tf.tx||0, ty:tf.ty||0, gsx:tf.gsx||1, gsy:tf.gsy||1};
     if (s.points) {
       for (var k = 0; k < s.points.length; k++) {
-        s.points[k] = applyTf(s.points[k], tf);
+        s.points[k] = applyTfWithHandles(s.points[k], tf); /* [VT-PEN-HANDLE v1] explizite Bezier-Griffe erhalten + mit-transformieren */
       }
     }
     if (s.x !== undefined && s.y !== undefined) {
@@ -7366,6 +7384,45 @@ function getCrCP(pts, i) {
   if(isNaN(b1x))b1x=p1.x;if(isNaN(b1y))b1y=p1.y;
   if(isNaN(b2x))b2x=p2.x;if(isNaN(b2y))b2y=p2.y;
   return {b1x:b1x,b1y:b1y,b2x:b2x,b2y:b2y};
+}
+
+/* [VT-PEN-HANDLE v1] Friert die Catmull-Rom-Griffe eines GEZEICHNETEN Kurvenpunkts
+   (drawPoints[idx]) als explizite h1/h2 ein, sobald er einen Nachfolger bekommt.
+   So verformt das Setzen weiterer Punkte die bereits gezeichnete Kurve nicht mehr
+   rueckwirkend (nur das aktuell letzte Segment bleibt live). Punkte mit bereits
+   gesetzten Griffen (gezogen oder Shift-Ecke) bleiben unangetastet. */
+function _bakeCurvePointHandles(idx) {
+  var p = drawPoints[idx];
+  if (!p) return;
+  /* h1 (Aus-Griff) und h2 (Ein-Griff) UNABHAENGIG einfrieren - nur wenn noch nicht
+     explizit gesetzt. So bleiben Drag-Griffe und ein bereits eingefrorener
+     Eingangs-Griff (_freezeLastPointInHandle) erhalten. */
+  if (p.h1x === undefined) {
+    if (idx < drawPoints.length - 1) {
+      var cpOut = getCrCP(drawPoints, idx);          // b1 = Aus-Griff von p[idx]
+      p.h1x = cpOut.b1x - p.x; p.h1y = cpOut.b1y - p.y;
+    } else { p.h1x = 0; p.h1y = 0; }
+  }
+  if (p.h2x === undefined) {
+    if (idx > 0) {
+      var cpIn = getCrCP(drawPoints, idx - 1);        // b2 = Ein-Griff von p[idx]
+      p.h2x = cpIn.b2x - p.x; p.h2y = cpIn.b2y - p.y;
+    } else { p.h2x = 0; p.h2y = 0; }
+  }
+}
+
+/* [VT-PEN-HANDLE v1] Friert den EIN-Griff (h2) des aktuell LETZTEN Punkts ein,
+   sobald er gesetzt ist - damit sein Eingangs-Segment (prev->letzter) nicht mehr
+   wackelt, waehrend der Cursor zum naechsten Punkt bewegt wird (Catmull-Rom
+   schaut sonst auf den Cursor-Vorschaupunkt voraus). Aus-Griff (h1) bleibt frei
+   (= Gummiband / Ecke-Toggle). Nur fuer Klick-Punkte; Drag-Punkte haben h2 schon. */
+function _freezeLastPointInHandle() {
+  if (drawPoints.length < 2) return;
+  var li = drawPoints.length - 1;
+  var p = drawPoints[li];
+  if (p.h2x !== undefined) return;
+  var cp = getCrCP(drawPoints, li - 1);  // Segment (li-1 -> li), b2 = Ein-Griff von li (li ist Endpunkt -> geklemmt)
+  p.h2x = cp.b2x - p.x; p.h2y = cp.b2y - p.y;
 }
 
 function linePath(pts) {
@@ -8836,6 +8893,37 @@ function render() {
   var dyn = '';
   if (previewShape) dyn += renderShape(previewShape);
   if (previewShapes) { for (var pi = 0; pi < previewShapes.length; pi++) dyn += renderShape(previewShapes[pi]); }
+
+  /* [VT-PEN-HANDLE v1] Tangenten-Fuehrungslinie beim Aufziehen einer Kurve:
+     gestrichelte Linie durch den Anker, weisse Endpunkte (einer am Cursor). */
+  if (_curveHandleGuide) {
+    var _chg = _curveHandleGuide;
+    var _ce2x = _chg.x + _chg.dx, _ce2y = _chg.y + _chg.dy;
+    if (_chg.corner) {
+      /* [VT-PEN-HANDLE v1] Ecke: nur der Aus-Griff (vom Anker zum Cursor) */
+      dyn += '<line x1="'+_chg.x+'" y1="'+_chg.y+'" x2="'+_ce2x+'" y2="'+_ce2y+'" stroke="#e63946" stroke-width="'+(1/zoom)+'" stroke-dasharray="'+(2/zoom)+','+(2/zoom)+'" pointer-events="none"/>';
+    } else {
+      var _ce1x = _chg.x - _chg.dx, _ce1y = _chg.y - _chg.dy;
+      dyn += '<line x1="'+_ce1x+'" y1="'+_ce1y+'" x2="'+_ce2x+'" y2="'+_ce2y+'" stroke="#e63946" stroke-width="'+(1/zoom)+'" stroke-dasharray="'+(2/zoom)+','+(2/zoom)+'" pointer-events="none"/>';
+      dyn += '<circle cx="'+_ce1x+'" cy="'+_ce1y+'" r="'+(3.5/zoom)+'" fill="white" stroke="#e63946" stroke-width="'+(1.5/zoom)+'" pointer-events="none"/>';
+    }
+    dyn += '<circle cx="'+_ce2x+'" cy="'+_ce2y+'" r="'+(3.5/zoom)+'" fill="white" stroke="#e63946" stroke-width="'+(1.5/zoom)+'" pointer-events="none"/>';
+    dyn += '<circle cx="'+_chg.x+'" cy="'+_chg.y+'" r="'+(3/zoom)+(_chg.corner?'" fill="#e63946" stroke="white" stroke-width="'+(1/zoom):'" fill="#e63946')+'" pointer-events="none"/>';
+  }
+
+  /* [VT-PEN-HANDLE v1] Gummiband-Linie vom letzten gesetzten Punkt zum Cursor -
+     durchgehend sichtbar waehrend des Zeichnens, AUCH direkt nach dem Loslassen
+     (nicht erst bei der naechsten Mausbewegung). Deutlich gestrichelt in
+     Akzentfarbe, damit sie nicht mit der schwarzen Kurve verschmilzt. Nur wenn
+     gerade NICHT aufgezogen wird (sonst zeigt die rote Tangenten-Guide). */
+  if (tool === 'curve' && !curveDragging && drawPoints.length >= 1 && _lastCurveMovePt) {
+    var _rbLp = drawPoints[drawPoints.length - 1];
+    var _rbDx = _lastCurveMovePt.x - _rbLp.x, _rbDy = _lastCurveMovePt.y - _rbLp.y;
+    if (_rbDx*_rbDx + _rbDy*_rbDy > (2/zoom)*(2/zoom)) { /* Cursor nicht auf dem Punkt */
+      dyn += '<line x1="'+_rbLp.x+'" y1="'+_rbLp.y+'" x2="'+_lastCurveMovePt.x+'" y2="'+_lastCurveMovePt.y+'" stroke="'+UI_ACCENT+'" stroke-width="'+(1.3/zoom)+'" stroke-dasharray="'+(4/zoom)+','+(3/zoom)+'" opacity="0.85" pointer-events="none"/>';
+      dyn += '<circle cx="'+_lastCurveMovePt.x+'" cy="'+_lastCurveMovePt.y+'" r="'+(2.5/zoom)+'" fill="'+UI_ACCENT+'" opacity="0.7" pointer-events="none"/>';
+    }
+  }
 
   // Snap point indicator + tooltip
   if (activeSnapPt) {
@@ -13596,6 +13684,7 @@ function _finishOpenStroke(curved) {
   $('finishBanner').classList.remove('show');
   var _sdsFin = $('stDrawSize'); if (_sdsFin) _sdsFin.textContent = ''; /* [VT-SEGLEN v1] */
   previewShapes = null; activeSnapPt = null; _snapSuppressOrigin = null;
+  _curveHandleGuide = null; _lastCurveMovePt = null; /* [VT-PEN-HANDLE v1] */
   if (drawPoints.length < 2) { drawPoints = []; pendingSnapLinks = []; render(); return; }
   pu();
   applyPendingSnapLinks();
@@ -13676,6 +13765,20 @@ function finishLine() { _finishOpenStroke(false); }
 
 /* ---- CURVE ---- */
 var curveDragStart = null, curveDragging = false;
+var _curveHandleGuide = null; /* [VT-PEN-HANDLE v1] Tangenten-Fuehrungslinie waehrend des Aufzieh-Drags */
+var _lastCurveMovePt = null;  /* [VT-PEN-HANDLE v1] letzte Kurven-Mausposition, fuer Live-Shift Ecke<->glatt ohne Mausbewegung */
+var _shiftHeld = false;       /* [VT-PEN-HANDLE v1] Live-Shift-Zustand fuer "Ecke jederzeit, nur solange Shift" */
+/* [VT-PEN-HANDLE v1] Der zuletzt bearbeitete Kurvenpunkt folgt LIVE der Shift-Taste:
+   Shift gedrueckt = Ecke (Aus-Griff h1 = 0, harter Knick zum naechsten Segment),
+   Shift losgelassen = glatt (gemerkter Aus-Griff _sh1, sonst Catmull-Rom). Wirkt
+   jederzeit waehrend des Zeichnens (Drag UND Positionieren), nicht nur am Anfang. */
+function _applyLastCurveCorner() {
+  if (!drawPoints.length) return;
+  var p = drawPoints[drawPoints.length - 1];
+  if (_shiftHeld) { p.h1x = 0; p.h1y = 0; }
+  else if (p._sh1x !== undefined) { p.h1x = p._sh1x; p.h1y = p._sh1y; }
+  else { delete p.h1x; delete p.h1y; }
+}
 function onCurveDown(e, pt) {
   if (e.detail === 2 && drawPoints.length >= 2) { finishCurve(); return; }
   var snapped = getDrawSnap(pt, null, e);
@@ -13685,9 +13788,28 @@ function onCurveDown(e, pt) {
     queuePendingSnapLink(snapped);
   }
   drawPoints.push({x:pt.x, y:pt.y});
+  /* [VT-PEN-HANDLE v1] Vorigen Punkt einfrieren (sobald er einen Nachfolger hat),
+     damit weitere Punkte die schon gezeichnete Kurve nicht mehr rueckwirkend verformen. */
+  if (drawPoints.length >= 2) _bakeCurvePointHandles(drawPoints.length - 2);
+  _freezeLastPointInHandle(); /* [VT-PEN-HANDLE v1] Eingangs-Segment des neuen letzten Punkts sofort einfrieren (kein Wackeln beim Positionieren) */
   activeSnapPt = null; _snapSuppressOrigin = {x:pt.x, y:pt.y};
   curveDragStart = {x:pt.x, y:pt.y};
   curveDragging = true;
+  _curveHandleGuide = null; /* [VT-PEN-HANDLE v1] frischer Punkt: alte Fuehrung verwerfen */
+  if (e && 'shiftKey' in e) _shiftHeld = !!e.shiftKey;
+  _applyLastCurveCorner(); /* [VT-PEN-HANDLE v1] neuer Punkt = Ecke wenn Shift gerade gedrueckt (Aus-Griff 0), sonst glatt - live */
+  /* [VT-PEN-HANDLE v1] Gesetzten Strich SOFORT zeigen (nicht erst bei naechster
+     Mausbewegung bzw. Shift-Loslassen): Vorschau aus den bisherigen Punkten neu bauen. */
+  if (drawPoints.length >= 2) {
+    var _tfsDown = getMirrorTransforms();
+    previewShapes = [];
+    for (var _pdI = 0; _pdI < _tfsDown.length; _pdI++) {
+      var _pdTf = _tfsDown[_pdI], _pdPts = [];
+      for (var _pdJ = 0; _pdJ < drawPoints.length; _pdJ++) _pdPts.push(applyTfWithHandles(drawPoints[_pdJ], _pdTf));
+      previewShapes.push(applyOpenStrokeProps({type:'path', points:_pdPts, stroke:strokeCol, strokeWidth:lineW, fill:'none', fillEnabled:false, curved:true}));
+    }
+  }
+  render(); /* [VT-PEN-HANDLE v1] synchron: gesetzter Strich sofort sichtbar, ohne auf rAF/Mausbewegung zu warten */
   if (drawPoints.length >= 2) $('finishBanner').classList.add('show');
 }
 
@@ -13697,24 +13819,31 @@ function onCurveMove(e, pt) {
     activeSnapPt = snapMarkerData(_preSnapC);
     scheduleRender(); return;
   }
+  _lastCurveMovePt = pt; /* [VT-PEN-HANDLE v1] fuer Live-Shift-Umschaltung ohne Mausbewegung */
+  if (e && 'shiftKey' in e) _shiftHeld = !!e.shiftKey; /* [VT-PEN-HANDLE v1] Live-Shift-Zustand aktuell halten */
   if (_snapSuppressOrigin && !_isNearSuppressOrigin(pt)) _snapSuppressOrigin = null;
   // If dragging after placing a point, offset the last point to shape the curve
   if (curveDragging && curveDragStart && drawPoints.length >= 1) {
     var dx = pt.x - curveDragStart.x, dy = pt.y - curveDragStart.y;
     var dist = Math.sqrt(dx*dx + dy*dy);
     if (dist > 3 / zoom) { /* [VT-ZOOMTHRESH v1] Kurven-Drag-Schwelle zoomkorrigiert */
-      // Mirror the drag to create a smooth control influence:
-      // move the placed point OPPOSITE to the drag to bend the incoming curve
+      /* [VT-PEN-HANDLE v1] Echter Zeichenstift: der gesetzte Anker bleibt am
+         Klickpunkt stehen; das Ziehen spannt nur die (symmetrischen) Tangenten-
+         Griffe auf. Frueher wurde der Anker selbst um -0,5x Ziehen verschoben,
+         wodurch die gerade gezeichnete Linie beim Ziehen kuerzer wurde. */
       var last = drawPoints[drawPoints.length - 1];
-      last.x = curveDragStart.x - dx * 0.5;
-      last.y = curveDragStart.y - dy * 0.5;
-      // Also add a temporary helper point at the drag position for the outgoing curve
-      var pts = drawPoints.concat([{x:curveDragStart.x + dx * 0.5, y:curveDragStart.y + dy * 0.5}]);
+      last.x = curveDragStart.x;
+      last.y = curveDragStart.y;
+      last.h2x = -dx; last.h2y = -dy;  // Ein-Griff gespiegelt = glatte Tangente (formt das sichtbare Eingangs-Segment)
+      last._sh1x = dx; last._sh1y = dy; // [VT-PEN-HANDLE v1] glatten Aus-Griff merken, fuer Shift-Toggle
+      _applyLastCurveCorner();          // Aus-Griff = 0 (Ecke) wenn Shift, sonst _sh1 (glatt) - live
+      _curveHandleGuide = {x:curveDragStart.x, y:curveDragStart.y, dx:dx, dy:dy};
+      var pts = drawPoints.slice();
       var tfs = getMirrorTransforms();
       previewShapes = [];
       for (var i = 0; i < tfs.length; i++) {
         var tf = tfs[i]; var tpts = [];
-        for (var j = 0; j < pts.length; j++) tpts.push(applyTf(pts[j], tf));
+        for (var j = 0; j < pts.length; j++) tpts.push(applyTfWithHandles(pts[j], tf));
         previewShapes.push(applyOpenStrokeProps({type:'path', points:tpts, stroke:strokeCol, strokeWidth:lineW, fill:'none', fillEnabled:false, curved:true}));
       }
       activeSnapPt = null;
@@ -13726,13 +13855,15 @@ function onCurveMove(e, pt) {
   activeSnapPt = snapMarkerData(snapped);
   if (_snapSuppressOrigin) activeSnapPt = null;
   if (snapped) pt = snapped.point;
+  _freezeLastPointInHandle();  /* [VT-PEN-HANDLE v1] Eingangs-Segment des letzten Punkts fixieren (wackelt sonst beim Bewegen) */
+  _applyLastCurveCorner(); /* [VT-PEN-HANDLE v1] letzter Punkt folgt live der Shift-Taste (Ecke/glatt) beim Positionieren */
   var pts = drawPoints.concat([{x:pt.x, y:pt.y}]);
   var tfs = getMirrorTransforms();
   previewShapes = [];
   for (var i = 0; i < tfs.length; i++) {
     var tf = tfs[i];
     var tpts = [];
-    for (var j = 0; j < pts.length; j++) tpts.push(applyTf(pts[j], tf));
+    for (var j = 0; j < pts.length; j++) tpts.push(applyTfWithHandles(pts[j], tf)); /* [VT-PEN-HANDLE v1] eingefrorene Griffe in der Vorschau erhalten */
     var curvePreview = {
       type:'path', points:tpts, stroke:strokeCol, strokeWidth:lineW,
       fill:'none', fillEnabled:false,
@@ -13747,6 +13878,26 @@ function onCurveMove(e, pt) {
 }
 function onCurveUp(e, pt) {
   curveDragging = false; curveDragStart = null;
+  _curveHandleGuide = null;
+  if (e && 'shiftKey' in e) _shiftHeld = !!e.shiftKey;
+  _freezeLastPointInHandle();  /* [VT-PEN-HANDLE v1] Eingangs-Segment des letzten Punkts fixieren */
+  _applyLastCurveCorner(); /* [VT-PEN-HANDLE v1] beim Loslassen Ecke/glatt nach AKTUELLER Shift-Lage festlegen (nur solange Shift) */
+  if (pt) _lastCurveMovePt = pt; /* [VT-PEN-HANDLE v1] Gummiband kennt sofort die Loslass-Cursorposition */
+  /* [VT-PEN-HANDLE v1] Beim Loslassen die Vorschau SOFORT + SYNCHRON zeigen, und
+     zwar INKL. aktueller Cursorposition (gesetzte Punkte + Cursor) - sonst
+     verschwindet die Linie bis zum Cursor beim Loslassen und kommt erst bei der
+     naechsten Mausbewegung wieder. */
+  var _ptsUp = (pt ? drawPoints.concat([{x:pt.x, y:pt.y}]) : drawPoints.slice());
+  if (_ptsUp.length >= 2) {
+    var _tfsUp = getMirrorTransforms();
+    previewShapes = [];
+    for (var _puI = 0; _puI < _tfsUp.length; _puI++) {
+      var _puTf = _tfsUp[_puI], _puPts = [];
+      for (var _puJ = 0; _puJ < _ptsUp.length; _puJ++) _puPts.push(applyTfWithHandles(_ptsUp[_puJ], _puTf));
+      previewShapes.push(applyOpenStrokeProps({type:'path', points:_puPts, stroke:strokeCol, strokeWidth:lineW, fill:'none', fillEnabled:false, curved:true}));
+    }
+  }
+  render();
 }
 
 function finishCurve() { _finishOpenStroke(true); }
@@ -13765,6 +13916,20 @@ var _lastShapeMovePt = null;
   }
   document.addEventListener('keydown', function(e){ if (e.key === 'Shift') redraw(e); });
   document.addEventListener('keyup',   function(e){ if (e.key === 'Shift') redraw(e); });
+})();
+/* [VT-PEN-HANDLE v1] Ecke JEDERZEIT, nur solange Shift gedrueckt: der zuletzt
+   bearbeitete Kurvenpunkt folgt live der Shift-Taste - sowohl beim Aufziehen
+   (Drag) als auch beim Positionieren des naechsten Punktes (Hover), ohne dass
+   die Maus bewegt werden muss. onCurveMove deckt beide Zweige ab. */
+(function(){
+  function curveShiftRedraw(e){
+    _shiftHeld = !!e.shiftKey;
+    if (tool === 'curve' && drawPoints.length >= 1 && _lastCurveMovePt) {
+      onCurveMove({shiftKey: _shiftHeld}, _lastCurveMovePt);
+    }
+  }
+  document.addEventListener('keydown', function(e){ if (e.key === 'Shift') curveShiftRedraw(e); });
+  document.addEventListener('keyup',   function(e){ if (e.key === 'Shift') curveShiftRedraw(e); });
 })();
 function onDrawShapeDown(e, pt) {
   isDrawing = true;
