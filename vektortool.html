@@ -28900,7 +28900,11 @@ function _stitchCacheKey(shape, st) {
       overlayKey = parts.join(';');
     }
   }
-  return _STITCH_CACHE_VERSION + '|' + st.type + '|' + paramKey + '|' + geomKey + '|OV:' + overlayKey;
+  /* [tip-toggle v1] Spitzen-Modus (global) muss in den Cache-Key, sonst invalidiert
+     der Toggle die _strokeBand-/Outline-Bänder nicht (gleicher Key -> _stitchRecalc
+     returnt früh -> kein sichtbarer Unterschied). */
+  var tipKey = (typeof window !== 'undefined' && window._satinTipMode === 'verjuengt') ? 'T1' : 'T0';
+  return _STITCH_CACHE_VERSION + '|' + st.type + '|' + paramKey + '|' + geomKey + '|OV:' + overlayKey + '|' + tipKey;
 }
 
 var _stitchTypeRefreshTimer = 0;
@@ -28991,18 +28995,325 @@ function _stitchOutlineColorFor(shape) {
   return shape.stroke; /* Originalwert (Gross-/Kleinschreibung) als Faden-Farbe */
 }
 
+/* [umriss-2farbe v4] Scharfe Ecken eines (geschlossenen) Polygonzugs verrunden,
+   damit das Satin-Band an Ecken nicht als Sonnenstrahl-Faecher ausreisst. An einer
+   scharfen Ecke dreht sich die Quer-Senkrechte des Bands zu schnell -> aussen
+   reissen Stiche radial aus. Mit einem Fillet (Radius ~ halbe Bandbreite) dreht
+   sie ueber einen kleinen Bogen, das Band faechert sanft wie an einer Kurve.
+   Nur Ecken mit echtem Knick (> ~26 Grad) werden angefasst; Boegen/Ellipsen
+   bleiben unveraendert. Quadratische Bezier A-V-B approximiert den Bogen. */
+function _stitchRoundSharpCorners(pts, closed, r) {
+  if (!pts || pts.length < 3 || !(r > 0)) return pts;
+  var P = pts.slice();
+  if (closed && P.length > 2 && Math.hypot(P[0].x - P[P.length - 1].x, P[0].y - P[P.length - 1].y) < 0.01) P.pop();
+  var n = P.length, out = [], SEG = 6;
+  for (var i = 0; i < n; i++) {
+    var V = P[i];
+    if (!closed && (i === 0 || i === n - 1)) { out.push({ x: V.x, y: V.y }); continue; }
+    var Pp = P[(i - 1 + n) % n], Nn = P[(i + 1) % n];
+    var v1x = Pp.x - V.x, v1y = Pp.y - V.y, l1 = Math.hypot(v1x, v1y) || 1;
+    var v2x = Nn.x - V.x, v2y = Nn.y - V.y, l2 = Math.hypot(v2x, v2y) || 1;
+    var dot = Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / (l1 * l2)));
+    var turn = Math.PI - Math.acos(dot); /* 0 = gerade, gross = scharf */
+    if (turn < 0.45) { out.push({ x: V.x, y: V.y }); continue; }
+    var rr = Math.min(r, l1 * 0.45, l2 * 0.45);
+    var ax = V.x + v1x / l1 * rr, ay = V.y + v1y / l1 * rr;
+    var bx = V.x + v2x / l2 * rr, by = V.y + v2y / l2 * rr;
+    for (var t = 0; t <= SEG; t++) {
+      var u = t / SEG, mu = 1 - u;
+      out.push({ x: mu * mu * ax + 2 * mu * u * V.x + u * u * bx,
+                 y: mu * mu * ay + 2 * mu * u * V.y + u * u * by });
+    }
+  }
+  return out;
+}
+
 /* [umriss-2farbe v2] Umriss-FLAECHE: die Form-Kontur als Satin-BAND in der
    Strichbreite (echte Flaeche, nicht nur eine Laufstich-Linie). Nutzt
    _calcStrokeBandStitch ueber eine Proxy-Shape; type:'none' verhindert, dass
    _ensureStitch den Typ auf 'fill' zurueckzwingt (Proxy erbt fillEnabled). Die
    Bandbreite zieht _calcStrokeBandStitch aus shape.strokeWidth. Faellt bei
    Bedarf auf die Laufstich-Kontur zurueck. */
+/* [gehrung v1/v2] Profi-GEHRUNG (Mitre) fuer Satin-BAENDER - Umriss UND
+   gezeichnete Linien (>1 mm). Statt die Querrichtung an Ecken zu drehen
+   (Faecher), liegen die Rungs SENKRECHT zu jeder Kante; an der Ecke treffen sich
+   beide Seiten an der Winkelhalbierenden = saubere, scharfe Ecke. Es werden zwei
+   gemiterte Rails (innen/aussen) gebaut und Zickzack dazwischen gestickt.
+   v2: GESCHLOSSEN (Kontur) und OFFEN (Linie) - offene Enden bekommen eine flache
+   Kappe senkrecht zur Endkante. Auf Kurven/Ellipsen (kleine Knickwinkel)
+   entartet es zum glatten Band. Bandbreite intern wie _calcStrokeBandStitch
+   (zigzagWidth sonst strokeWidth). Miter-Limit ML gegen Spikes bei spitzen
+   Winkeln. */
+function _stitchMiterBandPoints(shape, pitchMM) {
+  if (!shape || typeof _getStitchPathPoints !== 'function') return [];
+  var P = _getStitchPathPoints(shape, 256);
+  if (!P || P.length < 2) return [];
+  P = P.slice();
+  /* [open-u v1] _getStitchPathPoints SCHLIESST offene Pfade ggf. automatisch (haengt
+     den Start-Punkt an, isClosed-Heuristik gap<=1.5x median). Fuer ein offenes U
+     wuerde das eine FALSCHE Schliesskante quer oben ergeben (Ring statt U). Darum
+     den angehaengten Schliess-Punkt immer strippen und uns nach der ECHTEN Absicht
+     der Form richten: geschlossene Typen (rect/ellipse/...) ODER explizit
+     shape.closed ODER gefuellte Form (= geschlossene Kontur). Offene Linie/Pfad =
+     OFFEN. */
+  if (P.length > 3 && Math.hypot(P[0].x - P[P.length - 1].x, P[0].y - P[P.length - 1].y) < 0.5) P.pop();
+  var _ct = (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polygon' || shape.type === 'star' || shape.type === 'gear' || shape.type === 'wheel');
+  var closed = _ct || !!shape.closed || !!(shape.fillEnabled && shape.fill && shape.fill !== 'none');
+  var n = P.length;
+  if (n < 2) return [];
+  var st = shape.stitch || {};
+  var width = _mm2px((st.params && st.params.zigzagWidth) || _px2mm(shape.strokeWidth || 1) || 2);
+  if (width < 1) width = 1;
+  var half = width / 2, ML = 1.45; /* [spitzkehre v1] war 3.0 - an spitzen Umkehren (V/Cusp) liess ML=3 zu viel Ueberschuss zu (Sonnenstrahl an der Spitze). 1.45 haelt 90°-Ecken gerade noch scharf (brauchen 1.41x), kappt spitzere Umkehren hart. */
+  /* [end-clean v1] UEBER-DICHTE Eingangs-Samples gleichmaessig nachsamplen.
+     Ursache des "unruhigen Endes": ein Bezier-Handle am offenen Ende erzeugt am
+     Kurvenstart winzige Segmente (~0,1mm) -> die Stiche dort werden winzig und
+     gestaucht statt einer sauberen vollen Kappe. Loesung: ist der mittlere
+     Punktabstand deutlich kleiner als ein Bruchteil der Bandbreite, den Pfad auf
+     gleichmaessige Bogenlaenge (~0,22*Breite) nachsamplen. Grobe Formen (gerade
+     V = 3 Punkte, rect ...) sind nicht ueberdicht -> bleiben unveraendert. */
+  (function () {
+    if (P.length < 4) return;
+    var tl = 0; for (var i = 1; i < P.length; i++) tl += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y);
+    if (closed) tl += Math.hypot(P[0].x - P[P.length - 1].x, P[0].y - P[P.length - 1].y);
+    var _pp = (typeof _mm2px === 'function') ? _mm2px(pitchMM) : (pitchMM * 3.7795);
+    if (!(_pp > 0.3)) _pp = 0.75;
+    var target = Math.max(0.75, _pp); /* = Satin-Teilung: 1 Rung pro Kante, Dichte bleibt erhalten */
+    if (shape.type === 'rect' || shape.type === 'polygon' || shape.type === 'star' || shape.type === 'gear' || shape.type === 'wheel') return; /* harte Ecken nie verschieben */
+    var minSeg = Infinity; for (var im = 1; im < P.length; im++) { var dm = Math.hypot(P[im].x - P[im - 1].x, P[im].y - P[im - 1].y); if (dm > 1e-9 && dm < minSeg) minSeg = dm; }
+    if (minSeg >= target * 0.5) return; /* keine ueberdichten Mini-Segmente (lokal) -> nichts zu tun */
+    var src = P.slice(); if (closed) src.push({ x: P[0].x, y: P[0].y });
+    var out = [{ x: src[0].x, y: src[0].y }], acc = 0;
+    for (var i = 1; i < src.length; i++) {
+      var ax = src[i - 1].x, ay = src[i - 1].y, bx = src[i].x, by = src[i].y;
+      var seg = Math.hypot(bx - ax, by - ay); if (seg < 1e-9) continue;
+      var pos = 0;
+      while (acc + (seg - pos) >= target) { pos += (target - acc); var f = pos / seg; out.push({ x: ax + (bx - ax) * f, y: ay + (by - ay) * f }); acc = 0; }
+      acc += (seg - pos);
+    }
+    var last = src[src.length - 1];
+    if (Math.hypot(out[out.length - 1].x - last.x, out[out.length - 1].y - last.y) > 0.01) out.push({ x: last.x, y: last.y });
+    if (closed && out.length > 3) out.pop(); /* Schliess-Dup wieder weg */
+    if (out.length >= 2) { P = out; n = P.length; }
+  })();
+  var EC = closed ? n : (n - 1); /* Anzahl Kanten */
+  var en = new Array(EC);
+  for (var i = 0; i < EC; i++) {
+    var j = closed ? (i + 1) % n : (i + 1);
+    var ex = P[j].x - P[i].x, ey = P[j].y - P[i].y, el = Math.hypot(ex, ey) || 1;
+    en[i] = { x: ey / el, y: -ex / el }; /* Kante um +90 gedreht */
+  }
+  /* [overlap-share v1] Punkt-Raum-Loesung (Recherche-synthetisiert) gegen das
+     Uebersticken/Tangle, wo sich Kurvenlinien beruehren. S1 GLOBAL: wo nicht-
+     benachbarte Pfadstellen naeher als die Bandbreite (2h) kommen, das Band lokal
+     auf die halbe Distanz verjuengen -> die zwei Aeste TEILEN sich die Flaeche,
+     statt sie doppelt zu uebersticken. S2 LOKAL: wo der Kruemmungsradius < lokale
+     Halbbreite, die INNEN-Rail auf die Mittellinie clampen (sonst klappt sie durch
+     = Sonnenstrahl-Faecher). Auf geraden/sanften Stellen bleibt die Breite konstant. */
+  var hw = new Array(n);
+  for (var i = 0; i < n; i++) hw[i] = half;
+  (function () {
+    var cell = Math.max(2 * half, 1), grid = {};
+    for (var g = 0; g < n; g++) { var kk = Math.floor(P[g].x / cell) + ',' + Math.floor(P[g].y / cell); (grid[kk] || (grid[kk] = [])).push(g); }
+    var tl = 0; for (var e = 0; e < EC; e++) { var jj = closed ? (e + 1) % n : (e + 1); tl += Math.hypot(P[jj].x - P[e].x, P[jj].y - P[e].y); }
+    var avgSp = Math.max(tl / Math.max(1, EC), 0.3);
+    var WIN = Math.ceil((2 * half) / avgSp) + 2;
+    for (var i2 = 0; i2 < n; i2++) {
+      var cx = Math.floor(P[i2].x / cell), cy = Math.floor(P[i2].y / cell), dmin = Infinity;
+      for (var gx = cx - 1; gx <= cx + 1; gx++) for (var gy = cy - 1; gy <= cy + 1; gy++) {
+        var bucket = grid[gx + ',' + gy]; if (!bucket) continue;
+        for (var bi = 0; bi < bucket.length; bi++) {
+          var jdx = bucket[bi], sep = Math.abs(i2 - jdx); if (closed) sep = Math.min(sep, n - sep);
+          if (sep <= WIN) continue;
+          var dd = Math.hypot(P[i2].x - P[jdx].x, P[i2].y - P[jdx].y);
+          if (dd < dmin) dmin = dd;
+        }
+      }
+      if (dmin < 2 * half) hw[i2] = Math.min(hw[i2], Math.max(0.5, 0.5 * dmin));
+    }
+    /* [tip-toggle v1] Modus "verjuengt": an scharfen UMKEHRUNGEN (Knick > ~110°,
+       z.B. V-Spitze) die Breite zur Spitze runterrampen = sauberer Punkt statt
+       Kreuzen am Tal. Modus "konstant" (Default) laesst die Breite konstant.
+       Nur Umkehrungen (>110°), NICHT moderate Ecken (die sollen voll bleiben). */
+    if (typeof window !== 'undefined' && window._satinTipMode === 'verjuengt') {
+      var s = new Array(n); s[0] = 0;
+      for (var si = 1; si < n; si++) s[si] = s[si - 1] + Math.hypot(P[si].x - P[si - 1].x, P[si].y - P[si - 1].y);
+      var taperLen = width * 1.2;
+      var totS = s[n - 1] + (closed ? Math.hypot(P[0].x - P[n - 1].x, P[0].y - P[n - 1].y) : 0);
+      for (var sv = 0; sv < n; sv++) {
+        if (!closed && (sv === 0 || sv === n - 1)) continue;
+        var spv = (sv - 1 + n) % n, snv = (sv + 1) % n;
+        var d1x = P[sv].x - P[spv].x, d1y = P[sv].y - P[spv].y, l1 = Math.hypot(d1x, d1y) || 1;
+        var d2x = P[snv].x - P[sv].x, d2y = P[snv].y - P[sv].y, l2 = Math.hypot(d2x, d2y) || 1;
+        if ((d1x * d2x + d1y * d2y) / (l1 * l2) > -0.34) continue; /* nur Umkehr > ~110° (cos110°=-0.34) */
+        for (var ti2 = 0; ti2 < n; ti2++) {
+          var dd2 = Math.abs(s[ti2] - s[sv]);
+          if (closed && totS > 0) dd2 = Math.min(dd2, totS - dd2);
+          var w2 = Math.min(1, dd2 / taperLen) * half;
+          if (w2 < hw[ti2]) hw[ti2] = w2;
+        }
+      }
+    }
+    for (var pass = 0; pass < 2; pass++) {
+      for (var a = 1; a < n; a++) hw[a] = Math.min(hw[a], hw[a - 1] + 0.5 * Math.hypot(P[a].x - P[a - 1].x, P[a].y - P[a - 1].y));
+      for (var b = n - 2; b >= 0; b--) hw[b] = Math.min(hw[b], hw[b + 1] + 0.5 * Math.hypot(P[b + 1].x - P[b].x, P[b + 1].y - P[b].y));
+    }
+  })();
+  var O = new Array(n), I = new Array(n);
+  for (var i = 0; i < n; i++) {
+    var nPrev = (closed || i > 0) ? en[(i - 1 + EC) % EC] : null;
+    var nNext = (closed || i < n - 1) ? en[i % EC] : null;
+    var mx, my, md;
+    if (nPrev && nNext) {
+      var bx = nPrev.x + nNext.x, by = nPrev.y + nNext.y, bl = Math.hypot(bx, by);
+      if (bl < 1e-6) { mx = nNext.x; my = nNext.y; md = hw[i]; }
+      else { mx = bx / bl; my = by / bl; var cosA = mx * nNext.x + my * nNext.y; md = hw[i] / Math.max(cosA, 1 / ML); }
+    } else { var e0 = nNext || nPrev; mx = e0.x; my = e0.y; md = hw[i]; } /* offenes Ende: flache Kappe */
+    O[i] = { x: P[i].x + mx * md, y: P[i].y + my * md };
+    I[i] = { x: P[i].x - mx * md, y: P[i].y - my * md };
+    /* S2: Kruemmungsradius (Menger) + Innenseite; bei r < hw die Innen-Rail clampen */
+    if (i > 0 && i < n - 1) {
+      var ax = P[i].x - P[i - 1].x, ay = P[i].y - P[i - 1].y;
+      var bx2 = P[i + 1].x - P[i].x, by2 = P[i + 1].y - P[i].y;
+      var crossv = ax * by2 - ay * bx2, area2 = Math.abs(crossv);
+      if (area2 > 1e-9) {
+        var la = Math.hypot(ax, ay), lb = Math.hypot(bx2, by2), lc = Math.hypot(P[i + 1].x - P[i - 1].x, P[i + 1].y - P[i - 1].y);
+        var rr = (la * lb * lc) / (2 * area2);
+        if (rr < hw[i]) {
+          var tx = ax + bx2, ty = ay + by2, tl2 = Math.hypot(tx, ty) || 1;
+          var sgn = crossv >= 0 ? 1 : -1, cdx = -ty / tl2 * sgn, cdy = tx / tl2 * sgn; /* Richtung zum Kruemmungszentrum (innen) */
+          if ((cdx * mx + cdy * my) > 0) O[i] = { x: P[i].x, y: P[i].y }; /* +bisector-Rail ist innen -> clampen */
+          else I[i] = { x: P[i].x, y: P[i].y };
+        }
+      }
+    }
+  }
+  var pitchPx = (typeof _mm2px === 'function') ? _mm2px(pitchMM) : (pitchMM * 3.7795);
+  if (!(pitchPx > 0.3)) pitchPx = 0.75;
+  /* [kurzstiche v2] Profi „Short Stitches" (Stichausgleich) - abstandsbasiert.
+     Auf der gestauchten Innenseite einer Kurve liegen die VOLLEN Einstiche einer
+     Rail zu dicht (Stau/Faecher). Loesung: pro Rail die letzte VOLLE Position
+     merken; liegt der naechste Einstich naeher als `minSpace`, wird er VERKUERZT
+     (Richtung Gegen-Rail eingezogen) und zaehlt NICHT als neue volle Position. So
+     bleiben die vollen Einstiche an der Innenkante immer >= minSpace auseinander
+     (kein Stau), die Kurzstiche dazwischen verteilen die Dichte (Saegezahn). Auf
+     geraden Kanten ist der Rail-Abstand ~2x pitch > minSpace -> kein Eingriff. */
+  var pts = [], side = 0;
+  var lastFullI = null, lastFullO = null;
+  var minSpace = pitchPx * 1.7, shortF = 0.4; /* Kurzstich erreicht 60% Richtung Innenkante */
+  for (var i = 0; i < EC; i++) {
+    var j = closed ? (i + 1) % n : (i + 1);
+    var seg = Math.hypot(P[j].x - P[i].x, P[j].y - P[i].y);
+    var steps = Math.max(1, Math.round(seg / pitchPx));
+    for (var k = 0; k < steps; k++) {
+      var t = k / steps;
+      var ox = O[i].x + (O[j].x - O[i].x) * t, oy = O[i].y + (O[j].y - O[i].y) * t;
+      var ix = I[i].x + (I[j].x - I[i].x) * t, iy = I[i].y + (I[j].y - I[i].y) * t;
+      if (side) { /* Aussen-Rail O */
+        if (lastFullO && Math.hypot(ox - lastFullO.x, oy - lastFullO.y) < minSpace) {
+          pts.push({ x: ox + (ix - ox) * shortF, y: oy + (iy - oy) * shortF }); /* Kurzstich, lastFull bleibt */
+        } else {
+          pts.push({ x: ox, y: oy }); lastFullO = { x: ox, y: oy };
+        }
+      } else { /* Innen-Rail I */
+        if (lastFullI && Math.hypot(ix - lastFullI.x, iy - lastFullI.y) < minSpace) {
+          pts.push({ x: ix + (ox - ix) * shortF, y: iy + (oy - iy) * shortF });
+        } else {
+          pts.push({ x: ix, y: iy }); lastFullI = { x: ix, y: iy };
+        }
+      }
+      side ^= 1;
+    }
+  }
+  var lastIdx = closed ? 0 : (n - 1);
+  if (pts.length) pts.push(side ? { x: O[lastIdx].x, y: O[lastIdx].y } : { x: I[lastIdx].x, y: I[lastIdx].y });
+  /* [stichteilung v1] Lange Satin-Stiche (breites Band) teilen: kein Stich > ~6 mm.
+     Sonst schlaufen/haengen die Faeden. Mittel-Einstiche gestaffelt (ungerade Legs
+     versetzt), damit keine sichtbare Mittelnaht entsteht (= Profi-„split satin",
+     Inkstitch „maximum stitch length"). */
+  pts = _stitchSplitLongLegs(pts, (typeof _mm2px === 'function') ? _mm2px(6) : 22.7);
+  return pts;
+}
+
+/* [stichteilung v1] Teilt zu lange Segmente eines Stichpfads in <=maxLenPx-Stuecke,
+   gestaffelt gegen eine sichtbare Mittelnaht. Jumps bleiben unangetastet. */
+function _stitchSplitLongLegs(pts, maxLenPx) {
+  if (!pts || pts.length < 2 || !(maxLenPx > 0)) return pts;
+  var out = [pts[0]];
+  for (var i = 1; i < pts.length; i++) {
+    var a = pts[i - 1], b = pts[i];
+    if (b.jump || a.jump) { out.push(b); continue; }
+    var L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (L > maxLenPx) {
+      var m = Math.ceil(L / maxLenPx);
+      var bias = (i & 1) ? (0.5 / m) : 0;
+      for (var k = 1; k < m; k++) {
+        var t = Math.min(0.97, Math.max(0.03, k / m + bias));
+        out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      }
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+/* [umriss-inset v2] Polygon (Ring, OHNE Schliess-Dup) um d nach INNEN versetzen
+   (Gehrungs-Offset je Vertex). Stitch-Scope-Ersatz fuer offsetClosedPolyline aus
+   dem Editor-Scope. Richtung via Flaechenvergleich: die Variante mit kleinerer
+   Flaeche ist innen. Liefert null, wenn der Inset die Form auffrisst (<10 % Rest)
+   oder nicht schrumpft. */
+function _stitchInsetPolygon(pts, d) {
+  if (!pts || pts.length < 3 || !(d > 0)) return null;
+  var n = pts.length, ML = 2.0;
+  var en = new Array(n);
+  for (var i = 0; i < n; i++) {
+    var j = (i + 1) % n;
+    var ex = pts[j].x - pts[i].x, ey = pts[j].y - pts[i].y, el = Math.hypot(ex, ey) || 1;
+    en[i] = { x: ey / el, y: -ex / el };
+  }
+  function build(sgn) {
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var nPrev = en[(i - 1 + n) % n], nNext = en[i];
+      var bx = nPrev.x + nNext.x, by = nPrev.y + nNext.y, bl = Math.hypot(bx, by), mx, my, md;
+      if (bl < 1e-6) { mx = nNext.x; my = nNext.y; md = d; }
+      else { mx = bx / bl; my = by / bl; var c = mx * nNext.x + my * nNext.y; md = d / Math.max(c, 1 / ML); }
+      out.push({ x: pts[i].x + sgn * mx * md, y: pts[i].y + sgn * my * md });
+    }
+    return out;
+  }
+  function area(p) { var a = 0; for (var i = 0, r = p.length - 1; i < p.length; r = i++) a += p[r].x * p[i].y - p[i].x * p[r].y; return Math.abs(a / 2); }
+  var a0 = area(pts), p1 = build(1), p2 = build(-1);
+  var inset = (area(p1) < area(p2)) ? p1 : p2;
+  var ia = area(inset);
+  if (!(ia > a0 * 0.1) || ia >= a0) return null;
+  return inset;
+}
+
 function _stitchOutlineAreaPoints(shape) {
   if (!shape) return [];
+  var sw = Number(shape.strokeWidth) || 1;
+  var pitch = (shape.stitch && shape.stitch.params && Number(shape.stitch.params.rimDensity) > 0)
+    ? Number(shape.stitch.params.rimDensity) : 0.2;
+  /* [gehrung v1] Zuerst die echte Gehrung (scharfe, saubere Ecken). */
+  if (typeof _stitchMiterBandPoints === 'function') {
+    try { var mp = _stitchMiterBandPoints(shape, pitch); if (mp && mp.length >= 4) return mp; } catch (e) {}
+  }
+  /* Fallback: verrundetes Band via _calcStrokeBandStitch (v3/v4). */
   if (typeof _calcStrokeBandStitch === 'function') {
     try {
       var proxy = Object.create(shape);
-      proxy.stitch = { type: 'none', params: { stitchLength: 0.4 } };
+      if (typeof _getStitchPathPoints === 'function') {
+        var base = _getStitchPathPoints(shape, 256);
+        if (base && base.length >= 3) {
+          var rounded = _stitchRoundSharpCorners(base, true, sw * 1.6);
+          if (rounded && rounded.length >= 3) {
+            proxy.type = 'freehand'; proxy.points = rounded; proxy.closed = true;
+            proxy.d = null; proxy.svgD = null; proxy.curved = false;
+          }
+        }
+      }
+      proxy.stitch = { type: 'none', _typeExplicit: true, params: { stitchLength: pitch } };
       var pts = _calcStrokeBandStitch(proxy);
       if (pts && pts.length >= 2) return pts;
     } catch (e) { /* faellt unten auf die Laufstich-Kontur zurueck */ }
@@ -31970,9 +32281,33 @@ function _calcFillStitchV7(shape, opts) {
     var pullComp = _mm2px(pullCompMM);
     var geom = _stitchResolveFillGeometry(shape);
     var outline = geom.outline;
+    /* [umriss-inset v2] Form mit andersfarbigem Umriss: das Umriss-Satinband wird
+       OBEN auf die Fuellung gestickt -> Doppel-Dichte. Darum die Fuellung um ~halbe
+       Strichbreite EINSETZEN (Profi: Fuellung unter dem Satin-Rand zuruecknehmen).
+       Eigener Stitch-Scope-Inset (offsetClosedPolyline ist Editor-Scope); nur
+       Einzel-Ring (keine Loecher); kleiner Ueberlapp-Rest 0.15 mm gegen eine Luecke.
+       Bei Inset MUSS auf Polygon-Scan umgeschaltet werden (hasSVGPath=false), sonst
+       clippt die Fuellung weiter gegen den Original-Vektorpfad. Cache + Umriss-Band
+       (Pfad) bleiben unveraendert (nur lokale Kopie). */
+    var _borderInset = false;
+    if (typeof _stitchOutlineColorFor === 'function' && _stitchOutlineColorFor(shape) &&
+        typeof _stitchInsetPolygon === 'function' && outline && geom.nEdges >= 3) {
+      var _hasBreak = false;
+      for (var _ob = 0; _ob < outline.length; _ob++) { if (outline[_ob]._subpathBreak) { _hasBreak = true; break; } }
+      var _insetD = (shape.strokeWidth || 0) / 2 - _mm2px(0.15);
+      if (!_hasBreak && _insetD > 0.5 && outline.length >= geom.nEdges + 1) {
+        var _ring = outline.slice(0, geom.nEdges);
+        var _ins = _stitchInsetPolygon(_ring, _insetD);
+        if (_ins && _ins.length === _ring.length) {
+          _ins.push({ x: _ins[0].x, y: _ins[0].y }); /* Schliess-Dup wie im Original */
+          outline = _ins;
+          _borderInset = true;
+        }
+      }
+    }
     var bb = geom.bb;
     if (!outline || outline.length < 3 || !bb || bb.w < 1 || bb.h < 1) return pts;
-    var hasSVGPath = !!(geom.hasSVGPath && _setupFillPath(shape));
+    var hasSVGPath = !_borderInset && !!(geom.hasSVGPath && _setupFillPath(shape));
     var dirX = Math.cos(angle), dirY = Math.sin(angle);
     var perpX = -dirY, perpY = dirX;
     var nEdges = geom.nEdges;
@@ -34100,7 +34435,13 @@ function _calcStrokeBandStitch(shape) {
   if (!srcPts || srcPts.length < 2) return [];
   var width = _mm2px((st.params && st.params.zigzagWidth) || _px2mm(shape.strokeWidth || 1) || 2);
   if (width < 1) width = 1;
-  var stitchLen = _mm2px((st.params && st.params.stitchLength) || 0.4);
+  /* [satin-dichte v1] Satin-Linien lesen ihre Dichte aus dem eigenen Param
+     satinPitch (Regler "Satin-Dichte"), getrennt von der Fuell-Stichlaenge.
+     Fallback auf stitchLength (= satincol-Preset 0.4). Zickzack bleibt offen
+     (eigene stitchLength 2.0), darum dort kein satinPitch. */
+  var _spK = (st.params && st.type !== 'zigzag' && Number(st.params.satinPitch) > 0)
+    ? Number(st.params.satinPitch) : ((st.params && st.params.stitchLength) || 0.4);
+  var stitchLen = _mm2px(_spK);
   if (stitchLen < 0.5) stitchLen = 0.5;
   var closed = !!(shape.closed || shape.type === 'polygon' || shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'star' || shape.type === 'gear' || shape.type === 'wheel');
   var totalLen = 0, i;
@@ -34575,7 +34916,20 @@ function _stitchRecalc(shape) {
     case 'satincol': {
       /* [satin-kontur v1] Auto-Satin-Kontur (offen ODER geschlossen): Band entlang
          der Kontur, NICHT Flaechenfuellung. */
-      if (st._strokeBand) { st.needlePoints = _withSatinUnderlay(shape, _calcStrokeBandStitch(shape)); break; }
+      if (st._strokeBand) {
+        /* [gehrung v2] Satin-Linien > 1 mm bekommen die Profi-Gehrung an Ecken
+           (saubere scharfe Ecken statt Faecher); duennere/Fallback ueber das
+           bisherige Band. Pitch = Satin-Dichte (satinPitch) sonst stitchLength. */
+        var _gBand = null;
+        if (typeof _stitchMiterBandPoints === 'function' && (shape.strokeWidth || 0) > _mm2px(1)) {
+          try {
+            var _gp = (st.params && (Number(st.params.satinPitch) > 0 ? st.params.satinPitch : st.params.stitchLength)) || 0.4;
+            _gBand = _stitchMiterBandPoints(shape, _gp);
+          } catch (e) { _gBand = null; }
+        }
+        st.needlePoints = _withSatinUnderlay(shape, (_gBand && _gBand.length >= 4) ? _gBand : _calcStrokeBandStitch(shape));
+        break;
+      }
       var _scMain = _calcSatinColumn(shape);
       var _scNoRail = !shape.satinRail2 || shape.satinRail2.length < 2;
       var _scClosed = _scNoRail && !!(shape.closed || shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polygon' || shape.type === 'star' || shape.type === 'gear' || shape.type === 'wheel' || shape.type === 'svgpath');
@@ -38722,6 +39076,10 @@ window.__LINEA_DEBUG__ = {
          stitchPanel-Head verschoben (siehe _v44SyncStitchPanelInModal). -->
     <h3 id="dstvGlobalParamsTitle" title="Einstellungen ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:none;"><span id="dgpCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Einstellungen</span><!-- [VT-UIFIX v1] Aktions-Buttons (Zurücksetzen/Neu berechnen/Auto) von hier unter "Verbindung" verschoben --></h3>
     <div class="dstv-grp dgp-compact" id="dstvGlobalParams" style="background:var(--white);border-bottom:1px solid var(--border);padding:var(--space-3) var(--space-6) var(--space-4);">
+      <!-- [stichart-hinweis v1] Erklaert die automatische Stichart-Wahl: Flaeche=Fuellstich, Linie=Satin -->
+      <div id="dgpStichartHint" style="font-size:var(--fs-xs);color:var(--fg2,#666);background:rgba(var(--ac-rgb,63,113,145),0.08);border:1px solid var(--border,#e3e3e0);border-radius:var(--radius-xs,4px);padding:6px 10px;margin-bottom:var(--space-3);line-height:1.45;">
+        Die Stichart wird automatisch aus der Form gewählt: <b>Flächen → Füllstich</b>, <b>Linien → Satin</b>.
+      </div>
       <!-- Globaler Stichtyp — bulk-apply auf alle Shapes.
            Vektortool Ink: nur Füllstich, daher ausgeblendet (display:none). -->
       <div style="display:none;align-items:center;gap:var(--space-4);margin-bottom:6px;font-size:var(--fs-sm);color:var(--fg);font-weight:600;">
@@ -38849,6 +39207,26 @@ window.__LINEA_DEBUG__ = {
             <input id="dgpOutlineStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
             <span id="dgpOutlineStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
           </div>
+        </div>
+        <!-- [umriss-2farbe v5] Umriss-Dichte: Stichabstand des Satin-Rand-Bands (nur bei gefuellter Form mit andersfarbigem Umriss). Kleiner = dichter. -->
+        <div id="dgpSatinPitchRow" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);margin-top:var(--space-3);">
+          <label title="Dichte der Satin-Linien: Stichabstand, wenn eine gezeichnete Linie/Kontur als Satin gestickt wird. Kleiner = dichter.">Satin-Dichte</label>
+          <input id="dgpSatinPitch" type="range" min="0.15" max="0.60" value="0.4" step="0.05" style="accent-color:var(--fg);">
+          <span id="dgpSatinPitchVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">0.40 mm</span>
+        </div>
+        <!-- [umriss-2farbe v5] Umriss-Dichte: Stichabstand des Satin-Rand-Bands (nur bei gefuellter Form mit andersfarbigem Umriss). Kleiner = dichter. -->
+        <div id="dgpRimDensityRow" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);margin-top:var(--space-2);">
+          <label title="Dichte des Umriss-Satinbands: Stichabstand am Rand, wenn die Umrissfarbe von der Fuellfarbe abweicht. Kleiner = dichter.">Umriss-Dichte</label>
+          <input id="dgpRimDensity" type="range" min="0.15" max="0.60" value="0.2" step="0.05" style="accent-color:var(--fg);">
+          <span id="dgpRimDensityVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">0.20 mm</span>
+        </div>
+        <!-- [tip-toggle v1] Spitzen-Modus: konstant breit vs verjuengt an scharfen Umkehrungen (V-Spitzen) -->
+        <div id="dgpTipModeRow" style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);margin-top:var(--space-3);">
+          <label title="Verhalten an scharfen Umkehrungen (V-Spitzen): Konstant breit = volle Breite (die zwei Arme kreuzen sich am Tal). Verjuengt = die Spitze laeuft sauber spitz zu, kein Kreuzen.">Spitzen</label>
+          <select id="dgpTipMode" style="font-size:var(--fs-sm);padding:2px 6px;border:1px solid var(--bd,#ccc);border-radius:var(--radius-xs,4px);background:var(--bg,#fff);color:var(--fg);">
+            <option value="konstant">Konstant breit</option>
+            <option value="verjuengt">Verjuengt (spitz)</option>
+          </select>
         </div>
       </div>
 
@@ -40290,7 +40668,7 @@ window.__LINEA_DEBUG__ = {
       function setRadio(name, val){ var r = document.querySelector('input[name="'+name+'"][value="'+val+'"]'); if (r){ r.checked = true; r.dispatchEvent(new Event('change', {bubbles:true})); } }
       setRadio('dgpRStyle', 'parallel');
       setRadio('dgpRConn', 'continuous');
-      var rng = {dgpAngle:0, dgpRowSpacing:0.3, dgpStitchLength:3.0, dgpPullComp:-0.1, dgpUnderlayAngle:90, dgpUnderlaySpacing:4.5, dgpUnderlayStitchLength:2.5, dgpOutlineStitchLength:2.5, toplineTrimMM:10}; /* [rs-default-03 v1] */
+      var rng = {dgpAngle:0, dgpRowSpacing:0.3, dgpStitchLength:3.0, dgpPullComp:-0.1, dgpUnderlayAngle:90, dgpUnderlaySpacing:4.5, dgpUnderlayStitchLength:2.5, dgpOutlineStitchLength:2.5, dgpSatinPitch:0.4, dgpRimDensity:0.2, toplineTrimMM:10}; /* [rs-default-03 v1] [umriss-2farbe v5] [satin-dichte v1] */
       var chk = {dgpRandomOffset:true, dgpUnderlay:true, dgpOutline:false, toplineTrim:false}; /* [VT-UIFIX v1] Faden-Trimmen Standard aus */
       Object.keys(rng).forEach(function(id){ var el = document.getElementById(id); if (el){ el.value = rng[id]; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); } });
       Object.keys(chk).forEach(function(id){ var el = document.getElementById(id); if (el && el.checked !== chk[id]){ el.checked = chk[id]; el.dispatchEvent(new Event('change', {bubbles:true})); } });
@@ -40809,6 +41187,42 @@ window.__LINEA_DEBUG__ = {
           _dgpApplyParam('outlineStitchLength', v);
         });
       }
+      /* [satin-dichte v1] Satin-Dichte der LINIEN (gezeichnete Linie/Kontur als Satin) -> Param satinPitch */
+      var dgpSatP = document.getElementById('dgpSatinPitch');
+      var dgpSatPV = document.getElementById('dgpSatinPitchVal');
+      if (dgpSatP && dgpSatPV) {
+        dgpSatP.addEventListener('input', function() {
+          var v = parseFloat(this.value) || 0.4;
+          dgpSatPV.textContent = v.toFixed(2) + ' mm';
+          _dgpApplyParam('satinPitch', v);
+        });
+      }
+      /* [umriss-2farbe v5] Umriss-Dichte (Satin-Rand-Band) -> Param rimDensity */
+      var dgpRimD = document.getElementById('dgpRimDensity');
+      var dgpRimDV = document.getElementById('dgpRimDensityVal');
+      if (dgpRimD && dgpRimDV) {
+        dgpRimD.addEventListener('input', function() {
+          var v = parseFloat(this.value) || 0.2;
+          dgpRimDV.textContent = v.toFixed(2) + ' mm';
+          _dgpApplyParam('rimDensity', v);
+        });
+      }
+      /* [tip-toggle v1] Spitzen-Modus (global, persistent): konstant breit vs verjuengt an scharfen Umkehrungen */
+      var dgpTipMode = document.getElementById('dgpTipMode');
+      if (dgpTipMode) {
+        try { var _tm = localStorage.getItem('vt_satin_tip_mode'); if (_tm === 'konstant' || _tm === 'verjuengt') window._satinTipMode = _tm; } catch (e) {}
+        if (window._satinTipMode !== 'verjuengt') window._satinTipMode = 'konstant';
+        dgpTipMode.value = window._satinTipMode;
+        dgpTipMode.addEventListener('change', function() {
+          window._satinTipMode = (this.value === 'verjuengt') ? 'verjuengt' : 'konstant';
+          try { localStorage.setItem('vt_satin_tip_mode', window._satinTipMode); } catch (e) {}
+          /* Stich-Caches ALLER Shapes explizit invalidieren (globaler Modus aendert
+             keinen Shape-Param -> sonst returnt _stitchRecalc bei gleichem Key frueh).
+             Wie das Zahnrad-Popover: _needleCacheKey='' erzwingt Neuberechnung. */
+          try { (window.shapes || []).forEach(function (s) { if (s && s.stitch) { s.stitch._needleCacheKey = ''; } }); } catch (e) {}
+          _dgpScheduleRefresh();
+        });
+      }
       _updateOutlineSubVisibility();
       /* [VT-UIFIX v1] Underlay + Faden trimmen: bei geoeffnetem Sub die beiden Einheiten untereinander stapeln
          (#dgpUlTrimWrap auf 1fr), sonst nebeneinander (Lukas: "uebereinander anordnen") */
@@ -41059,6 +41473,14 @@ window.__LINEA_DEBUG__ = {
           if (dgpOutSLEl && isFinite(p.outlineStitchLength)) { dgpOutSLEl.value = p.outlineStitchLength; if (dgpOutSLVEl) dgpOutSLVEl.textContent = Number(p.outlineStitchLength).toFixed(1) + ' mm'; }
           var outSubEl = document.getElementById('dgpOutlineSub');
           if (outSubEl && dgpOutlineEl) outSubEl.style.display = dgpOutlineEl.checked ? 'grid' : 'none';
+          /* [satin-dichte v1] Satin-Linien-Dichte aus der aktiven Form spiegeln */
+          var dgpSatPEl = document.getElementById('dgpSatinPitch');
+          var dgpSatPVEl = document.getElementById('dgpSatinPitchVal');
+          if (dgpSatPEl) { var _sp = Number(p.satinPitch) > 0 ? Number(p.satinPitch) : 0.4; dgpSatPEl.value = _sp; if (dgpSatPVEl) dgpSatPVEl.textContent = _sp.toFixed(2) + ' mm'; }
+          /* [umriss-2farbe v5] Umriss-Dichte aus der aktiven Form spiegeln */
+          var dgpRimDEl = document.getElementById('dgpRimDensity');
+          var dgpRimDVEl = document.getElementById('dgpRimDensityVal');
+          if (dgpRimDEl) { var _rd = Number(p.rimDensity) > 0 ? Number(p.rimDensity) : 0.2; dgpRimDEl.value = _rd; if (dgpRimDVEl) dgpRimDVEl.textContent = _rd.toFixed(2) + ' mm'; }
         } catch (e) { console.warn('[v44] sync dstv globals failed', e); }
       };
 
