@@ -39229,14 +39229,7 @@ window.__LINEA_DEBUG__ = {
           <input id="dgpRimDensity" type="range" min="0.15" max="0.60" value="0.2" step="0.05" style="accent-color:var(--fg);">
           <span id="dgpRimDensityVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">0.20 mm</span>
         </div>
-        <!-- [tip-toggle v1] Spitzen-Modus: konstant breit vs verjuengt an scharfen Umkehrungen (V-Spitzen) -->
-        <div id="dgpTipModeRow" style="display:grid;grid-template-columns:auto 1fr;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);margin-top:var(--space-3);">
-          <label title="Verhalten an scharfen Umkehrungen (V-Spitzen): Konstant breit = volle Breite (die zwei Arme kreuzen sich am Tal). Verjuengt = die Spitze laeuft sauber spitz zu, kein Kreuzen.">Spitzen</label>
-          <select id="dgpTipMode" style="font-size:var(--fs-sm);padding:2px 6px;border:1px solid var(--bd,#ccc);border-radius:var(--radius-xs,4px);background:var(--bg,#fff);color:var(--fg);">
-            <option value="konstant">Konstant breit</option>
-            <option value="verjuengt">Verjuengt (spitz)</option>
-          </select>
-        </div>
+        <!-- [tip-always v3] Spitzen-Dropdown entfernt (Lukas): im Hintergrund fest auf "Verjuengt (spitz)" -->
       </div>
 
       <!-- Punkte Toggle (Render-only) + Apply-Status [VT-UIFIX v1] ueberfluessige Trennlinie entfernt (Zaehler #dgpStitchCount darunter ist ausgeblendet) -->
@@ -41216,22 +41209,12 @@ window.__LINEA_DEBUG__ = {
           _dgpApplyParam('rimDensity', v);
         });
       }
-      /* [tip-toggle v1] Spitzen-Modus (global, persistent): konstant breit vs verjuengt an scharfen Umkehrungen */
-      var dgpTipMode = document.getElementById('dgpTipMode');
-      if (dgpTipMode) {
-        try { var _tm = localStorage.getItem('vt_satin_tip_mode'); if (_tm === 'konstant' || _tm === 'verjuengt') window._satinTipMode = _tm; } catch (e) {}
-        if (window._satinTipMode !== 'verjuengt') window._satinTipMode = 'konstant';
-        dgpTipMode.value = window._satinTipMode;
-        dgpTipMode.addEventListener('change', function() {
-          window._satinTipMode = (this.value === 'verjuengt') ? 'verjuengt' : 'konstant';
-          try { localStorage.setItem('vt_satin_tip_mode', window._satinTipMode); } catch (e) {}
-          /* Stich-Caches ALLER Shapes explizit invalidieren (globaler Modus aendert
-             keinen Shape-Param -> sonst returnt _stitchRecalc bei gleichem Key frueh).
-             Wie das Zahnrad-Popover: _needleCacheKey='' erzwingt Neuberechnung. */
-          try { (window.shapes || []).forEach(function (s) { if (s && s.stitch) { s.stitch._needleCacheKey = ''; } }); } catch (e) {}
-          _dgpScheduleRefresh();
-        });
-      }
+      /* [tip-always v3] Spitzen-Dropdown entfernt (Lukas): im Hintergrund fest auf
+         "Verjuengt (spitz)" - exakt das Online-Verhalten mit verjuengt-Auswahl, nur
+         ohne sichtbares Dropdown. Keine Geometrie geaendert. _satinTipMode global fix +
+         Stich-Caches einmal invalidieren. */
+      window._satinTipMode = 'verjuengt';
+      try { (window.shapes || []).forEach(function (s) { if (s && s.stitch) { s.stitch._needleCacheKey = ''; } }); } catch (e) {}
       _updateOutlineSubVisibility();
       /* [VT-UIFIX v1] Underlay + Faden trimmen: bei geoeffnetem Sub die beiden Einheiten untereinander stapeln
          (#dgpUlTrimWrap auf 1fr), sonst nebeneinander (Lukas: "uebereinander anordnen") */
