@@ -29219,7 +29219,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
     if (typeof window !== 'undefined' && window._satinTipMode === 'verjuengt') {
       var s = new Array(n); s[0] = 0;
       for (var si = 1; si < n; si++) s[si] = s[si - 1] + Math.hypot(P[si].x - P[si - 1].x, P[si].y - P[si - 1].y);
-      var taperLen = width * 1.2;
+      var taperLen = width * 2.6; /* [satin-graduell v1] laengere Rampe = graduellere Spitze (Lukas) statt abruptem Zulauf */
       var totS = s[n - 1] + (closed ? Math.hypot(P[0].x - P[n - 1].x, P[0].y - P[n - 1].y) : 0);
       for (var sv = 0; sv < n; sv++) {
         if (!closed && (sv === 0 || sv === n - 1)) continue;
@@ -29281,7 +29281,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
      geraden Kanten ist der Rail-Abstand ~2x pitch > minSpace -> kein Eingriff. */
   var pts = [], side = 0;
   var lastFullI = null, lastFullO = null;
-  var minSpace = pitchPx * 1.7, shortF = 0.4; /* Kurzstich erreicht 60% Richtung Innenkante */
+  var minSpace = pitchPx * 1.15, shortF = 0.4; /* [satin-graduell v1] Kurzstich erst bei echter Enge (~Pitch), nicht vorsorglich (Lukas: keine Vorkehrung ohne Ueberlappung) - mehr Rhythmus. Kurzstich erreicht 60% Richtung Innenkante */
   /* [satin-curve-dichte v1] Einstiche im Pitch-Abstand entlang des LAENGEREN Rails
      (aussen auf Kurven) setzen, mit Rest-Uebertrag ueber Kanten (kein Pro-Kante-
      Rundungsverlust - das war der Grund, warum eine reine round(seg/pitch)-Aenderung
@@ -35078,7 +35078,14 @@ function _stitchRecalc(shape) {
          die Reihenfolge sieht "manchmal richtig, manchmal falsch" aus.
          Fallback: nur Main-Fill ohne Underlay (zumindest sichtbar). */
       try {
-        st.needlePoints = _withFillOutline(shape, _withFillUnderlay(shape, _calcFillStitch(shape)));
+        /* [VT-TEXT-SATIN v1] Text-Satin = reines Satin (Font-Builder-Engine): KEINE
+           Fuell-Unterlage und KEINE gleichfarbige Abschlusskontur drueberlegen, sonst
+           weicht es von der Font-Builder-Ausgabe ab. */
+        if (shape.type === 'text' && shape.textStitch === 'satin') {
+          st.needlePoints = _calcFillStitch(shape) || [];
+        } else {
+          st.needlePoints = _withFillOutline(shape, _withFillUnderlay(shape, _calcFillStitch(shape)));
+        }
       } catch (e) {
         try {
           console.warn('[stitch] _withFillUnderlay/Outline failed for shape', shape && shape.id, e && e.message);
