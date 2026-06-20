@@ -34890,6 +34890,15 @@ function _withFillOutline(shape, mainPts) {
 function _stitchRecalc(shape) {
   var st = _stitchMaybeUpgradeLegacyParams(shape);
   if (st && st.disabled) { st.needlePoints = []; st._needleCacheKey = ''; return; }
+  /* [satin-width-live v1] Auto-Satin-Linienband (_strokeBand): Bandbreite IMMER an
+     die aktuelle gezeichnete Strichbreite koppeln (Lukas: "wie im canvas"). Bisher
+     wurde zigzagWidth nur beim ERSTEN Zuweisen gesetzt -> spaeteres Verbreitern/
+     Verschmaelern der Linie wirkte nicht (Band blieb gleich breit). Sync VOR dem
+     Cache-Key, damit die Aenderung auch eine Neuberechnung ausloest (zigzagWidth
+     ist Teil des Keys). Manuelle Zwei-Rail-Saeulen (satinRail2) bleiben unberuehrt. */
+  if (st && st._strokeBand && typeof _stitchSyncSatinWidthToStroke === 'function') {
+    _stitchSyncSatinWidthToStroke(shape, st);
+  }
   var cacheKey = _stitchCacheKey(shape, st);
   if (cacheKey && st._needleCacheKey === cacheKey && Array.isArray(st.needlePoints)) return;
   switch (st.type) {
