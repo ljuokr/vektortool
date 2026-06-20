@@ -1778,6 +1778,7 @@ body.layer-panel-open #rsActions { display:none !important; }
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3,12v3h12v-3"/><path d="M9,11V3"/><path d="M6,6l3-3 3,3"/></svg>
       </button>
       <input type="file" id="importFile" accept=".svg,.dxf,.png,.jpg,.jpeg,.gif,.webp,.avif,.bmp,.linea" style="display:none" multiple>
+    <input type="file" id="fontImportFile" accept=".ttf,.otf,.woff,.woff2,font/*" style="display:none" multiple>
     </div>
   </div>
   <button class="tb-btn" id="zoomFit" style="display:none"></button>
@@ -17936,6 +17937,16 @@ $('importFile').addEventListener('change', function(e){
         reader.onload = function(ev){
           try {
             var data = JSON.parse(ev.target.result);
+            /* [VT-TEXT-SATIN v1] Eingebettete hochgeladene Schriften wiederherstellen:
+               vor dem Rendern via FontFace registrieren; bei Ladeende neu zeichnen,
+               damit Text in der Upload-Schrift erscheint statt der Ersatzschrift. */
+            if (data.customFonts && data.customFonts.length) {
+              data.customFonts.forEach(function(cf) {
+                if (cf && cf.name && cf.dataUrl && _allFonts.indexOf(cf.name) === -1) {
+                  try { _vtRegisterFont(cf.name, _vtDataUrlToBuffer(cf.dataUrl), cf.dataUrl).then(function(){ try { render(); } catch (e) {} }); } catch (e) { console.warn('[vt:font-restore]', e && e.message); }
+                }
+              });
+            }
             if (data.canvases && data.canvases.length) {
               pu();
               canvasTabs = data.canvases.map(function(canvas, index) {
@@ -18070,6 +18081,9 @@ $('saveProjectBtn').addEventListener('click', function(){
     activeCanvasIdx: activeTabIdx,
     defaults: _vtDeepClone(state.defaults),
     mirror: _vtDeepClone(state.mirror),
+    /* [VT-TEXT-SATIN v1] hochgeladene Schriften als dataUrl mitspeichern, damit
+       Text mit Upload-Schrift beim Wiederoeffnen erhalten bleibt. */
+    customFonts: (typeof userFonts !== 'undefined' ? userFonts : []),
     canvases: canvasTabs.filter(function(_c){ return !_c.isGuide && !_c.isDemo; }).map(function(canvas) {
       return {
         id: canvas.id,
@@ -18826,6 +18840,22 @@ function makeRectSettingsGlobal() {
 var _allFonts = ['Nunito','Playfair Display','JetBrains Mono','Pacifico','Oswald','Permanent Marker','Abril Fatface','Caveat','Righteous','Cormorant Garamond','Lora','Merriweather','Raleway','Montserrat','Open Sans','Roboto Slab','Dancing Script','Lobster','Bebas Neue','Bitter','Indie Flower','Shadows Into Light','Amatic SC','Josefin Sans','Quicksand','Archivo Black','Spectral','Cinzel','Satisfy','Great Vibes','Anton','Comfortaa','Barlow Condensed','Libre Baskerville','Fira Sans'];
 function _getAllFonts() { return _allFonts; }
 
+/* === Schrift-Upload (TTF/OTF/WOFF/WOFF2) -> nutzbar im Canvas + Stickmodul. Port aus
+   font-import-test.html. Bewusst KEIN Font-ALS-Schrift-Export (rechtlich zurueckgestellt:
+   OFL Reserved Font Name + MS-EULA-Konversionsverbot); nur Upload + Nutzung. Output bleibt
+   die fertige Stickdatei (DST/PES) = freies Stickmotiv. KRITISCHE LEHRE: nur
+   document.fonts.add(face) nach face.load(), KEIN zusaetzliches CSS-@font-face (sonst
+   doppelter "unloaded"-Eintrag -> document.fonts.check() faelschlich false). === */
+var userFonts = []; // [{name, dataUrl}] hochgeladene Schriften (fuer .linea-Persistenz)
+function _vtFontBaseName(fn){ return fn.replace(/\.[^.]+$/,'').replace(/[^\wÀ-ɏ \-]/g,'').trim() || 'Schrift'; }
+function _vtFontUniqueName(name){ if (_allFonts.indexOf(name) === -1) return name; var i=2; while (_allFonts.indexOf(name+'-'+i) !== -1) i++; return name+'-'+i; }
+function _vtDataUrlToBuffer(dataUrl){ var b64=dataUrl.split(',')[1], bin=atob(b64), buf=new Uint8Array(bin.length); for (var i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i); return buf.buffer; }
+function _vtReadArrayBuffer(file){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){res(r.result);}; r.onerror=rej; r.readAsArrayBuffer(file); }); }
+function _vtReadDataUrl(file){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){res(r.result);}; r.onerror=rej; r.readAsDataURL(file); }); }
+function _vtRegisterFont(name, buffer, dataUrl){ var face=new FontFace(name, buffer); return face.load().then(function(loaded){ document.fonts.add(loaded); if (_allFonts.indexOf(name) === -1) _allFonts.push(name); if (dataUrl && !userFonts.some(function(f){return f.name===name;})) userFonts.push({name:name, dataUrl:dataUrl}); return name; }); }
+function _vtImportFontFile(file){ var ext=(file.name.split('.').pop()||'').toLowerCase(); if (['ttf','otf','woff','woff2'].indexOf(ext)===-1) return Promise.resolve(null); var name=_vtFontUniqueName(_vtFontBaseName(file.name)); return Promise.all([_vtReadArrayBuffer(file), _vtReadDataUrl(file)]).then(function(arr){ return _vtRegisterFont(name, arr[0], arr[1]); }); }
+function _vtFontLoadBtnHtml(){ return '<button class="rp-font-load" style="width:100%;margin:2px 0 3px;padding:var(--space-2) var(--space-3);border:1px dashed var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--fg);cursor:pointer;font-size:var(--fs-sm)">＋ Eigene Schrift laden…</button><div style="font-size:var(--fs-xs);color:var(--fg2);margin:0 0 4px">Du bist für die Lizenz hochgeladener Schriften verantwortlich.</div>'; }
+
 function makeTextSettings(s) {
   var fonts = _getAllFonts();
   var curFont = s.fontFamily || 'Nunito';
@@ -18843,6 +18873,14 @@ function makeTextSettings(s) {
     html += '<button class="font-btn rp-font'+(f===curFont?' active':'')+'" data-font="'+f+'" style="font-family:\''+f+'\';font-size:var(--fs-base);padding:var(--space-2) var(--space-3)">'+f+'</button>';
   }
   html += '</div>';
+  html += _vtFontLoadBtnHtml();
+  /* [VT-TEXT-SATIN v1] Stickart pro Text: Satin (echte Satin-Saeulen), Tatami
+     (Flaechenfuellung), Laengs (Fuellung mit 90-Grad-Reihen). Default Tatami =
+     bisheriges Verhalten. */
+  var _curTS = s.textStitch || 'tatami';
+  function _tsBtn(v, lbl) { var a = (_curTS === v); return '<button class="rp-textstitch'+(a?' active':'')+'" data-ts="'+v+'" style="flex:1;padding:4px 2px;border:1px solid var(--border);background:'+(a?'var(--ac)':'var(--bg)')+';color:'+(a?'#fff':'var(--fg)')+';cursor:pointer;font-size:var(--fs-sm);font-weight:600;border-radius:var(--radius-sm)">'+lbl+'</button>'; }
+  html += '<div class="rp-title" style="margin-top:6px">Stickart</div>';
+  html += '<div style="display:flex;gap:4px;margin-bottom:2px">' + _tsBtn('satin','Satin') + _tsBtn('tatami','Tatami') + _tsBtn('laengs','Längs') + '</div>';
   if (s.onPath) {
     html += '<div class="rp-row"><label>Position</label><input type="range" class="sset" data-prop="pathOffset" min="0" max="100" value="'+(s.pathOffset||0)+'"><span class="val">'+(s.pathOffset||0)+'%</span></div>';
     /* [VT-TEXTPATH-SIDE v1] Textseite kontextsensitiv: geschlossene Form (Kreis)
@@ -18896,6 +18934,7 @@ function makeTextSettingsGlobal() {
     html += '<button class="font-btn rp-font-g'+(f===textFont?' active':'')+'" data-font="'+f+'" style="font-family:\''+f+'\';font-size:var(--fs-base);padding:var(--space-2) var(--space-3)">'+f+'</button>';
   }
   html += '</div>';
+  html += _vtFontLoadBtnHtml();
   html += '</div>';
   return html;
 }
@@ -19642,6 +19681,45 @@ function _bindEditorEvents(container) {
       container.querySelectorAll('.rp-font').forEach(function(x){ x.classList.remove('active'); });
       this.classList.add('active');
       render();
+    });
+  });
+  // Eigene Schrift hochladen: Upload -> registrieren -> sofort als aktive Schrift nutzen
+  container.querySelectorAll('.rp-font-load').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var inp = $('fontImportFile'); if (!inp) return;
+      inp.onchange = function(e) {
+        var files = e.target.files; e.target.value = '';
+        if (!files || !files.length) return;
+        Promise.all([].map.call(files, function(f){ return _vtImportFontFile(f); })).then(function(regs) {
+          var last = (regs || []).filter(Boolean).pop();
+          if (last) {
+            textFont = last;
+            if (selId) { pu(); getAllSelectedShapes().forEach(function(s){ if (s.type === 'text') s.fontFamily = last; }); }
+          }
+          updateRightPanel();
+          if (typeof render === 'function') render();
+        }).catch(function(err){ console.warn('[vt:font-import]', err); });
+      };
+      inp.click();
+    });
+  });
+  /* [VT-TEXT-SATIN v1] Stickart pro Text (Satin / Tatami / Laengs). Setzt
+     shape.textStitch, invalidiert den Stich-Cache und rechnet die Form neu. */
+  container.querySelectorAll('.rp-textstitch').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (!selId) return;
+      pu();
+      var v = this.getAttribute('data-ts');
+      getAllSelectedShapes().forEach(function(s) {
+        if (s.type !== 'text') return;
+        s.textStitch = v;
+        if (s.stitch) s.stitch._needleCacheKey = '';
+        try { if (typeof _stitchRecalc === 'function') _stitchRecalc(s); } catch (e) { console.warn('[vt:textstitch]', e && e.message); }
+      });
+      container.querySelectorAll('.rp-textstitch').forEach(function(x){ x.classList.remove('active'); });
+      this.classList.add('active');
+      render();
+      if (typeof window._stitchOnUpdateRightPanel === 'function') { try { window._stitchOnUpdateRightPanel(); } catch (e) {} }
     });
   });
   /* [VT-TEXTPATH-SIDE v1] Textseite (Aussen/Innen bzw. Oben/Unten) + Bogen-Flip */
@@ -28846,7 +28924,10 @@ function _stitchCacheKey(shape, st) {
       params.underlayStitchLength || 2.5,
       params.outline === true ? 1 : 0,
       params.outlineStitchLength || 2.5,
-      'off:' + Math.round(offsetAmtKey * 100) + ':' + (offsetAmtKey > 0 ? offsetSeedKey : 0)
+      'off:' + Math.round(offsetAmtKey * 100) + ':' + (offsetAmtKey > 0 ? offsetSeedKey : 0),
+      /* [VT-TEXT-SATIN v1] Text-Stichart (Satin/Tatami/Laengs) in den Cache-Key,
+         sonst greift ein Wechsel nicht (gleicher Key -> _stitchRecalc returnt frueh). */
+      (shape.type === 'text' ? ('ts:' + (shape.textStitch || 'tatami')) : '')
     ].join('|');
   } else if (st.type === 'running') {
     paramKey = [params.stitchLength || 3, params.adjustLastStitch === false ? 0 : 1].join('|');
@@ -34017,9 +34098,56 @@ function _fillSplitOutsideSewnSegments(shape, pts) {
   return out || pts;
 }
 
+/* [VT-TEXT-SATIN v1] Echte Satin-Saeulen fuer Text via window.VTSatinEngine
+   (Auto-Satin-Engine aus dem Font-Builder portiert). Die Engine rendert im
+   eigenen Ursprung -> Ergebnis per bbox-Translation an die Lage des Fuell-Pfads
+   (gleiche Position wie die Tatami-Fuellung) angeglichen. */
+function _calcTextSatinStitch(shape, opts) {
+  if (typeof window === 'undefined' || !window.VTSatinEngine || !shape || !shape.text || !String(shape.text).trim()) return [];
+  var raw;
+  try {
+    var _p = (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing
+      : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.rowSpacing)) ? shape.stitch.params.rowSpacing : 0.4);
+    raw = window.VTSatinEngine.textToStitches({
+      text: shape.text, fontFamily: shape.fontFamily || 'Nunito',
+      fontSizePx: shape.fontSize || 24, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p
+    });
+  } catch (e) { try { console.warn('[vt:text-satin]', e && e.message); } catch (_e) {} return []; }
+  if (!raw || !raw.length) return [];
+  var d = _stitchTextToPathD(shape);
+  var tnums = (d && d.match(/-?\d+\.?\d*/g)) || []; var tMinX = 1e9, tMinY = 1e9, i;
+  for (i = 0; i + 1 < tnums.length; i += 2) { var tx = +tnums[i], ty = +tnums[i + 1]; if (tx < tMinX) tMinX = tx; if (ty < tMinY) tMinY = ty; }
+  var sMinX = 1e9, sMinY = 1e9, k;
+  for (k = 0; k < raw.length; k++) { if (raw[k].jump) continue; if (raw[k].x < sMinX) sMinX = raw[k].x; if (raw[k].y < sMinY) sMinY = raw[k].y; }
+  var dx = (isFinite(tMinX) && isFinite(sMinX)) ? (tMinX - sMinX) : 0;
+  var dy = (isFinite(tMinY) && isFinite(sMinY)) ? (tMinY - sMinY) : 0;
+  var out = [];
+  for (k = 0; k < raw.length; k++) out.push({ x: raw[k].x + dx, y: raw[k].y + dy, jump: !!raw[k].jump });
+  return out;
+}
+/* [VT-TEXT-LAENGS v1] "Laengs" = Flaechenfuellung mit 90 Grad gedrehten Reihen
+   (laengs statt quer). Glyph-d um 90 Grad um die Mitte drehen, horizontaler Scan,
+   Stichpunkte zurueckdrehen. */
+function _calcTextLaengsStitch(shape, opts) {
+  var d = _stitchTextToPathD(shape); if (!d || d.length < 8) return [];
+  var nums = (d.match(/-?\d+\.?\d*/g) || []).map(Number);
+  if (nums.length % 2) return _calcTextFillStitch(shape, opts);
+  var mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9, i;
+  for (i = 0; i + 1 < nums.length; i += 2) { var x = nums[i], y = nums[i + 1]; if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; }
+  var cx = (mnx + mxx) / 2, cy = (mny + mxy) / 2;
+  var rot = []; for (i = 0; i + 1 < nums.length; i += 2) { var X = nums[i], Y = nums[i + 1]; rot.push(cx - (Y - cy)); rot.push(cy + (X - cx)); }
+  var pi = 0, rd = d.replace(/-?\d+\.?\d*/g, function () { return rot[pi++].toFixed(2); });
+  var pts = _stitchScanFillD(rd, shape, opts) || [];
+  return pts.map(function (p) { return { x: cx + (p.y - cy), y: cy - (p.x - cx), jump: !!p.jump }; });
+}
 function _calcFillStitch(shape, opts) {
   try {
-    if (shape && shape.type === 'text') return _calcTextFillStitch(shape, opts);
+    if (shape && shape.type === 'text') {
+      var _tstitch = shape.textStitch || 'tatami';
+      if (_tstitch === 'satin') { var _ss = _calcTextSatinStitch(shape, opts); if (_ss && _ss.length) return _ss; }
+      else if (_tstitch === 'laengs') { var _ls = _calcTextLaengsStitch(shape, opts); if (_ls && _ls.length) return _ls; }
+      return _calcTextFillStitch(shape, opts);
+    }
     /* [fuellstil-kongruenz v1] toter window._fillStyleSpiral-Operand entfernt (wurde nie
        gesetzt; das UI #dgpFillStyle schreibt params.fillStyle). Default bleibt
        'parallel'. Greift die Kontur-Fuellung nicht (degenerierte Geometrie,
@@ -34368,6 +34496,21 @@ function _calcSatinStitch(shape) {
   var stitchLen = _mm2px(st.params.stitchLength || 1);
   var isClosed = !!(shape.closed || shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'polygon' || shape.type === 'star' || shape.type === 'gear' || shape.type === 'wheel' || shape.type === 'svgpath');
   if (isClosed) return _calcClosedSatinFill(shape);
+
+  /* [satin-curve-dichte v2] Offene Satin-Linie/Kurve ueber die gefixte Band-Funktion
+     _stitchMiterBandPoints rechnen: Dichte entlang des LAENGEREN (aeusseren) Rails =
+     aussen voller Pitch (keine Luecken) + innen Kurzstiche-Ausgleich (Variante B, von
+     Lukas gewaehlt) - statt mittellinien-basiert (aussen Luecken). NUR echtes Satin,
+     nicht Zickzack (das soll offen/locker bleiben). Fallback auf den alten Mittellinien-
+     Walk, wenn das Band degeneriert. Das war der eigentliche Hebel: bisher steckte die
+     Aussen-Dichte-Logik in _stitchMiterBandPoints, die manuelle Kurve lief aber hier. */
+  if (st.type !== 'zigzag' && typeof _stitchMiterBandPoints === 'function') {
+    try {
+      var _satPit = (st.params && (Number(st.params.satinPitch) > 0 ? st.params.satinPitch : st.params.stitchLength)) || 0.4;
+      var _satBand = _stitchMiterBandPoints(shape, _satPit);
+      if (_satBand && _satBand.length >= 4) return _satBand;
+    } catch (e) {}
+  }
 
   /* Walk along path, zigzag left/right */
   var totalLen = 0;
@@ -46622,5 +46765,1578 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+
+<script>
+/* === VT-TEXT-SATIN-ENGINE v1 (2026-06-20) ============================
+   Echte Satin-Saeulen fuer Text. Auto-Satin-Engine 1:1 portiert aus
+   font-builder-test.html (Z.349-1889), gekapselt als IIFE -> window.VTSatinEngine.
+   Gleiche DPI wie vektortool (PXMM 3.7795). Einstieg textToStitches({text,
+   fontFamily, fontSizePx, bold, italic, pitchMM}) -> [{x,y,jump,travel}] in px.
+   KEIN Font-Export, nur Stich-Erzeugung. window._bowlFill faellt auf 'satin'.
+   ==================================================================== */
+window.VTSatinEngine=(function(){
+"use strict";
+var PXMM=3.7795275591;
+function _mm2px(mm){return mm*PXMM;}
+function _px2mm(px){return px/PXMM;}
+var A_EM_PX=100,UNITS_PER_EM=128,BASELINE_UNITS=100;
+var state={font:'Nunito',stitch:'satin',penAngle:52,pitch:0.3,sizeMM:20,pull:0.2,underlay:false,bold:false,italic:false,text:''};
+function log(){}
+var $=function(id){return document.getElementById(id);};
+function _satinPointAt(pts, frac){
+  if(!pts.length) return {x:0,y:0};
+  if(pts.length===1) return {x:pts[0].x,y:pts[0].y};
+  var cum=[0],i; for(i=1;i<pts.length;i++) cum[i]=cum[i-1]+Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+  var total=cum[cum.length-1]; if(!(total>0)) return {x:pts[0].x,y:pts[0].y};
+  var L=Math.max(0,Math.min(1,frac))*total, seg=1;
+  while(seg<pts.length && cum[seg]<L) seg++;
+  var a=seg-1,b=Math.min(seg,pts.length-1),sl=(cum[b]-cum[a])||1,f=(L-cum[a])/sl;
+  return {x:pts[a].x+(pts[b].x-pts[a].x)*f, y:pts[a].y+(pts[b].y-pts[a].y)*f};
+}
+function _astDistT(mask,W,H){
+  var INF=1e9,d=new Float32Array(W*H),i,x,y; for(i=0;i<W*H;i++) d[i]=mask[i]?INF:0;
+  var a=1,b=Math.SQRT2;
+  for(y=0;y<H;y++) for(x=0;x<W;x++){ var p=y*W+x; if(!mask[p]) continue; var v=d[p];
+    if(x>0) v=Math.min(v,d[p-1]+a); if(y>0) v=Math.min(v,d[p-W]+a);
+    if(x>0&&y>0) v=Math.min(v,d[p-W-1]+b); if(x<W-1&&y>0) v=Math.min(v,d[p-W+1]+b); d[p]=v; }
+  for(y=H-1;y>=0;y--) for(x=W-1;x>=0;x--){ var q=y*W+x; if(!mask[q]) continue; var w=d[q];
+    if(x<W-1) w=Math.min(w,d[q+1]+a); if(y<H-1) w=Math.min(w,d[q+W]+a);
+    if(x<W-1&&y<H-1) w=Math.min(w,d[q+W+1]+b); if(x>0&&y<H-1) w=Math.min(w,d[q+W-1]+b); d[q]=w; }
+  return d;
+}
+function _astThin(mask,W,H){
+  var s=new Uint8Array(mask),changed=true,guard=0,toClear=[],step,x,y,c;
+  while(changed&&guard++<400){ changed=false;
+    for(step=0;step<2;step++){ toClear.length=0;
+      for(y=1;y<H-1;y++) for(x=1;x<W-1;x++){ var p=y*W+x; if(s[p]!==1) continue;
+        var p2=s[p-W],p3=s[p-W+1],p4=s[p+1],p5=s[p+W+1],p6=s[p+W],p7=s[p+W-1],p8=s[p-1],p9=s[p-W-1];
+        var B=p2+p3+p4+p5+p6+p7+p8+p9; if(B<2||B>6) continue;
+        var A=(p2===0&&p3===1?1:0)+(p3===0&&p4===1?1:0)+(p4===0&&p5===1?1:0)+(p5===0&&p6===1?1:0)+(p6===0&&p7===1?1:0)+(p7===0&&p8===1?1:0)+(p8===0&&p9===1?1:0)+(p9===0&&p2===1?1:0);
+        if(A!==1) continue;
+        if(step===0){ if(p2*p4*p6!==0) continue; if(p4*p6*p8!==0) continue; }
+        else { if(p2*p4*p8!==0) continue; if(p2*p6*p8!==0) continue; }
+        toClear.push(p); }
+      if(toClear.length){ changed=true; for(c=0;c<toClear.length;c++) s[toClear[c]]=0; } } }
+  return s;
+}
+function _astTraceSkeleton(skel,W,H){
+  var OFF=[-W-1,-W,-W+1,-1,1,W-1,W,W+1], RING=[1,2,4,7,6,5,3,0];
+  var nb=new Int16Array(W*H),cn=new Int16Array(W*H),pix=[],x,y,k,p;
+  for(y=1;y<H-1;y++) for(x=1;x<W-1;x++){ p=y*W+x; if(skel[p]!==1) continue;
+    var c=0; for(k=0;k<8;k++) if(skel[p+OFF[k]]===1) c++;
+    var cross=0; for(k=0;k<8;k++){ var aa=skel[p+OFF[RING[k]]]?1:0, bb=skel[p+OFF[RING[(k+1)%8]]]?1:0; if(aa===0&&bb===1) cross++; }
+    nb[p]=c; cn[p]=cross; pix.push(p); }
+  function isNode(q){ return nb[q]===0||nb[q]===1||cn[q]>=3; }
+  function neigh(q){ var o=[],j; for(j=0;j<8;j++){ var n=q+OFF[j]; if(n>=0&&n<W*H&&skel[n]===1) o.push(n); } return o; }
+  var edges=[],usedDir={},seen=new Uint8Array(W*H),i,n;
+  for(i=0;i<pix.length;i++){ p=pix[i]; if(!isNode(p)) continue;
+    if(nb[p]===0){ edges.push([p]); seen[p]=1; continue; }
+    var ns=neigh(p);
+    for(n=0;n<ns.length;n++){ var first=ns[n],key=p+'_'+first; if(usedDir[key]) continue; usedDir[key]=1;
+      var path=[p],prev=p,cur=first;
+      while(true){ path.push(cur);
+        if(isNode(cur)){ usedDir[cur+'_'+prev]=1; break; } seen[cur]=1;
+        var cx=cur%W,cy=(cur-cx)/W,px=prev%W,py=(prev-px)/W;
+        var idx=cx-px,idy=cy-py,il=Math.hypot(idx,idy)||1; idx/=il; idy/=il;
+        var cand=neigh(cur),best=-1,bestDot=-2,z;
+        for(z=0;z<cand.length;z++){ var q=cand[z]; if(q===prev||seen[q]) continue; var qx=q%W,qy=(q-qx)/W; var ox=qx-cx,oy=qy-cy,ol=Math.hypot(ox,oy)||1; var d=(ox/ol)*idx+(oy/ol)*idy; if(d>bestDot){ bestDot=d; best=q; } }
+        if(best<0) break; prev=cur; cur=best; }
+      edges.push(path); } }
+  for(i=0;i<pix.length;i++){ p=pix[i]; if(seen[p]||isNode(p)) continue;
+    var loop=[p],lprev=-1,lcur=p; seen[p]=1;
+    while(true){ var lx=lcur%W,ly=(lcur-lx)/W,lix=0,liy=0;
+      if(lprev>=0){ var ppx=lprev%W,ppy=(lprev-ppx)/W; lix=lx-ppx; liy=ly-ppy; var lil=Math.hypot(lix,liy)||1; lix/=lil; liy/=lil; }
+      var lc=neigh(lcur),lbest=-1,lbd=-2,lz;
+      for(lz=0;lz<lc.length;lz++){ var lq=lc[lz]; if(lq===lprev) continue; if(seen[lq]&&lq!==p) continue; if(lq===p&&loop.length<3) continue; var lqx=lq%W,lqy=(lq-lqx)/W; var lox=lqx-lx,loy=lqy-ly,lol=Math.hypot(lox,loy)||1; var ld=lprev<0?0:((lox/lol)*lix+(loy/lol)*liy); if(ld>lbd){ lbd=ld; lbest=lq; } }
+      if(lbest<0) break; if(lbest===p){ loop.push(p); break; } loop.push(lbest); seen[lbest]=1; lprev=lcur; lcur=lbest; }
+    if(loop.length>=4) edges.push(loop); }
+  return { edges:edges, nb:nb, cn:cn };
+}
+/* [HEBEL 2] Good-Continuation-Paarung an Knoten: verschmilzt nur den DURCHLAUFENDEN
+   Strich (Stamm gerade durch), laesst echte Abzweige (t-Querbalken, k-Arm, r-Arm)
+   getrennt. Gegen mein altes globales-Greedy-Mergen: (a) Tangente gemittelt ueber ein
+   GROESSERES Fenster ab dem Knoten (gegen Skelett-Treppen-Rauschen), (b) REZIPROZITAET
+   (a-b nur mergen wenn beide gegenseitig bester Partner sind), (c) BREITEN-Gate (duenner
+   Arm verschmilzt nicht mit dickem Stamm), (d) T-Schutz dot<-0.5 (>120Grad). [wnilfoi2r] */
+function _astMergeCollinear(edges,W,dist,nbArr){
+  function endDir(ed,atStart){ var n=ed.length, K=Math.min(12,n-1), step=Math.max(1,Math.round(K/4));
+    var a0=atStart?ed[0]:ed[n-1], ax=a0%W, ay=(a0-ax)/W, sx=0,sy=0,c=0,s;
+    for(s=2;s<=K;s+=step){ var bi=atStart?ed[s]:ed[n-1-s], bx=bi%W, by=(bi-bx)/W, dx=bx-ax,dy=by-ay,l=Math.hypot(dx,dy)||1; sx+=dx/l; sy+=dy/l; c++; }
+    var L=Math.hypot(sx,sy)||1; return {x:sx/L,y:sy/L}; }
+  function endHw(ed,atStart){ if(!dist) return 1; var n=ed.length,K=Math.min(6,n-1),s=0,c=0,i; for(i=0;i<=K;i++){ s+=dist[atStart?ed[i]:ed[n-1-i]]; c++; } return s/c||1; }
+  var es=edges.map(function(e){return e.slice();}); var guard=0,maxIter=edges.length+4;
+  while(guard++<maxIter){ var inc={},i;
+    /* Endpunkte sammeln + zu Knoten CLUSTERN: an einer X-Kreuzung kann das 1-Pixel-Skelett
+       nur EINE Diagonale exakt durchs Zentrum fuehren; die ANDERE wird umgeleitet/zerteilt,
+       ihre zwei Haelften enden ~Halbbreite auseinander (kein gemeinsamer Pixel) -> der
+       exakt-Pixel-Merge paart sie nicht. Endpunkte innerhalb 1.5x lokaler Halbbreite (dist)
+       als EINEN Knoten behandeln -> die Haelften paaren ueber die Luecke (Good-Continuation).
+       An sauberen T-Knoten (Enden schon am selben Pixel) und getrennten Strichen (Enden weit
+       auseinander) aendert das nichts. Reziprozitaet schuetzt vor Spur-Fehlmerge. */
+    var ends=[]; for(i=0;i<es.length;i++){ var e=es[i]; if(e.length<2) continue; var st=e[0],tt=e[e.length-1];
+      ends.push({ei:i,atStart:true,x:st%W,y:(st/W)|0,d:(dist?dist[st]:1)||1,leaf:(nbArr?nbArr[st]===1:false)}); if(tt!==st) ends.push({ei:i,atStart:false,x:tt%W,y:(tt/W)|0,d:(dist?dist[tt]:1)||1,leaf:(nbArr?nbArr[tt]===1:false)}); }
+    var par=ends.map(function(_,j){return j;});
+    function _find(a){ while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; }
+    /* Cluster-Radius 2.5x Halbbreite: die Detour-Luecke an einer X-Kreuzung ist ~die VOLLE
+       Strichbreite (=2x Halbbreite), denn die zerteilte Diagonale weicht um die ganze
+       andere Diagonale aus. Beide Diagonalen-Haelften muessen in EINEN Cluster, damit die
+       Good-Continuation-Paarung BEIDE Durchstriche findet. NUR Kreuzungs-Enden clustern,
+       NIE freie Strich-Spitzen (Leaf, nb===1) - sonst saugt der grosse Radius Serifen-/
+       Terminal-Spitzen in den Arm = Knick/Faecher am Strich-Ende. */
+    var u2,v2; for(u2=0;u2<ends.length;u2++){ if(ends[u2].leaf) continue; for(v2=u2+1;v2<ends.length;v2++){ if(ends[v2].leaf) continue; var R=2.5*Math.max(ends[u2].d,ends[v2].d,1), ddx=ends[u2].x-ends[v2].x, ddy=ends[u2].y-ends[v2].y; if(ddx*ddx+ddy*ddy<=R*R) par[_find(u2)]=_find(v2); } }
+    var w2; for(w2=0;w2<ends.length;w2++){ var rr=_find(w2); (inc[rr]=inc[rr]||[]).push(ends[w2]); }
+    var best=null,node;
+    for(node in inc){ var lstAll=inc[node];
+      /* Slivers/Spurs (<12px Kante) NICHT mit-mergen: sonst paart ein Sliver faelschlich mit
+         dem Stamm, bevor der echte Durchstrich dran ist. Sie bleiben separat (werden spaeter
+         als Knubbel gedroppt). */
+      var lst=lstAll.filter(function(it){return es[it.ei].length>12;});
+      if(lst.length<2) continue;
+      var dirs=lst.map(function(it){return endDir(es[it.ei],it.atStart);});
+      var hws=lst.map(function(it){return endHw(es[it.ei],it.atStart);});
+      function bestPartner(a){ var bi=-1,bd=-0.5,b; for(b=0;b<lst.length;b++){ if(b===a||lst[a].ei===lst[b].ei) continue; var d=dirs[a].x*dirs[b].x+dirs[a].y*dirs[b].y; if(d<bd){ bd=d; bi=b; } } return {idx:bi,dot:bd}; }
+      for(var a=0;a<lst.length;a++){ var pa=bestPartner(a); if(pa.idx<0) continue;
+        var pb=bestPartner(pa.idx); if(pb.idx!==a) continue;                         /* Reziprozitaet */
+        var wr=Math.min(hws[a],hws[pa.idx])/(Math.max(hws[a],hws[pa.idx])||1); if(wr<0.55) continue;  /* Breiten-Gate */
+        if(!best||pa.dot<best.dot) best={dot:pa.dot,a:lst[a],b:lst[pa.idx]};
+      } }
+    if(!best) break;
+    var ea=es[best.a.ei].slice(),eb=es[best.b.ei].slice();
+    if(best.a.atStart) ea.reverse(); if(!best.b.atStart) eb.reverse();
+    /* teilen die zwei Haelften einen Pixel (sauberer Knoten) -> Duplikat weglassen; liegt
+       eine kleine Luecke dazwischen (geclusterte X-Kreuzung) -> beide Haelften ganz behalten,
+       die gerade Bruecke ueber die Mitte wird spaeter geglaettet/quergestickt. */
+    var tail=(ea[ea.length-1]===eb[0])?eb.slice(1):eb;
+    var merged=ea.concat(tail); var hi=Math.max(best.a.ei,best.b.ei),lo=Math.min(best.a.ei,best.b.ei);
+    es.splice(hi,1); es.splice(lo,1); es.push(merged); }
+  return es;
+}
+function _astSmooth(pts,w){ if(pts.length<=2||w<1) return pts; var out=[],i,k;
+  for(i=0;i<pts.length;i++){ var sx=0,sy=0,m=0; for(k=-w;k<=w;k++){ var j=i+k; if(j<0||j>=pts.length) continue; sx+=pts[j].x; sy+=pts[j].y; m++; } out.push({x:sx/m,y:sy/m}); }
+  out[0]=pts[0]; out[out.length-1]=pts[pts.length-1]; return out; }
+function _astSmoothScalar(arr,w){ if(arr.length<=2||w<1) return arr; var out=[],i,k;
+  for(i=0;i<arr.length;i++){ var s=0,m=0; for(k=-w;k<=w;k++){ var j=i+k; if(j<0||j>=arr.length) continue; s+=arr[j]; m++; } out.push(s/m); } return out; }
+/* Mittellinie an EINEM Ende um Bogenlaenge d zuruecktrimmen (Endpunkt interpoliert).
+   Fuer Node-Enden an Verzweigungen: die Saeule stoppt vor der verbreiterten Kreuzung. */
+function _trimEnd(cen,hw,d,fromStart){
+  if(d<=0||cen.length<3) return;
+  var acc=0,i,f,seg;
+  if(fromStart){
+    for(i=0;i<cen.length-1;i++){ seg=Math.hypot(cen[i+1].x-cen[i].x,cen[i+1].y-cen[i].y);
+      if(acc+seg>=d){ f=(d-acc)/(seg||1); cen[i]={x:cen[i].x+(cen[i+1].x-cen[i].x)*f, y:cen[i].y+(cen[i+1].y-cen[i].y)*f}; hw[i]=hw[i]+(hw[i+1]-hw[i])*f; if(i>0){ cen.splice(0,i); hw.splice(0,i); } return; } acc+=seg; }
+  } else {
+    for(i=cen.length-1;i>0;i--){ seg=Math.hypot(cen[i].x-cen[i-1].x,cen[i].y-cen[i-1].y);
+      if(acc+seg>=d){ f=(d-acc)/(seg||1); cen[i]={x:cen[i].x+(cen[i-1].x-cen[i].x)*f, y:cen[i].y+(cen[i-1].y-cen[i].y)*f}; hw[i]=hw[i]+(hw[i-1]-hw[i])*f; if(i<cen.length-1){ cen.splice(i+1); hw.splice(i+1); } return; } acc+=seg; }
+  }
+}
+/* Mittellinie an scharfen ECKEN (Knick > ~48 Grad) in Teil-Saeulen splitten, damit
+   z.B. die zwei Arme eines k/x/A nicht als EINE um die Ecke gebogene Saeule laufen
+   (verknaeuelt am Vertex), sondern je eine saubere Saeule, die am Vertex abuttet.
+   Schneidet nur an lokalen Knick-Maxima, nicht an glatten Kurven (o/S bleiben heil). */
+function _splitCenterlineAtCorners(cen,hw){
+  var n=cen.length; if(n<6) return [{center:cen,hw:hw}];
+  /* Richtungswechsel ueber ein BOGENLAENGEN-Fenster (1.2 mm) messen, nicht ueber
+     %-Punkte: ein echter scharfer Knick dreht stark auf kurzem Bogen, eine fliessende
+     Schreibschrift-Kurve dreht sanft auf langem Bogen -> Letztere NICHT splitten. */
+  var cum=_arcCum(cen), total=cum[n-1], winArc=_mm2px(1.2), i;
+  if(!(total>0) || total < 3.5*winArc) return [{center:cen,hw:hw}];
+  var threshCos=Math.cos(60*Math.PI/180);   /* nur Knick > 60 Grad */
+  function dirDot(idx){ var La=cum[idx]-winArc, Lb=cum[idx]+winArc; if(La<0||Lb>total) return 1;
+    var pa=_interpCum(cen,cum,La/total), pb=_interpCum(cen,cum,Lb/total), c=cen[idx];
+    var d1x=c.x-pa.x,d1y=c.y-pa.y,d2x=pb.x-c.x,d2y=pb.y-c.y,l1=Math.hypot(d1x,d1y)||1,l2=Math.hypot(d2x,d2y)||1;
+    return (d1x*d2x+d1y*d2y)/(l1*l2); }
+  var cuts=[];
+  for(i=2;i<n-2;i++){ var dt=dirDot(i); if(dt>=threshCos) continue;
+    var isMin=true,j; for(j=i-3;j<=i+3;j++){ if(j>=2&&j<n-2&&j!==i&&dirDot(j)<dt){ isMin=false; break; } }
+    if(isMin) cuts.push(i);
+  }
+  /* zu nahe Cuts (< 1.2 mm Bogen) verschmelzen -> keine Sliver-Segmente */
+  var fc=[]; cuts.forEach(function(ci){ if(!fc.length || cum[ci]-cum[fc[fc.length-1]] > winArc) fc.push(ci); });
+  if(!fc.length) return [{center:cen,hw:hw}];
+  var out=[],start=0; fc.forEach(function(ci){ out.push({center:cen.slice(start,ci+1),hw:hw.slice(start,ci+1)}); start=ci; });
+  out.push({center:cen.slice(start),hw:hw.slice(start)});
+  return out.filter(function(p){return p.center.length>=2;});
+}
+function _astSatinFromRail(cen,hw,spacing,shortInset){
+  var n=cen.length; if(n<2) return [];
+  var minHalf=_mm2px(0.18);
+  var cum=[0],i; for(i=1;i<n;i++) cum[i]=cum[i-1]+Math.hypot(cen[i].x-cen[i-1].x,cen[i].y-cen[i-1].y);
+  var total=cum[n-1]; if(!(total>1e-6)) return []; if(spacing<0.5) spacing=0.5;
+  var nSteps=Math.max(2,Math.round(total/spacing));
+  function at(L){ if(L<=0) return {x:cen[0].x,y:cen[0].y,h:hw[0]}; if(L>=total) return {x:cen[n-1].x,y:cen[n-1].y,h:hw[n-1]};
+    var seg=1; while(seg<n&&cum[seg]<L) seg++; var a=seg-1,b=Math.min(seg,n-1),segLen=(cum[b]-cum[a])||1,f=(L-cum[a])/segLen;
+    return {x:cen[a].x+(cen[b].x-cen[a].x)*f, y:cen[a].y+(cen[b].y-cen[a].y)*f, h:hw[a]+(hw[b]-hw[a])*f}; }
+  var cw=Math.max(spacing*4, _mm2px(0.6));   /* stabiles Kruemmungsfenster, nicht ueber 1 Pixel schaetzen */
+  var P1=[],P2=[],MID=[],k;
+  for(k=0;k<=nSteps;k++){ var L=(k/nSteps)*total,q=at(L),qa=at(L-spacing),qb=at(L+spacing);
+    var tx=qb.x-qa.x,ty=qb.y-qa.y,tl=Math.hypot(tx,ty)||1,nx=-ty/tl,ny=tx/tl; var h=Math.max(q.h,minHalf);
+    /* Kruemmungs-Cap: auf engen Schreibschrift-Schlaufen darf die Halbbreite den
+       lokalen Kruemmungsradius nicht erreichen, sonst klappt die Innen-Rail durchs
+       Zentrum = Sonnenstrahl-Faecher (Pacifico a/o/e/S). h < 0.55*R (ueber ein
+       stabiles Fenster geschaetzt, sonst rauscht die Kruemmung). */
+    var c1=at(L-cw),c2=at(L+cw), d1x=q.x-c1.x,d1y=q.y-c1.y,d2x=c2.x-q.x,d2y=c2.y-q.y,l1=Math.hypot(d1x,d1y)||1,l2=Math.hypot(d2x,d2y)||1;
+    var sinT=(d1x*d2y-d1y*d2x)/(l1*l2), turn=Math.abs(Math.asin(Math.max(-1,Math.min(1,sinT))));
+    if(turn>1e-3){ var Rc=cw/turn; if(0.55*Rc<h) h=0.55*Rc; }
+    P1.push({x:q.x+nx*h,y:q.y+ny*h}); P2.push({x:q.x-nx*h,y:q.y-ny*h}); MID.push({x:q.x,y:q.y}); }
+  var pts=[],shortDist=_mm2px(0.6),s;
+  for(s=0;s<=nSteps;s++){ var useR1=(s%2===0),px=useR1?P1[s].x:P2[s].x,py=useR1?P1[s].y:P2[s].y;
+    if(shortInset>0&&s>=2){ var prev=useR1?P1[s-2]:P2[s-2],dS=Math.hypot(px-prev.x,py-prev.y);
+      if(dS<shortDist){ var ff=shortInset*(1-dS/shortDist); px+=(MID[s].x-px)*ff; py+=(MID[s].y-py)*ff; } }
+    pts.push({x:px,y:py}); }
+  return pts;
+}
+/* Rail-Rekonstruktion fuer Version A: glatte Offset-Rails + Quer-Rungs. */
+function _astRailsFromCenter(cen,hw){
+  var n=cen.length; if(n<2) return null;
+  var minHalf=_mm2px(0.18), rail1=[],rail2=[],i, cwI=Math.max(1,Math.round(n*0.04));
+  for(i=0;i<n;i++){
+    var a=cen[Math.max(0,i-1)], b=cen[Math.min(n-1,i+1)];
+    var tx=b.x-a.x,ty=b.y-a.y,tl=Math.hypot(tx,ty)||1,nx=-ty/tl,ny=tx/tl;
+    var h=Math.max(hw[i],minHalf);
+    /* Kruemmungs-Cap (wie _astSatinFromRail): Innen-Rail nicht durchs Zentrum klappen lassen, stabiles Index-Fenster. */
+    var ca=cen[Math.max(0,i-cwI)], cb=cen[Math.min(n-1,i+cwI)];
+    var d1x=cen[i].x-ca.x,d1y=cen[i].y-ca.y,d2x=cb.x-cen[i].x,d2y=cb.y-cen[i].y,l1=Math.hypot(d1x,d1y)||1,l2=Math.hypot(d2x,d2y)||1;
+    var sinT=(d1x*d2y-d1y*d2x)/(l1*l2), turn=Math.abs(Math.asin(Math.max(-1,Math.min(1,sinT))));
+    if(turn>1e-3){ var Rc=((l1+l2)/2)/turn; if(0.55*Rc<h) h=0.55*Rc; }
+    rail1.push({x:cen[i].x+nx*h,y:cen[i].y+ny*h}); rail2.push({x:cen[i].x-nx*h,y:cen[i].y-ny*h});
+  }
+  var arc=0; for(i=1;i<n;i++) arc+=Math.hypot(cen[i].x-cen[i-1].x,cen[i].y-cen[i-1].y);
+  /* Rungs NICHT exakt auf die Rail-Enden (idx 0 / n-1) setzen: an gekruemmten
+     Strich-Enden divergieren die Rails, ein End-Rung verfehlt sonst eine Rail
+     (Inkstitch DanglingRungWarning). 6% nach innen ruecken + 1.3x ueberstehen lassen,
+     damit jede Rung beide Rails sauber kreuzt. Mind. 3 Rungs (kein 2-Rung-Sonderfall). */
+  var nRung=Math.max(2, Math.round(arc/_mm2px(2.5))), rungs=[],r, inset=0.06;
+  for(r=0;r<=nRung;r++){ var f=inset+(1-2*inset)*(r/nRung), idx=Math.round(f*(n-1));
+    var p1=rail1[idx],p2=rail2[idx],mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+    rungs.push([ {x:mx+(p1.x-mx)*1.3,y:my+(p1.y-my)*1.3}, {x:mx+(p2.x-mx)*1.3,y:my+(p2.y-my)*1.3} ]); }
+  return { rail1:rail1, rail2:rail2, rungs:rungs };
+}
+
+/* Kumulative Bogenlaenge einer Punktliste + Abtastung nach normalisiertem Anteil u. */
+function _arcCum(pts){ var c=[0],i; for(i=1;i<pts.length;i++) c[i]=c[i-1]+Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y); return c; }
+function _interpCum(pts,cum,u){ var total=cum[cum.length-1]; if(!(total>0)) return {x:pts[0].x,y:pts[0].y}; var s=Math.max(0,Math.min(1,u))*total, lo=1; while(lo<pts.length&&cum[lo]<s) lo++; var a=lo-1,b=Math.min(lo,pts.length-1),seg=(cum[b]-cum[a])||1,f=(s-cum[a])/seg; return {x:pts[a].x+(pts[b].x-pts[a].x)*f, y:pts[a].y+(pts[b].y-pts[a].y)*f}; }
+
+/* Punkt innerhalb der Glyph-Kontur? (even-odd ueber alle Loops, Loecher korrekt). */
+function _pointInLoops(px,py,loops){
+  var cnt=0,li,i; for(li=0;li<loops.length;li++){ var lp=loops[li],n=lp.length;
+    for(i=0;i<n;i++){ var a=lp[i],b=lp[(i+1)%n]; if((a.y>py)!==(b.y>py)){ var xi=a.x+(py-a.y)/((b.y-a.y)||1e-9)*(b.x-a.x); if(px<xi) cnt++; } } }
+  return (cnt&1)===1;
+}
+
+/* Naechster Schnittpunkt von Strahl (Mx,My)+t*(dx,dy), t in [0,maxT], mit den
+   Kontur-Loops. Gibt {x,y,t} oder null. Kern fuer die Rail-aus-Kontur-Methode. */
+function _rayHit(Mx,My,dx,dy,loops,maxT){
+  var bestT=maxT, hx=0,hy=0, found=false, li,i;
+  for(li=0;li<loops.length;li++){ var lp=loops[li], n=lp.length; if(n<2) continue;
+    for(i=0;i<n;i++){ var a=lp[i], b=lp[(i+1)%n], ex=b.x-a.x, ey=b.y-a.y;
+      var den=dx*ey-dy*ex; if(den>-1e-9&&den<1e-9) continue;
+      var ax=Mx-a.x, ay=My-a.y;
+      var t=-(ax*ey-ay*ex)/den; if(t<0||t>bestT) continue;
+      var u=(ax*dy-ay*dx)/(-den); if(u<-1e-6||u>1+1e-6) continue;
+      bestT=t; hx=Mx+dx*t; hy=My+dy*t; found=true;
+    } }
+  return found ? {x:hx,y:hy} : null;
+}
+
+/* Stich-Paarung in ABSCHNITTEN (Inkstitch flattened_sections) statt global.
+   Die Senkrechten-Paare rail1[i]/rail2[i] aus dem Cross-Section-Raycast sind bereits
+   perpendikular (gleicher Index = EIN Querschnitt). Eine GLOBALE Bogenanteil-Paarung
+   (rail1@u vs rail2@u ueber die ganze Saeule) verschiebt sich aber, sobald L1!=L2 - z.B.
+   gerader Stamm + gekruemmter t-Fuss in EINEM Segment: rail1 (aussen, durch den Fuss
+   laenger) und rail2 (innen) driften, die Stiche slanten ~25 Grad am GERADEN Stamm.
+   Recherche (Inkstitch/Wilcom/Tang-Chou): Satin steht senkrecht zur Strichmittelachse;
+   die Spalte wird durch Rungs in Abschnitte geschnitten, NUR INNERHALB derer per Bogen-
+   anteil verteilt wird. Hier: alle ~anchorArc am gemeinsamen Index re-verankern. Gerade
+   Stuecke (L1~L2 je Abschnitt) -> perpendikular, kein Slant. Enge Innenkurven -> der
+   Bogenanteil verteilt die Innen-Rail je Abschnitt gleichmaessig -> kein Sonnenstrahl-Stau.
+   Liefert {stitches (Zickzack), rungs (perpendikulare Querpaare, 1 pro Voll-Pitch)}. */
+/* ============================================================================
+   [VT-FONTBUILDER konvex-kontur-treue v1] Schliesst die keilfoermigen Stoff-
+   Luecken an KONVEXEN Aussenecken (r-Schulter, Bogen-Aussen, L-Knick), wo der
+   Aussen-Rail die Ecke ABSEHNT und die Rungs den konvexen Rand UNTERSCHIESSEN.
+
+   MECHANIK (gegen Synthese-Geometrie in Node verifiziert):
+   - (1) PROJEKTION: jeder Aussen-Rung-Endpunkt, der >0,12mm INNERHALB der echten
+     Kontur sitzt (= Sehne unterschiesst den konvexen Bogen), wird auf die ECHTE
+     Kontur gezogen. Innenende unangetastet. KEINE zweite Naht, kein Deck-Lauf,
+     kein Grat - nur Korrektur der bestehenden Rung-Aussenenden -> die Rungs
+     erreichen den echten Rand, der Keil verschwindet (gemessen 0,49->0,11mm).
+   - (2) FUELL-RUNGS: wo zwei aufeinanderfolgende (projizierte) Aussenpunkte auf
+     demselben Loop liegen UND der echte Kontur-Bogen > Soll-Abstand und echt
+     konvex ist (>Sehne*1,06), werden Zwischen-Rungs AUF der Kontur eingeschoben.
+   Suchradius = lokale Saeulenbreite (gedeckelt), damit nie auf eine ferne/falsche
+   Kante (Apertur-Gegenwand) gerastet wird. Geraden (Sehne~Kontur), KONKAVE Innen-
+    kurven (Aussenseite ist die GLATTE) und Loops (frueher Caller-Return) bleiben
+   unveraendert. Default loops=undefined -> Einschub inaktiv = Altverhalten.
+   ============================================================================ */
+
+/* === NEUE HELFER: direkt VOR function _pairSatinSectioned (Z.608) einfuegen === */
+
+/* Naechster Fusspunkt von (x,y) auf den KANTEN der Kontur-Loops (nicht nur Vertex).
+   Liefert {x,y,d,loop,k,t} (k=Kanten-Index, t in 0..1 auf der Kante) oder null.
+   Punkt liegt per Definition AUF einer Kante = genau am Rand, nie ausserhalb. */
+function _projContourEdge(x,y,loops,maxD){
+  var best=maxD*maxD, qx=x,qy=y, fLoop=-1, fK=0, fT=0, found=false, li,k;
+  for(li=0;li<loops.length;li++){ var lp=loops[li],n=lp.length; if(n<2) continue;
+    for(k=0;k<n;k++){ var a=lp[k],b=lp[(k+1)%n],ex=b.x-a.x,ey=b.y-a.y,L2=ex*ex+ey*ey;
+      var t=L2>0?((x-a.x)*ex+(y-a.y)*ey)/L2:0; t=t<0?0:(t>1?1:t);
+      var px=a.x+ex*t,py=a.y+ey*t,dx=x-px,dy=y-py,dd=dx*dx+dy*dy;
+      if(dd<best){ best=dd; qx=px; qy=py; fLoop=li; fK=k; fT=t; found=true; }
+    } }
+  return found?{x:qx,y:qy,d:Math.sqrt(best),loop:fLoop,k:fK,t:fT}:null;
+}
+/* Walk entlang des bogenlaengen-kuerzeren Zweigs eines Loops zwischen Fusspunkt (kA,tA) und (kB,tB). */
+function _walkContourArc(loop, kA,tA, kB,tB){
+  var n=loop.length;
+  function pAt(k,t){ var a=loop[((k%n)+n)%n], b=loop[((k+1)%n+n)%n]; return {x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t}; }
+  var A=pAt(kA,tA), B=pAt(kB,tB);
+  function dirWalk(dir){
+    var poly=[A], len=0, px=A.x, py=A.y, cur, guard=0;
+    cur = dir>0 ? (kA+1)%n : kA;
+    while(guard++ < n+2){
+      var atEnd = dir>0 ? (cur===(kB+1)%n) : (cur===kB);
+      if(atEnd){ len+=Math.hypot(B.x-px,B.y-py); poly.push(B); break; }
+      var v=loop[cur]; len+=Math.hypot(v.x-px,v.y-py); poly.push({x:v.x,y:v.y}); px=v.x; py=v.y;
+      cur = dir>0 ? (cur+1)%n : (cur-1+n)%n;
+    }
+    return {poly:poly,len:len};
+  }
+  var fwd=dirWalk(1), bwd=dirWalk(-1);
+  return (fwd.len<=bwd.len)?fwd:bwd;
+}
+/* TUCK-UNDER: einen Verbinder a->b, der quer ueber Fabric springen wuerde, ENTLANG der Kontur (Kante)
+   routen -> der Faden liegt unter der Satin-Kante (nicht sichtbar) statt lose quer ueber den Buchstaben.
+   Liefert Travel-Punkte oder null (wenn Umweg zu lang -> lieber Sprung). [Lukas „pack den weg dass er nicht sichtbar ist"] */
+function _contourUnderpath(a, b, loops){
+  if(!loops||!loops.length) return null;
+  var pa=_projContourEdge(a.x,a.y,loops,_mm2px(2.5)), pb=_projContourEdge(b.x,b.y,loops,_mm2px(2.5));
+  if(!pa||!pb||pa.loop!==pb.loop) return null;   /* beide Enden auf DEMSELBEN Loop */
+  var straight=Math.hypot(b.x-a.x,b.y-a.y)||1;
+  var w=_walkContourArc(loops[pa.loop], pa.k,pa.t, pb.k,pb.t);
+  if(w.len > straight*3.5 || w.len > _mm2px(20)) return null;   /* zu langer Umweg -> Sprung */
+  var cum=[0],i; for(i=1;i<w.poly.length;i++) cum[i]=cum[i-1]+Math.hypot(w.poly[i].x-w.poly[i-1].x,w.poly[i].y-w.poly[i-1].y);
+  var total=cum[cum.length-1]||1, step=_mm2px(1.5), nT=Math.max(1,Math.round(total/step)), out=[], t;
+  for(t=1;t<nT;t++){ var s=t/nT*total, lo=1; while(lo<w.poly.length&&cum[lo]<s)lo++; var lA=lo-1,lB=Math.min(lo,w.poly.length-1),seg=(cum[lB]-cum[lA])||1,f=(s-cum[lA])/seg;
+    out.push({x:w.poly[lA].x+(w.poly[lB].x-w.poly[lA].x)*f, y:w.poly[lA].y+(w.poly[lB].y-w.poly[lA].y)*f, travel:true}); }
+  return out;
+}
+
+/* === SIGNATUR: loops als 5. Param (Default undefined = inaktiv) ===
+   ALT:  function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx){
+   NEU (erste Zeile ersetzen):                                            */
+function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx, loops){
+  /* CRASH-SCHUTZ: _ext (im Caller) dehnt rail1/rail2 UNABHAENGIG -> ungleiche Laenge.
+     Auf gemeinsame Laenge klammern, sonst cumX[n-1]=undefined / rail2[i+1]=undefined. */
+  var n=Math.min(rail1.length, rail2.length); if(n<2) return {stitches:rail1.slice(0,n), rungs:[]};
+  rail1=rail1.slice(0,n); rail2=rail2.slice(0,n);
+  var cum1=_arcCum(rail1), cum2=_arcCum(rail2);
+  var L1=cum1[n-1], L2=cum2[n-1];
+  var longCum=(L1>=L2)?cum1:cum2, Llong=longCum[n-1]||1;
+  var nSec=Math.max(1, Math.round(Llong/Math.max(anchorArcPx,pitchPx*2)));
+  var anchors=[0], m, idx=1;
+  for(m=1;m<nSec;m++){ var target=(m/nSec)*Llong; while(idx<n && longCum[idx]<target) idx++; if(idx>anchors[anchors.length-1]) anchors.push(idx); }
+  if(anchors[anchors.length-1]!==n-1) anchors.push(n-1);
+  var pts=[], rungs=[], rungPar=0, s;
+  /* DICHTE-KOMPENSATION gegen den Sonnenstrahl/die SPITZE an engen Innenkurven (2026-06-20, Lukas
+     "k hat noch diese spitze" = Lobster-k-Loop; Design via Workflow + adversarische Pruefung am
+     echten Code). KERN: an einer engen Innenkurve ist eine Rail viel kuerzer -> ihre Rung-Endpunkte
+     STAUEN sich (gemessener Abstand 0.008-0.045mm) und alle Rungs konvergieren = Faecher. FIX: pro
+     Seite UNABHAENGIG den ECHTEN Endpunkt-Abstand zum letzten EMITTIERTEN Endpunkt pruefen; nur bei
+     echtem Stau (< _stauPx, gemessen sauber=0.077-0.115mm -> Schwelle 0.055mm trennt sauber) den
+     gestauten Endpunkt PARTIELL nach innen ziehen (_retr) -> Konvergenz gebrochen, Aussenseite bleibt
+     voll dicht. ADVERSARISCH-MUSS-FIXES eingebaut: (1) ECHTER Abstand statt Arc-Akkumulation (sonst
+     74-86% faelschlich SHORT + 0.5-1.6mm Loecher + Regression auf Times-t/i/Bowls). (2) PER SEITE
+     (der Stau wechselt pro Section die Rail, mal beide). (3) partielle Retraktion (nicht 50%).
+     (4) erste/letzte Rung jeder Section nie ziehen (Kanten schliessen voll). Saubere Glyphen
+     (Innen-Abstand >=0.077mm > 0.055) loesen NIE aus -> bit-identisch, keine Regression. */
+  var _lastInA=null, _lastInB=null, _stauPx=_mm2px(0.055), _retr=0.42;
+  for(s=0;s<anchors.length-1;s++){
+    var i0=anchors[s], i1=anchors[s+1]; if(i1<=i0) continue;
+    var sub1=rail1.slice(i0,i1+1), sub2=rail2.slice(i0,i1+1);
+    var sc1=_arcCum(sub1), sc2=_arcCum(sub2), sl1=sc1[sc1.length-1], sl2=sc2[sc2.length-1];
+    /* GLEICHMAESSIGE feine Rung-Dichte (0.22mm) auf der laengeren Rail - deckt ohne Luecke. */
+    var nRung=Math.max(1, Math.round(Math.max(sl1,sl2,1)/_mm2px(0.22)));
+    var startJ=(s===0)?0:1, j;
+    for(j=startJ;j<=nRung;j++){ var u=j/nRung;
+      var p1=_interpCum(sub1,sc1,u), p2=_interpCum(sub2,sc2,u);
+      var a0={x:p1.x,y:p1.y}, b0={x:p2.x,y:p2.y}, a=a0, b=b0;
+      var canRetr=(j>startJ && j<nRung);   /* Section-Enden immer voll an die Kante */
+      var stA=canRetr && _lastInA && Math.hypot(a0.x-_lastInA.x,a0.y-_lastInA.y) < _stauPx;
+      var stB=canRetr && _lastInB && Math.hypot(b0.x-_lastInB.x,b0.y-_lastInB.y) < _stauPx;
+      /* Retraktion als BRUCHTEIL (0.42) der Rung-Breite: skaliert mit der Strichdicke -> bricht den
+         Sonnenstrahl auch an dicken Loops (Lobster-k), wo eine feste kleine Distanz zu schwach war.
+         Greift NUR an echten Stau-Punkten (stA/stB, Abstand <0.055mm) -> wenige Rungs betroffen, die
+         vollen Nachbar-Rungs (alle ~0.09mm) decken die Innenkante weiter (Lobster-k: 0 Loecher gemessen). */
+      if(stA){ a={x:a0.x+(b0.x-a0.x)*_retr, y:a0.y+(b0.y-a0.y)*_retr}; } else { _lastInA=a0; }
+      if(stB){ b={x:b0.x+(a0.x-b0.x)*_retr, y:b0.y+(a0.y-b0.y)*_retr}; } else { _lastInB=b0; }
+      if(rungPar%2===0){ pts.push(a); pts.push(b); } else { pts.push(b); pts.push(a); }
+      rungs.push([a,b]); rungPar++;
+    }
+  }
+  /* Voll-Subdivision auf 0.3mm (deckt Abschnitts-Luecken, beide Rails interpoliert -> gedeckt). */
+  if(rungs.length>=2){
+    var _sp=_mm2px(0.3), allR=[[rungs[0][0], rungs[0][1]]];
+    for(var r2=0; r2<rungs.length-1; r2++){
+      var g0=Math.hypot(rungs[r2+1][0].x-rungs[r2][0].x, rungs[r2+1][0].y-rungs[r2][0].y);
+      var g1=Math.hypot(rungs[r2+1][1].x-rungs[r2][1].x, rungs[r2+1][1].y-rungs[r2][1].y);
+      var nSub=Math.ceil(Math.max(g0,g1)/_sp)-1; if(nSub<0) nSub=0; if(nSub>40) nSub=40;
+      for(var jf=1; jf<=nSub; jf++){ var u2=jf/(nSub+1);
+        allR.push([{x:rungs[r2][0].x+(rungs[r2+1][0].x-rungs[r2][0].x)*u2, y:rungs[r2][0].y+(rungs[r2+1][0].y-rungs[r2][0].y)*u2},
+                   {x:rungs[r2][1].x+(rungs[r2+1][1].x-rungs[r2][1].x)*u2, y:rungs[r2][1].y+(rungs[r2+1][1].y-rungs[r2][1].y)*u2}]);
+      }
+      allR.push([rungs[r2+1][0], rungs[r2+1][1]]);
+    }
+    var newPts=[], rp=0, ae;
+    for(ae=0; ae<allR.length; ae++){ var aa=allR[ae][0], bb=allR[ae][1];
+      if(rp%2===0){ newPts.push(aa); newPts.push(bb); } else { newPts.push(bb); newPts.push(aa); } rp++; }
+    pts=newPts; rungs=allR;
+  }
+
+  return {stitches:pts, rungs:rungs};
+}
+
+/* ============================================================================
+   PROFESSIONAL-LETTERING-ALGORITHMUS (segmentweise, 2026-06-17, Agent-Analyse).
+   Ersetzt Boustrophedon+maxCurveRatio-Glyph-Fill durch:
+   - Continuous Turning Satin (ein Einstich pro Halbstation, alternierende Rails)
+   - Auto-Split der Full-Width-Kurvenstiche (Program-Split, geordnet)
+   - Short-Stitch-Inset innen
+   - Fan-Score pro SEGMENT (absolute statt Netto-Drehung)
+   - Contour-Flow-Fill (strichfolgend) fuer extreme Bowls
+   ============================================================================ */
+function _mean(arr){ if(!arr||!arr.length) return 0; var s=0,i; for(i=0;i<arr.length;i++) s+=arr[i]; return s/arr.length; }
+function _median(arr){ if(!arr||!arr.length) return 0; var a=arr.slice().sort(function(x,y){return x-y;}); return a[a.length>>1]; }
+
+/* (1) CONTINUOUS TURNING SATIN: ein Punkt pro Halbstation, alternierende Rail ->
+   fast jeder Top-Stitch quert die Saeule (echter Satin-Zickzack), keine Rail-Connector-
+   Artefakte. Koexistiert mit dem 0.2mm-Mikrofilter (konsekutive Punkte = gegenueberliegende
+   Rails = Stichlaenge ~Strichbreite, nie gecullt -> keine Dichte-Halbierung). */
+function _pairTurningSatinContinuous(rail1, rail2, peakSpacingPx, opts){
+  var n=Math.min(rail1.length, rail2.length);
+  if(n<2) return {stitches:rail1.slice(0,n), rungs:[]};
+  rail1=rail1.slice(0,n); rail2=rail2.slice(0,n);
+  var cum1=_arcCum(rail1), cum2=_arcCum(rail2);
+  var L1=cum1[n-1], L2=cum2[n-1], Llong=Math.max(L1,L2)||1;
+  var halfStep=Math.max(_mm2px(0.10), peakSpacingPx*0.5);   /* Stationsschritt = halbe Peak-Spacing */
+  var N=Math.max(3, Math.round(Llong/halfStep));
+  var pts=[], rungs=[], k;
+  for(k=0;k<=N;k++){
+    var u=k/N;
+    var a=_interpCum(rail1,cum1,u), b=_interpCum(rail2,cum2,u);
+    if(opts && opts.shortStitch){ var adj=_applyShortStitchInset(a,b,k,opts); a=adj.a; b=adj.b; }
+    pts.push((k&1)?{x:b.x,y:b.y}:{x:a.x,y:a.y});   /* ein Punkt pro Station, alternierende Rail */
+    if((k&1)===0) rungs.push([{x:a.x,y:a.y},{x:b.x,y:b.y}]);   /* nur Debug/Vorschau */
+  }
+  if(opts && opts.autoSplit) pts=_autoSplitCrossingStitches(pts, opts);
+  return {stitches:pts, rungs:rungs};
+}
+
+/* (2) AUTO-SPLIT: lange Full-Width-Kurvenstiche kontrolliert (Program-Split, geordnete Phase,
+   KEIN Jitter) aufbrechen -> sichtbarer Fan/Balken reduziert; nie Teilstich < minSplitLen. */
+function _autoSplitCrossingStitches(pts, opts){
+  var maxLen=opts.maxSplitLenPx||_mm2px(1.6), minLen=opts.minSplitLenPx||_mm2px(0.35);
+  if(!pts.length) return pts;
+  var out=[pts[0]], i;
+  for(i=1;i<pts.length;i++){
+    var a=pts[i-1], b=pts[i], L=Math.hypot(b.x-a.x,b.y-a.y);
+    var parts=Math.ceil(L/maxLen);
+    if(parts<=1 || (L/parts)<minLen){ out.push(b); continue; }
+    var phase=((i*0.61803398875)%1)-0.5; phase*=0.30;   /* geordnet (golden ratio), klein */
+    for(var j=1;j<parts;j++){
+      var t=(j+phase)/parts; t=Math.max(0.18, Math.min(0.82, t));   /* nicht zu nah an die Rails (Sliver) */
+      out.push({x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t});
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+/* (3) SHORT-STITCH-INSET innen: jeden shortEvery-ten Einstich auf der Innenrail leicht
+   nach innen ziehen (weniger Nadeleinstiche auf engem Innenbogen). Geordnet, kein Random. */
+function _applyShortStitchInset(a, b, k, opts){
+  if((k % (opts.shortEvery||3))!==0) return {a:a, b:b};
+  var dx=b.x-a.x, dy=b.y-a.y, inset=opts.shortInset||0.25;
+  if(opts.innerSide===1) a={x:a.x+dx*inset, y:a.y+dy*inset};
+  else if(opts.innerSide===2) b={x:b.x-dx*inset, y:b.y-dy*inset};
+  return {a:a, b:b};
+}
+
+/* (4) FAN-SCORE pro SEGMENT: ABSOLUTE lokale Drehung (nicht Netto) -> S-Bogen korrekt hoch,
+   gerades t niedrig. Klassifiziert satin / split-satin / contourFlow. */
+function _distRailsAt(i, rail1, rail2){
+  var i1=Math.min(i, rail1.length-1), i2=Math.min(i, rail2.length-1);
+  return Math.hypot(rail1[i1].x-rail2[i2].x, rail1[i1].y-rail2[i2].y);
+}
+function _classifyRibbon(center, hw, rail1, rail2){
+  var cen=(center.length>4)?_astSmooth(center.slice(),3):center.slice();   /* Skelett-Treppe glaetten (3) */
+  var cumC=_arcCum(cen), L=cumC[cumC.length-1]||1, i;
+  /* absTurn nur ueber den MITTLEREN Teil messen (Serifen/Fuesse/Junctions an den Enden kruemmen die
+     Mittelachse stark -> ein gerader Times-Stamm bekommt sonst hohen absTurn = faelschlich contourFlow.
+     Lukas „t/i/r-Stamm sieht falsch aus"). Mitte = [0.22*L, 0.78*L]. Round-Bowls sind durchgehend
+     gekruemmt -> Mitte weiter hoch; gerade Staemme -> Mitte ~0. */
+  var lo=0.22*L, hi=0.78*L, absTurn=0, midLen=0, endTurn=0, endLen=0, startTurn=0, startLen=0;
+  for(i=1;i<cen.length-1;i++){
+    var ax=cen[i].x-cen[i-1].x, ay=cen[i].y-cen[i-1].y, bx=cen[i+1].x-cen[i].x, by=cen[i+1].y-cen[i].y;
+    var la=Math.hypot(ax,ay), lb=Math.hypot(bx,by); if(la<1e-6||lb<1e-6) continue;
+    var tn=Math.abs(Math.atan2(ax*by-ay*bx, ax*bx+ay*by)), ll=0.5*(la+lb);
+    if(cumC[i]>=lo && cumC[i]<=hi){ absTurn+=tn; midLen+=ll; }
+    if(cumC[i] < 0.24*L){ startTurn+=tn; startLen+=ll; }
+    if(cumC[i] > 0.76*L){ endTurn+=tn; endLen+=ll; }
+  }
+  var meanHw=_mean(hw), fanScore=meanHw*absTurn/Math.max(midLen,1e-6);
+  /* ENDEN mitmessen (2026-06-20, Lukas "t-Boden/Hook faechert, war anderswo schon gefixt"): eine
+     enge Kurve am Strich-ENDE (t-Boden-Hook endFan ~0.48, i-Fuss-Verzweigung) kruemmt die Mittel-
+     achse stark, fiel aber aus dem MITTLEREN Messfenster -> der Strich galt faelschlich als gerader
+     Stamm (Turning-Satin) und FAECHERTE am Ende (Innen-Rail staut). effFan = max(Mitte, Enden) ent-
+     scheidet jetzt Turning vs Sectioned. Das contourFlow-Gate bleibt bewusst auf der MITTE (sonst
+     zoege eine End-Serife einen geraden Stamm in Laengsreihen=Kamm). Sectioned-Satin re-verankert
+     perpendikular abschnittsweise ~2mm -> deckt Hook/Fuss OHNE Faecher und sieht aus wie Satin. */
+  var endFan=Math.max(meanHw*endTurn/Math.max(endLen,1e-6), meanHw*startTurn/Math.max(startLen,1e-6));
+  var effFan=Math.max(fanScore, endFan);
+  var c1=_arcCum(rail1), c2=_arcCum(rail2);
+  var L1=c1[c1.length-1]||1, L2=c2[c2.length-1]||1;
+  var railRatio=Math.max(L1,L2)/Math.max(1e-6, Math.min(L1,L2));
+  var innerSide=(L1<=L2)?1:2;   /* kuerzere Rail = Innenkurve */
+  /* Schwellen (Times: gerade Staemme fan~0.02-0.07, runde Bowls e/o/c/a ~0.15-0.20). Split-Satin
+     bricht den Kamm im RENDER NICHT (kolineare Teilstiche = gleiche Full-Width-Linie, hilft nur der
+     Faden-Physik). Visuell kammfrei wird nur Contour-Flow (Reihen ENTLANG dem Strich) -> runde
+     Striche ab fan~0.12 direkt auf Contour-Flow. */
+  /* LAENGEN-SPERRE: kurze Segmente (Serifen, Fuesse, kleine Aeste < 4.5mm) IMMER Satin - eine kurze
+     gekruemmte Serife ist kein Bowl. Contour-Flow nur fuer LANGE, durchgehend gekruemmte Striche. */
+  /* shortStitch 2026-06-20 ueberall FALSE: _applyShortStitchInset zog jeden 3. Innen-Endpunkt nach
+     innen = Saegezahn an der gerenderten Innenkante (2. Short-Stitch-Pfad neben _pairSatinSectioned
+     Phase B). Da der Sonnenstrahl Render-Artefakt ist, ist der Inset reine Kanten-Verschlechterung.
+     autoSplit BLEIBT (bricht lange Full-Width-Stiche in kolineare Teilstiche, verschiebt keinen
+     Rand-Endpunkt -> keine Kanten-Wirkung). */
+  if(L < _mm2px(6.0)) return {mode:'satin', autoSplit:(effFan>=0.10), shortStitch:false, innerSide:innerSide,
+    maxSplitLenPx:_mm2px(1.4), minSplitLenPx:_mm2px(0.35), shortInset:0.22, shortEvery:3};
+  if(effFan<0.07 && railRatio<1.08) return {mode:'satin', autoSplit:false, shortStitch:false};
+  if(effFan<0.13) return {mode:'satin', autoSplit:true, shortStitch:false, innerSide:innerSide,
+    maxSplitLenPx:_mm2px(1.4), minSplitLenPx:_mm2px(0.35), shortInset:0.22, shortEvery:3};
+  /* GEKRUEMMTE BOWLS (c/o/e/a, fanScore ~0.13-0.30): abschnittsweise PERPENDIKULARE Satin
+     (_pairSatinSectioned) statt Contour-Flow-Laengsreihen. ContourFlow legt Reihen ENTLANG dem
+     Strich -> im 3D-Render N parallele Laengsfaeden = Cord/Rippen-Optik ("draufgestickte Linien",
+     Lukas 2026-06-19). Perpendikulare Satin = Quer-Rungs (richtiger Sheen, KEINE Laengsrippen) und
+     pro Abschnitt re-verankert + auf 0.3mm voll-subdividiert -> auch kein Faecher/Kamm. Contour-Flow
+     bleibt nur Fallback fuer Extrem-Bowls (fanScore>=0.30, Innenradius<Halbbreite, wo auch Normalen
+     innen kollabieren). */
+  if(fanScore<2.0) return {mode:'satinSectioned', innerSide:innerSide};   /* TEST 2026-06-20: Schwelle 0.30->2.0, dicke Bowls (Pacifico) gingen faelschlich in contourFlow=Laengsreihen-Kamm */
+  return {mode:'contourFlow', autoSplit:false, shortStitch:false};
+}
+
+/* (5) CONTOUR-FLOW-FILL: Rows laufen ENTLANG dem Strich (zwischen den Rails), nicht global
+   horizontal -> kein Quer-Kamm, folgt der Kurve. GLEICHMAESSIGE Dichte (Lukas „sehr unterschiedlich
+   dicht"): FESTER physischer Reihenabstand von der Mittellinie (nicht feste Anteile der lokalen
+   Breite, die bei breitem Strich auseinanderlaufen). Reihen, die lokal aus dem (schmaleren) Strich
+   fallen, werden geklemmt -> Reihen tauchen auf/verschwinden mit der Breite, Abstand bleibt konstant. */
+function _pairContourFlowFill(rail1, rail2, opts){
+  var n=Math.min(rail1.length, rail2.length); if(n<2) return {stitches:[], rungs:[]};
+  rail1=rail1.slice(0,n); rail2=rail2.slice(0,n);
+  var cum1=_arcCum(rail1), cum2=_arcCum(rail2), L=Math.max(cum1[n-1],cum2[n-1])||1;
+  var rowSpacing=opts.rowSpacingPx||_mm2px(0.22), stitchLen=opts.stitchLenPx||_mm2px(1.1);
+  var steps=Math.max(4, Math.round(L/stitchLen)), k;
+  /* Querschnitte einmal sampeln */
+  var cs=[]; for(k=0;k<=steps;k++){ var u=k/steps, a=_interpCum(rail1,cum1,u), b=_interpCum(rail2,cum2,u);
+    cs.push({a:a, b:b, w:Math.hypot(b.x-a.x, b.y-a.y)}); }
+  var maxW=0; for(k=0;k<cs.length;k++) if(cs[k].w>maxW) maxW=cs[k].w;
+  var halfRows=Math.max(1, Math.round((maxW*0.5)/rowSpacing));   /* Reihen je Seite der Mittellinie */
+  var inset=_mm2px(0.05);
+  /* Phase 1: Runs sammeln (zusammenhaengende In-Ink-Stuecke pro Reihe). */
+  var runs=[], rowIdx, dir=1, oi, run=[];
+  for(rowIdx=-halfRows; rowIdx<=halfRows; rowIdx++){
+    var offset=rowIdx*rowSpacing;   /* FESTER physischer Abstand von der Mittellinie */
+    for(oi=0; oi<=steps; oi++){ k=dir>0?oi:(steps-oi); var c=cs[k], half=c.w*0.5;
+      if(c.w>2*inset){
+        var off2=Math.max(-(half-inset), Math.min(half-inset, offset));   /* an die KANTE klemmen statt brechen
+           -> Reihe bleibt DURCHGEHEND (kein Sprung); wo der Strich zu schmal ist, kollabiert die Aussenreihe
+           auf die Kante (koinzident -> Mikrofilter cullt) statt einen Sprung quer ueber den Buchstaben zu machen.
+           Das nimmt das Sprung-Wirrwarr in der Stiche-Ansicht raus (Lukas „nicht harmonisch"). */
+        var v=0.5 + off2/c.w;
+        run.push({x:c.a.x+(c.b.x-c.a.x)*v, y:c.a.y+(c.b.y-c.a.y)*v});
+      } else if(run.length){ runs.push(run); run=[]; }   /* nur bei echtem ~0-Breite-Unterbruch brechen */
+    }
+    if(run.length){ runs.push(run); run=[]; }
+    dir=-dir;   /* Boustrophedon entlang dem Strich */
+  }
+  /* Phase 2: Runs verketten. KURZER Verbinder (Reihen-Wende ~rowSpacing) bleibt regulaer = Teil der
+     Fuellung; LANGER Verbinder (Reihen-Bruch / Auge-Querung) wird SPRUNG (nicht gezeichnet) -> die
+     Verbinder-Faeden verdecken die Stiche nicht mehr (Lukas „travels verdecken stiche"). */
+  var pts=[], ri, gapTravel=_mm2px(0.9), gapJump=_mm2px(3.5);
+  for(ri=0; ri<runs.length; ri++){ var rn=runs[ri];
+    if(pts.length){ var prev=pts[pts.length-1], gap=Math.hypot(rn[0].x-prev.x, rn[0].y-prev.y);
+      if(gap>gapJump){ rn[0]={x:rn[0].x, y:rn[0].y, jump:true}; }   /* echt lang -> Sprung */
+      else if(gap>gapTravel){ /* mittel (Reihen-Bruch an Strich-Verengung, bleibt im Ink) -> LAUFSTICH statt
+           Sprung: real Naht statt Trim, weniger rotes Sprung-Wirrwarr in der Stiche-Ansicht. */
+        var nt=Math.max(1, Math.round(gap/_mm2px(1.5))), tt;
+        for(tt=1; tt<nt; tt++) pts.push({x:prev.x+(rn[0].x-prev.x)*tt/nt, y:prev.y+(rn[0].y-prev.y)*tt/nt, travel:true});
+      } }   /* <gapTravel: kurze Reihen-Wende = regulaer (Teil der Fuellung) */
+    for(k=0;k<rn.length;k++) pts.push(rn[k]);
+  }
+  return {stitches:pts, rungs:[]};
+}
+
+/* TATAMI-FILL fuer das Strich-BAND (rail1=aussen, rail2=innen). 2026-06-20: kammfreie Alternative
+   zu Satin (faechert auf dicken engen Bowls) und zu contourFlow (Laengsreihen-Kamm). Scanlines unter
+   einem FESTEN Winkel (nicht entlang dem Strich -> nie Laengslinien) quer durchs Band-Polygon, mit
+   reihenweisem STAGGER (Nadelloecher fallen nicht in eine Spalte = kein Moire). Boustrophedon, Sprung
+   nur bei echter Luecke. Gleichmaessige Fuelltextur statt Satin-Sheen - per UI-Toggle waehlbar. */
+function _pairTatamiFill(rail1, rail2, opts){
+  var n=Math.min(rail1.length, rail2.length); if(n<2) return {stitches:[], rungs:[]};
+  var angle=(opts&&opts.angleRad!=null)?opts.angleRad:(Math.PI*0.25);
+  var rowSp=(opts&&opts.rowSpacingPx)||_mm2px(0.42), stLen=(opts&&opts.stitchLenPx)||_mm2px(2.4), stag=(opts&&opts.staggers)||4;
+  var poly=rail1.slice(0,n).concat(rail2.slice(0,n).reverse());
+  var ca=Math.cos(angle), sa=Math.sin(angle);
+  var rp=poly.map(function(p){ return {x:p.x*ca + p.y*sa, y:-p.x*sa + p.y*ca}; });   /* in Scanline-Frame drehen (-angle) */
+  var minY=1e18,maxY=-1e18,pi; for(pi=0;pi<rp.length;pi++){ if(rp[pi].y<minY)minY=rp[pi].y; if(rp[pi].y>maxY)maxY=rp[pi].y; }
+  var pts=[], row=0, dir=1, lastP=null, gap=Math.max(rowSp*1.8, _mm2px(1.3)), y;
+  for(y=minY; y<=maxY; y+=rowSp){
+    var xs=[], i; for(i=0;i<rp.length;i++){ var a=rp[i], b=rp[(i+1)%rp.length];
+      if((a.y<=y&&b.y>y)||(b.y<=y&&a.y>y)){ xs.push(a.x+(b.x-a.x)*((y-a.y)/(b.y-a.y))); } }
+    xs.sort(function(p,q){return p-q;});
+    var segs=[], s; for(s=0;s+1<xs.length;s+=2) segs.push([xs[s], xs[s+1]]);
+    if(dir<0) segs.reverse();
+    var off=(row%stag)/stag*stLen, sg;
+    for(sg=0; sg<segs.length; sg++){
+      var lo=segs[sg][0], hi=segs[sg][1]; if(hi-lo<1e-6) continue;
+      var pen=[lo], gx; for(gx=Math.ceil((lo-off)/stLen)*stLen+off; gx<hi-1e-6; gx+=stLen){ if(gx>lo+1e-6) pen.push(gx); }
+      pen.push(hi); if(dir<0) pen.reverse();
+      var k; for(k=0;k<pen.length;k++){ var P={x:pen[k]*ca - y*sa, y:pen[k]*sa + y*ca};   /* zurueckdrehen (+angle) */
+        if(k===0 && lastP && Math.hypot(P.x-lastP.x,P.y-lastP.y)>gap) P.jump=true;
+        pts.push(P); lastP=P; }
+    }
+    row++; dir=-dir;
+  }
+  return {stitches:pts, rungs:[]};
+}
+
+/* TATAMI-KONTURFUELLUNG fuer ganze Glyphen (Fill-Mode, z.B. Pacifico k/g/verzweigte: dort tangeln die
+   Satin-Rails -> _resolveMode='fill'). Ersetzt das alte horizontale `fillStitches` (Reihen waagrecht,
+   kein Stagger = loechrig + Laengslinien auf waagrechten Strichen). Scanlines unter FESTEM Winkel (45°)
+   durch ALLE Kontur-Loops, EVEN-ODD-Fuellung (deckt Punzen/Loecher korrekt), reihenweiser STAGGER gegen
+   Moire, Boustrophedon, Sprung nur bei echter Luecke. 2026-06-20. */
+function _tatamiContourFill(loops, opts){
+  if(!loops||!loops.length) return [];
+  var angle=(opts&&opts.angleRad!=null)?opts.angleRad:(Math.PI*0.25);
+  var rowSp=(opts&&opts.rowSpacingPx)||_mm2px(0.32), stLen=(opts&&opts.stitchLenPx)||_mm2px(2.2), stag=(opts&&opts.staggers)||4;
+  var ca=Math.cos(angle), sa=Math.sin(angle);
+  var rl=loops.map(function(lp){ return lp.map(function(p){ return {x:p.x*ca+p.y*sa, y:-p.x*sa+p.y*ca}; }); });   /* in Scanline-Frame drehen */
+  var minY=1e18,maxY=-1e18,li,pj; for(li=0;li<rl.length;li++){ for(pj=0;pj<rl[li].length;pj++){ if(rl[li][pj].y<minY)minY=rl[li][pj].y; if(rl[li][pj].y>maxY)maxY=rl[li][pj].y; } }
+  var out=[], row=0, dir=1, lastP=null, gap=Math.max(rowSp*2, _mm2px(1.5)), y;
+  for(y=minY; y<=maxY; y+=rowSp){
+    var xs=[], i, j; for(i=0;i<rl.length;i++){ var lp=rl[i]; for(j=0;j<lp.length;j++){ var a=lp[j], b=lp[(j+1)%lp.length];
+      if((a.y<=y&&b.y>y)||(b.y<=y&&a.y>y)){ xs.push(a.x+(b.x-a.x)*((y-a.y)/(b.y-a.y))); } } }
+    xs.sort(function(p,q){return p-q;});
+    var segs=[], s; for(s=0;s+1<xs.length;s+=2) segs.push([xs[s], xs[s+1]]);   /* EVEN-ODD: Innen-Segmente, Loecher uebersprungen */
+    if(dir<0) segs.reverse();
+    var off=(row%stag)/stag*stLen, sg;
+    for(sg=0; sg<segs.length; sg++){
+      var lo=segs[sg][0], hi=segs[sg][1]; if(hi-lo<1e-6) continue;
+      var pen=[lo], gx; for(gx=Math.ceil((lo-off)/stLen)*stLen+off; gx<hi-1e-6; gx+=stLen){ if(gx>lo+1e-6) pen.push(gx); }
+      pen.push(hi); if(dir<0) pen.reverse();
+      var kk; for(kk=0;kk<pen.length;kk++){ var P={x:pen[kk]*ca - y*sa, y:pen[kk]*sa + y*ca};
+        if(kk===0 && lastP && Math.hypot(P.x-lastP.x,P.y-lastP.y)>gap) P.jump=true;
+        out.push(P); lastP=P; }
+    }
+    row++; dir=-dir;
+  }
+  return out;
+}
+
+/* Satin aus der ECHTEN Kontur (statt Mittellinie +/- Halbbreite): pro Achsenpunkt
+   eine Senkrechte gegen die Kontur schneiden -> die zwei Schnittpunkte sind die
+   echten Strich-Raender = rail1/rail2. Loest das Auffaechern STRUKTURELL (Offset-
+   Rails ueberschlagen sich bei Halbbreite>Kruemmungsradius, echte Raender nie).
+   Funktioniert mit demselben Code auch fuer Schlaufen (o/a-Bowl: aeusserer +
+   innerer Rand sind die zwei naechsten Schnittpunkte). [VT-FONTBUILDER xsec v1] */
+function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
+  var _inInk=inkTest||function(x,y){ return _pointInLoops(x,y,loops); };
+  var n=cen.length; if(n<2||!loops||!loops.length) return null;
+  var cum=[0],i; for(i=1;i<n;i++) cum[i]=cum[i-1]+Math.hypot(cen[i].x-cen[i-1].x,cen[i].y-cen[i-1].y);
+  var total=cum[n-1]; if(!(total>1e-6)) return null;
+  if(pitchPx<0.5) pitchPx=0.5;
+  var maxHw=0; for(i=0;i<hw.length;i++) if(hw[i]>maxHw) maxHw=hw[i];
+  var maxT=maxHw*4+_mm2px(1.0);                       /* Suchweite der Senkrechten */
+  var cw=Math.max(pitchPx*4,_mm2px(0.6));             /* breitenskaliertes Tangenten-Fenster (NIE 1 Pixel) */
+  /* Kontur-Loops per Bounding-Box vorfiltern: nur Loops nahe DIESEM Segment testen
+     (sonst O(Segmente x ganze-Glyph-Kontur) - teuer bei Mehrfach-Loop-Glyphen B/m/e/g). */
+  var sbX0=1e9,sbY0=1e9,sbX1=-1e9,sbY1=-1e9; for(i=0;i<n;i++){ if(cen[i].x<sbX0)sbX0=cen[i].x; if(cen[i].y<sbY0)sbY0=cen[i].y; if(cen[i].x>sbX1)sbX1=cen[i].x; if(cen[i].y>sbY1)sbY1=cen[i].y; }
+  sbX0-=maxT; sbY0-=maxT; sbX1+=maxT; sbY1+=maxT;
+  var loopsF=loops.filter(function(lp){ var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,j; for(j=0;j<lp.length;j++){ var p=lp[j]; if(p.x<x0)x0=p.x; if(p.y<y0)y0=p.y; if(p.x>x1)x1=p.x; if(p.y>y1)y1=p.y; } return !(x1<sbX0||x0>sbX1||y1<sbY0||y0>sbY1); });
+  if(!loopsF.length) loopsF=loops;
+  function at(L){ if(L<=0) return {x:cen[0].x,y:cen[0].y,h:hw[0]}; if(L>=total) return {x:cen[n-1].x,y:cen[n-1].y,h:hw[n-1]}; var s=1; while(s<n&&cum[s]<L)s++; var a=s-1,b=Math.min(s,n-1),f=(L-cum[a])/((cum[b]-cum[a])||1); return {x:cen[a].x+(cen[b].x-cen[a].x)*f, y:cen[a].y+(cen[b].y-cen[a].y)*f, h:hw[a]+(hw[b]-hw[a])*f}; }
+  var nSteps=Math.max(2,Math.round(total/pitchPx)), pairs=[],k;
+  for(k=0;k<=nSteps;k++){ var L=(k/nSteps)*total, M=at(L), Ma=at(L-cw), Mb=at(L+cw);
+    var tx=Mb.x-Ma.x, ty=Mb.y-Ma.y, tl=Math.hypot(tx,ty)||1, nx=-ty/tl, ny=tx/tl;
+    var hP=_rayHit(M.x,M.y, nx,ny, loopsF, maxT), hN=_rayHit(M.x,M.y,-nx,-ny, loopsF, maxT);
+    if(hP&&hN){
+      /* Spike-Filter per SYMMETRIE: die Mittelachse liegt per Definition mittig zwischen
+         den Raendern -> die zwei Treffer muessen aehnlich weit von M sein. Schiesst eine
+         Senkrechte an Kreuzung/Naht quer durch die Punze zur FERNEN Kante, wird sie stark
+         asymmetrisch -> verwerfen (statt lange Speiche zu sticken). Plus Breiten-Deckel. */
+      var dP=Math.hypot(hP.x-M.x,hP.y-M.y), dN=Math.hypot(hN.x-M.x,hN.y-M.y);
+      var mn=Math.min(dP,dN), mx=Math.max(dP,dN)||1;
+      if(mn/mx > 0.38 && (dP+dN) <= Math.max(3.2*M.h, _mm2px(0.7))){
+        /* RUNG-INK-CHECK: die Querstrecke hP->hN (durch M) muss IM Ink bleiben. Laeuft sie ueber
+           eine offene Punze/Apertur (Schreibschrift-Schwaenze, e-Auge), liegen ihre Innenpunkte
+           ausserhalb -> Rung verwerfen statt einen Faden quer durchs Loch zu sticken. Normale
+           (auch konkave) Striche: alle Innenpunkte drin -> behalten. */
+        var rOut=0,rs; for(rs=1;rs<=4;rs++){ var rt=rs/5, rxx=hP.x+(hN.x-hP.x)*rt, ryy=hP.y+(hN.y-hP.y)*rt; if(!_inInk(rxx,ryy)) rOut++; }
+        if(rOut<2) pairs.push({mx:M.x,my:M.y,nx:nx,ny:ny,dP:dP,dN:dN});
+      }
+    }
+  }
+  if(pairs.length<2) return null;
+  /* SPITZ-ZULAUFENDE FREIE ENDEN TRIMMEN (2026-06-20, Lukas "k hat noch diese spitze"): wo der
+     Querschnitt an einem ENDE unter ~Fadenbreite (0.45mm) schrumpft, konvergieren die Satin-Rungs
+     zu einem Punkt = Faecher/Spitze (Lobster-k-Schwanz, Times-y-Schwanz; generelles Taper-Problem,
+     nicht font-spezifisch). Die zu schmale Spitze ist eh nur fadenbreit -> fuehrende/abschliessende
+     Schmal-Querschnitte verwerfen, damit die Saeule am ~0.45mm-Punkt sauber endet. NUR die Enden,
+     Mitte bleibt; vor _ext (echte Junction-Enden werden danach von _ext wieder ins Ink verlaengert,
+     freie Spitzen nicht -> kein Junction-Loch). Mind. 3 Querschnitte behalten. */
+  var _wThr=_mm2px(0.45);
+  while(pairs.length>3 && (pairs[0].dP+pairs[0].dN) < _wThr) pairs.shift();
+  while(pairs.length>3 && (pairs[pairs.length-1].dP+pairs[pairs.length-1].dN) < _wThr) pairs.pop();
+  /* AUFWEITUNGS-DECKEL: an Verzweigungs-Enden weiten sich die Querschnitte in den Stroke-
+     Merge (Breite balloniert ~2x ueber die Strichbreite) -> die Rung-Paarung verbindet ueber
+     die Aufweitung = Spray-Faecher (Pacifico r/k-Kern). Breite gegen den MEDIAN DIESES
+     Segments deckeln (M.h ist am Knoten selbst aufgeblaeht, taugt nicht als Referenz); zu
+     breite Querschnitte proportional nach INNEN ziehen statt zu trimmen -> kein Loch. */
+  var _ws=pairs.map(function(p){return p.dP+p.dN;}).slice().sort(function(a,b){return a-b;});
+  var _medW=_ws[_ws.length>>1]||1, _capW=1.9*_medW, rail1=[],rail2=[];
+  pairs.forEach(function(p){ var w=p.dP+p.dN, s=(w>_capW)?_capW/w:1, dP=p.dP*s, dN=p.dN*s;
+    rail1.push({x:p.mx+p.nx*dP, y:p.my+p.ny*dP}); rail2.push({x:p.mx-p.nx*dN, y:p.my-p.ny*dN}); });
+  if(rail1.length<2) return null;
+  rail1=_astSmooth(rail1,2); rail2=_astSmooth(rail2,2);   /* Kontur-Treppe glaetten (Fenster 2 NACH Raycast; nicht 3+, sonst rundet enge Pacifico-Boegen weg) */
+  /* [HEBEL 3] Rail-Enden ins Nachbar-Ink VERLAENGERN -> Ueberlappung statt Luecke an
+     Verzweigungen. Nur wenn der verlaengerte Punkt INNERHALB der Kontur liegt (Nachbar-
+     strich da); an freien Strich-Spitzen liegt er ausserhalb -> keine Verlaengerung.
+     Geschlossene Schlaufen (start~end) nicht verlaengern. [Recherche wnilfoi2r] */
+  var isLoop=Math.hypot(rail1[0].x-rail1[rail1.length-1].x, rail1[0].y-rail1[rail1.length-1].y) < maxHw*1.5;
+  if(!isLoop){
+    function _ext(atStart){
+      /* [HEBEL 3 inkrementell, pro Rail UNABHAENGIG] Jede Rail einzeln so weit ins Ink
+         hochkriechen, wie sie drin bleibt (Deckel 1.2x maxHw). Fuellt ASYMMETRISCHE
+         Serifen-Cap-Loecher: am i/T-Stammkopf sitzt der Skelett-Knoten ~1 Halbbreite UNTER
+         der Stamm-Oberkante, und die rechte Stammkante reicht hoeher als die linke
+         Serifenkante -> ein gemeinsames Gate stoppt zu frueh (an der tieferen Kante). Einzeln
+         kriecht die rechte Rail bis zum Stamm-Cap, die linke bis zur Serifenkante; die obere
+         Rung folgt dann der schraegen Cap-Kante. Boustrophedon (matched-fraction, ~2mm
+         Abschnitte) haelt die Rungs perpendikular -> kein Faecher (war ein Standard-Satin-
+         Artefakt). Freie Spitzen liegen sofort ausserhalb -> 0 Schritte (unveraendert). */
+      var step=_mm2px(0.18), maxExt=Math.max(_mm2px(0.4), 1.2*maxHw);
+      function grow(r){
+        var i0=atStart?0:r.length-1, i1=atStart?1:r.length-2;
+        var dx=r[i0].x-r[i1].x, dy=r[i0].y-r[i1].y, l=Math.hypot(dx,dy)||1; dx/=l; dy/=l;
+        var done=0;
+        while(done<maxExt){
+          var tip=atStart?r[0]:r[r.length-1], e={x:tip.x+dx*step, y:tip.y+dy*step};
+          if(!_inInk(e.x,e.y)) break;
+          if(atStart) r.unshift(e); else r.push(e);
+          done+=step;
+        }
+      }
+      grow(rail1); grow(rail2);
+    }
+    _ext(true); _ext(false);
+  }
+  /* SEGMENTWEISE PROFI-WEICHE (2026-06-17): Fan-Score pro Segment entscheidet
+     Continuous Turning Satin (+Auto-Split+Short-Stitch je nach Kruemmung) vs.
+     Contour-Flow-Fill (extreme Bowls). Loest den Kurven-Kamm strukturell. */
+  var cls=_classifyRibbon(cen, hw, rail1, rail2);
+  var zz;
+  if(cls.mode==='forceTatami'){
+    /* dickes Faecher-Segment (Lobster-k-Loop): IMMER per-Segment-Tatami, egal welcher Bowl-Toggle
+       (Satin wuerde fächern). Kein Ganzglyph-Fill -> die Segment-Travels verbinden kurz. */
+    zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 });
+    cls.mode='tatami';
+  } else if(cls.mode==='contourFlow'){
+    zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_mm2px(0.22), stitchLenPx:_mm2px(1.1) });
+  } else if(cls.mode==='satinSectioned'){
+    /* UI-TOGGLE window._bowlFill (gekruemmte Bowls): 'satin' (perpendikulare Satin, Sheen - faechert
+       auf dicken engen Bowls), 'tatami' (gewinkelte Fuellung + Stagger = kammfrei, Fill-Optik),
+       'laengs' (contourFlow-Reihen entlang). Default 'satin'. */
+    var _bf=(typeof window!=='undefined'&&window._bowlFill)||'satin';
+    if(_bf==='tatami') zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 });   /* 0.32->0.24 (2026-06-20, Lukas "tatami nicht ueberall gleichmaessig"): per-Segment-Tatami war duenner als die Satin-Rungs (0.22) + Fill-Konturtatami (0.28) -> Reihen-Luecken. Auf ~Satin-Dichte angeglichen. */
+    else if(_bf==='laengs') zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_mm2px(0.22), stitchLenPx:_mm2px(1.1) });
+    else zz=_pairSatinSectioned(rail1, rail2, _mm2px(0.24), _mm2px(2.0));
+    cls.mode = (_bf==='tatami')?'tatami':(_bf==='laengs')?'contourFlow':'satinSectioned';
+  } else {
+    zz=_pairTurningSatinContinuous(rail1, rail2, _mm2px(0.24), cls);
+  }
+  return { stitches:zz.stitches, rail1:rail1, rail2:rail2, rungs:zz.rungs, ribbonMode:cls.mode };
+}
+/* Marching-Squares (aus font-import-test.html) - fuer Fuellung/Outline. */
+function marchingSquares(mask,W,H){
+  function at(x,y){ return (x<0||y<0||x>=W||y>=H)?0:mask[y*W+x]; }
+  function mid(edge,x,y){ var px,py; if(edge==='T'){px=x+0.5;py=y;} else if(edge==='R'){px=x+1;py=y+0.5;} else if(edge==='B'){px=x+0.5;py=y+1;} else {px=x;py=y+0.5;} return {x:px,y:py,k:px+'_'+py}; }
+  var table={1:[['T','L']],2:[['T','R']],3:[['R','L']],4:[['R','B']],5:[['T','L'],['B','R']],6:[['T','B']],7:[['B','L']],8:[['B','L']],9:[['T','B']],10:[['T','R'],['B','L']],11:[['R','B']],12:[['R','L']],13:[['T','R']],14:[['T','L']]};
+  var adj=new Map();
+  function node(p){ var n=adj.get(p.k); if(!n){ n={pt:p,nb:[]}; adj.set(p.k,n); } return n; }
+  function addSeg(p,q){ node(p).nb.push(q.k); node(q).nb.push(p.k); }
+  for(var y=0;y<H-1;y++) for(var x=0;x<W-1;x++){ var cs=at(x,y)+2*at(x+1,y)+4*at(x+1,y+1)+8*at(x,y+1); var segs=table[cs]; if(!segs) continue; for(var s=0;s<segs.length;s++) addSeg(mid(segs[s][0],x,y),mid(segs[s][1],x,y)); }
+  function unlink(a,b){ var na=adj.get(a).nb,i=na.indexOf(b); if(i>=0) na.splice(i,1); var nb=adj.get(b).nb,j=nb.indexOf(a); if(j>=0) nb.splice(j,1); }
+  var loops=[];
+  adj.forEach(function(_,startK){ while(adj.get(startK).nb.length){ var loop=[],curK=startK,guard=0; loop.push([adj.get(curK).pt.x,adj.get(curK).pt.y]);
+    while(guard++<200000){ var nb=adj.get(curK).nb; if(!nb.length) break; var nextK=nb[0]; unlink(curK,nextK); if(nextK===startK) break; loop.push([adj.get(nextK).pt.x,adj.get(nextK).pt.y]); curK=nextK; }
+    if(loop.length>=3) loops.push(loop); } });
+  return loops;
+}
+
+/* Robustes Mass fuer Halbbreite/Kruemmungsradius eines Satin-Segments.
+   Misst ueber ein breitenskaliertes Fenster (>= 0.8 mm) per Umkreisradius dreier
+   Stuetzpunkte - gerade Striche ergeben Flaeche~0 -> Ratio 0 (kein Faecher-Risiko),
+   enge dicke Bowls ergeben kleinen Radius -> hohe Ratio. Unempfindlich gegen die
+   pixelige Skelett-Treppe (im Gegensatz zur punktweisen Winkelmessung). */
+function _segCurveRatio(cc, hw){
+  var n=cc.length; if(n<5) return 0;
+  var sm=_astSmooth(cc.slice(), Math.max(2, Math.round(n*0.06))), i;
+  var arc=0; for(i=1;i<n;i++) arc+=Math.hypot(sm[i].x-sm[i-1].x,sm[i].y-sm[i-1].y);
+  if(arc < _mm2px(4)) return 0;   /* kurze Stuecke (Serife/Querbalken) faechern nicht */
+  /* Netto-Gesamtdrehung mit Schrittweite (gegen Skelett-Treppe). Eine Bowl/Schlaufe
+     dreht sich konsistent (~pi..2pi) auf KURZEM Bogen; gerade Striche mit Ecken
+     (M/H/n) haben lange Boegen und Ecken heben sich auf -> kleine Netto-Drehung. */
+  var stride=Math.max(1,Math.round(n*0.04)), prevAng=null, netTurn=0;
+  for(i=stride;i<n;i+=stride){ var dx=sm[i].x-sm[i-stride].x, dy=sm[i].y-sm[i-stride].y; if(dx===0&&dy===0) continue; var ang=Math.atan2(dy,dx);
+    if(prevAng!==null){ var d=ang-prevAng; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; netTurn+=d; } prevAng=ang; }
+  var meanHw=0; for(i=0;i<hw.length;i++) meanHw+=hw[i]; meanHw/=hw.length;
+  /* meanHw*|Drehung|/Bogen ~ meanHw/R_mittel: hoch = kompakte dicke Schlaufe = Faecher-Risiko. */
+  return meanHw*Math.abs(netTurn)/arc;
+}
+/* MAXIMALE LOKALE Kruemmung (hw/R_lokal) entlang des Segments. _segCurveRatio mittelt die
+   Drehung ueber den GANZEN Bogen -> ein einzelner scharfer Knick (Pacifico r/d-Bowl, wo die
+   Innen-Rail kollabiert = Sonnenstrahl) wird weggemittelt (r global 0.034 trotz sichtbarem
+   Faecher). Hier pro Punkt die Richtungsaenderung ueber ein ~1 Halbbreiten-Fenster: hw*turn/span
+   = lokal hw/R. Max davon sagt den Sonnenstrahl voraus, wo der Durchschnitt blind ist. */
+function _segMaxLocalCurve(cc, hw){
+  var n=cc.length; if(n<6) return 0;
+  var sm=_astSmooth(cc.slice(),2), maxv=0, i;
+  var arc=[0]; for(i=1;i<n;i++) arc[i]=arc[i-1]+Math.hypot(sm[i].x-sm[i-1].x,sm[i].y-sm[i-1].y);
+  for(i=0;i<n;i++){ var h=hw[i]||0; if(h<=0) continue;
+    var win=Math.max(h*1.1,_mm2px(0.6));
+    if(arc[i]-win<arc[0]||arc[i]+win>arc[n-1]) continue;
+    var a=i; while(a>0&&arc[i]-arc[a]<win) a--;
+    var b=i; while(b<n-1&&arc[b]-arc[i]<win) b++;
+    if(a>=i||b<=i) continue;
+    var d1x=sm[i].x-sm[a].x,d1y=sm[i].y-sm[a].y,l1=Math.hypot(d1x,d1y)||1;
+    var d2x=sm[b].x-sm[i].x,d2y=sm[b].y-sm[i].y,l2=Math.hypot(d2x,d2y)||1;
+    var c=(d1x*d2x+d1y*d2y)/(l1*l2); if(c>1)c=1; if(c<-1)c=-1;
+    var turn=Math.acos(c), span=arc[b]-arc[a]; if(span<1e-6) continue;
+    var hwR=h*turn/span; if(hwR>maxv) maxv=hwR;
+  }
+  return maxv;
+}
+
+/* Zusammenhangskomponenten (8-Nachbarschaft) der Maske + max-DT je Komponente.
+   Dient der i/j-Punkt-Abspaltung: ein Punkt ist eine eigene, kompakte Komponente. */
+function _labelComponents(mask,W,H,dist){
+  var lbl=new Int32Array(W*H), labels=[], cur=0, stack=[];
+  for(var i=0;i<W*H;i++){
+    if(mask[i]!==1||lbl[i]!==0) continue;
+    cur++; var info={label:cur,count:0,minx:1e9,miny:1e9,maxx:-1,maxy:-1,maxR:0};
+    stack.length=0; stack.push(i); lbl[i]=cur;
+    while(stack.length){ var p=stack.pop(), x=p%W, y=(p-x)/W;
+      info.count++; if(x<info.minx)info.minx=x; if(x>info.maxx)info.maxx=x; if(y<info.miny)info.miny=y; if(y>info.maxy)info.maxy=y;
+      if(dist[p]>info.maxR) info.maxR=dist[p];
+      for(var dyl=-1;dyl<=1;dyl++) for(var dxl=-1;dxl<=1;dxl++){ if(!dxl&&!dyl) continue; var nx=x+dxl,ny=y+dyl; if(nx<0||ny<0||nx>=W||ny>=H) continue; var np=ny*W+nx; if(mask[np]===1&&lbl[np]===0){ lbl[np]=cur; stack.push(np); } }
+    }
+    labels.push(info);
+  }
+  return { lbl:lbl, labels:labels };
+}
+
+/* =====================================================================
+   Glyph/Text -> Maske + Segmente (Kern aus _calcTextSatinStitch)
+   Koordinaten in Welt-px, Pen-Ursprung bei lokal (0,0).
+   ===================================================================== */
+function fontStr(fontSizePx, S, bold, italic, family){ return (italic?'italic ':'')+(bold?'bold ':'')+(fontSizePx*S)+'px '+"'"+family+"'"; }
+
+function extractSegments(text, family, fontSizePx, bold, italic){
+  var out = { segs:[], W:0, H:0, S:1, pad:0, baseLocalY:0, mask:null };
+  if(!text) return out;
+  var S=Math.max(2,Math.min(8,Math.ceil(150/fontSizePx)));   /* Mask-Aufloesung (Boden 2; Kontur-Treppe wird per _astSmooth(rail,2) nach dem Raycast geglaettet) */
+  var pad=Math.ceil(fontSizePx*0.4);
+  var meas=document.createElement('canvas'); meas.width=1; meas.height=1;
+  var mctx=meas.getContext('2d'); mctx.font=fontStr(fontSizePx,S,bold,italic,family);
+  var tw=Math.ceil(mctx.measureText(text).width)+2*pad*S;
+  var th=Math.ceil(fontSizePx*S*1.4)+2*pad*S;
+  while(tw*th>5e6&&S>1){ S--; mctx.font=fontStr(fontSizePx,S,bold,italic,family); tw=Math.ceil(mctx.measureText(text).width)+2*pad*S; th=Math.ceil(fontSizePx*S*1.4)+2*pad*S; }
+  if(tw<2||th<2) return out;
+  var canvas=document.createElement('canvas'); canvas.width=tw; canvas.height=th;
+  var ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,tw,th);
+  ctx.fillStyle='#000'; ctx.font=fontStr(fontSizePx,S,bold,italic,family); ctx.textBaseline='alphabetic';
+  var baseY=fontSizePx*S*1.05+pad*S;
+  ctx.fillText(text, pad*S, baseY);
+  var img=ctx.getImageData(0,0,tw,th).data, W=tw, H=th, mask=new Uint8Array(W*H),ip,ix;
+  for(ip=0,ix=0;ip<img.length;ip+=4,ix++){ var lum=(img[ip]+img[ip+1]+img[ip+2])/3; mask[ix]=lum<128?1:0; }
+  out.W=W; out.H=H; out.S=S; out.pad=pad; out.mask=mask; out.baseLocalY=(baseY-pad*S)/S;
+
+  var dist=_astDistT(mask,W,H);
+  var comp=_labelComponents(mask,W,H,dist);
+  var padS=pad*S;
+  function wx(mx){ return (mx-padS)/S; } function wy(my){ return (my-padS)/S; } function wl(px){ return px/S; }
+  /* Schneller In-Ink-Test per Masken-Lookup (O(1)) statt _pointInLoops (O(Kontur), die
+     Hi-Res-Marching-Squares-Kontur hat tausende Punkte -> teuer in inneren Schleifen). */
+  out.inInk=function(gx,gy){ var mxp=(gx*S+padS)|0, myp=(gy*S+padS)|0; return mxp>=0&&myp>=0&&mxp<W&&myp<H&&mask[myp*W+mxp]===1; };
+  /* Echte Glyph-Kontur in WELT-Koordinaten (einmal) - Quelle der Satin-Rails. */
+  out.contour = marchingSquares(mask,W,H).map(function(lp){ return lp.map(function(p){ return {x:wx(p[0]), y:wy(p[1])}; }); });
+  var minSatinHalf=_mm2px(0.15), pruneLen=_mm2px(0.5), dotLen=_mm2px(1.3), minHalf=_mm2px(0.3);
+  var segs=[];
+  /* i/j-Punkte & kompakte runde Komponenten als eigene Dot-Saeule abspalten - nie ueber
+     das Stamm-Skelett anbinden (Profi-Prinzip: der Punkt ist ein eigenes Element).
+     Kompakt = Ausdehnung <= ~2.3x Vollbreite UND klein (< ~2.8 mm). */
+  var dotComp={};
+  comp.labels.forEach(function(L){
+    var bw=L.maxx-L.minx+1, bh=L.maxy-L.miny+1, extent=Math.max(bw,bh);
+    /* Groessen-Cap PROPORTIONAL zur Em-Hoehe (i-Punkt skaliert mit der Schrift,
+       nicht absolut): bis ~30% der Em-Hoehe gilt eine kompakte runde Komponente als Punkt. */
+    if(L.maxR>0 && extent <= 2.3*(2*L.maxR) && extent <= fontSizePx*0.30*S){
+      dotComp[L.label]=1;
+      segs.push({ kind:'dot', cx:wx((L.minx+L.maxx)/2), cy:wy((L.miny+L.maxy)/2), r:Math.max(wl(extent/2*0.92), minHalf) });
+    }
+  });
+  var skel=_astThin(mask,W,H);
+  var g=_astTraceSkeleton(skel,W,H), edges=g.edges, nbArr=g.nb;
+  if(!edges.length && !segs.length) return out;
+  edges=_astMergeCollinear(edges,W,dist,nbArr);
+  var e;
+  for(e=0;e<edges.length;e++){ var ed=edges[e]; if(!ed.length) continue;
+    if(dotComp[comp.lbl[ed[0]]]) continue;   /* Pixel gehoeren zu einer schon gebauten Dot-Komponente */
+    var endA=(nbArr[ed[0]]===1), endB=(nbArr[ed[ed.length-1]]===1), endpt=(endA&&endB);
+    /* ECHTE Verzweigung = nb>=3; nb===2 ist glatte Ring-Fortsetzung (o), NICHT trimmen. */
+    var juncStart=(nbArr[ed[0]]>=3), juncEnd=(nbArr[ed[ed.length-1]]>=3);
+    var cen=[],hw=[],q;
+    for(q=0;q<ed.length;q++){ var pp=ed[q],mxq=pp%W,myq=(pp-mxq)/W; cen.push({x:wx(mxq),y:wy(myq)}); hw.push(wl(dist[pp])); }
+    var tot=0; for(q=1;q<cen.length;q++) tot+=Math.hypot(cen[q].x-cen[q-1].x,cen[q].y-cen[q-1].y);
+    var meanHw=0; for(q=0;q<hw.length;q++) meanHw+=hw[q]; meanHw/=hw.length;
+    /* Degenerierter KNUBBEL an Schreibschrift-Verzweigungen (Pacifico r/k): Halbbreite am
+       minHalf-Boden (kein echter Strich, dist war < minHalf) UND ohne Ausdehnung (bbox-
+       Diagonale ~ Breite, die Mittellinie loopt zurueck statt irgendwohin zu laufen). Das
+       ist ein Skelett-Sliver im Junction-Zentrum -> raus, sonst duenner Faecher/Notch.
+       Echte Striche laufen weg (grosse Extent); echte i/j-Punkte sind eigene dotComp. */
+    var _bx0=1e9,_by0=1e9,_bx1=-1e9,_by1=-1e9,_bq; for(_bq=0;_bq<cen.length;_bq++){ if(cen[_bq].x<_bx0)_bx0=cen[_bq].x; if(cen[_bq].y<_by0)_by0=cen[_bq].y; if(cen[_bq].x>_bx1)_bx1=cen[_bq].x; if(cen[_bq].y>_by1)_by1=cen[_bq].y; }
+    var _extent=Math.hypot(_bx1-_bx0,_by1-_by0);
+    if(meanHw < minHalf*1.4 && _extent < 3.0*meanHw) continue;
+    /* Endast-Pruning relativ zur lokalen Strichbreite: kurze Stummel mit EINEM Knoten-Ende
+       (Serifen, Skelett-Spikes an Brush-Strichen) raus -> kein Knaeuel an Strich-Enden.
+       tot < ~1.5x Vollbreite (= 3x meanHw), Boden 0.5 mm. Standalone-Striche (beide
+       Enden frei) und lange Striche (Querbalken) bleiben. */
+    var isSpur=(endA&&!endB)||(!endA&&endB);
+    if(isSpur && tot < Math.max(pruneLen, 3*meanHw)) continue;
+    /* Interner Mini-Connector (BEIDE Enden an Knoten, kein freies Ende) und sehr kurz:
+       Skelett-Spur am Kreuzungs-/Verzweigungs-Cluster -> raus, die anstossenden Saeulen
+       decken die Mitte. Zwei Schwellen: relativ (< 2.5x Halbbreite = zu stummelig fuer
+       eine Saeule) ODER absolut (< 1.8 mm = duenner Sliver an Schreibschrift-Verzweigungen
+       wie Pacifico r/k, wo hw auf den minHalf-Boden geklemmt ist -> 2.5x ist dann winzig).
+       Echte Quer-/Verbindungsstriche (A/H/e) sind laenger und bleiben. */
+    if(!endA && !endB && tot < Math.max(2.5*meanHw, _mm2px(1.8))) continue;
+    if(tot<pruneLen&&!endpt) continue;
+    /* Nur winzige isolierte Bits werden Dot. (Frueher auch kurze breite Boegen via
+       tot<2.2*meanHw - das machte mit Kontur-Rails faelschlich Punkte aus Ring-Boegen,
+       darum raus. Echte i/j-Punkte sind eigene Komponenten via dotComp.) */
+    if(ed.length<=2 || (endpt&&tot<dotLen)){ var cdx=0,cdy=0,qd;
+      for(qd=0;qd<cen.length;qd++){ cdx+=cen[qd].x; cdy+=cen[qd].y; } cdx/=cen.length; cdy/=cen.length;
+      var maxHwD=0,extD=0; for(qd=0;qd<cen.length;qd++){ if(hw[qd]>maxHwD) maxHwD=hw[qd]; var ddD=Math.hypot(cen[qd].x-cdx,cen[qd].y-cdy); if(ddD>extD) extD=ddD; }
+      segs.push({kind:'dot',cx:cdx,cy:cdy,r:Math.max(maxHwD+extD,minHalf)}); continue; }
+    cen=_astSmooth(cen,2); hw=_astSmoothScalar(hw,2);
+    /* FREIE Strich-Enden (Terminal, nb===1) zur Spitze VERLAENGERN: das Skelett endet ~1
+       Radius vor der Kontur-Spitze, sonst deckt der Satin die End-Kappe nicht -> weisse
+       Luecke am Terminal (Pacifico e/a/s-Enden). Schrittweise Richtung Strich verlaengern,
+       solange der Punkt INNERHALB der Kontur liegt (bis kurz vor die Spitze). Nur freie
+       Enden; Knoten-Enden bleiben (dort deckt die Nachbar-Saeule). */
+    if(cen.length>=2 && out.contour){
+      var _exEnd=function(atStart){ var i0=atStart?0:cen.length-1, i1=atStart?1:cen.length-2;
+        var ex=cen[i0].x-cen[i1].x, ey=cen[i0].y-cen[i1].y, el=Math.hypot(ex,ey)||1; ex/=el; ey/=el;
+        var h=Math.max(hw[i0],minHalf), st=h*0.35, lim=h*1.6, acc=0, lin={x:cen[i0].x,y:cen[i0].y,h:hw[i0]};
+        while(acc+st<=lim){ var nx=cen[i0].x+ex*(acc+st), ny=cen[i0].y+ey*(acc+st); if(!out.inInk(nx,ny)) break; acc+=st; lin={x:nx,y:ny}; }
+        if(acc>=st){ if(atStart){ cen.unshift({x:lin.x,y:lin.y}); hw.unshift(hw[0]); } else { cen.push({x:lin.x,y:lin.y}); hw.push(hw[hw.length-1]); } } };
+      if(endA) _exEnd(true); if(endB) _exEnd(false);
+    }
+    var _hwSorted=hw.slice().sort(function(aa,bb){return aa-bb;});
+    var _hwMed=_hwSorted[Math.floor(_hwSorted.length/2)]||minHalf, _hwCap=_hwMed*1.5;
+    for(var _hc=0;_hc<hw.length;_hc++) if(hw[_hc]>_hwCap) hw[_hc]=_hwCap;
+    /* Keine Mittellinien-Verlaengerung (Kappe liegt automatisch auf der echten Kontur).
+       Aber NODE-Enden (Verzweigung, !endA/!endB) ~1x Halbbreite ZURUECKtrimmen: dort
+       ist der Strich durch Stroke-Merge verbreitert, die Querschnitte schoessen sonst
+       quer durch die Kreuzung -> dunkles Knaeuel. Die kleine Luecke deckt die Ueber-
+       lappung der anstossenden Segmente. Freie Enden (echte Strich-Spitze) bleiben. */
+    if(cen.length<2) continue;
+    if(meanHw<minSatinHalf){ segs.push({kind:'run',center:cen}); continue; }
+    /* [HEBEL 1] KEIN geometrischer Ecken-Split mehr: die Skelett-Kanten sind bereits an
+       den topologischen Knoten (cn>=3) getrennt, eine Kante ist per Konstruktion EIN
+       durchgehender Strich. Der geom. Split zerschnitt fliessende Schreibschrift-Striche
+       an jeder Kurve = Zersplittern. _satinByCrossSection faechert dank echter Kontur auch
+       um scharfe Kurven nie -> kein Split noetig. Trennung passiert NUR an echten Knoten
+       (eigene Kanten). [Recherche wnilfoi2r] */
+    /* Kein geom. Ecken-Split: der i/Serifen-„Knick" ist mit nur ~41Grad ueber ~5mm Bogen
+       eine SANFTE Biegung (wie t-Fuss), kein scharfer Eck-Knick - die Schwelle so zu senken
+       wuerde fliessende Schreibschrift-Kurven zerfetzen. Faecher an sanften Biegungen
+       entschaerft _pairSatinSectioned (matched-fraction) + die Unterlage deckt Restluecken. */
+    /* KEIN geometrischer Ecken-Split (2026-06-19 zurueckgenommen): der Band-Union-Beweis zeigt, dass
+       die Deckung an scharfen Ecken (e-Auge) bereits sauber+glatt ist - der „Faecher/Wurst"-Eindruck
+       entsteht NUR im treuen Per-Stich-3D-Render (jeder Stich = eigenes Tube), nicht in der Geometrie.
+       Der Split hatte ueberlappende Kappen = echte Doppeldeckungs-Beule eingefuehrt, um ein Render-
+       Scheinproblem zu „loesen". Eine Kante = eine durchlaufende Saeule (Knoten-Trennung reicht). */
+    var pieces=[{center:cen,hw:hw}], pi, last=0;
+    /* Gestaffelter Trim je Endtyp: freie Strich-Spitze 0 (echte Kappe), glatte
+       Ring-Fortsetzung nb===2 nur 0.15x (Haarluecke gegen Doppeldeckungs-Naht),
+       echte Kreuzung nb>=3 oder Ecken-Split 0.4x (Querschnitte im sauberen Strich). */
+    /* JUNCTION-Trim (re-aktiviert): an Verzweigungs-Enden (nb>=3) folgen die Cross-Section-
+       Rails der Strich-AUFWEITUNG (Stroke-Merge verbreitert dort) -> rail2 hookt, die Rung-
+       Paarung verbindet ueber die Aufweitung = Spray-Faecher (Pacifico r/k-Kern). Die Saeule
+       muss VOR der Aufweitung stoppen: junc ~0.85x Halbbreite zurueck. Die Rail-Verlaengerung
+       (Hebel 3, 0.4mm) + die anstossende Saeule decken die kleine Luecke. Freie Strich-Spitzen
+       (echte Kappe) und glatte Ring-Fortsetzungen (nur Haarluecke) bleiben wie gehabt. */
+    /* junc=0.85x Halbbreite: h ist hier bereits via _hwCap (oben) auf 1.5x Strich-MEDIAN
+       gedeckelt, also misst 0.85*h gegen den schmalen Strich, NICHT gegen die Knoten-
+       Aufweitung -> kein Loch wie beim alten rohen Junction-Trim. Plus parc*0.2-Klemme unten. */
+    /* KEIN junc-Trim mehr (war eine Kruecke fuers alte ueber-dichte Standard-Satin: dort
+       schossen die Cross-Section-Rails in die Junction-Aufweitung = Spray-Faecher, darum
+       Saeule zurueckziehen). Mit BOUSTROPHEDON-Satin (saubere Rungs) + Width-Cap (_capW) +
+       Connector-Drop + Fill-Fallback fuer dicke Bowls ist er ueberfluessig UND schaedlich:
+       er zog die duennen Stamm-Top-Entry-Striche (i/b/d/h/k/l) vom Stamm ab = „Streu-Bits"
+       (sichtbar seit das Satin-Backing raus ist, das die Trim-Luecken vorher fuellte).
+       Verifiziert trim=0: Times Stem-Tops verbunden, Times k/w/x + Pacifico k/r sauber. */
+    function _trimAmt(kind,h){ return kind==='cont'?h*0.06:0; }
+    for(pi=0;pi<pieces.length;pi++){
+      var pc=pieces[pi].center, ph=pieces[pi].hw;
+      var sKind=(pi===0)?(endA?'free':(juncStart?'junc':'cont')):'corner';
+      var eKind=(pi===last)?(endB?'free':(juncEnd?'junc':'cont')):'corner';
+      var parc=0,ai; for(ai=1;ai<pc.length;ai++) parc+=Math.hypot(pc[ai].x-pc[ai-1].x,pc[ai].y-pc[ai-1].y);
+      var ts=_trimAmt(sKind,ph[0]), te=_trimAmt(eKind,ph[ph.length-1]);
+      if(ts>0) _trimEnd(pc,ph, Math.min(ts, parc*0.2), true);
+      if(te>0) _trimEnd(pc,ph, Math.min(te, parc*0.2), false);
+      /* POST-Trim-Drop: der Mini-Connector-Drop oben (Z.865) prueft die VOR-Trim-Laenge -
+         ein Junction-Verbinder (beide Enden junc, z.B. Times-k/w/x-Zentrum) kann vor dem Trim
+         knapp ueber der Schwelle liegen, nach dem Junction-Trim aber auf ~1mm schrumpfen =
+         winzige Saeule, die sich mit den anstossenden Saeulen ueberlagert = Knoten/Tangle.
+         Schrumpft er unter ~2.2x Median-Halbbreite (Boden _JDROP, Default 1.3mm), faellt er
+         weg; die langen Nachbar-Saeulen (Hebel-3-Ueberlapp) + Unterlage decken das Zentrum. */
+      var _pa=0,_pq; for(_pq=1;_pq<pc.length;_pq++) _pa+=Math.hypot(pc[_pq].x-pc[_pq-1].x,pc[_pq].y-pc[_pq-1].y);
+      var _pmed=ph.slice().sort(function(a,b){return a-b;})[ph.length>>1]||minHalf;
+      if(sKind==='junc'&&eKind==='junc'&&_pa<Math.max(2.2*_pmed,_mm2px(1.3))) continue;
+      if(pc.length>=2) segs.push({kind:'satin',center:pc,hw:ph,endK0:sKind,endK1:eKind});
+    } }
+  out.segs=segs;
+  /* Degenerations-Mass: max Halbbreite/Kruemmungsradius ueber alle Satin-Segmente.
+     Hoch (>~0.5) = Strich zu dick fuer seine Kurve -> Satin-Saeule faechert auf
+     (Pacifico-Bowls). Dient der Auto-Entscheidung Satin vs. Fuellung pro Glyph. */
+  var maxRatio=0, maxLocal=0;
+  segs.forEach(function(sg){ if(sg.kind==='satin'){ var r=_segCurveRatio(sg.center, sg.hw); if(r>maxRatio) maxRatio=r; var lc=_segMaxLocalCurve(sg.center, sg.hw); if(lc>maxLocal) maxLocal=lc; } });
+  out.maxCurveRatio=maxRatio; out.maxLocalCurve=maxLocal;
+  return out;
+}
+
+/* RAIL-TANGLE-TEST: kreuzen sich die zwei Satin-Schienen einer Saeule? Bei sauberem Satin
+   (Stamm, Bogen, sauberer Ring wie „o") sind rail1/rail2 parallele Offset-Kurven und kreuzen
+   NIE. Bei einer Schreibschrift-Schlaufe, die als EIN Satin-Pfad (Stamm+Schlaufe) digitalisiert
+   ist (Pacifico/Dancing b/d/p/g/k/l), flippt am Stamm-Schlaufen-Uebergang die innen/aussen-
+   Zuordnung -> die Schienen ueberschlagen sich (Figur-8) -> die Rungs spannen quer durch die
+   Punze (im Realbild: Faecher in der Schlaufe). Selbstkreuzung = Saeule faltet sich = echter
+   Defekt, prinzipielles binaeres Signal (0 False-Positives auf sauberen Fonts/Glyphen, anders
+   als jede Querungs-Quote, die Kantenstiche mitzaehlt). -> dann Fuellung (Maske bleibt sauber,
+   Counter leer). Ergebnis auf ext gecacht; grobe Schienen (Pitch 0.6) + Early-Exit = guenstig. */
+function _satinRailsTangle(ext){
+  if(ext._tangle!==undefined) return ext._tangle;
+  function cross(a,b,c,d){ var r1=b.x-a.x,r2=b.y-a.y,s1=d.x-c.x,s2=d.y-c.y,den=r1*s2-r2*s1; if(Math.abs(den)<1e-9) return false; var t=((c.x-a.x)*s2-(c.y-a.y)*s1)/den, u=((c.x-a.x)*r2-(c.y-a.y)*r1)/den; return t>0.03&&t<0.97&&u>0.03&&u<0.97; }
+  var tangled=false;
+  for(var si=0; si<ext.segs.length && !tangled; si++){ var sg=ext.segs[si]; if(sg.kind!=='satin') continue;
+    var cs=_satinByCrossSection(sg.center, ext.contour, _mm2px(0.6), sg.hw, [sg.endK0,sg.endK1], ext.inInk);
+    if(!cs||cs.rail1.length<4) continue; var r1=cs.rail1, r2=cs.rail2;
+    for(var i=2;i<r1.length && !tangled;i++){ for(var j=2;j<r2.length;j++){ if(Math.abs(i-j)<3) continue; if(cross(r1[i-1],r1[i],r2[j-1],r2[j])){ tangled=true; break; } } }
+  }
+  ext._tangle=tangled; return tangled;
+}
+/* Stichart pro Glyph aufloesen. Auto: nur bei zu kleiner/grosser Schrift Fuellung,
+   sonst SATIN. (Frueher hat hohe Kruemmung auf Fuellung geschaltet, weil der
+   Offset-Satin faecherte - mit Kontur-Rails [_satinByCrossSection] faechert er
+   nicht mehr, also bleibt Satin auch fuer Schreibschrift-Schlaufen.) */
+function _resolveMode(ext){
+  var m=state.stitch;
+  if(m!=='auto') return m;
+  if(state.sizeMM<3||state.sizeMM>40) return 'fill';
+  /* RUND/GERADE wird NICHT mehr glyphweit entschieden (2026-06-17, Agent-Analyse): die
+     Segment-Weiche in _satinByCrossSection (_classifyRibbon) waehlt pro Strichsegment
+     Continuous-Satin / Split-Satin / Contour-Flow-Fill. Glyphweite Tatami-Fuellung nur noch
+     fuer echte Katastrophen (verhedderte Rails). maxCurveRatio/maxLocalCurve-Glyph-Routing raus. */
+  /* Tangle (sich kreuzende Rails) allein -> NICHT mehr automatisch Fuellung: ein
+     Buchstabe wie 'e' (Bogen + duenner Querbalken) kreuzt am Querbalken-Junction die
+     Rails, ist aber als BOGEN satinierbar, solange das Auge nicht kollabiert (Innenradius
+     > Halbbreite). Routing (2026-06-20, Lukas "c als Bogen, e aber nicht"):
+       - ECHTER Kollaps (maxLocalCurve >= 0.6 == R < ~1.7*hw, z.B. dicke Pacifico-Verzweigung
+         k): IMMER Tatami-Fuellung (Satin wuerde zum Sonnenstrahl).
+       - BORDERLINE (tangle, aber kein Kollaps: e/g/f): folgt dem Bowl-Toggle. Satin-Modus
+         -> als BOGEN satinieren (duenne Serifen wie Times-e top); Tatami/Laengs-Modus
+         -> Fuellung (dicke Script-Loops wie Pacifico-g bleiben sauber statt zu faechern).
+     mlc==maxLocalCurve ist Halbbreite/Innenradius am engsten Punkt. */
+  /* ECHTER KOLLAPS zuerst, UNABHAENGIG von tangle (2026-06-20, Lukas "k bei Pacifico nicht
+     korrekt erkannt"): ein dicker enger Strich (maxLocalCurve >= 0.6 == Innenradius < ~1.7x
+     Halbbreite) FAECHERT als Satin zum Sonnenstrahl - auch wenn die Rails sich NICHT kreuzen
+     (Pacifico-k bei 29mm: tangle=false, mlc 0.66 -> war faelschlich Satin). Solche Glyphen
+     IMMER auf Tatami-Fuellung, egal welcher Bowl-Toggle. Times-Glyphen haben mlc < 0.6 (duenn)
+     -> bleiben Satin. */
+  var _mlc=(ext.maxLocalCurve||0);
+  /* Fill-Schwelle 0.6 -> 0.85 -> 1.5 (2026-06-20): die diagonale Tatami-Kontur-Fuellung (_tatamiContourFill)
+     SPRINGT bei Script-Glyphen mit Punzen/Verzweigungen massiv - pro Scanline mehrere Ink-Segmente quer ueber
+     die Punze => 1 legitimer Sprung pro Reihe: Pacifico-N 84 Spruenge, n 25, d 45 (Lukas "die diagonale im ka",
+     "n und j klappen noch nicht" = die dunklen, zerstueckelten Fuellungs-Glyphen im Grid). Satin dagegen ist
+     KONTINUIERLICH (kein Sprung pro Reihe) und deckt seit Density-Comp [_pairSatinSectioned] + Coverage-Backstop
+     [_coverageBackstop] auch enge dicke Innenkurven VOLL (Pacifico komplett: maxLoch <= 0.4 mm, max 9 Spruenge/
+     Glyph, mlc bis 1.39 = d sauber). Also: praktisch alles auf Satin (Grid konsistent, kein Satin/Fuellung-
+     Schachbrett). Nur EXTREMER Kollaps (mlc >= 1.5, Innenradius deutlich unter Halbbreite, wo auch Backstop
+     die Flaeche nicht mehr sinnvoll schliesst) faellt auf die (sprunghafte) Fuellung zurueck. */
+  if(_mlc >= 1.5) return 'fill';
+  /* dicke Faecher-Glyphen (Lobster-k) werden NICHT mehr glyphweit auf 'fill' geschaltet (das gab
+     Ganzglyph-Tatami mit langen Sprung-Diagonalen quer ueber die Punze, Lukas "die diagonale im k").
+     Stattdessen behandelt _classifyRibbon das dicke Fächer-SEGMENT per-Segment als forceTatami (kein
+     Faecher) + die Satin-Routing-Travels verbinden die Segmente kurz statt lang zu springen. */
+  if(_satinRailsTangle(ext)){
+    /* BORDERLINE (kreuzende Rails, aber kein Kollaps: Times e/g/f): folgt dem Bowl-Toggle.
+       Satin -> als Bogen satinieren; Tatami/Laengs -> Fuellung. */
+    var _bf=(typeof window!=='undefined'&&window._bowlFill)||'satin';
+    if(_bf!=='satin') return 'fill';
+  }
+  return 'satin';
+}
+
+/* Cache: Segment-Extraktion (Skelett/Thinning) haengt nur an Schrift+Zeichen+
+   Em-Groesse, NICHT am Pitch/Stichart. Teurer Teil -> cachen, damit Toggle-
+   Aenderungen (Pitch, Stichart) die Vorschau schnell neu rendern. */
+var _segCache={};
+function extractSegmentsCached(ch, fontSizePx){
+  var key=state.font+'|'+ch+'|'+fontSizePx;
+  if(_segCache[key]) return _segCache[key];
+  var r=extractSegments(ch, state.font, fontSizePx, false, false);
+  _segCache[key]=r; return r;
+}
+
+/* COVERAGE-BACKSTOP (2026-06-20, Lukas "optimiere pacifico"): nach dem Satin-Sticken die unbedeckte
+   INNENFLAECHE der Glyphe finden und mit waagrechten Fuell-Stichen schliessen. Script-Glyphen
+   (Pacifico p/u/a-Loops + Verzweigungen) lassen Satin-Luecken bis ~1.1mm, weil EIN langer Satin-Strich
+   die Loop-/Cap-Features nicht erreicht. Sicherheitsnetz: nur INNERHALB der Kontur (inInk -> kein
+   Stray), nur ECHTE Luecken (Zelle >~0.3mm vom naechsten Stich), nur Runs >=0.6mm (keine Mikro-Stiche).
+   Boustrophedon + Sprung nur bei echtem Versatz. */
+function _coverageBackstop(stitches, loops, inInk){
+  if(!loops||!loops.length||!stitches.length) return [];
+  var segs=[],i; for(i=1;i<stitches.length;i++){ var a=stitches[i-1],b=stitches[i]; if(a.jump||b.jump||a.travel||b.travel) continue; segs.push([a.x,a.y,b.x,b.y]); }
+  if(segs.length<2) return [];
+  var xs=[],ys=[]; loops.forEach(function(lp){ lp.forEach(function(p){ xs.push(p.x); ys.push(p.y); }); });
+  var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  var cell=_mm2px(0.25), gw=Math.ceil((maxX-minX)/cell)+2, gh=Math.ceil((maxY-minY)/cell)+2;
+  if(gw*gh>200000) return [];   /* Schutz gegen Riesen-Glyphen */
+  var cov=new Uint8Array(gw*gh);
+  for(i=0;i<segs.length;i++){ var s=segs[i], dx=s[2]-s[0], dy=s[3]-s[1], L=Math.hypot(dx,dy), n=Math.max(1,Math.ceil(L/(cell*0.6))), k;
+    for(k=0;k<=n;k++){ var t=k/n, gx=Math.round((s[0]+dx*t-minX)/cell), gy=Math.round((s[1]+dy*t-minY)/cell), ax,ay;
+      for(ay=-1;ay<=1;ay++) for(ax=-1;ax<=1;ax++){ var ix=gx+ax,iy=gy+ay; if(ix>=0&&ix<gw&&iy>=0&&iy<gh) cov[iy*gw+ix]=1; } } }
+  var add=[], dir=1, lastP=null, step=_mm2px(2.0), gapJ=_mm2px(1.6), gy2;
+  for(gy2=1;gy2<gh-1;gy2++){ var wy=minY+gy2*cell, runs=[], inRun=false, rs=0, gx2;
+    for(gx2=0;gx2<gw;gx2++){ var wx=minX+gx2*cell, unc=inInk(wx,wy) && !cov[gy2*gw+gx2];
+      if(unc&&!inRun){ inRun=true; rs=gx2; } else if(!unc&&inRun){ inRun=false; if(gx2-1-rs>=1) runs.push([rs,gx2-1]); } }
+    if(inRun && gw-1-rs>=1) runs.push([rs,gw-1]);
+    if(dir<0) runs.reverse();
+    for(var ri=0;ri<runs.length;ri++){ var x0=minX+runs[ri][0]*cell, x1=minX+runs[ri][1]*cell, lo=dir>0?x0:x1, hi=dir>0?x1:x0;
+      var d=Math.abs(x1-x0), nst=Math.max(1,Math.round(d/step)), si;
+      for(si=0;si<=nst;si++){ var u=si/nst, P={x:lo+(hi-lo)*u, y:wy}; if(si===0 && lastP && Math.hypot(P.x-lastP.x,P.y-lastP.y)>gapJ) P.jump=true; add.push(P); lastP=P; } }
+    dir=-dir;
+  }
+  return add;
+}
+
+/* Segmente -> alternierende Satin-Stiche (fuer Version B + Vorschau). */
+function segsToStitches(segs, pitchMM, contour, inInk, startPos){
+  if(!segs||!segs.length) return [];
+  var _ink=inInk||function(x,y){ return _pointInLoops(x,y,contour); };
+  function segEnds(s){ if(s.kind==='dot') return [{x:s.cx,y:s.cy},{x:s.cx,y:s.cy}]; var a=s.center; return [{x:a[0].x,y:a[0].y},{x:a[a.length-1].x,y:a[a.length-1].y}]; }
+  function segLen(s){ if(s.kind==='dot') return 0; var a=s.center,t=0,i; for(i=1;i<a.length;i++) t+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y); return t; }
+  /* Greedy Nearest-Endpoint-Kette statt reinem minX-Sort: minimiert die Connector-Wege. Kurze
+     Spurs, die eine Junction mit ihrem Hauptstrich teilen (s-Beak, i-Serife), werden so direkt
+     an ihn gekettet = DURCHGEHENDE Naht statt Sprung quer ueber die offene Glyph-Bucht. Wichtig:
+     Bernina trimmt Spruenge ab Werk NICHT -> ein Sprung quer ueber das s = loser Faden = derselbe
+     sichtbare Defekt. Tie-Break bei ~gleicher Distanz: KUERZERES Segment zuerst -> die Spur laeuft
+     vor dem Hauptstrich, der danach von der geteilten Junction durchziehen kann. Start: oberstes-
+     linkestes Ende. [Recherche wnilfoi2r] */
+  var remaining=segs.slice(), order=[], curPos=startPos||null, tie=_mm2px(0.5), ri;   /* startPos = Ende des vorigen Buchstabens (lokal) -> Start am naechsten Endpunkt = kurzer Buchstaben-Verbinder statt langer Diagonale */
+  while(remaining.length){
+    var bi=-1,bRev=false,bd=Infinity,bLen=Infinity;
+    for(ri=0;ri<remaining.length;ri++){ var es=segEnds(remaining[ri]), sl=segLen(remaining[ri]);
+      var d0=curPos?Math.hypot(es[0].x-curPos.x,es[0].y-curPos.y):(es[0].y*1e4+es[0].x);
+      var d1=curPos?Math.hypot(es[1].x-curPos.x,es[1].y-curPos.y):(es[1].y*1e4+es[1].x);
+      var dm=Math.min(d0,d1), rev=(d1<d0);
+      if(dm < bd-tie || (dm <= bd+tie && sl < bLen)){ bd=dm; bi=ri; bRev=rev; bLen=sl; }
+    }
+    order.push({seg:remaining[bi], rev:bRev}); var ee=segEnds(remaining[bi]); curPos=bRev?ee[0]:ee[1]; remaining.splice(bi,1);
+  }
+  var out=[],prevEnd=null,oi, runLen=_mm2px(2.0), scLen=Math.max(0.1, pitchMM/2), scInset=0.15;
+  for(oi=0;oi<order.length;oi++){ var sg=order[oi].seg, rev=order[oi].rev, segPts=[];
+    if(sg.kind==='dot'){ var r=sg.r; segPts=_astSatinFromRail([{x:sg.cx-r,y:sg.cy},{x:sg.cx+r,y:sg.cy}],[r,r],_mm2px(scLen),0.1); }
+    else if(sg.kind==='run'){ var cc=rev?sg.center.slice().reverse():sg.center,ctot=0,ci; for(ci=1;ci<cc.length;ci++) ctot+=Math.hypot(cc[ci].x-cc[ci-1].x,cc[ci].y-cc[ci-1].y); var nrun=Math.max(1,Math.round(ctot/runLen)); for(ci=0;ci<=nrun;ci++) segPts.push(_satinPointAt(cc,ci/nrun)); }
+    else { var cc2=rev?sg.center.slice().reverse():sg.center.slice(), hh2=rev?sg.hw.slice().reverse():sg.hw.slice(), eK0=rev?sg.endK1:sg.endK0, eK1=rev?sg.endK0:sg.endK1;
+      /* Satin aus echter Kontur (kein Faecher); Fallback aufs Mittellinien-Offset nur wenn keine Kontur.
+         endKinds [Anfang,Ende] passend zur (evtl. gedrehten) cc2 durchreichen -> Junction-Hebel-Drosselung. */
+      var cs=contour&&_satinByCrossSection(cc2,contour,_mm2px(scLen),hh2,[eK0,eK1],inInk);
+      /* Kein separater Edge-Walk noetig: der Boustrophedon-Satin (_pairSatinSectioned) fuehrt
+         seine Verbinder schon ENTLANG der Rails (Laufstich je ~0.8mm/Seite) = definiert die
+         Kante UND vermeidet die diagonalen Querstiche des Standard-Satins. */
+      segPts=(cs&&cs.stitches.length)?cs.stitches:_astSatinFromRail(cc2,hh2,_mm2px(scLen),scInset); }
+    if(!segPts||!segPts.length) continue;
+    if(out.length && prevEnd){
+      /* [Travel-Routing] zwischen Saeulen: kurzer Weg, der IM Ink bleibt -> Laufstich-
+         Travel (durchgehende Naht statt Sprung+Trim). Quert er die Punze/Aussenraum
+         oder ist weit -> Sprung. Reduziert Trims drastisch. [Recherche wnilfoi2r] */
+      var gx=segPts[0].x-prevEnd.x, gy=segPts[0].y-prevEnd.y, gd=Math.hypot(gx,gy);
+      /* GANZEN Weg abtasten, nicht nur die Mitte: ein Connector wird nur dann zum Laufstich-
+         Travel, wenn die GESAMTE gerade Strecke im Ink bleibt. Sonst (z.B. s-Beak unten-links
+         -> oben-rechts, dessen Mitte zufaellig die Taille trifft, dessen Viertelpunkte aber in
+         den offenen Buchten liegen) = Sprung+Trim statt sichtbarer Querstich. */
+      var inkWalk=true; if(contour){ var _ns=Math.max(2,Math.round(gd/_mm2px(0.35))), _ws; for(_ws=1;_ws<_ns;_ws++){ var _wf=_ws/_ns; if(!_ink(prevEnd.x+gx*_wf,prevEnd.y+gy*_wf)){ inkWalk=false; break; } } }
+      /* Connector nur als Laufstich wenn er IM Ink bleibt. Ausnahme nur fuer winzige <0.2mm
+         (koinzidente Junction-Punkte, queren nichts); ALLES darueber wird auf Loch-Querung
+         geprueft (feine 0.35mm-Abtastung) - sonst kleine Travels quer durchs e-Auge/Punze. */
+      var connect = gd<_mm2px(9) && (gd<_mm2px(0.2) || (contour && inkWalk));
+      if(connect){ var nt=Math.max(1,Math.round(gd/_mm2px(1.8))), tt; for(tt=1;tt<nt;tt++) out.push({x:prevEnd.x+gx*tt/nt, y:prevEnd.y+gy*tt/nt, travel:true}); }
+      else { /* wuerde quer springen -> TUCK-UNDER entlang der Kontur versuchen (Faden unter der Kante, unsichtbar).
+                Gate 20mm statt 9mm (2026-06-20, Lukas "abkuerzung unten beim t"): laengere Verbinder wie der
+                t-Boden->Querbalken (~15mm) werden so unter der Stamm-Kante versteckt statt als sichtbarer Sprung.
+                _contourUnderpath hat eigene Schutz-Limits (gleicher Loop, Bogen <20mm UND <3.5x Luftlinie, Enden
+                <2.5mm von der Kante) -> tuckt nur sinnvoll, sonst weiterhin Sprung. KEIN Risiko fuer Punzen-Querung. */
+        var up = (contour && gd<_mm2px(20)) ? _contourUnderpath(prevEnd, segPts[0], contour) : null;
+        if(up && up.length){ for(var up_i=0; up_i<up.length; up_i++) out.push(up[up_i]); }
+        else segPts[0]={x:segPts[0].x,y:segPts[0].y,jump:true};
+      }
+    }
+    for(var kk=0;kk<segPts.length;kk++) out.push(segPts[kk]);
+    prevEnd=segPts[segPts.length-1]; }
+  /* COVERAGE-BACKSTOP: unbedeckte Innenflaeche (Script-Loop-/Cap-Luecken) mit Fuell-Stichen schliessen. */
+  if(contour){ var _bs=_coverageBackstop(out, contour, _ink); if(_bs.length){ if(out.length) _bs[0]={x:_bs[0].x,y:_bs[0].y,jump:true}; for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
+  return out;
+}
+
+/* Einfache Scanline-Fuellung (fuer Version B Stichart=Fuellung). */
+function fillStitches(ext, spacingMM){
+  var mask=ext.mask, W=ext.W, H=ext.H, S=ext.S, pad=ext.pad; if(!mask) return [];
+  var padS=pad*S, stepPx=Math.max(2, Math.round(_mm2px(spacingMM)*S));
+  var stepStitch=Math.max(2, Math.round(_mm2px(2.0)*S));
+  function wx(mx){ return (mx-padS)/S; } function wy(my){ return (my-padS)/S; }
+  /* Boustrophedon (Schlangenlinie): Sprung nur bei ECHTER Luecke (Punze, weiter
+     Versatz), nicht bei jedem Zeilenwechsel - sonst entstehen hunderte Trims. */
+  /* gapPx MUSS groesser als der Zeilenabstand sein, sonst wird die Boustrophedon-Wende
+     faelschlich als Sprung markiert (Bug bei spacing>1.2mm, z.B. Unterlage 1.5mm -> jede
+     Zeile sprang). Sprung nur bei echter Punze-Querung (> 1.4x Zeilenabstand). */
+  var out=[],y,dir=1,lastP=null, gapPx=Math.max(_mm2px(1.2), _mm2px(spacingMM)*1.5);
+  for(y=0;y<H;y+=stepPx){
+    var runs=[],x,inRun=false,rs=0;
+    for(x=0;x<W;x++){ var on=mask[y*W+x]===1; if(on&&!inRun){ inRun=true; rs=x; } else if(!on&&inRun){ inRun=false; runs.push([rs,x-1]); } }
+    if(inRun) runs.push([rs,W-1]);
+    if(dir<0) runs.reverse();
+    for(var ri=0;ri<runs.length;ri++){ var a=runs[ri][0],b=runs[ri][1]; if(dir<0){ var t=a; a=b; b=t; }
+      var len=Math.abs(b-a), nst=Math.max(1,Math.round(len/stepStitch)), si;
+      for(si=0;si<=nst;si++){ var xx=a+(b-a)*(si/nst); var p={x:wx(xx),y:wy(y)};
+        /* Sprung NUR am Run-Anfang und nur bei echter Luecke (Punze) - der
+           Zeilenwechsel im Boustrophedon ist nur ~Zeilenabstand und bleibt verbunden. */
+        if(si===0 && lastP && Math.hypot(p.x-lastP.x,p.y-lastP.y) > gapPx) p.jump=true;
+        out.push(p); lastP=p; } }
+    dir=-dir; }
+  return out;
+}
+
+/* KONTUR-LAUFSTICH (Edge-Walk fuer FUELL-Glyphen): Laufstich entlang jeder Kontur-Schlaufe.
+   Definiert die Fuell-Kante scharf (wie der Satin-Edge-Walk) + schliesst die strukturelle
+   Kanten-Restluecke (die Round-Caps der Fuell-Reihen erreichen den Rand nicht ganz) + gibt den
+   dunklen Umriss, der die Fuell-Glyphen so dicht wie die Satin-Glyphen wirken laesst. */
+function _contourWalk(ext, runMM){
+  var out=[], runLen=_mm2px(runMM||2.2); if(!ext.contour) return out;
+  ext.contour.forEach(function(lp){ if(lp.length<2) return;
+    var cum=[0],i; for(i=1;i<lp.length;i++) cum[i]=cum[i-1]+Math.hypot(lp[i].x-lp[i-1].x,lp[i].y-lp[i-1].y); var tot=cum[lp.length-1]; if(tot<runLen) return;
+    var nr=Math.max(2,Math.round(tot/runLen));
+    for(i=0;i<=nr;i++){ var L=(i/nr)*tot, s=1; while(s<lp.length&&cum[s]<L)s++; var a=s-1,b=Math.min(s,lp.length-1),f=(L-cum[a])/((cum[b]-cum[a])||1); out.push({x:lp[a].x+(lp[b].x-lp[a].x)*f, y:lp[a].y+(lp[b].y-lp[a].y)*f, jump:(i===0)}); }
+  });
+  return out;
+}
+/* FEDER-FUELLUNG: die ganze Glyphe mit Stichen in EINER durchgehenden Richtung (Feder-
+   Winkel) fuellen - so wie eine Kalligraphie-Feder den Buchstaben in einem Zug zieht.
+   Loest das Verzweigungs-Problem an der Wurzel: alle Stiche parallel -> nichts clasht,
+   keine senkrechten Saeulen die sich an Junctions ueberkreuzen. Schraeg-Tatami per
+   Boustrophedon entlang d=(cos,sin) des Winkels, Zeilen um Pitch entlang der Normalen n. */
+function _angledFill(ext, spacingMM, angleDeg){
+  var mask=ext.mask, W=ext.W, H=ext.H, S=ext.S, padS=ext.pad*S, contour=ext.contour; if(!mask) return [];
+  var th=angleDeg*Math.PI/180, dx=Math.cos(th), dy=Math.sin(th), nx=-dy, ny=dx;
+  function wx(mx){return (mx-padS)/S;} function wy(my){return (my-padS)/S;}
+  var stepPx=Math.max(2,Math.round(_mm2px(spacingMM)*S)), stepStitch=Math.max(2,Math.round(_mm2px(2.5)*S));
+  var nmin=1e9,nmax=-1e9; [[0,0],[W,0],[0,H],[W,H]].forEach(function(c){ var s=c[0]*nx+c[1]*ny; if(s<nmin)nmin=s; if(s>nmax)nmax=s; });
+  var out=[],lineIdx=0,last=null,s;
+  for(s=nmin; s<=nmax; s+=stepPx){
+    var bx=s*nx, by=s*ny, tlo=-1e12, thi=1e12, ok=true;
+    if(Math.abs(dx)<1e-9){ if(bx<0||bx>W-1) ok=false; } else { var ta=(0-bx)/dx, tb=(W-1-bx)/dx; if(ta>tb){var tt0=ta;ta=tb;tb=tt0;} if(ta>tlo)tlo=ta; if(tb<thi)thi=tb; }
+    if(ok){ if(Math.abs(dy)<1e-9){ if(by<0||by>H-1) ok=false; } else { var tc=(0-by)/dy, td=(H-1-by)/dy; if(tc>td){var tt1=tc;tc=td;td=tt1;} if(tc>tlo)tlo=tc; if(td<thi)thi=td; } }
+    if(!ok||thi<=tlo){ lineIdx++; continue; }
+    var runs=[],inRun=false,rs=0,tI,lo=Math.floor(tlo),hi=Math.ceil(thi);
+    for(tI=lo;tI<=hi;tI++){ var mi=Math.round(bx+dx*tI), mj=Math.round(by+dy*tI);
+      var on=(mi>=0&&mj>=0&&mi<W&&mj<H&&mask[mj*W+mi]===1);
+      if(on&&!inRun){inRun=true;rs=tI;} else if(!on&&inRun){inRun=false;runs.push([rs,tI-1]);} }
+    if(inRun) runs.push([rs,hi]);
+    if(!runs.length){ lineIdx++; continue; }
+    if(lineIdx%2===1) runs.reverse();
+    runs.forEach(function(run,runIdx){ var a=run[0],b=run[1]; if(lineIdx%2===1){var t=a;a=b;b=t;}
+      var nst=Math.max(1,Math.round(Math.abs(b-a)/stepStitch)),si;
+      /* [Travel-Routing] Uebergang zur naechsten Zeile/zum naechsten Run: bleibt der Weg IM
+         Ink (Boustrophedon-Wende, Mehrfach-Kreuzung einer Schlaufe) -> per Laufstich verbinden
+         statt Sprung+Trim. Quert er ein Loch (Punze) oder ist weit -> Sprung. Wie beim Satin. */
+      var s0={x:wx(bx+dx*a),y:wy(by+dy*a)}, jumpFirst=false;
+      if(last){ var gx=s0.x-last.x, gy=s0.y-last.y, gd=Math.hypot(gx,gy), mid={x:(last.x+s0.x)/2,y:(last.y+s0.y)/2};
+        /* kleine Luecken (<2mm, konkave Kerbe) ueberbruecken statt springen; mittlere Wege
+           NUR wenn im Ink (Laufstich); grosse/Punze -> Sprung. */
+        if(gd<_mm2px(2.0) || (gd<_mm2px(7) && contour && _pointInLoops(mid.x,mid.y,contour))){ var nt=Math.max(1,Math.round(gd/_mm2px(1.8))),tt; for(tt=1;tt<nt;tt++) out.push({x:last.x+gx*tt/nt,y:last.y+gy*tt/nt,travel:true}); }
+        else jumpFirst=true; }
+      for(si=0;si<=nst;si++){ var ttv=a+(b-a)*(si/nst), p={x:wx(bx+dx*ttv),y:wy(by+dy*ttv)};
+        if(si===0&&jumpFirst) p.jump=true; out.push(p); last=p; } });
+    lineIdx++;
+  }
+  return out;
+}
+
+/* =====================================================================
+   Zeichensatz aus den aktiven Chip-Gruppen
+   ===================================================================== */
+function buildCharset(){
+  var s=state.sets, chars=[];
+  if(s.upper) for(var u=65;u<=90;u++) chars.push(String.fromCharCode(u));
+  if(s.lower) for(var l=97;l<=122;l++) chars.push(String.fromCharCode(l));
+  if(s.digits) for(var d=48;d<=57;d++) chars.push(String.fromCharCode(d));
+  if(s.umlaut) 'ÄÖÜäöüß'.split('').forEach(function(c){chars.push(c);});
+  if(s.punct) '.,!?-&@\'"():;/'.split('').forEach(function(c){chars.push(c);});
+  return chars;
+}
+
+/* =====================================================================
+   Metriken: Vorschub + Kerning (measureText, kein opentype.js)
+   ===================================================================== */
+function makeMeasureCtx(emPx){ var c=document.createElement('canvas'); c.width=1; c.height=1; var x=c.getContext('2d'); x.font=fontStr(emPx,1,false,false,state.font); x.fontKerning='normal'; return x; }
+
+/* =====================================================================
+   VERSION A: Inkstitch-Font-Paket (font.json + Varianten-SVG + ZIP)
+   ===================================================================== */
+function num(n){ return (Math.round(n*1000)/1000); }
+function ptsToD(pts){ if(!pts.length) return ''; var d='M '+num(pts[0].x)+','+num(pts[0].y); for(var i=1;i<pts.length;i++) d+=' L '+num(pts[i].x)+','+num(pts[i].y); return d; }
+
+function glyphLayerSvg(ch, toUnits, baseLocalY){
+  var inner='', empty=true;
+  function toU(p){ return { x:p.x*toUnits, y:(p.y-baseLocalY)*toUnits+BASELINE_UNITS }; }
+  var fontSizePx=A_EM_PX;
+  var ext=extractSegmentsCached(ch, fontSizePx);
+  /* Modus bei der ZIELGROESSE (state.sizeMM = size-Feld der font.json) entscheiden, NICHT bei
+     A_EM_PX: maxCurveRatio ist skalenabhaengig (Skelett-Aufloesung), sonst kippt z.B. Pacifico-s
+     zwischen Vorschau (fill) und Paket (satin). Geometrie bleibt bei A_EM_PX normiert. */
+  var mode=_resolveMode(extractSegmentsCached(ch, _mm2px(state.sizeMM)));
+
+  if(mode==='fill'){
+    var loops=marchingSquares(ext.mask, ext.W, ext.H);
+    if(loops.length){ var padS=ext.pad*ext.S; var d='';
+      loops.forEach(function(lp){ var p0=toU({x:(lp[0][0]-padS)/ext.S,y:(lp[0][1]-padS)/ext.S}); d+=' M '+num(p0.x)+','+num(p0.y);
+        for(var i=1;i<lp.length;i++){ var pi=toU({x:(lp[i][0]-padS)/ext.S,y:(lp[i][1]-padS)/ext.S}); d+=' L '+num(pi.x)+','+num(pi.y); } d+=' Z'; });
+      inner+='<path style="display:inline;fill:#000000" fill-rule="evenodd" d="'+d.trim()+'" inkstitch:fill_underlay="True"/>'; empty=false; }
+  } else {
+    var pull=state.pull, underlay=state.underlay, pitch=state.pitch;
+    ext.segs.forEach(function(sg){
+      if(sg.kind==='satin'){
+        var cs=_satinByCrossSection(sg.center, ext.contour, _mm2px(0.5), sg.hw, [sg.endK0, sg.endK1], ext.inInk);
+        if(!cs||cs.rail1.length<2){ var rrA=_astRailsFromCenter(sg.center, sg.hw); if(!rrA) return; cs={rail1:rrA.rail1, rail2:rrA.rail2}; }   /* Fallback: Segment nie lautlos aus dem Paket fallen lassen */
+        var r1=cs.rail1.map(toU), r2=cs.rail2.map(toU);
+        var d='M '+r1.map(function(p){return num(p.x)+','+num(p.y);}).join(' L ');
+        d+=' M '+r2.map(function(p){return num(p.x)+','+num(p.y);}).join(' L ');
+        var nR=Math.max(2, Math.round(cs.rail1.length/8));
+        for(var rr=0;rr<=nR;rr++){ var rf=0.08+0.84*(rr/nR), ri2=Math.round(rf*(cs.rail1.length-1)); var aR=toU(cs.rail1[ri2]),bR=toU(cs.rail2[ri2]); d+=' M '+num(aR.x)+','+num(aR.y)+' L '+num(bR.x)+','+num(bR.y); }
+        var attr='inkstitch:satin_column="True" inkstitch:zigzag_spacing_mm="'+num(pitch)+'"';
+        if(underlay) attr+=' inkstitch:contour_underlay="True"';
+        if(pull>0) attr+=' inkstitch:pull_compensation_mm="'+num(pull)+'"';
+        attr+=' inkstitch:split_method="staggered"';
+        inner+='<path style="display:inline;fill:none;stroke:#000000;stroke-width:0.3" d="'+d+'" '+attr+'/>'; empty=false;
+      } else if(sg.kind==='run'){
+        var cc=sg.center.map(toU); inner+='<path style="display:inline;fill:none;stroke:#000000;stroke-width:0.3" d="'+ptsToD(cc)+'" inkstitch:running_stitch_length_mm="2"/>'; empty=false;
+      } else if(sg.kind==='dot'){
+        var c=toU({x:sg.cx,y:sg.cy}), r=sg.r*toUnits;
+        inner+='<path style="display:inline;fill:#000000" d="M '+num(c.x-r)+','+num(c.y)+' a '+num(r)+','+num(r)+' 0 1,0 '+num(2*r)+',0 a '+num(r)+','+num(r)+' 0 1,0 '+num(-2*r)+',0 Z"/>'; empty=false;
+      }
+    });
+  }
+  var label=(ch===' ')?'space':ch;
+  return { svg:'<g inkscape:groupmode="layer" inkscape:label="GlyphLayer-'+escXml(label)+'" style="display:none">'+inner+'</g>', empty:empty };
+}
+
+function escXml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function buildPackage(){
+  var chars=buildCharset(); if(!chars.length){ log('Kein Zeichensatz gewaehlt.','err'); return null; }
+  var toUnits=UNITS_PER_EM/A_EM_PX;
+  var mctx=makeMeasureCtx(A_EM_PX);
+  var baseLocalY=A_EM_PX*1.05;
+  var layers='', horiz={}, advList=[], built=0, included=[], skipped=0;
+  chars.forEach(function(ch){
+    var g=glyphLayerSvg(ch, toUnits, baseLocalY);
+    if(g.empty){ skipped++; return; }   /* kein Ink: Schrift hat das Zeichen nicht (oder Leerzeichen) -> nicht ins Paket */
+    layers+=g.svg+'\n';
+    var adv=mctx.measureText(ch).width*toUnits; horiz[ch]=num(adv); advList.push(adv);
+    included.push(ch); built++;
+  });
+  /* Kerning per Differenz, nur eingebundene Glyphen. Inkstitch-Konvention:
+     POSITIV = enger ziehen (font.py: position.x += min_x - kerning). Browser-
+     measureText liefert fuer enge Paare eine NEGATIVE Differenz (klassischer
+     typografischer Kern) -> Vorzeichen drehen, sonst werden enge Paare auseinander-
+     geschoben. (Gegen barstitch_bold verifiziert: enge Latein-Paare sind positiv.) */
+  var kerning={}, kpairs=0;
+  for(var a=0;a<included.length;a++) for(var b=0;b<included.length;b++){
+    var ca=included[a], cb=included[b];
+    var k=-(mctx.measureText(ca+cb).width - mctx.measureText(ca).width - mctx.measureText(cb).width)*toUnits;
+    if(Math.abs(k)>=0.5){ kerning[ca+' '+cb]=num(k); kpairs++; }
+  }
+  advList.sort(function(x,y){return x-y;});
+  var advDefault=num(advList[Math.floor(advList.length/2)]||UNITS_PER_EM*0.6);
+  var spaceAdv=num(mctx.measureText(' ').width*toUnits || UNITS_PER_EM*0.25);
+  var sizeMM=state.sizeMM;
+  var fontName=state.font.replace(/[^\w\-]+/g,'_');
+  var variant='→'; /* → ltr */
+  var fontJson={
+    name: state.font, description: 'Erzeugt mit Vektortool Font-Builder (Auto-Satin)',
+    keywords:['satin','latin'], leading:128, auto_satin:false, reversible:false,
+    sortable:false, combine_at_sort_indices:[], letter_case:'', default_glyph:'?',
+    size:sizeMM, min_scale:0.5, max_scale:1.5,
+    horiz_adv_x_default:advDefault, horiz_adv_x_space:spaceAdv, units_per_em:UNITS_PER_EM,
+    horiz_adv_x:horiz, kerning_pairs:kerning, glyphs:included,
+    default_variant:variant, text_direction:'ltr'
+  };
+  var wmm=num(UNITS_PER_EM/PXMM);
+  var svg='<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'+
+    '<svg version="1.1" sodipodi:docname="'+variant+'.svg" width="'+wmm+'mm" height="'+wmm+'mm" '+
+    'viewBox="0 0 '+UNITS_PER_EM+' '+UNITS_PER_EM+'" '+
+    'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '+
+    'xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" '+
+    'xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" '+
+    'xmlns:inkstitch="http://inkstitch.org/namespace">\n'+layers+'</svg>\n';
+  return { fontName:fontName, variant:variant, fontJson:fontJson, svg:svg, built:built, total:chars.length, kpairs:kpairs, skipped:skipped };
+}
+
+/* ---- Minimaler STORE-ZIP-Writer (kein Dependency) ---- */
+var _crcTable=(function(){ var t=[],c,n,k; for(n=0;n<256;n++){ c=n; for(k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+function crc32(bytes){ var c=0xFFFFFFFF,i; for(i=0;i<bytes.length;i++) c=_crcTable[(c^bytes[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function strBytes(s){ return new TextEncoder().encode(s); }
+function makeZip(files){
+  /* files: [{name, data:Uint8Array}] - STORE (method 0) */
+  var chunks=[], central=[], offset=0;
+  function u16(n){ return [n&0xFF,(n>>>8)&0xFF]; }
+  function u32(n){ return [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF]; }
+  files.forEach(function(f){
+    var name=strBytes(f.name), data=f.data, crc=crc32(data);
+    /* General-Purpose-Bit-Flag mit Bit 11 (0x0800) = UTF-8-Dateiname (APPNOTE 4.4.4),
+       sonst wird "→.svg" in Entpackern zu Mojibake. In BEIDEN Headern identisch. */
+    var local=[].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0));
+    var head=new Uint8Array(local.length+name.length); head.set(local,0); head.set(name,local.length);
+    chunks.push(head); chunks.push(data);
+    var cen=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset));
+    var cd=new Uint8Array(cen.length+name.length); cd.set(cen,0); cd.set(name,cen.length); central.push(cd);
+    offset+=head.length+data.length;
+  });
+  var cenSize=0; central.forEach(function(c){cenSize+=c.length;});
+  var cenStart=offset;
+  var eocd=[].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(cenSize),u32(cenStart),u16(0));
+  var total=offset+cenSize+eocd.length, buf=new Uint8Array(total), pos=0;
+  chunks.forEach(function(c){ buf.set(c,pos); pos+=c.length; });
+  central.forEach(function(c){ buf.set(c,pos); pos+=c.length; });
+  buf.set(new Uint8Array(eocd),pos);
+  return buf;
+}
+function download(name, data, mime){ var blob=new Blob([data],{type:mime||'application/octet-stream'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},2000); }
+
+function exportPackage(mode){
+  var pkg=buildPackage(); if(!pkg) return;
+  var jsonStr=JSON.stringify(pkg.fontJson,null,2);
+  if(mode==='json'){ download('font.json', strBytes(jsonStr),'application/json'); log('font.json exportiert ('+pkg.total+' Glyphen, '+pkg.kpairs+' Kerning-Paare)','ok'); return; }
+  if(mode==='svg'){ download(pkg.variant+'.svg', strBytes(pkg.svg),'image/svg+xml'); log('Varianten-SVG exportiert ('+pkg.built+'/'+pkg.total+' Glyphen gezeichnet)','ok'); return; }
+  var lic='Erzeugt mit Vektortool Font-Builder.\nSchrift-Geometrie: CC BY-NC 4.0 / Lizenz der Originalschrift beachten.\n';
+  var dir=pkg.fontName+'/';
+  var zip=makeZip([
+    {name:dir+'font.json', data:strBytes(jsonStr)},
+    {name:dir+pkg.variant+'.svg', data:strBytes(pkg.svg)},
+    {name:dir+'LICENSE', data:strBytes(lic)}
+  ]);
+  download(pkg.fontName+'.zip', zip, 'application/zip');
+  log('ZIP exportiert: '+pkg.fontName+'/  ('+pkg.built+'/'+pkg.total+' Glyphen, '+pkg.kpairs+' Kerning-Paare'+(pkg.skipped?', '+pkg.skipped+' fehlend uebersprungen':'')+')','ok');
+}
+
+/* =====================================================================
+   VERSION B: direkter Stick-Export (Wort -> Stiche -> DST)
+   ===================================================================== */
+function wordStitches(){
+  var text=state.text||''; if(!text.trim()) return [];
+  var fontSizePx=_mm2px(state.sizeMM);
+  /* Pro Glyph: eigener Vorschub (measureText) + eigene Satin/Fuellung-Entscheidung.
+     So mischt ein Wort sauber (Pacifico-Bowls gefuellt, Staemme satiniert) statt
+     dass eine einzige gekruemmte Bowl das ganze Wort auf Fuellung zieht. */
+  var mctx=makeMeasureCtx(fontSizePx);
+  var penX=0, all=[], allG=[], ci, k;
+  for(ci=0; ci<text.length; ci++){
+    var ch=text[ci];
+    if(ch===' '){ penX+=mctx.measureText(' ').width; continue; }
+    var ext=extractSegmentsCached(ch, fontSizePx), sp=Math.max(0.35,state.pitch);
+    var pts = state.stitch==='pen' ? _angledFill(ext, sp, state.penAngle)
+            : state.stitch==='pencross' ? (function(){ var f1=_angledFill(ext,sp,state.penAngle), f2=_angledFill(ext,sp,state.penAngle+90); if(f2[0]) f2[0].jump=true; return f1.concat(f2); })()
+            : (_resolveMode(ext)==='fill' ? _tatamiContourFill(ext.contour, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 }) : segsToStitches(ext.segs, state.pitch, ext.contour, ext.inInk));   /* Fuell-Reihen ~0.26mm = Dichte ~4.7 matcht den Boustrophedon-Satin. */
+    /* KEIN Satin-Backing mehr (Boustrophedon-Satin deckt selbst, Backing war unnoetig - spart
+       ~16% Stiche). FUELL-Glyphen behalten den Kontur-Edge-Walk (definiert die Fuell-Kante +
+       schliesst die Kanten-Restluecke; keine Backing-Unterlage, sondern Teil der Fuell-Qualitaet,
+       darum immer an). */
+    /* Kontur-Laufstich um JEDEN Glyphen (Satin+Fill) = zieht alle Kanten scharf, speziell die
+       welligen Serifen-Fuss-Unterkanten. Edge-Definition (kein Fuell-Backing). An den
+       „Unterlage"-Schalter gebunden: Default an = scharfe Serifen/Kanten (+~25% Stiche), aus =
+       minimal (Boustrophedon-Satin deckt selbst). */
+    if(state.underlay){ var ud=_contourWalk(ext, 1.5);
+      if(ud.length){ ud[0]=Object.assign({},ud[0],{jump:true}); if(pts.length) pts[0]=Object.assign({},pts[0],{jump:true}); pts=ud.concat(pts); } }
+    for(k=0;k<pts.length;k++) all.push({ x:pts[k].x+penX, y:pts[k].y, jump:(k===0)||!!pts[k].jump, travel:!!pts[k].travel });   /* travel-Flag BEHALTEN -> Verbinder/Tuck-under bleiben Laufstiche (im Realbild ungezeichnet=unsichtbar, im DST als Naht da) */
+    if(ext.contour){ var _gp=penX, _gl=ext.contour.map(function(lp){ return lp.map(function(p){ return {x:p.x+_gp, y:p.y}; }); }), _b=[1e9,1e9,-1e9,-1e9]; _gl.forEach(function(lp){ lp.forEach(function(p){ if(p.x<_b[0])_b[0]=p.x; if(p.y<_b[1])_b[1]=p.y; if(p.x>_b[2])_b[2]=p.x; if(p.y>_b[3])_b[3]=p.y; }); }); allG.push({bb:_b, loops:_gl}); }
+    penX += mctx.measureText(ch).width;
+  }
+  /* MIKRO-STICH-FILTER: nur ECHT-degenerierte Punkte <0.2mm vom vorigen BEHALTENEN zusammenfassen.
+     Schwelle bewusst 0.2 (nicht 0.3): bei 0.3 frass der Filter die LEGITIMEN Boustrophedon-Satin-
+     Kantenstiche (Verbinder entlang der Schiene ~Pitch) -> jede entfernte Verbindung loescht eine
+     ganze Rung UND macht einen Diagonalstich = Dichte bei ~10% Luecke gedeckelt + erratisch. Mit
+     0.2 bleiben die Kantenstiche (0.2-0.35mm sind normaler dichter Satin, Bernina-tauglich), nur
+     wirklich koinzidente <0.2mm-Sliver (Sektionierungs-/Junction-Artefakte) fallen weg -> Deckungs-
+     luecke faellt von ~10% auf <1% (Workflow satin-dichte-verify: deg=0 ueber 6 Fonts x 4 Groessen,
+     Fill 9-10%->0.4-0.7%, Times-Glyphen alle dichter, keine Regression). Sprung-Punkte IMMER
+     behalten (Trim/Jump). [[satin-lettering-professional]] Stichabstand 0.3-0.45 kommerziell. */
+  var minD=_mm2px(0.2), filtered=[], lastK=null, fi;
+  for(fi=0;fi<all.length;fi++){ var fp=all[fi];
+    if(fp.jump || !lastK || Math.hypot(fp.x-lastK.x,fp.y-lastK.y)>=minD){ filtered.push(fp); lastK=fp; } }
+  /* AUSSTANZ-FIX (Lukas „rote elemente wegiterieren", 2026-06-16): kein Faden >0.27mm ueber die Kontur,
+     OHNE die schoene Geometrie umzubauen. Pro Glyph-Kontur (allG, bbox-vorgefiltert): (1) jeder Punkt
+     >0.27mm aussen (Overshoot/Kamm-Spitze) -> auf die naechste Kontur-Innenseite snappen = Stich bleibt,
+     nur die Spitze wird getrimmt (KEINE Luecke). (2) Stich-MITTE noch >0.27mm aussen (quert ein Loch/
+     Konkavitaet, z.B. e-Auge) -> Sprung (kein Faden ueber dem Loch). */
+  if(allG.length){
+    var _tolO=_mm2px(0.27), _tolSnap=_mm2px(0.15), _ins=_mm2px(0.06);
+    /* Projektion: naechste Kontur-Kante zu (x,y). d=0 wenn innen (even-odd), sonst Distanz + Fusspunkt
+       (qx,qy). EINE Berechnung statt Ring-Suche = schnell. bbox-Vorfilter. */
+    var _proj=function(x,y){ var best=1e9,qx=x,qy=y,gi; for(gi=0;gi<allG.length;gi++){ var G=allG[gi],bb=G.bb; if(x<bb[0]-_tolO-2||x>bb[2]+_tolO+2||y<bb[1]-_tolO-2||y>bb[3]+_tolO+2) continue; var ins=false,L=G.loops,li; for(li=0;li<L.length;li++) if(_pointInLoops(x,y,[L[li]])) ins=!ins; if(ins) return {d:0}; for(li=0;li<L.length;li++){ var lp=L[li],kk; for(kk=0;kk<lp.length;kk++){ var a=lp[kk],b=lp[(kk+1)%lp.length],ex=b.x-a.x,ey=b.y-a.y,L2=ex*ex+ey*ey,tt=L2>0?((x-a.x)*ex+(y-a.y)*ey)/L2:0; tt=tt<0?0:(tt>1?1:tt); var px=a.x+ex*tt,py=a.y+ey*tt,dd=Math.hypot(x-px,y-py); if(dd<best){best=dd;qx=px;qy=py;} } } } return {d:best,qx:qx,qy:qy}; };
+    /* (1) Jeder Punkt >0.15mm aussen (Overshoot/Kamm-Spitze) -> entlang der Innen-Normalen auf 0.06mm
+       INNERHALB der Kante setzen. Feiner als die 0.27mm-Rot-Schwelle: zieht auch die KLEINEN Kamm-
+       Spitzen buendig an die Kante = glatter Rand, KEINE Luecke. [Lukas „nur noch ganz wenig kamm"] */
+    var _q; for(_q=0;_q<filtered.length;_q++){ var P=filtered[_q]; if(P.jump) continue; var pr=_proj(P.x,P.y); if(pr.d>_tolSnap){ var dx=pr.qx-P.x, dy=pr.qy-P.y, dl=Math.hypot(dx,dy)||1; P.x=pr.qx+dx/dl*_ins; P.y=pr.qy+dy/dl*_ins; } }
+    /* (2) Stich-MITTE noch >0.27mm aussen (Loch/Konkavitaet-Querung, z.B. e-Auge) -> Sprung. */
+    for(_q=1;_q<filtered.length;_q++){ var A=filtered[_q-1], B=filtered[_q]; if(A.jump||B.jump) continue; var _bad=false,_s2; for(_s2=0;_s2<=6;_s2++){ var _f=_s2/6; if(_proj(A.x+(B.x-A.x)*_f,A.y+(B.y-A.y)*_f).d>_tolO){ _bad=true; break; } } if(_bad) B.jump=true; }
+  }
+  return filtered;
+}
+function textToStitches(opts){
+  opts=opts||{};
+  state.font=opts.fontFamily||'Nunito'; state.text=String(opts.text||'');
+  state.sizeMM=_px2mm(opts.fontSizePx||_mm2px(20));
+  state.bold=!!opts.bold; state.italic=!!opts.italic;
+  state.pitch=isFinite(opts.pitchMM)?opts.pitchMM:0.3; state.stitch='satin'; state.underlay=false;
+  try{ if(typeof _segCache!=='undefined'){ for(var k in _segCache) delete _segCache[k]; } }catch(e){}
+  var r=wordStitches();
+  return r||[];
+}
+return { textToStitches:textToStitches, _mm2px:_mm2px, _px2mm:_px2mm };
+})();
+
+</script>
 </body>
 </html>
