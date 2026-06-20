@@ -29289,8 +29289,22 @@ function _stitchMiterBandPoints(shape, pitchMM) {
      der Innenbogen mehr Einstiche -> der Kurzstich-Ausgleich verteilt sie sauber
      (= aussen dichter, innen gleichmaessig wie an der Gehrung). Auf Geraden sind beide
      Rails gleich lang -> Verhalten wie zuvor. */
+  /* [tip-merge v1] An scharfen Umkehrungen (U-/V-Tal) fuehrt der Zickzack die Stiche
+     zum Mittellinien-Apex zusammen und startet die Alternation NEU. Ohne das kippt am
+     Knick die Rail-Seite (linke/rechte Rail tauschen physisch), der Zickzack verbindet
+     quer ueber die Bahn = das unregelmaessige Gewirr am Tal. Schwelle wie der
+     Verjuengt-Taper (>~110 Grad). */
+  var _revAt = new Array(n);
+  if (!closed) {
+    for (var rv = 1; rv < n - 1; rv++) {
+      var _r1x = P[rv].x - P[rv-1].x, _r1y = P[rv].y - P[rv-1].y, _rl1 = Math.hypot(_r1x, _r1y) || 1;
+      var _r2x = P[rv+1].x - P[rv].x, _r2y = P[rv+1].y - P[rv].y, _rl2 = Math.hypot(_r2x, _r2y) || 1;
+      if ((_r1x*_r2x + _r1y*_r2y) / (_rl1*_rl2) < -0.34) _revAt[rv] = true;
+    }
+  }
   var acc = 0; /* zurueckgelegte Distanz auf dem Takt-Rail seit letztem Einstich */
   for (var i = 0; i < EC; i++) {
+    if (_revAt[i]) { pts.push({ x: P[i].x, y: P[i].y }); side = 0; acc = 0; lastFullI = null; lastFullO = null; } /* [tip-merge v1] Apex: zusammenfuehren + Alternation neu starten */
     var j = closed ? (i + 1) % n : (i + 1);
     var _segO = Math.hypot(O[j].x - O[i].x, O[j].y - O[i].y);
     var _segI = Math.hypot(I[j].x - I[i].x, I[j].y - I[i].y);
