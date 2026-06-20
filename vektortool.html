@@ -29281,7 +29281,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
      geraden Kanten ist der Rail-Abstand ~2x pitch > minSpace -> kein Eingriff. */
   var pts = [], side = 0;
   var lastFullI = null, lastFullO = null;
-  var minSpace = pitchPx * 1.15, shortF = 0.4; /* [satin-graduell v1] Kurzstich erst bei echter Enge (~Pitch), nicht vorsorglich (Lukas: keine Vorkehrung ohne Ueberlappung) - mehr Rhythmus. Kurzstich erreicht 60% Richtung Innenkante */
+  var minSpace = _mm2px(0.4), shortF = 0.4; /* [satin-touch v1] Kurzstich ERST, wenn sich die Einstich-Endpunkte auf derselben Rail beruehren (absoluter Faden-/Lochabstand ~0.4mm), NICHT pitch-vorsorglich (Lukas). Sonst voller, regelmaessiger Rhythmus. Kurzstich erreicht 60% Richtung Innenkante */
   /* [satin-curve-dichte v1] Einstiche im Pitch-Abstand entlang des LAENGEREN Rails
      (aussen auf Kurven) setzen, mit Rest-Uebertrag ueber Kanten (kein Pro-Kante-
      Rundungsverlust - das war der Grund, warum eine reine round(seg/pitch)-Aenderung
