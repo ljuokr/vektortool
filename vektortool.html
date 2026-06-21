@@ -29358,57 +29358,90 @@ function _stitchMiterBandPoints(shape, pitchMM) {
       }
     }
   }
+  /* [tip-rail-cap v1] An scharfen UMKEHR-Spitzen schiesst die O/I-Rail per Miter ueber
+     den Spitzenpunkt hinaus (= Blob). Recherche: Rail-Extension/Clip statt Miter-
+     Ueberschuss. Rail-Punkte JENSEITS der Spitze (laengs Auswaerts-Richtung u =
+     d_in-d_out, Kappenlinie durch den Extrempunkt im Fenster) auf die Spitze
+     projizieren -> Band laeuft voll bis zur Spitze, aber nicht drueber. VOR dem Walk. */
+  (function () {
+    if (n < 3) return;
+    var scp = new Array(n); scp[0] = 0;
+    for (var icc = 1; icc < n; icc++) scp[icc] = scp[icc - 1] + Math.hypot(P[icc].x - P[icc - 1].x, P[icc].y - P[icc - 1].y);
+    var winp = width * 0.7;
+    for (var t = (closed ? 0 : 1); t < (closed ? n : n - 1); t++) {
+      var pv = t, nv = t;
+      while (pv > 0 && scp[t] - scp[pv] < winp) pv--;
+      while (nv < n - 1 && scp[nv] - scp[t] < winp) nv++;
+      if (pv === t || nv === t) continue;
+      var tp1 = Math.min(pv + 1, n - 1), tp0 = Math.max(pv - 1, 0), tq1 = Math.min(nv + 1, n - 1), tq0 = Math.max(nv - 1, 0);
+      var dix = P[tp1].x - P[tp0].x, diy = P[tp1].y - P[tp0].y, dil = Math.hypot(dix, diy) || 1; dix /= dil; diy /= dil;
+      var dox = P[tq1].x - P[tq0].x, doy = P[tq1].y - P[tq0].y, dol = Math.hypot(dox, doy) || 1; dox /= dol; doy /= dol;
+      if (dix * dox + diy * doy > -0.5) continue; /* nur scharfe Umkehr-Spitzen (>120°) */
+      var ux = dix - dox, uy = diy - doy, ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;
+      var Tx = P[t].x, Ty = P[t].y, bestP = Tx * ux + Ty * uy;
+      for (var qe = pv; qe <= nv; qe++) { var pr = P[qe].x * ux + P[qe].y * uy; if (pr > bestP) { bestP = pr; Tx = P[qe].x; Ty = P[qe].y; } }
+      for (var q = pv; q <= nv; q++) {
+        var pjo = (O[q].x - Tx) * ux + (O[q].y - Ty) * uy; if (pjo > 0) O[q] = { x: O[q].x - pjo * ux, y: O[q].y - pjo * uy };
+        var pji = (I[q].x - Tx) * ux + (I[q].y - Ty) * uy; if (pji > 0) I[q] = { x: I[q].x - pji * ux, y: I[q].y - pji * uy };
+      }
+    }
+  })();
   var pitchPx = (typeof _mm2px === 'function') ? _mm2px(pitchMM) : (pitchMM * 3.7795);
   if (!(pitchPx > 0.3)) pitchPx = 0.75;
-  /* [kurzstiche v2] Profi „Short Stitches" (Stichausgleich) - abstandsbasiert.
-     Auf der gestauchten Innenseite einer Kurve liegen die VOLLEN Einstiche einer
-     Rail zu dicht (Stau/Faecher). Loesung: pro Rail die letzte VOLLE Position
-     merken; liegt der naechste Einstich naeher als `minSpace`, wird er VERKUERZT
-     (Richtung Gegen-Rail eingezogen) und zaehlt NICHT als neue volle Position. So
-     bleiben die vollen Einstiche an der Innenkante immer >= minSpace auseinander
-     (kein Stau), die Kurzstiche dazwischen verteilen die Dichte (Saegezahn). Auf
-     geraden Kanten ist der Rail-Abstand ~2x pitch > minSpace -> kein Eingriff. */
-  var pts = [], side = 0;
-  var lastFullI = null, lastFullO = null;
-  var minSpace = pitchPx * 1.7, shortF = 0.4; /* Kurzstich erreicht 60% Richtung Innenkante */
-  /* [satin-curve-dichte v1] Einstiche im Pitch-Abstand entlang des LAENGEREN Rails
-     (aussen auf Kurven) setzen, mit Rest-Uebertrag ueber Kanten (kein Pro-Kante-
-     Rundungsverlust - das war der Grund, warum eine reine round(seg/pitch)-Aenderung
-     nichts brachte). So bekommt der Aussenbogen vollen Pitch (keine Luecken/zu duenn),
-     der Innenbogen mehr Einstiche -> der Kurzstich-Ausgleich verteilt sie sauber
-     (= aussen dichter, innen gleichmaessig wie an der Gehrung). Auf Geraden sind beide
-     Rails gleich lang -> Verhalten wie zuvor. */
-  var acc = 0; /* zurueckgelegte Distanz auf dem Takt-Rail seit letztem Einstich */
-  for (var i = 0; i < EC; i++) {
-    var j = closed ? (i + 1) % n : (i + 1);
-    var _segO = Math.hypot(O[j].x - O[i].x, O[j].y - O[i].y);
-    var _segI = Math.hypot(I[j].x - I[i].x, I[j].y - I[i].y);
-    var driveLen = Math.max(_segO, _segI, 1e-6); /* laengerer Rail = Dichte-Taktgeber */
-    var dpos = 0;
-    while (acc + (driveLen - dpos) >= pitchPx) {
-      dpos += (pitchPx - acc); acc = 0;
-      var t = dpos / driveLen;
-      var ox = O[i].x + (O[j].x - O[i].x) * t, oy = O[i].y + (O[j].y - O[i].y) * t;
-      var ix = I[i].x + (I[j].x - I[i].x) * t, iy = I[i].y + (I[j].y - I[i].y) * t;
-      if (side) { /* Aussen-Rail O */
-        if (lastFullO && Math.hypot(ox - lastFullO.x, oy - lastFullO.y) < minSpace) {
-          pts.push({ x: ox + (ix - ox) * shortF, y: oy + (iy - oy) * shortF }); /* Kurzstich, lastFull bleibt */
-        } else {
-          pts.push({ x: ox, y: oy }); lastFullO = { x: ox, y: oy };
-        }
-      } else { /* Innen-Rail I */
-        if (lastFullI && Math.hypot(ix - lastFullI.x, iy - lastFullI.y) < minSpace) {
-          pts.push({ x: ix + (ox - ix) * shortF, y: iy + (oy - iy) * shortF });
-        } else {
-          pts.push({ x: ix, y: iy }); lastFullI = { x: ix, y: iy };
-        }
-      }
-      side ^= 1;
-    }
-    acc += (driveLen - dpos);
+  /* [dual-rail-walk v1] Inkstitch-Methode (recherchiert, satin_column.py): NICHT
+     matched-fraction-Zickzack (= 50°-Schraeglauf), sondern DUAL-RAIL-WALK: Stichzahl
+     aus der LAENGEREN Rail, Cursor synchron normiert ueber beide Rails, 2-Pass-
+     Abstandsrevision senkrecht zum Vorstich (Aussenkante taktet). Rungs ~senkrecht;
+     an Spitzen faellt die Stichzahl automatisch (Bogenlaenge schrumpft); Schluss-Stich
+     auf die Rail-Enden; Short-Stitch-Saegezahn pro Rail gegen Stau an der Innenkurve. */
+  var cumO = new Array(n), cumI = new Array(n);
+  cumO[0] = 0; cumI[0] = 0;
+  for (var ic = 1; ic < n; ic++) {
+    cumO[ic] = cumO[ic - 1] + Math.hypot(O[ic].x - O[ic - 1].x, O[ic].y - O[ic - 1].y);
+    cumI[ic] = cumI[ic - 1] + Math.hypot(I[ic].x - I[ic - 1].x, I[ic].y - I[ic - 1].y);
   }
-  var lastIdx = closed ? 0 : (n - 1);
-  if (pts.length) pts.push(side ? { x: O[lastIdx].x, y: O[lastIdx].y } : { x: I[lastIdx].x, y: I[lastIdx].y });
+  var lenO = cumO[n - 1], lenI = cumI[n - 1];
+  if (closed) { lenO += Math.hypot(O[0].x - O[n - 1].x, O[0].y - O[n - 1].y); lenI += Math.hypot(I[0].x - I[n - 1].x, I[0].y - I[n - 1].y); }
+  var _railAt = function (rail, cum, total, frac) {
+    var s = Math.max(0, Math.min(1, frac)) * total, k = 0;
+    while (k < n - 1 && cum[k + 1] < s) k++;
+    if (k >= n - 1) {
+      if (closed) { var sl = total - cum[n - 1], tt = sl > 1e-9 ? (s - cum[n - 1]) / sl : 0; return { x: rail[n - 1].x + (rail[0].x - rail[n - 1].x) * tt, y: rail[n - 1].y + (rail[0].y - rail[n - 1].y) * tt }; }
+      return { x: rail[n - 1].x, y: rail[n - 1].y };
+    }
+    var sl2 = cum[k + 1] - cum[k], t2 = sl2 > 1e-9 ? (s - cum[k]) / sl2 : 0;
+    return { x: rail[k].x + (rail[k + 1].x - rail[k].x) * t2, y: rail[k].y + (rail[k + 1].y - rail[k].y) * t2 };
+  };
+  var num = Math.max(1, Math.round(Math.max(lenO, lenI) / pitchPx));
+  var rungs = [];
+  var cursor = 0, oldO = _railAt(O, cumO, lenO, 0), oldI = _railAt(I, cumI, lenI, 0);
+  rungs.push({ o: oldO, i: oldI });
+  var to_travel = 1 / num, guard = 0, pO, pI;
+  while (cursor + to_travel <= 1 + 1e-9 && guard < num * 4 + 20) {
+    guard++;
+    for (var it = 0; it < 2; it++) {
+      var c2 = Math.min(cursor + to_travel, 1);
+      pO = _railAt(O, cumO, lenO, c2); pI = _railAt(I, cumI, lenI, c2);
+      var rdx = oldI.x - oldO.x, rdy = oldI.y - oldO.y, rl = Math.hypot(rdx, rdy) || 1, nx = -rdy / rl, ny = rdx / rl;
+      var dd = Math.max(Math.abs((pO.x - oldO.x) * nx + (pO.y - oldO.y) * ny), Math.abs((pI.x - oldI.x) * nx + (pI.y - oldI.y) * ny));
+      if (dd > 0.01 && Math.abs(pitchPx - dd) / pitchPx > 0.05) { to_travel = (pitchPx / dd) * to_travel; if (it === 0) to_travel = Math.min(to_travel, 1 - cursor); continue; }
+      break;
+    }
+    cursor = Math.min(cursor + to_travel, 1);
+    rungs.push({ o: pO, i: pI }); oldO = pO; oldI = pI; to_travel = 1 / num;
+    if (cursor >= 1 - 1e-9) break;
+  }
+  var _mmpx = (typeof _mm2px === 'function') ? _mm2px(1) : 3.7795;
+  var endO = _railAt(O, cumO, lenO, 1), endI = _railAt(I, cumI, lenI, 1), lr = rungs[rungs.length - 1];
+  if (Math.hypot(lr.o.x - endO.x, lr.o.y - endO.y) > 0.1 * _mmpx || Math.hypot(lr.i.x - endI.x, lr.i.y - endI.y) > 0.1 * _mmpx) rungs.push({ o: endO, i: endI });
+  var pts = [];
+  var shortDist = 0.25 * _mmpx, insetD = [0.15, 0.30, 0.45], lfO = null, lfI = null, ixO = 0, ixI = 0;
+  for (var r = 0; r < rungs.length; r++) {
+    var ro = rungs[r].o, ri = rungs[r].i, oo = ro, ii = ri;
+    if (lfO && Math.hypot(ro.x - lfO.x, ro.y - lfO.y) < shortDist) { var fO = insetD[Math.min(ixO, 2)]; oo = { x: ro.x + (ri.x - ro.x) * fO, y: ro.y + (ri.y - ro.y) * fO }; ixO++; } else { lfO = ro; ixO = 0; }
+    if (lfI && Math.hypot(ri.x - lfI.x, ri.y - lfI.y) < shortDist) { var fI = insetD[Math.min(ixI, 2)]; ii = { x: ri.x + (ro.x - ri.x) * fI, y: ri.y + (ro.y - ri.y) * fI }; ixI++; } else { lfI = ri; ixI = 0; }
+    if (r % 2 === 0) { pts.push(oo); pts.push(ii); } else { pts.push(ii); pts.push(oo); }
+  }
   /* [stichteilung v1] Lange Satin-Stiche (breites Band) teilen: kein Stich > ~6 mm.
      Sonst schlaufen/haengen die Faeden. Mittel-Einstiche gestaffelt (ungerade Legs
      versetzt), damit keine sichtbare Mittelnaht entsteht (= Profi-„split satin",
@@ -34259,6 +34292,41 @@ function _calcTextSatinStitch(shape, opts, bowlFill) {
   for (k = 0; k < raw.length; k++) out.push({ x: raw[k].x + dx, y: raw[k].y + dy, jump: !!raw[k].jump });
   return out;
 }
+/* [seam-merge v1] Dichte, nahezu KOLLINEARE Kurzstich-Laeufe (die Scanline-"Treppe"
+   an flach/steil angeschnittenen Kanten) auf Stichlaenge resampeln: gleicher Pfad,
+   weniger Einstiche. Strenges Gate (sehr kurz UND sehr gerade) -> Kurven und normale
+   Reihen bleiben unberuehrt, nur die Treppe wird zusammengefasst. Keine neuen
+   Spruenge (jump/_travel-Grenzen werden respektiert). */
+function _thinCollinearShortRun(pts, shortPx, stepPx, devPx) {
+  if (!pts || pts.length < 6) return pts;
+  var out = [pts[0]];
+  var i = 1;
+  while (i < pts.length) {
+    var p = pts[i], q = pts[i - 1];
+    if (p.jump || p._travel || q.jump) { out.push(p); i++; continue; }
+    var j = i;
+    while (j < pts.length && !pts[j].jump && !pts[j]._travel &&
+           Math.hypot(pts[j].x - pts[j - 1].x, pts[j].y - pts[j - 1].y) < shortPx) j++;
+    var endIdx = j - 1;
+    if (endIdx - (i - 1) >= 5) {
+      var a = pts[i - 1], b = pts[endIdx];
+      var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
+      if (L > stepPx) {
+        var nx = -dy / L, ny = dx / L, maxd = 0;
+        for (var k = i; k < endIdx; k++) { var dd = Math.abs((pts[k].x - a.x) * nx + (pts[k].y - a.y) * ny); if (dd > maxd) maxd = dd; }
+        if (maxd <= devPx) {
+          var n = Math.max(1, Math.ceil(L / stepPx));
+          for (var m = 1; m <= n; m++) { var t = m / n; out.push({ x: a.x + dx * t, y: a.y + dy * t }); }
+          i = endIdx + 1;
+          continue;
+        }
+      }
+    }
+    out.push(p); i++;
+  }
+  return out;
+}
+
 function _calcFillStitch(shape, opts) {
   try {
     if (shape && shape.type === 'text') {
@@ -34331,6 +34399,9 @@ function _calcFillStitch(shape, opts) {
     /* 15mm-Sicherheit für ALLE Modi: degenerierte sehr lange Stiche → Sprung. */
     var _jl = _mm2px(STITCH_LIMITS.jumpSafetyMM); /* [VT-STITCH-O15 v1] war 15 */
     for (var _pj = 1; _pj < pts.length; _pj++) { if (!pts[_pj].jump && !pts[_pj - 1].jump && Math.hypot(pts[_pj].x - pts[_pj - 1].x, pts[_pj].y - pts[_pj - 1].y) > _jl) pts[_pj] = { x: pts[_pj].x, y: pts[_pj].y, jump: true }; }
+    /* [seam-merge v1] Kurzstich-"Treppe" an flach angeschnittenen Kanten verdichten. */
+    var _smStep = _mm2px(Math.max(1.5, Math.min(3, (opts && isFinite(opts.stitchLength)) ? opts.stitchLength : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.stitchLength)) ? shape.stitch.params.stitchLength : 3))));
+    try { pts = _thinCollinearShortRun(pts, _mm2px(0.85), _smStep, _mm2px(0.3)); } catch(esm){console.warn('[vt:swallowed]',esm)}
     return pts;
   } catch (e) {
     /* [VT-STITCH-F9 v1] Vorher stiller Totalausfall (return []): warf V7 eine
