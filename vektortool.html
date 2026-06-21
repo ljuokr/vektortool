@@ -973,7 +973,7 @@ body.hero-collapsed #rpanel .panel-hero.panel-hero-info { display:none !importan
 .rp-row label { font-size:var(--fs-sm); color:var(--fg2); min-width:50px; }
 .rp-row input[type=range] { flex:1; }
 .rp-row .val { font-size:var(--fs-sm); font-weight:700; min-width:24px; text-align:right; }
-.rp-info { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; border:1px solid var(--fg3); color:var(--fg3); font-size:var(--fs-2xs); font-weight:700; font-style:italic; font-family:Georgia,serif; cursor:help; flex-shrink:0; line-height:1; user-select:none; -webkit-user-select:none; }
+.rp-info { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; border:1px solid var(--fg3); color:var(--fg3); font-size:var(--fs-2xs); font-weight:700; font-style:italic; font-family:Georgia,serif; cursor:help; flex-shrink:0; line-height:1; user-select:text; -webkit-user-select:text; }
 .rp-info:hover { color:var(--ac); border-color:var(--ac); }
 .rp-row label { display:flex; align-items:center; gap:var(--space-2); }
 #hintBox { display:none; }
@@ -1986,7 +1986,7 @@ body.layer-panel-open #rsActions { display:none !important; }
 	           localStorage. Negativer Margin kompensiert das var(--space-5)-Padding
 	           der .stitch-content, damit der Titel-Balken buendig/full-bleed wie
 	           "Globale Parameter" sitzt. -->
-	      <h3 id="stitchOrderTitle" title="Stickreihenfolge ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);margin:calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-4);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:none;"><span id="soCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Stickreihenfolge</span></h3>
+	      <h3 id="stitchOrderTitle" title="Stickreihenfolge ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);margin:calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-4);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:text;"><span id="soCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Stickreihenfolge</span></h3>
 	      <!-- VT-STICKBEGRIFFE v1: Kurzhinweis Stichtyp-Automatik (Lukas: statt Automatik-Karten im Hilfe-Overlay). Dismiss merkt sich localStorage. -->
 	      <!-- [VT-UIFIX v1] Infobox "Stichtyp automatisch: …" entfernt (Lukas) -->
 	      	      <div id="stitchOrder">
@@ -7977,7 +7977,7 @@ function _mapSvgPathPointToSource(s, x, y) {
   };
 }
 
-function _svgPathHitTest(s, x, y, strokeOnly) {
+function _svgPathHitTest(s, x, y, strokeOnly, padHit) {
   if (!s || !s.svgD) return false;
   var renderD = _getRenderableSvgPathD(s);
   if (!renderD) return false;
@@ -7999,7 +7999,11 @@ function _svgPathHitTest(s, x, y, strokeOnly) {
   var probeX = x;
   var probeY = y;
   if (s.svgEditable && s.points && s.svgNodeSubpaths && s.svgNodeSubpaths.length) {
-    path.setAttribute('stroke-width', (s.strokeWidth || 1).toString());
+    /* padHit (nur Editor-Auswahl): breitere Trefferzone fuer duenne Umrisse (~8px/Zoom je
+       Seite, wie Punkt-Shapes), sonst sind ungefuellte/offene svgpaths nur exakt auf der
+       Haarlinie greifbar. NICHT im Stitch-Fill-Test (renderHitTest) - dort wuerde Padding
+       Stiche ausserhalb der Form setzen. */
+    path.setAttribute('stroke-width', (padHit ? Math.max((s.strokeWidth || 1), 16 / (zoom || 1)) : (s.strokeWidth || 1)).toString());
     if (s.rotation) {
       path.setAttribute('transform', 'rotate(' + s.rotation + ' ' + (s.x + (s.w || 0) / 2) + ' ' + (s.y + (s.h || 0) / 2) + ')');
     }
@@ -8010,7 +8014,7 @@ function _svgPathHitTest(s, x, y, strokeOnly) {
     var scaleX = Math.max(Math.abs((s.w || 0) / Math.max(Math.abs(s.svgOrigW || 0), 0.001)), 0.001);
     var scaleY = Math.max(Math.abs((s.h || 0) / Math.max(Math.abs(s.svgOrigH || 0), 0.001)), 0.001);
     var avgScale = (scaleX + scaleY) / 2;
-    path.setAttribute('stroke-width', ((s.strokeWidth || 1) / avgScale).toString());
+    path.setAttribute('stroke-width', ((padHit ? Math.max((s.strokeWidth || 1), 16 / (zoom || 1)) : (s.strokeWidth || 1)) / avgScale).toString());
   }
   try {
     var probe = helper.svg.createSVGPoint ? helper.svg.createSVGPoint() : { x: 0, y: 0 };
@@ -11614,7 +11618,7 @@ function hitTestOne(s, x, y, strokeOnly) {
   }
   if (tx >= bb.x - margin && tx <= bb.x + bb.w + margin && ty >= bb.y - margin && ty <= bb.y + bb.h + margin) {
     if (s.type === 'svgpath') {
-      return _svgPathHitTest(s, x, y, strokeOnly);
+      return _svgPathHitTest(s, x, y, strokeOnly, true);
     }
     if (s.points && s.points.length >= 2) {
       var isCurved = _shapeUsesSmoothPointCurves(s);
@@ -12540,7 +12544,7 @@ canvasEl.addEventListener('contextmenu', function(e){
   var hasClip = !!clipboard;
   var multiSel = selIds.size > 1;
   var s = selId ? findShape(selId) : null;
-  var inGroup = s && s.groupId;
+  var inGroup = Object.keys(selectionGroupIds()).length > 0;
   var html = '';
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="copy">Kopieren<span class="ctx-key">Ctrl+C</span></div>';
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="cut">Ausschneiden<span class="ctx-key">Ctrl+X</span></div>';
@@ -12555,7 +12559,7 @@ canvasEl.addEventListener('contextmenu', function(e){
   html += '<div class="ctx-sep"></div>';
   html += '<div class="ctx-item'+(multiSel?'':' disabled')+'" data-ctx="group">Gruppieren<span class="ctx-key">Ctrl+G</span></div>';
   html += '<div class="ctx-item'+(inGroup?'':' disabled')+'" data-ctx="ungroup">Gruppe aufl\u00f6sen<span class="ctx-key">Ctrl+Shift+G</span></div>';
-  var canDecompose = s && (s.type==='rect'||s.type==='polygon'||s.type==='star'||s.type==='solid3d'||(s.type==='ellipse'&&(s.centerLine||s.fishbone)));
+  var canDecompose = s && (s.type==='rect'||s.type==='polygon'||s.type==='star'||s.type==='solid3d'||(s.type==='ellipse'&&(s.centerLine||s.fishbone))||(s.type==='svgpath'&&s.svgEditable&&s.svgNodeSubpaths&&s.svgNodeSubpaths.length>1));
   html += '<div class="ctx-item'+(canDecompose?'':' disabled')+'" data-ctx="decompose">In Pfad aufl\u00f6sen<span class="ctx-key">Ctrl+Shift+P</span></div>';
   var _simplifyTarget = s || (hit ? findShape(hit) : null);
   var canSimplify = _simplifyTarget && _simplifyTarget.points && _simplifyTarget.points.length >= 3 && (_simplifyTarget.type==='path'||_simplifyTarget.type==='freehand'||(_simplifyTarget.type==='svgpath'&&_simplifyTarget.svgEditable));
@@ -14703,14 +14707,21 @@ function groupSelected() {
   render(); updateRightPanel();
 }
 
+// Alle groupIds, die in der aktuellen Auswahl vorkommen (nicht nur selId).
+// So bleibt "Gruppe auflösen" auch später verfügbar, egal welches Shape gerade selId ist.
+function selectionGroupIds() {
+  var gids = {};
+  var sel = (selIds && selIds.size) ? selIds : (selId ? new Set([selId]) : null);
+  if (sel) sel.forEach(function(id){ var s = findShape(id); if (s && s.groupId) gids[s.groupId] = true; });
+  return gids;
+}
+
 function ungroupSelected() {
-  if (!selId) return;
-  var s = findShape(selId);
-  if (!s || !s.groupId) return;
+  var gids = selectionGroupIds();
+  if (!Object.keys(gids).length) return;
   pu();
-  var ug = getUserGroup(selId);
-  for (var i = 0; i < ug.length; i++) {
-    delete ug[i].groupId;
+  for (var i = 0; i < shapes.length; i++) {
+    if (shapes[i].groupId && gids[shapes[i].groupId]) delete shapes[i].groupId;
   }
   render(); updateRightPanel();
 }
@@ -15218,11 +15229,66 @@ function decomposeShapeInPlace(s, options) {
   return { firstId: firstId, ids: insertedIds };
 }
 
+// Getracten/importierten svgpath (mehrere Teil-Konturen als Subpfade) in einzelne,
+// unabhaengige editierbare Pfade zerlegen. Jeder Teil bekommt eine eigene gid (im
+// Gegensatz zum normalen Decompose, das die gid teilt) und KEIN generatedSetId,
+// damit die Konturen wirklich getrennt anklick- und editierbar sind.
+function _decomposeSvgPathInPlace(s, options) {
+  options = options || {};
+  if (!s || s.type !== 'svgpath' || !s.svgEditable) return null;
+  var subs = _getEditableSvgPathSubpaths(s);
+  if (!subs || subs.length < 2) return null;
+  var idx = shapes.indexOf(s);
+  if (idx < 0) return null;
+  if (options.pushUndo !== false) pu();
+  var hadSelected = selIds.has(s.id);
+  var wasPrimary = selId === s.id;
+  selIds.delete(s.id);
+  delete state.nodesel[String(s.id)];
+  shapes.splice(idx, 1);
+  var insertedIds = [];
+  var firstId = null;
+  for (var i = 0; i < subs.length; i++) {
+    var sub = subs[i];
+    if (!sub.points || sub.points.length < 2) continue;
+    var ns = {
+      type: 'svgpath', svgEditable: true,
+      svgNodeSmooth: s.svgNodeSmooth !== false,
+      svgFillRule: s.svgFillRule || 'nonzero',
+      points: sub.points.map(function(p) { var q = { x: p.x, y: p.y }; if (p.h1x !== undefined) { q.h1x = p.h1x; q.h1y = p.h1y; } if (p.h2x !== undefined) { q.h2x = p.h2x; q.h2y = p.h2y; } return q; }),
+      svgNodeSubpaths: [{ start: 0, count: sub.points.length, closed: !!sub.closed }],
+      closed: !!sub.closed, smooth: false,
+      stroke: s.stroke || 'none', strokeWidth: s.strokeWidth || 0,
+      fill: s.fill || 'none', fillEnabled: !!s.fillEnabled,
+      lineStyle: s.lineStyle || 0, effectStrength: s.effectStrength || 1,
+      flipX: false, flipY: false,
+      id: mkId(), gid: mkId(), mirrorIndex: 0
+    };
+    _syncEditableSvgPathShape(ns);
+    shapes.splice(idx + insertedIds.length, 0, ns);
+    insertedIds.push(ns.id);
+    if (!firstId) firstId = ns.id;
+  }
+  if (!insertedIds.length) return null;
+  if (options.selectAllNodes) {
+    selIds.clear(); selId = firstId; selectedNodeIdx = -1; selectedNodes.clear();
+    insertedIds.forEach(function(id) { selIds.add(id); var ss = findShape(id); if (ss && ss.points) { for (var ni = 0; ni < ss.points.length; ni++) selectedNodes.add(nodeToken(id, ni)); } });
+  } else {
+    if (hadSelected) insertedIds.forEach(function(id) { selIds.add(id); });
+    if (wasPrimary) selId = firstId;
+    else if (selId == null) selId = firstId;
+  }
+  return { firstId: firstId, ids: insertedIds };
+}
+
 function decomposeSelected() {
   if (!selId) return;
   var s = findShape(selId);
   if (!s) return;
-  var result = decomposeShapeInPlace(s, { pushUndo: true, selectAllNodes: tool === 'node' });
+  var opts = { pushUndo: true, selectAllNodes: tool === 'node' };
+  var result = (s.type === 'svgpath' && s.svgEditable)
+    ? _decomposeSvgPathInPlace(s, opts)
+    : decomposeShapeInPlace(s, opts);
   if (!result) return;
   render(); updateRightPanel();
 }
@@ -16405,8 +16471,10 @@ function _importSvgText(svgText) {
   if (imported.length > 0) {
     pu();
     var newIds = [];
+    var importGid = imported.length > 1 ? mkId() : null;
     for (var si = 0; si < imported.length; si++) {
       var ns = imported[si]; ns.id = mkId(); ns.gid = mkId();
+      if (importGid) ns.groupId = importGid;
       shapes.push(ns); newIds.push(ns.id);
     }
     selIds.clear(); selId = newIds[0];
@@ -18016,8 +18084,10 @@ $('importFile').addEventListener('change', function(e){
           if (!imported || !imported.length) { alert(window.t('Keine vektorisierbaren Elemente in der SVG gefunden.')); return; }
           pu();
           var newIds = [];
+          var importGid = imported.length > 1 ? mkId() : null;
           for (var si = 0; si < imported.length; si++) {
             var ns = imported[si]; ns.id = mkId(); ns.gid = mkId();
+            if (importGid) ns.groupId = importGid;
             shapes.push(ns); newIds.push(ns.id);
           }
           selIds.clear(); selId = newIds[0];
@@ -18039,8 +18109,10 @@ $('importFile').addEventListener('change', function(e){
           }
           pu();
           var newIds = [];
+          var importGid = imported.length > 1 ? mkId() : null;
           for (var si = 0; si < imported.length; si++) {
             var ns = imported[si]; ns.id = mkId(); ns.gid = mkId();
+            if (importGid) ns.groupId = importGid;
             shapes.push(ns); newIds.push(ns.id);
           }
           selIds.clear(); selId = newIds[0];
@@ -18874,13 +18946,8 @@ function makeTextSettings(s) {
   }
   html += '</div>';
   html += _vtFontLoadBtnHtml();
-  /* [VT-TEXT-SATIN v1] Stickart pro Text: Satin (echte Satin-Saeulen), Tatami
-     (Flaechenfuellung), Laengs (Fuellung mit 90-Grad-Reihen). Default Tatami =
-     bisheriges Verhalten. */
-  var _curTS = s.textStitch || 'tatami';
-  function _tsBtn(v, lbl) { var a = (_curTS === v); return '<button class="rp-textstitch'+(a?' active':'')+'" data-ts="'+v+'" style="flex:1;padding:4px 2px;border:1px solid var(--border);background:'+(a?'var(--ac)':'var(--bg)')+';color:'+(a?'#fff':'var(--fg)')+';cursor:pointer;font-size:var(--fs-sm);font-weight:600;border-radius:var(--radius-sm)">'+lbl+'</button>'; }
-  html += '<div class="rp-title" style="margin-top:6px">Stickart</div>';
-  html += '<div style="display:flex;gap:4px;margin-bottom:2px">' + _tsBtn('satin','Satin') + _tsBtn('tatami','Tatami') + _tsBtn('laengs','Längs') + '</div>';
+  /* [VT-TEXT-SATIN v1] Die Stickart-Auswahl (Satin/Tatami/Laengs) sitzt jetzt im
+     Stick-Interface (dgp-Panel "Text-Stickart"), nicht mehr im Text-Werkzeug (Lukas). */
   if (s.onPath) {
     html += '<div class="rp-row"><label>Position</label><input type="range" class="sset" data-prop="pathOffset" min="0" max="100" value="'+(s.pathOffset||0)+'"><span class="val">'+(s.pathOffset||0)+'%</span></div>';
     /* [VT-TEXTPATH-SIDE v1] Textseite kontextsensitiv: geschlossene Form (Kreis)
@@ -19701,25 +19768,6 @@ function _bindEditorEvents(container) {
         }).catch(function(err){ console.warn('[vt:font-import]', err); });
       };
       inp.click();
-    });
-  });
-  /* [VT-TEXT-SATIN v1] Stickart pro Text (Satin / Tatami / Laengs). Setzt
-     shape.textStitch, invalidiert den Stich-Cache und rechnet die Form neu. */
-  container.querySelectorAll('.rp-textstitch').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      if (!selId) return;
-      pu();
-      var v = this.getAttribute('data-ts');
-      getAllSelectedShapes().forEach(function(s) {
-        if (s.type !== 'text') return;
-        s.textStitch = v;
-        if (s.stitch) s.stitch._needleCacheKey = '';
-        try { if (typeof _stitchRecalc === 'function') _stitchRecalc(s); } catch (e) { console.warn('[vt:textstitch]', e && e.message); }
-      });
-      container.querySelectorAll('.rp-textstitch').forEach(function(x){ x.classList.remove('active'); });
-      this.classList.add('active');
-      render();
-      if (typeof window._stitchOnUpdateRightPanel === 'function') { try { window._stitchOnUpdateRightPanel(); } catch (e) {} }
     });
   });
   /* [VT-TEXTPATH-SIDE v1] Textseite (Aussen/Innen bzw. Oben/Unten) + Bogen-Flip */
@@ -28924,6 +28972,9 @@ function _stitchCacheKey(shape, st) {
       params.underlayStitchLength || 2.5,
       params.outline === true ? 1 : 0,
       params.outlineStitchLength || 2.5,
+      /* [satin-dichte-fix v2] rimDensity (Umriss-Satinband-Dichte) MUSS in den Key, sonst wirkt der Regler
+         nicht: gefuellte Form mit andersfarbigem Umriss bekommt ein Satin-Rand-Band, dessen Dichte = rimDensity. */
+      (Number(params.rimDensity) > 0 ? params.rimDensity : 0.2),
       'off:' + Math.round(offsetAmtKey * 100) + ':' + (offsetAmtKey > 0 ? offsetSeedKey : 0),
       /* [VT-TEXT-SATIN v1] Text-Stichart (Satin/Tatami/Laengs) in den Cache-Key,
          sonst greift ein Wechsel nicht (gleicher Key -> _stitchRecalc returnt frueh). */
@@ -28945,6 +28996,9 @@ function _stitchCacheKey(shape, st) {
       isFinite(params.angle) ? params.angle : 45,
       params.zigzagWidth || 2.5,
       params.stitchLength || 0.4,
+      /* [satin-dichte-fix v1] satinPitch (Linien-Satin-Dichte, #dgpSatinPitch) MUSS in den Key, sonst
+         hatte der Regler keine Wirkung: bei sonst gleichem Key returnte _stitchRecalc fruh (Cache-Hit). */
+      (Number(params.satinPitch) > 0 ? params.satinPitch : (params.stitchLength || 0.4)),
       params.satinUnderlay || 'center',
       isFinite(params.shortStitchInset) ? params.shortStitchInset : 0.15,
       params.pullCompensation || 0
@@ -29177,6 +29231,27 @@ function _stitchMiterBandPoints(shape, pitchMM) {
     if (closed && out.length > 3) out.pop(); /* Schliess-Dup wieder weg */
     if (out.length >= 2) { P = out; n = P.length; }
   })();
+  /* [overlap-densify v1] LANGE Kanten unterteilen, damit der Overlap-Share (S1)
+     auch bei GERADEN Segmenten (wenige Eckpunkte) Zwischenpunkte zum Vergleichen
+     hat. Ohne Zwischenpunkte findet S1 nur die Eckpunkte (per WIN-Gate ausge-
+     schlossen) -> zwei dicht-parallele Linien einer Form uebersticken sich statt
+     zu teilen (Lukas: "wenn linien sich nahe kommen"). Original-Vertices bleiben
+     EXAKT erhalten -> Gehrung/Ecken unberuehrt; die Satin-Dichte aendert sich
+     nicht (Zickzack-Pitch ist pitchPx-basiert, nicht kanten-basiert). */
+  (function () {
+    var target = Math.max(half * 0.7, 3);
+    var out2 = [P[0]];
+    for (var i = 1; i < n; i++) {
+      var ax = P[i - 1].x, ay = P[i - 1].y, bx = P[i].x, by = P[i].y;
+      var seg = Math.hypot(bx - ax, by - ay);
+      if (seg > target * 1.5) {
+        var k = Math.ceil(seg / target);
+        for (var m = 1; m < k; m++) { var f = m / k; out2.push({ x: ax + (bx - ax) * f, y: ay + (by - ay) * f }); }
+      }
+      out2.push({ x: bx, y: by });
+    }
+    if (out2.length > n) { P = out2; n = P.length; }
+  })();
   var EC = closed ? n : (n - 1); /* Anzahl Kanten */
   var en = new Array(EC);
   for (var i = 0; i < EC; i++) {
@@ -29199,13 +29274,27 @@ function _stitchMiterBandPoints(shape, pitchMM) {
     var tl = 0; for (var e = 0; e < EC; e++) { var jj = closed ? (e + 1) % n : (e + 1); tl += Math.hypot(P[jj].x - P[e].x, P[jj].y - P[e].y); }
     var avgSp = Math.max(tl / Math.max(1, EC), 0.3);
     var WIN = Math.ceil((2 * half) / avgSp) + 2;
+    /* [overlap-crossing-guard v1] Nur teilen, wenn die zwei nahen Stellen ~PARALLEL
+       laufen (alongside) - NICHT bei einer KREUZUNG (steiler Winkel, z.B. X-Mitte):
+       dort gehen die Aeste durcheinander durch und sollen VOLL gestickt werden, nicht
+       verschmaelert (Lukas: "bei einem kreuz zu aggressiv"). Tangente = Zentraldifferenz. */
+    var _tanAt = function (k) {
+      var a = k > 0 ? k - 1 : k, b = k < n - 1 ? k + 1 : k;
+      if (closed) { a = (k - 1 + n) % n; b = (k + 1) % n; }
+      var dx = P[b].x - P[a].x, dy = P[b].y - P[a].y, l = Math.hypot(dx, dy) || 1;
+      return { x: dx / l, y: dy / l };
+    };
+    var ALIGN = 0.7; /* |dot| > 0.7 = innerhalb ~45° parallel/antiparallel -> teilen; darunter = Kreuzung -> voll lassen */
     for (var i2 = 0; i2 < n; i2++) {
       var cx = Math.floor(P[i2].x / cell), cy = Math.floor(P[i2].y / cell), dmin = Infinity;
+      var ti = _tanAt(i2);
       for (var gx = cx - 1; gx <= cx + 1; gx++) for (var gy = cy - 1; gy <= cy + 1; gy++) {
         var bucket = grid[gx + ',' + gy]; if (!bucket) continue;
         for (var bi = 0; bi < bucket.length; bi++) {
           var jdx = bucket[bi], sep = Math.abs(i2 - jdx); if (closed) sep = Math.min(sep, n - sep);
           if (sep <= WIN) continue;
+          var tj = _tanAt(jdx);
+          if (Math.abs(ti.x * tj.x + ti.y * tj.y) < ALIGN) continue; /* Kreuzung -> nicht teilen */
           var dd = Math.hypot(P[i2].x - P[jdx].x, P[i2].y - P[jdx].y);
           if (dd < dmin) dmin = dd;
         }
@@ -29219,7 +29308,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
     if (typeof window !== 'undefined' && window._satinTipMode === 'verjuengt') {
       var s = new Array(n); s[0] = 0;
       for (var si = 1; si < n; si++) s[si] = s[si - 1] + Math.hypot(P[si].x - P[si - 1].x, P[si].y - P[si - 1].y);
-      var taperLen = width * 2.6; /* [satin-graduell v1] laengere Rampe = graduellere Spitze (Lukas) statt abruptem Zulauf */
+      var taperLen = width * 1.2;
       var totS = s[n - 1] + (closed ? Math.hypot(P[0].x - P[n - 1].x, P[0].y - P[n - 1].y) : 0);
       for (var sv = 0; sv < n; sv++) {
         if (!closed && (sv === 0 || sv === n - 1)) continue;
@@ -29281,7 +29370,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
      geraden Kanten ist der Rail-Abstand ~2x pitch > minSpace -> kein Eingriff. */
   var pts = [], side = 0;
   var lastFullI = null, lastFullO = null;
-  var minSpace = _mm2px(0.4), shortF = 0.4; /* [satin-touch v1] Kurzstich ERST, wenn sich die Einstich-Endpunkte auf derselben Rail beruehren (absoluter Faden-/Lochabstand ~0.4mm), NICHT pitch-vorsorglich (Lukas). Sonst voller, regelmaessiger Rhythmus. Kurzstich erreicht 60% Richtung Innenkante */
+  var minSpace = pitchPx * 1.7, shortF = 0.4; /* Kurzstich erreicht 60% Richtung Innenkante */
   /* [satin-curve-dichte v1] Einstiche im Pitch-Abstand entlang des LAENGEREN Rails
      (aussen auf Kurven) setzen, mit Rest-Uebertrag ueber Kanten (kein Pro-Kante-
      Rundungsverlust - das war der Grund, warum eine reine round(seg/pitch)-Aenderung
@@ -29289,22 +29378,8 @@ function _stitchMiterBandPoints(shape, pitchMM) {
      der Innenbogen mehr Einstiche -> der Kurzstich-Ausgleich verteilt sie sauber
      (= aussen dichter, innen gleichmaessig wie an der Gehrung). Auf Geraden sind beide
      Rails gleich lang -> Verhalten wie zuvor. */
-  /* [tip-merge v1] An scharfen Umkehrungen (U-/V-Tal) fuehrt der Zickzack die Stiche
-     zum Mittellinien-Apex zusammen und startet die Alternation NEU. Ohne das kippt am
-     Knick die Rail-Seite (linke/rechte Rail tauschen physisch), der Zickzack verbindet
-     quer ueber die Bahn = das unregelmaessige Gewirr am Tal. Schwelle wie der
-     Verjuengt-Taper (>~110 Grad). */
-  var _revAt = new Array(n);
-  if (!closed) {
-    for (var rv = 1; rv < n - 1; rv++) {
-      var _r1x = P[rv].x - P[rv-1].x, _r1y = P[rv].y - P[rv-1].y, _rl1 = Math.hypot(_r1x, _r1y) || 1;
-      var _r2x = P[rv+1].x - P[rv].x, _r2y = P[rv+1].y - P[rv].y, _rl2 = Math.hypot(_r2x, _r2y) || 1;
-      if ((_r1x*_r2x + _r1y*_r2y) / (_rl1*_rl2) < -0.34) _revAt[rv] = true;
-    }
-  }
   var acc = 0; /* zurueckgelegte Distanz auf dem Takt-Rail seit letztem Einstich */
   for (var i = 0; i < EC; i++) {
-    if (_revAt[i]) { pts.push({ x: P[i].x, y: P[i].y }); side = 0; acc = 0; lastFullI = null; lastFullO = null; } /* [tip-merge v1] Apex: zusammenfuehren + Alternation neu starten */
     var j = closed ? (i + 1) % n : (i + 1);
     var _segO = Math.hypot(O[j].x - O[i].x, O[j].y - O[i].y);
     var _segI = Math.hypot(I[j].x - I[i].x, I[j].y - I[i].y);
@@ -29316,21 +29391,14 @@ function _stitchMiterBandPoints(shape, pitchMM) {
       var ox = O[i].x + (O[j].x - O[i].x) * t, oy = O[i].y + (O[j].y - O[i].y) * t;
       var ix = I[i].x + (I[j].x - I[i].x) * t, iy = I[i].y + (I[j].y - I[i].y) * t;
       if (side) { /* Aussen-Rail O */
-        var _ddO = lastFullO ? Math.hypot(ox - lastFullO.x, oy - lastFullO.y) : Infinity;
-        if (_ddO < minSpace) {
-          /* [satin-graded v1] Graduierter Kurzstich: je naeher sich die Endpunkte
-             beruehren, desto kuerzer. Knapp an der Beruehrung = langer ~75%-Stich
-             (sf=0.25), starkes Gedraenge = kurzer ~25%-Stich (sf=0.75). */
-          var _sfO = 0.25 + (1 - _ddO / minSpace) * 0.5;
-          pts.push({ x: ox + (ix - ox) * _sfO, y: oy + (iy - oy) * _sfO }); /* Kurzstich, lastFull bleibt */
+        if (lastFullO && Math.hypot(ox - lastFullO.x, oy - lastFullO.y) < minSpace) {
+          pts.push({ x: ox + (ix - ox) * shortF, y: oy + (iy - oy) * shortF }); /* Kurzstich, lastFull bleibt */
         } else {
           pts.push({ x: ox, y: oy }); lastFullO = { x: ox, y: oy };
         }
       } else { /* Innen-Rail I */
-        var _ddI = lastFullI ? Math.hypot(ix - lastFullI.x, iy - lastFullI.y) : Infinity;
-        if (_ddI < minSpace) {
-          var _sfI = 0.25 + (1 - _ddI / minSpace) * 0.5; /* [satin-graded v1] 75%..25% je nach Naehe */
-          pts.push({ x: ix + (ox - ix) * _sfI, y: iy + (oy - iy) * _sfI });
+        if (lastFullI && Math.hypot(ix - lastFullI.x, iy - lastFullI.y) < minSpace) {
+          pts.push({ x: ix + (ox - ix) * shortF, y: iy + (oy - iy) * shortF });
         } else {
           pts.push({ x: ix, y: iy }); lastFullI = { x: ix, y: iy };
         }
@@ -34119,19 +34187,64 @@ function _fillSplitOutsideSewnSegments(shape, pts) {
   return out || pts;
 }
 
+/* [VT-TEXT-SATIN onpath v1] Satin fuer Text-AUF-PFAD: die Engine rendert das Wort flach,
+   darum pro Glyph eigene Satin-Saeulen erzeugen und mit der bestehenden Pfad-Layout-
+   Transform (Position + Drehung je Zeichen aus window._vtTextOnPathLayout, gleiche Quelle
+   wie die Fuellung) auf die Kurve setzen - sonst "loest sich der Text vom Pfad". Pro Glyph
+   bbox-Angleich an die lokale Glyph-Kontur (_stitchCharLocalLoops), dann rot+translate. */
+function _calcTextSatinOnPath(shape, opts, bowlFill) {
+  if (!window.VTSatinEngine || typeof window._vtTextOnPathLayout !== 'function' || typeof _stitchCharLocalLoops !== 'function') return null;
+  var lay = window._vtTextOnPathLayout(shape);
+  if (!lay || !lay.length) return null;
+  var fontSize = Number(shape.fontSize) || 24;
+  var fontFamily = shape.fontFamily || 'Nunito';
+  var fontStr = (shape.italic ? 'italic ' : '') + (shape.bold ? 'bold ' : '') + (fontSize * 4) + 'px ' + fontFamily;
+  var pad = Math.ceil(fontSize * 0.4);
+  var _p = (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing
+    : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.rowSpacing)) ? shape.stitch.params.rowSpacing : 0.30);
+  var out = [];
+  for (var ci = 0; ci < lay.length; ci++) {
+    var c = lay[ci];
+    if (!c || !c.ch || !String(c.ch).trim()) continue;
+    var raw = null;
+    try { raw = window.VTSatinEngine.textToStitches({ text: c.ch, fontFamily: fontFamily, fontSizePx: fontSize, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p, densityMM: _p, bowlFill: bowlFill || 'satin' }); }
+    catch (e) { continue; }
+    if (!raw || !raw.length) continue;
+    var loops = _stitchCharLocalLoops(c.ch, fontStr, fontSize, 4, pad);
+    var lMinX = 1e9, lMinY = 1e9, li, pi;
+    for (li = 0; li < loops.length; li++) for (pi = 0; pi < loops[li].length; pi++) { var lx0 = loops[li][pi][0], ly0 = loops[li][pi][1]; if (lx0 < lMinX) lMinX = lx0; if (ly0 < lMinY) lMinY = ly0; }
+    var sMinX = 1e9, sMinY = 1e9, k;
+    for (k = 0; k < raw.length; k++) { if (raw[k].jump) continue; if (raw[k].x < sMinX) sMinX = raw[k].x; if (raw[k].y < sMinY) sMinY = raw[k].y; }
+    var dx = (isFinite(lMinX) && isFinite(sMinX)) ? (lMinX - sMinX) : 0;
+    var dy = (isFinite(lMinY) && isFinite(sMinY)) ? (lMinY - sMinY) : 0;
+    var rr = (c.rot || 0) * Math.PI / 180, co = Math.cos(rr), si = Math.sin(rr);
+    for (k = 0; k < raw.length; k++) {
+      var lxp = raw[k].x + dx, lyp = raw[k].y + dy;
+      out.push({ x: c.x + lxp * co - lyp * si, y: c.y + lxp * si + lyp * co, jump: !!raw[k].jump });
+    }
+  }
+  return out;
+}
 /* [VT-TEXT-SATIN v1] Echte Satin-Saeulen fuer Text via window.VTSatinEngine
    (Auto-Satin-Engine aus dem Font-Builder portiert). Die Engine rendert im
    eigenen Ursprung -> Ergebnis per bbox-Translation an die Lage des Fuell-Pfads
    (gleiche Position wie die Tatami-Fuellung) angeglichen. */
-function _calcTextSatinStitch(shape, opts) {
+function _calcTextSatinStitch(shape, opts, bowlFill) {
   if (typeof window === 'undefined' || !window.VTSatinEngine || !shape || !shape.text || !String(shape.text).trim()) return [];
+  bowlFill = bowlFill || 'satin';
+  /* Text auf Pfad: pro Glyph entlang der Kurve setzen (sonst loest sich das Wort vom Pfad). */
+  if (shape.onPath && shape.pathId) {
+    var _op = _calcTextSatinOnPath(shape, opts, bowlFill);
+    if (_op && _op.length) return _op;
+    return _calcTextFillStitch(shape, opts);
+  }
   var raw;
   try {
     var _p = (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing
-      : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.rowSpacing)) ? shape.stitch.params.rowSpacing : 0.4);
+      : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.rowSpacing)) ? shape.stitch.params.rowSpacing : 0.30);
     raw = window.VTSatinEngine.textToStitches({
       text: shape.text, fontFamily: shape.fontFamily || 'Nunito',
-      fontSizePx: shape.fontSize || 24, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p
+      fontSizePx: shape.fontSize || 24, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p, densityMM: _p, bowlFill: bowlFill
     });
   } catch (e) { try { console.warn('[vt:text-satin]', e && e.message); } catch (_e) {} return []; }
   if (!raw || !raw.length) return [];
@@ -34146,27 +34259,16 @@ function _calcTextSatinStitch(shape, opts) {
   for (k = 0; k < raw.length; k++) out.push({ x: raw[k].x + dx, y: raw[k].y + dy, jump: !!raw[k].jump });
   return out;
 }
-/* [VT-TEXT-LAENGS v1] "Laengs" = Flaechenfuellung mit 90 Grad gedrehten Reihen
-   (laengs statt quer). Glyph-d um 90 Grad um die Mitte drehen, horizontaler Scan,
-   Stichpunkte zurueckdrehen. */
-function _calcTextLaengsStitch(shape, opts) {
-  var d = _stitchTextToPathD(shape); if (!d || d.length < 8) return [];
-  var nums = (d.match(/-?\d+\.?\d*/g) || []).map(Number);
-  if (nums.length % 2) return _calcTextFillStitch(shape, opts);
-  var mnx = 1e9, mny = 1e9, mxx = -1e9, mxy = -1e9, i;
-  for (i = 0; i + 1 < nums.length; i += 2) { var x = nums[i], y = nums[i + 1]; if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (y < mny) mny = y; if (y > mxy) mxy = y; }
-  var cx = (mnx + mxx) / 2, cy = (mny + mxy) / 2;
-  var rot = []; for (i = 0; i + 1 < nums.length; i += 2) { var X = nums[i], Y = nums[i + 1]; rot.push(cx - (Y - cy)); rot.push(cy + (X - cx)); }
-  var pi = 0, rd = d.replace(/-?\d+\.?\d*/g, function () { return rot[pi++].toFixed(2); });
-  var pts = _stitchScanFillD(rd, shape, opts) || [];
-  return pts.map(function (p) { return { x: cx + (p.y - cy), y: cy - (p.x - cx), jump: !!p.jump }; });
-}
 function _calcFillStitch(shape, opts) {
   try {
     if (shape && shape.type === 'text') {
       var _tstitch = shape.textStitch || 'tatami';
-      if (_tstitch === 'satin') { var _ss = _calcTextSatinStitch(shape, opts); if (_ss && _ss.length) return _ss; }
-      else if (_tstitch === 'laengs') { var _ls = _calcTextLaengsStitch(shape, opts); if (_ls && _ls.length) return _ls; }
+      /* [VT-TEXT-LAENGS v2] Satin UND Laengs laufen ueber die rail-basierte Engine -> beide
+         folgen den Buchstaben-Strichen (und dem Pfad). 'laengs' nutzt contourFlow-Fuellung
+         (Stiche LAENGS der Strichachse, wie im Font-Builder) statt Satin-Saeulen; KEINE
+         globale 90-Grad-Rotation mehr. Tatami = bisherige Flaechenfuellung. */
+      if (_tstitch === 'satin') { var _ss = _calcTextSatinStitch(shape, opts, 'satin'); if (_ss && _ss.length) return _ss; }
+      else if (_tstitch === 'laengs') { var _ls = _calcTextSatinStitch(shape, opts, 'laengs'); if (_ls && _ls.length) return _ls; }
       return _calcTextFillStitch(shape, opts);
     }
     /* [fuellstil-kongruenz v1] toter window._fillStyleSpiral-Operand entfernt (wurde nie
@@ -35085,10 +35187,10 @@ function _stitchRecalc(shape) {
          die Reihenfolge sieht "manchmal richtig, manchmal falsch" aus.
          Fallback: nur Main-Fill ohne Underlay (zumindest sichtbar). */
       try {
-        /* [VT-TEXT-SATIN v1] Text-Satin = reines Satin (Font-Builder-Engine): KEINE
+        /* [VT-TEXT-SATIN v1] Text-Satin/Laengs = reine Engine-Ausgabe (Font-Builder): KEINE
            Fuell-Unterlage und KEINE gleichfarbige Abschlusskontur drueberlegen, sonst
            weicht es von der Font-Builder-Ausgabe ab. */
-        if (shape.type === 'text' && shape.textStitch === 'satin') {
+        if (shape.type === 'text' && (shape.textStitch === 'satin' || shape.textStitch === 'laengs')) {
           st.needlePoints = _calcFillStitch(shape) || [];
         } else {
           st.needlePoints = _withFillOutline(shape, _withFillUnderlay(shape, _calcFillStitch(shape)));
@@ -35510,7 +35612,7 @@ function _stitchDensity(shape) {
    15x15 mm = 1.38, 10x10 mm = 1.51, Kreis 12 mm = 1.56 - die Schwelle 1.3
    warnte also schon bei unveraenderten Defaults. Echte Risiko-Werte
    (z. B. rowSpacing 0.18 -> 2.46 St./mm²) liegen weit ueber 1.45. */
-function _stitchDensityLevel(d, areaMM2) {
+function _stitchDensityLevel(d, areaMM2, shape) {
   if (!(d > 0)) return 'ok';
   /* [dense-presets v3] FLAECHENADAPTIVE dense-Schwelle: kleine Formen messen sich
      bauartbedingt dichter (Reihen-Enden + Underlay skalieren mit dem UMFANG, nicht
@@ -35521,7 +35623,14 @@ function _stitchDensityLevel(d, areaMM2) {
   var _dThr = 2.0; /* [ux-feinschliff v1] 1.55->2.0: Lukas 2026-06-11 "Warnung uebertrieben,
      gerade bei dichten Reihen" (1.94 warnte). Echte Risiko-Werte (rs 0.15-0.18 -> 2.4-3.6) warnen weiter. */
   if (areaMM2 > 0 && areaMM2 < 200) _dThr += (200 - areaMM2) / 200 * 0.7;
-  if (d > _dThr) return 'dense'; /* [dense-presets v2] Basis, s. ux-feinschliff v1 */
+  /* [VT-TEXT-DENSITY v1] Text-Satin/Laengs misst sich bauartbedingt dichter (Satin-Rungs +
+     contourFlow-Kurzstiche) OHNE echtes Risiko - emdigitizer wertet identische Designs als ok
+     (Quality Score 88/100). Hoehere Schwelle, sonst Dauer-Fehlalarm bei jeder Schrift. */
+  if (shape && shape.type === 'text' && (shape.textStitch === 'satin' || shape.textStitch === 'laengs')) _dThr += 3.5;
+  /* [VT-WARN-OFF v1] "Dichte Fuellung - Fadenbruchrisiko"-Warnung GANZ ausgeblendet (Lukas:
+     stoert; emdigitizer wertet die Designs ohnehin als ok). Schwelle bleibt berechnet, loest
+     aber nicht mehr aus. Bei Bedarf die naechste Zeile wieder einkommentieren. */
+  void _dThr; /* if (d > _dThr) return 'dense'; */
   if (d < 0.7) return 'sparse'; /* [dense-presets v2] 0.8->0.7: rs0.45 drueckt grosse Formen auf ~0.85 - kein falsches Duenn-Warnen */
   return 'ok';
 }
@@ -35627,7 +35736,7 @@ function _stitchWarnInnerHtml(shapes) {
     var nps = s.stitch.needlePoints;
     if (!nps || !nps.length) continue;
     var d = _stitchDensity(s);
-    var lvl = _stitchDensityLevel(d, _stitchFillAreaMM2(s)); /* [dense-presets v3] flaechenadaptiv */
+    var lvl = _stitchDensityLevel(d, _stitchFillAreaMM2(s), s); /* [dense-presets v3] flaechenadaptiv; s -> Text-Satin/Laengs hoehere Schwelle */
     if (lvl === 'dense') { nDense++; denseEx = d; idDense.push(s.id); }
     else if (lvl === 'sparse') { nSparse++; sparseEx = d; idSparse.push(s.id); }
     var bb = _shapeBBox(s);
@@ -36889,7 +36998,7 @@ function _stitchRunCheck() {
     /* Vektortool Ink: Stickbarkeits-Warnungen (Dichte, Mindestgr\u00f6sse, Zerst\u00fcckelung) */
     if (s.stitch.type === 'fill' && s.stitch.needlePoints.length > 0) {
       var dens = _stitchDensity(s);
-      var dlvl = _stitchDensityLevel(dens, _stitchFillAreaMM2(s)); /* [dense-presets v3] flaechenadaptiv */
+      var dlvl = _stitchDensityLevel(dens, _stitchFillAreaMM2(s), s); /* [dense-presets v3] flaechenadaptiv; s -> Text-Satin/Laengs hoehere Schwelle */
       if (dlvl === 'dense') {
         errors.push({ id: s.id, msg: 'Sehr dichte F\u00fcllung (' + dens.toFixed(2) + ' St./mm\u00b2) - Fadenbruch-/Stoffstau-Risiko, Zeilenabstand erh\u00f6hen', level: 'warn' });
       } else if (dlvl === 'sparse') {
@@ -38297,6 +38406,40 @@ function _simUpdateProgress(idx, total) {
   }
   window._v44ApplyParamToAllShapesQuiet = _v44BulkSetParam;
 
+  /* [VT-CAT-PARAMS v1] Dichte/Abstände je KATEGORIE getrennt steuern (Lukas: "schrift,
+     linien und flächen einzeln"): Schrift = Text, Linien = offene Striche, Flächen =
+     Füllungen. _v44BulkSetParam wirkt global; diese Variante nur auf eine Kategorie. */
+  function _shapeStitchCat(s) {
+    if (!s) return 'area';
+    if (s.type === 'text') return 'text';
+    if ((s.type === 'line' || s.type === 'path' || s.type === 'freehand' || s.type === 'arrow') && !s.closed) return 'line';
+    return 'area';
+  }
+  window._shapeStitchCat = _shapeStitchCat;
+  window._stitchParamCat = 'area';   /* aktuell im Panel gewaehlte Kategorie */
+  window._catStitchParams = {        /* je Kategorie gemerkte Werte (Slider-Anzeige) */
+    text: { rowSpacing: 0.30, stitchLength: 3.0 },
+    line: { rowSpacing: 0.40, stitchLength: 3.0 },
+    area: { rowSpacing: 0.30, stitchLength: 3.0 }
+  };
+  window._v44BulkSetParamCat = function (cat, paramName, value) {
+    var ss = (typeof window !== 'undefined' && window.shapes) ? window.shapes : null;
+    if (!ss || !ss.length) return 0;
+    var hits = 0;
+    for (var i = 0; i < ss.length; i++) {
+      var s = ss[i];
+      if (!s || !s.stitch || !s.stitch.params) continue;
+      var t = s.stitch.type;
+      if (t !== 'fill' && t !== 'satin' && t !== 'zigzag' && t !== 'satincol') continue;
+      if (_shapeStitchCat(s) !== cat) continue;
+      s.stitch.params[paramName] = value;
+      s.stitch._needleCacheKey = '';
+      s.stitch.needlePoints = [];
+      hits++;
+    }
+    return hits;
+  };
+
   /* v44: globaler Stichtyp-Wechsel — auf ALLE Shapes anwenden inkl. Preset.
      Wird vom dgpStitchType-Select aufgerufen (dstv-IIFE kann _ensureStitch
      etc. nicht erreichen, daher hier zentral exponiert). */
@@ -39172,7 +39315,7 @@ window.__LINEA_DEBUG__ = {
   #dstvInfoPanel .dstv-advanced > summary {
     list-style: none; cursor: pointer; padding: var(--space-5) var(--space-8); font-size: var(--fs-xs);
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
-    color: var(--dstv-muted2); user-select: none;
+    color: var(--dstv-muted2); user-select: text; -webkit-user-select: text;
   }
   #dstvInfoPanel .dstv-advanced > summary::-webkit-details-marker { display: none; }
   #dstvInfoPanel .dstv-advanced > summary::before { content: '▸ '; color: var(--dstv-marker); }
@@ -39201,6 +39344,21 @@ window.__LINEA_DEBUG__ = {
     0%   { left: -35%; }
     100% { left: 100%; }
   }
+  /* [VT-CAT-SEKTIONEN v1] Reiter-Balken: macht die 3 Kategorie-Sektionen (Flaechen/Linien/Text) + den
+     Gemeinsam-Block zu eigenen Reitern wie "Einstellungen"/"Stickreihenfolge" - voll-bleed ueber die
+     Container-Polsterung (negative horizontale Margin), eigener Balken mit Rahmen. Loest den frueheren
+     "Einstellungen"-Sammelreiter in drei (+1) auf (Lukas: "Einstellungen dritteln"). */
+  #dstvGlobalParams .dgp-reiter {
+    margin: 0 calc(var(--space-6) * -1);
+    padding: var(--space-3) var(--space-6);
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; gap: var(--space-3);
+    cursor: pointer; user-select: text;
+    font-size: var(--fs-base); font-weight: 700; color: var(--fg);
+  }
+  #dstvGlobalParams .dgp-reiter.dgp-reiter-static { cursor: default; }
+  #dstvGlobalParams .dgp-reiter .dgp-reiter-sub { font-weight: 400; color: var(--fg2); font-size: var(--fs-sm); }
   #dstvGlobalParams .dgp-bar {
     height: 7px; background: var(--dstv-progress); border-radius: var(--radius-xs); overflow: hidden;
     position: relative; margin-top: 2px;
@@ -39266,12 +39424,47 @@ window.__LINEA_DEBUG__ = {
     <!-- v44: Globale Parameter — kompakt, alle Fill-Params. Wirken auf
          ALLE Shapes des Designs. Wird im merged Modus an den top des
          stitchPanel-Head verschoben (siehe _v44SyncStitchPanelInModal). -->
-    <h3 id="dstvGlobalParamsTitle" title="Einstellungen ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);cursor:pointer;display:flex;align-items:center;gap:var(--space-3);user-select:none;"><span id="dgpCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Einstellungen</span><!-- [VT-UIFIX v1] Aktions-Buttons (Zurücksetzen/Neu berechnen/Auto) von hier unter "Verbindung" verschoben --></h3>
-    <div class="dstv-grp dgp-compact" id="dstvGlobalParams" style="background:var(--white);border-bottom:1px solid var(--border);padding:var(--space-3) var(--space-6) var(--space-4);">
-      <!-- [stichart-hinweis v1] Erklaert die automatische Stichart-Wahl: Flaeche=Fuellstich, Linie=Satin -->
-      <div id="dgpStichartHint" style="font-size:var(--fs-xs);color:var(--fg2,#666);background:rgba(var(--ac-rgb,63,113,145),0.08);border:1px solid var(--border,#e3e3e0);border-radius:var(--radius-xs,4px);padding:6px 10px;margin-bottom:var(--space-3);line-height:1.45;">
-        Die Stichart wird automatisch aus der Form gewählt: <b>Flächen → Füllstich</b>, <b>Linien → Satin</b>.
-      </div>
+    <h3 id="dstvGlobalParamsTitle" title="Einstellungen ein-/ausklappen" style="background:var(--white);border-bottom:1px solid var(--border);color:var(--fg);padding:var(--space-4) var(--space-6) var(--space-2);cursor:pointer;display:none;align-items:center;gap:var(--space-3);user-select:text;"><span id="dgpCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;">▾</span><span>Einstellungen</span><!-- [VT-UIFIX v1] Aktions-Buttons (Zurücksetzen/Neu berechnen/Auto) von hier unter "Verbindung" verschoben --></h3>
+    <div class="dstv-grp dgp-compact" id="dstvGlobalParams" style="background:var(--white);border-bottom:1px solid var(--border);padding:var(--space-3) var(--space-6) var(--space-1);">
+      <!-- [VT-CAT-SEKTIONEN v1] Stichart-Hinweis ersetzt durch 3 einklappbare Kategorie-Sektionen (Lukas).
+           Jede Sektion erklaert im Titel die automatische Stichart und enthaelt NUR ihre Einstellungen;
+           die Regler wirken jeweils nur auf Formen ihrer Kategorie (Flaeche=area, Linie=line, Text=text).
+           Stil + Verbindung bleiben gekoppelt im Gemeinsam-Block unten (Radio-Kacheln + Kontur-Sperre). -->
+
+      <!-- [VT-TOPBAND v1] Aktionsband ganz oben (Lukas): Zurücksetzen/Neu berechnen/Auto links; der Schliessen-X (#stitchPanelCloseX, schwebt absolut) sitzt rechts darauf; vollbreit bis zum rechten Rand (negative Margins). padding-right haelt die Buttons vom X frei. -->
+      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><button id="dstvResetView" title="Ansicht/Zoom zur&uuml;cksetzen (R)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></div>
+
+      <!-- Sektion FLAECHEN (Fuellstich) -->
+      <div id="dgpAreaSection" style="margin-bottom:0;">
+        <h4 id="dgpAreaSectionTitle" class="dgp-reiter" title="Flächen-Einstellungen ein-/ausklappen">
+          <span id="dgpAreaCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;display:inline-block;min-width:12px;">▾</span>
+          <span>Flächen <span style="font-weight:400;color:var(--fg2);">(werden mit Füllstich gestickt)</span></span>
+        </h4>
+        <!-- [VT-CAT-SEKTIONEN v2] dgpAreaBody = Wrapper (Lukas: "all das gehoert zu Flaechen"):
+             3 Grund-Slider PLUS der fruehere Gemeinsam-Block. Linien + Text stehen darunter. -->
+        <div id="dgpAreaBody">
+          <div style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
+          <!-- [VT-CAT-SEKTIONEN v3] Stil wieder ganz oben (Lukas) -->
+          <label style="font-weight:600;">Stil</label>
+          <select id="dgpFillStyle" style="font-size:var(--fs-sm);padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);color:var(--fg);background:var(--white);">
+            <option value="parallel">Parallel (Reihen)</option>
+            <option value="spiral">Kontur (folgt Form)</option>
+          </select>
+          <!-- Zeilenabstand (rowSpacing) -->
+          <label title="Abstand zwischen Stich-Reihen (kleiner = dichter)" style="font-weight:600;">Abstand zwischen Reihen</label>
+          <input id="dgpRowSpacing" type="range" min="0.10" max="1.00" value="0.3" step="0.1" style="accent-color:var(--fg);">
+          <span id="dgpRowSpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
+          <!-- Stichlänge (stitchLength) -->
+          <label title="Länge eines einzelnen Stichs" style="font-weight:600;">Abstand zwischen Stichen</label>
+          <input id="dgpStitchLength" type="range" min="1.0" max="6.0" value="3.0" step="0.1" style="accent-color:var(--fg);">
+          <span id="dgpStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">3.0 mm</span>
+          <!-- Winkel (angle) -->
+          <label title="Stick-Richtung in Grad. 0=horizontal, 90=vertikal." style="font-weight:600;">Winkel</label>
+          <input id="dgpAngle" type="range" min="0" max="180" value="0" step="5" style="accent-color:var(--fg);">
+          <span id="dgpAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0°</span>
+          </div>
+
+      <!-- [VT-CAT-SEKTIONEN v2] Flaechen-Optionen (frueher "Gemeinsam"-Block) - jetzt Teil der Flaechen-Sektion (Lukas). -->
       <!-- Globaler Stichtyp — bulk-apply auf alle Shapes.
            Vektortool Ink: nur Füllstich, daher ausgeblendet (display:none). -->
       <div style="display:none;align-items:center;gap:var(--space-4);margin-bottom:6px;font-size:var(--fs-sm);color:var(--fg);font-weight:600;">
@@ -39280,17 +39473,9 @@ window.__LINEA_DEBUG__ = {
           <option value="">— gemischt —</option>
         </select>
       </div>
+      <!-- [VT-CAT-SEKTIONEN v3] leerer Trenn-Balken entfernt (Lukas). -->
       <!-- Grid: label | input | value -->
       <div style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
-        <!-- v50: Versatz-Slider entfernt (nicht mehr benoetigt). Stagger
-             laeuft fest ueber das lineare 4er-Verfahren, _stitchOffsetAmount=0. -->
-
-        <!-- Füllstil: Parallel (Reihen) / Kontur (folgt der Form) -->
-        <label style="font-weight:600;">Stil</label><!-- [tooltip-raus v1] Kachel-Grafik erklaert den Stil, kein title mehr (Lukas) -->
-        <select id="dgpFillStyle" style="font-size:var(--fs-sm);padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);color:var(--fg);background:var(--white);">
-          <option value="parallel">Parallel (Reihen)</option>
-          <option value="spiral">Kontur (folgt Form)</option>
-        </select>
 
         <!-- Verbindung: wie Sprünge/Übergänge zwischen Bereichen geführt werden.
              [kontur-connect-sichtbar v1] immer sichtbar (Lukas 2026-06-10);
@@ -39304,27 +39489,11 @@ window.__LINEA_DEBUG__ = {
 
         </div><!-- /dgpFillConnectRow -->
 
-        <!-- [VT-UIFIX v1] Trennlinie direkt nach den Verbindungs-Kacheln (Lukas) -->
-        <div style="grid-column:1 / -1;border-top:1px dashed var(--border);margin:2px 0 4px;"></div>
+        <!-- [VT-TOPBAND v1] Zurücksetzen/Neu berechnen/Auto ins Top-Band ganz oben verschoben (Lukas). -->
+        <div style="grid-column:1 / -1;height:0;"></div>
 
-        <!-- [VT-UIFIX v1] Zurücksetzen / Neu berechnen / Auto aus der Titelzeile hierher (unter Verbindung) verschoben (Lukas) -->
-        <div id="dstvGpHeadActions" style="grid-column:1 / -1;display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin-top:2px;margin-bottom:2px;"><button id="dstvResetView" title="Ansicht/Zoom zur&uuml;cksetzen (R)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></div>
-
-        <!-- [VT-UIFIX v1] Reihenfolge + Begriffe (Lukas): Abstand zwischen Reihen / Abstand zwischen Stichen / Winkel -->
-        <!-- Zeilenabstand (rowSpacing) -->
-        <label title="Abstand zwischen Stich-Reihen (kleiner = dichter)" style="font-weight:600;">Abstand zwischen Reihen</label>
-        <input id="dgpRowSpacing" type="range" min="0.10" max="1.00" value="0.3" step="0.1" style="accent-color:var(--fg);">
-        <span id="dgpRowSpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
-
-        <!-- Stichlänge (stitchLength) -->
-        <label title="Länge eines einzelnen Stichs" style="font-weight:600;">Abstand zwischen Stichen</label>
-        <input id="dgpStitchLength" type="range" min="1.0" max="6.0" value="3.0" step="0.1" style="accent-color:var(--fg);">
-        <span id="dgpStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">3.0 mm</span>
-
-        <!-- Winkel (angle) -->
-        <label title="Stick-Richtung in Grad. 0=horizontal, 90=vertikal." style="font-weight:600;">Winkel</label>
-        <input id="dgpAngle" type="range" min="0" max="180" value="0" step="5" style="accent-color:var(--fg);">
-        <span id="dgpAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0°</span>
+        <!-- [VT-CAT-SEKTIONEN v1] Abstand zwischen Reihen / Stichen / Winkel in die Flaechen-Sektion oben
+             verschoben (wirken nur auf Flaechen). Pull bleibt gemeinsam. -->
 
         <!-- [VT-UIFIX v1] Pull-Kompensation: Label "Pull" mit EINEM Zahnrad + (i); Schieber (wie Stich) erst auf Zahnrad-Klick (Lukas) -->
         <label id="dgpPullLabel" style="font-weight:600;display:flex;align-items:center;gap:var(--space-2);">
@@ -39388,40 +39557,56 @@ window.__LINEA_DEBUG__ = {
           <input id="dgpRandomOffset" type="checkbox" checked style="cursor:pointer;">
           <span>Versatz</span>
         </label>
-        <!-- Abschlusskontur -->
-        <div>
-          <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Abschlusskontur: ein Laufstich entlang der Form-Kontur wird NACH der Fuellung gestickt. Deckt die Reihen-Enden am Rand ab (glatte Aussenkante), wie der Schlichtgang beim CNC-Fraesen.">
-            <input id="dgpOutline" type="checkbox" style="cursor:pointer;">
-            <span>Abschlusskontur</span>
-          </label>
-          <div id="dgpOutlineSub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
-            <label title="Stichlaenge des Kontur-Laufstichs">Stich</label>
-            <input id="dgpOutlineStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
-            <span id="dgpOutlineStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
+        <!-- [VT-CAT-SEKTIONEN v3] Abschlusskontur + Umriss-Dichte entfernt (Lukas). Handler/Sync sind id-guarded, daher gefahrlos. -->
+        <!-- [tip-always v3] Spitzen-Dropdown entfernt (Lukas): im Hintergrund fest auf "Verjuengt (spitz)" -->
+      </div>
+        </div><!-- /dgpAreaBody -->
+      </div><!-- /dgpAreaSection: Flaechen enthaelt jetzt alle Fuellstich-Optionen (Lukas) -->
+
+      <!-- Sektion LINIEN (Satin) -->
+      <div id="dgpLineSection" style="margin-bottom:0;">
+        <h4 id="dgpLineSectionTitle" class="dgp-reiter" title="Linien-Einstellungen ein-/ausklappen">
+          <span id="dgpLineCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;display:inline-block;min-width:12px;">▾</span>
+          <span>Linien <span style="font-weight:400;color:var(--fg2);">(werden mit Satin gestickt)</span></span>
+        </h4>
+        <div id="dgpLineBody" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
+          <!-- Satin-Dichte (satinPitch): Stichabstand wenn eine Linie/Kontur als Satin gestickt wird -->
+          <label title="Dichte der Satin-Linien: Stichabstand, wenn eine gezeichnete Linie/Kontur als Satin gestickt wird. Kleiner = dichter." style="font-weight:600;">Satin-Dichte</label>
+          <input id="dgpSatinPitch" type="range" min="0.15" max="0.60" value="0.4" step="0.05" style="accent-color:var(--fg);">
+          <span id="dgpSatinPitchVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.40 mm</span>
+        </div>
+      </div>
+
+      <!-- Sektion TEXT (Satin / Tatami / Längs) -->
+      <div id="dgpTextSection" style="margin-bottom:0;">
+        <h4 id="dgpTextSectionTitle" class="dgp-reiter" title="Text-Einstellungen ein-/ausklappen">
+          <span id="dgpTextCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;display:inline-block;min-width:12px;">▾</span>
+          <span>Text <span style="font-weight:400;color:var(--fg2);">(Satin, Tatami oder Längs)</span></span>
+        </h4>
+        <div id="dgpTextBody" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
+          <!-- [VT-TEXT-SATIN v1] Text-Stickart: Satin=echte Satin-Saeulen, Tatami=Flaechenfuellung, Laengs=Reihen laengs der Schrift. Gilt fuer alle Text-Formen. -->
+          <div id="dgpTextStitchRow" style="display:contents">
+          <label style="font-weight:600;" title="Wie getexteter Text gestickt wird">Text-Stickart</label>
+          <div style="grid-column:2 / -1;display:flex;gap:4px;">
+            <button type="button" class="dgp-ts" data-ts="satin" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Satin</button>
+            <button type="button" class="dgp-ts" data-ts="tatami" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Tatami</button>
+            <button type="button" class="dgp-ts" data-ts="laengs" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Längs</button>
+          </div>
+          <!-- [VT-TEXT-DENSITY-SLIDER v1] eigener Dichte-Regler NUR fuer Text -->
+          <label style="font-weight:600;" title="Stich-Dichte nur für Text (kleiner = dichter)">Dichte</label>
+          <input id="dgpTextDensity" type="range" min="0.15" max="0.80" value="0.30" step="0.05" style="accent-color:var(--fg);">
+          <span id="dgpTextDensityVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
           </div>
         </div>
-        <!-- [umriss-2farbe v5] Umriss-Dichte: Stichabstand des Satin-Rand-Bands (nur bei gefuellter Form mit andersfarbigem Umriss). Kleiner = dichter. -->
-        <div id="dgpSatinPitchRow" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);margin-top:var(--space-3);">
-          <label title="Dichte der Satin-Linien: Stichabstand, wenn eine gezeichnete Linie/Kontur als Satin gestickt wird. Kleiner = dichter.">Satin-Dichte</label>
-          <input id="dgpSatinPitch" type="range" min="0.15" max="0.60" value="0.4" step="0.05" style="accent-color:var(--fg);">
-          <span id="dgpSatinPitchVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">0.40 mm</span>
-        </div>
-        <!-- [umriss-2farbe v5] Umriss-Dichte: Stichabstand des Satin-Rand-Bands (nur bei gefuellter Form mit andersfarbigem Umriss). Kleiner = dichter. -->
-        <div id="dgpRimDensityRow" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);margin-top:var(--space-2);">
-          <label title="Dichte des Umriss-Satinbands: Stichabstand am Rand, wenn die Umrissfarbe von der Fuellfarbe abweicht. Kleiner = dichter.">Umriss-Dichte</label>
-          <input id="dgpRimDensity" type="range" min="0.15" max="0.60" value="0.2" step="0.05" style="accent-color:var(--fg);">
-          <span id="dgpRimDensityVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">0.20 mm</span>
-        </div>
-        <!-- [tip-always v3] Spitzen-Dropdown entfernt (Lukas): im Hintergrund fest auf "Verjuengt (spitz)" -->
       </div>
 
       <!-- Punkte Toggle (Render-only) + Apply-Status [VT-UIFIX v1] ueberfluessige Trennlinie entfernt (Zaehler #dgpStitchCount darunter ist ausgeblendet) -->
-      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);">
+      <div style="margin-top:0;display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);">
         <!-- [stickui-dots v1] Sidebar-Toggle "Stich-Punkte anzeigen" (#dgpDotsToggle) entfernt -
              jetzt steuert nur noch die Topbar-Checkbox #dstvShowDots (Lukas: Dublette raus). -->
         <span id="dgpStitchCount" style="display:none;font-family:'SF Mono',Menlo,monospace;color:var(--fg);font-size:var(--fs-xs);"></span><!-- [VT-UIFIX v1] Stichzaehler unter "Faden trimmen" ausgeblendet (Lukas: "den zähler unter trimmen"); Element bleibt fuer JS-Updater im DOM -->
       </div>
-      <div id="dgpApplyStatus" style="margin-top:4px;font-size:var(--fs-xs);color:var(--fg2);font-style:italic;"></div><!-- [ux-feinschliff v2] -->
+      <div id="dgpApplyStatus" style="margin-top:0;font-size:var(--fs-xs);color:var(--fg2);font-style:italic;"></div><!-- [ux-feinschliff v2] -->
       <div id="dgpStickWarn" style="display:none;margin-top:6px;font-size:var(--fs-xs);color:var(--warn-tx);background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);line-height:1.5;"></div>
     </div>
     <!-- v44: Stats-Bundle. Wird via JS in #dstvInfoBody verschoben sobald
@@ -39805,6 +39990,8 @@ window.__LINEA_DEBUG__ = {
 
   function _dstvRender() {
     if (!_dstvCtx) return;
+    /* [VT-TEXT-SATIN v1] Text-Stickart-Knoepfe im dgp-Panel auf aktuellen Stand bringen. */
+    if (typeof window._dgpSyncTextStitch === 'function') { try { window._dgpSyncTextStitch(); } catch (e) {} }
     var W = _dstvCanvas.width, H = _dstvCanvas.height;
     _dstvCtx.save();
     _dstvCtx.setTransform(1,0,0,1,0,0);
@@ -41142,6 +41329,53 @@ window.__LINEA_DEBUG__ = {
         if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
       });
 
+      /* [VT-TEXT-SATIN v1] Text-Stickart (Satin/Tatami/Laengs) -> auf alle Text-Formen.
+         Aktiv-Markierung spiegelt den aktuellen Wert (window._dgpSyncTextStitch wird
+         auch aus _dstvRender aufgerufen, damit die Knoepfe beim Oeffnen stimmen). */
+      window._dgpSyncTextStitch = function () {
+        var v = null, mixed = false;
+        (window.shapes || []).forEach(function (s) { if (s && s.type === 'text') { var t = s.textStitch || 'tatami'; if (v === null) v = t; else if (v !== t) mixed = true; } });
+        var btns = document.querySelectorAll('.dgp-ts');
+        for (var bi = 0; bi < btns.length; bi++) {
+          var on = !mixed && v !== null && btns[bi].getAttribute('data-ts') === v;
+          btns[bi].style.background = on ? 'var(--dstv-primary, #3f7191)' : 'var(--white)';
+          btns[bi].style.color = on ? '#fff' : 'var(--fg)';
+        }
+        /* [VT-TEXT-DENSITY-SLIDER v1] eigenen Text-Dichte-Slider auf den aktuellen Wert spiegeln
+           (erste Text-Form, sonst gemerkter Kategorie-Wert). */
+        var _td = document.getElementById('dgpTextDensity'), _tdv = document.getElementById('dgpTextDensityVal');
+        if (_td && _tdv) {
+          var _tShape = (window.shapes || []).filter(function (s) { return s && s.type === 'text' && s.stitch && s.stitch.params; })[0];
+          var _trs = _tShape ? _tShape.stitch.params.rowSpacing : (window._catStitchParams && window._catStitchParams.text && window._catStitchParams.text.rowSpacing);
+          if (isFinite(_trs)) { _td.value = _trs; _tdv.textContent = Number(_trs).toFixed(2) + ' mm'; }
+        }
+      };
+      (function () {
+        var tsBtns = document.querySelectorAll('.dgp-ts');
+        for (var ti = 0; ti < tsBtns.length; ti++) {
+          tsBtns[ti].addEventListener('click', function () {
+            var v = this.getAttribute('data-ts');
+            (window.shapes || []).forEach(function (s) { if (s && s.type === 'text') { s.textStitch = v; if (s.stitch) s.stitch._needleCacheKey = ''; } });
+            window._dgpSyncTextStitch();
+            if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
+          });
+        }
+        window._dgpSyncTextStitch();
+      })();
+      /* [VT-TEXT-DENSITY-SLIDER v1] Dichte-Regler direkt bei der Text-Stickart -> wirkt NUR auf Text
+         (rowSpacing aller Text-Formen via Kategorie-Apply). */
+      (function () {
+        var dgpTD = document.getElementById('dgpTextDensity'), dgpTDV = document.getElementById('dgpTextDensityVal');
+        if (!dgpTD || !dgpTDV) return;
+        dgpTD.addEventListener('input', function () {
+          var v = parseFloat(this.value) || 0.30;
+          dgpTDV.textContent = v.toFixed(2) + ' mm';
+          if (window._catStitchParams && window._catStitchParams.text) window._catStitchParams.text.rowSpacing = v;
+          if (typeof window._v44BulkSetParamCat === 'function') window._v44BulkSetParamCat('text', 'rowSpacing', v);
+          if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
+        });
+      })();
+
       /* Progress-UI: 3 Phasen.
          - pending:   gestrichelter 20% Balken, "Warte auf Eingabe…"
          - computing: indeterminate sliding Balken, "Berechne Stiche…"
@@ -41255,12 +41489,42 @@ window.__LINEA_DEBUG__ = {
          selbst macht) und triggert dann den DST-Refresh. */
       function _dgpApplyParam(paramName, value) {
         var hits = 0;
+        /* [VT-CAT-SEKTIONEN v1] Kategorie-Scope je Regler, passend zu den 3 Sektionen:
+           Flaechen-Regler (Reihen/Stiche/Winkel) wirken NUR auf Flaechen (area), die Satin-Dichte NUR
+           auf Linien (line). Text hat seinen eigenen Dichte-Regler. Alle uebrigen Params (Pull, Underlay,
+           Kontur, Umriss-Dichte ...) bleiben GEMEINSAM/global. So passt jeder Regler zu seiner Ueberschrift. */
+        var AREA_PARAMS = { rowSpacing: 1, stitchLength: 1, angle: 1 };
+        var cat = AREA_PARAMS[paramName] ? 'area' : null;
         try {
-          if (typeof window._v44ApplyParamToAllShapesQuiet === 'function') {
+          if (paramName === 'satinPitch') {
+            /* [VT-SATIN-SCOPE v1] Satin-Dichte gilt fuer ALLE als Satin gestickten Formen - offene Linien,
+               Kurven UND geschlossene Kreise (Lukas: "wenn ich Linie sage meine ich auch Kreise/Kurven").
+               NICHT auf Kategorie 'line' scopen (matched nur OFFENE Pfade -> Kreise=Kategorie 'area' fielen raus);
+               stattdessen nach Stichtyp satincol/satin treffen, egal ob offen oder geschlossen. */
+            var _ss = (typeof window !== 'undefined' && window.shapes) ? window.shapes : [];
+            for (var _si = 0; _si < _ss.length; _si++) {
+              var _s = _ss[_si];
+              if (!(_s && _s.stitch && _s.stitch.params)) continue;
+              var _t = _s.stitch.type, _touched = false;
+              /* Satin-Linien/-Saeulen: satinPitch */
+              if (_t === 'satincol' || _t === 'satin') { _s.stitch.params.satinPitch = value; _touched = true; }
+              /* [satin-dichte-fix v2] Umriss-Satinband auf GEFUELLTEN Formen mit andersfarbigem Umriss
+                 (Kreis/Flaeche mit orangem Satin-Rand) -> Dichte = rimDensity. Die EINE "Satin-Dichte"
+                 steuert jetzt auch dieses Band (Lukas: "kreis ist definitiv satin" = gefuellt + Satin-Rand). */
+              if (_t === 'fill' || _t === 'satincol' || _t === 'satin') { _s.stitch.params.rimDensity = value; _touched = true; }
+              if (_touched) { _s.stitch._needleCacheKey = ''; _s.stitch.needlePoints = []; hits++; }
+            }
+            if (window._catStitchParams && window._catStitchParams.line) window._catStitchParams.line.satinPitch = value;
+          } else if (cat && typeof window._v44BulkSetParamCat === 'function') {
+            if (window._catStitchParams && window._catStitchParams[cat]) window._catStitchParams[cat][paramName] = value;
+            hits = window._v44BulkSetParamCat(cat, paramName, value) || 0;
+          } else if (typeof window._v44ApplyParamToAllShapesQuiet === 'function') {
             hits = window._v44ApplyParamToAllShapesQuiet(paramName, value) || 0;
           }
           console.info('[dgp] ' + paramName + '=' + value + ' applied to ' + hits + ' shape(s)');
-          if (hits === 0) {
+          if (hits === 0 && !cat && paramName !== 'satinPitch') {
+            /* Nur bei GLOBALEN Params warnen. Bei Kategorie-Reglern heisst hits=0 nur "keine Form dieser
+               Kategorie vorhanden" - kein Fehler, einfach still neu rechnen. */
             if (dgpStatus) {
               dgpStatus.style.color = '#c44a3c';
               dgpStatus.style.fontStyle = 'normal';
@@ -41350,6 +41614,8 @@ window.__LINEA_DEBUG__ = {
           _dgpApplyParam('stitchLength', v);
         });
       }
+      /* [VT-CAT v2] Kategorie-Selektor (Schrift/Linien/Flaechen) zurueckgebaut (Lukas). Die zwei Regler
+         wirken jetzt auf Nicht-Text; Schrift hat den eigenen Dichte-Regler oben bei der Stickart. */
       /* Pull-Komp */
       if (dgpPC && dgpPCV) {
         dgpPC.addEventListener('input', function() {
@@ -41513,6 +41779,35 @@ window.__LINEA_DEBUG__ = {
       _updateUnderlaySubVisibility();
       _updateUlTrimLayout();
 
+      /* [VT-CAT-SEKTIONEN v1] Die 3 Kategorie-Sektionen (Flaechen/Linien/Text) je einzeln einklappbar -
+         Klick auf den Sektion-Titel blendet nur deren Body aus, Caret dreht, Zustand pro Sektion in
+         localStorage. WICHTIG: der Body ist ein Grid -> beim Aufklappen explizit 'grid' (nicht ''),
+         sonst zieht display:none vom Default. */
+      (function() {
+        var secs = [
+          { t: 'dgpAreaSectionTitle', b: 'dgpAreaBody', c: 'dgpAreaCaret', k: 'linea_sec_area_collapsed', d: 'block' },
+          { t: 'dgpLineSectionTitle', b: 'dgpLineBody', c: 'dgpLineCaret', k: 'linea_sec_line_collapsed', d: 'grid' },
+          { t: 'dgpTextSectionTitle', b: 'dgpTextBody', c: 'dgpTextCaret', k: 'linea_sec_text_collapsed', d: 'grid' }
+        ];
+        secs.forEach(function(s) {
+          var title = document.getElementById(s.t), body = document.getElementById(s.b), caret = document.getElementById(s.c);
+          if (!title || !body) return;
+          function apply(collapsed) {
+            /* [VT-CAT-SEKTIONEN v2] dgpAreaBody ist ein Block-Wrapper, dgpLine/TextBody sind Grids -> je eigener Display-Typ */
+            body.style.display = collapsed ? 'none' : s.d;
+            if (caret) caret.style.transform = collapsed ? 'rotate(-90deg)' : '';
+          }
+          var saved = false;
+          try { saved = localStorage.getItem(s.k) === '1'; } catch(e){ console.warn('[vt:swallowed]', e); }
+          apply(saved);
+          title.addEventListener('click', function() {
+            var now = body.style.display !== 'none';
+            apply(now);
+            try { localStorage.setItem(s.k, now ? '1' : '0'); } catch(e){ console.warn('[vt:swallowed]', e); }
+          });
+        });
+      })();
+
       /* v50: "Globale Parameter" einklappbar — Klick auf den Titel blendet
          die ganze Parameter-Box aus, damit die Reihenfolge-Liste mehr Platz
          bekommt. Zustand in localStorage gemerkt. */
@@ -41525,9 +41820,10 @@ window.__LINEA_DEBUG__ = {
           gpBox.style.display = collapsed ? 'none' : '';
           if (gpCaret) gpCaret.style.transform = collapsed ? 'rotate(-90deg)' : '';
         }
-        var saved = false;
-        try { saved = localStorage.getItem('linea_gp_collapsed') === '1'; } catch(e){console.warn('[vt:swallowed]',e)}
-        applyCollapsed(saved);
+        /* [VT-CAT-SEKTIONEN v1] "Einstellungen"-Titel ist ausgeblendet (Panel in 3 eigene Reiter gedrittelt).
+           Darum den Panel-Body IMMER offen halten (sonst koennte ein alter localStorage-Collapse ihn
+           unsichtbar machen, ohne Titel zum Wieder-Aufklappen). Klappen passiert jetzt pro Reiter. */
+        applyCollapsed(false);
         gpTitle.addEventListener('click', function(e) {
           /* [stickhead v1] Klicks auf Neu berechnen / Auto (in der Titelzeile) nicht als Ein-/Ausklappen werten */
           if (e.target.closest && e.target.closest('#dstvGpHeadActions')) return;
@@ -41638,8 +41934,26 @@ window.__LINEA_DEBUG__ = {
             var allSame = firstT && ssTypes.every(function(t){ return t === firstT; });
             dgpSTEl.value = allSame ? firstT : '';
           }
-          if (dgpRS && isFinite(p.rowSpacing)) { dgpRS.value = p.rowSpacing; dgpRSV.textContent = Number(p.rowSpacing).toFixed(2) + ' mm'; }
-          if (dgpSL && isFinite(p.stitchLength)) { dgpSL.value = p.stitchLength; dgpSLV.textContent = Number(p.stitchLength).toFixed(1) + ' mm'; }
+          /* [VT-CAT-SEKTIONEN v1] Jede Sektion spiegelt eine Form IHRER Kategorie: die Flaechen-Slider
+             (Reihen/Stiche/Winkel) aus der ersten AREA-Form, die Satin-Dichte aus der ersten LINE-Form.
+             Text hat den eigenen Sync (_dgpSyncTextStitch). Fallback: firstFill (p). */
+          var _areaShape = null, _lineShape = null;
+          for (var _ci = 0; _ci < ss.length; _ci++) {
+            var _cs = ss[_ci];
+            if (!(_cs && _cs.stitch && _cs.stitch.params)) continue;
+            var _ct = _cs.stitch.type;
+            if (_ct !== 'fill' && _ct !== 'satin' && _ct !== 'zigzag' && _ct !== 'satincol') continue;
+            var _ccat = (typeof window._shapeStitchCat === 'function') ? window._shapeStitchCat(_cs) : 'area';
+            if (_ccat === 'area' && !_areaShape) _areaShape = _cs;
+            else if (_ccat === 'line' && !_lineShape) _lineShape = _cs;
+          }
+          /* [VT-CAT-SEKTIONEN v1] Fallback kategorie-REIN: existiert keine Form der Kategorie, den gemerkten
+             Kategorie-Default zeigen (nicht eine fremde Form), sonst stuenden in der Flaechen-Sektion z.B.
+             Text-Werte. */
+          var _aP = _areaShape ? _areaShape.stitch.params : ((window._catStitchParams && window._catStitchParams.area) || p);
+          var _lP = _lineShape ? _lineShape.stitch.params : ((window._catStitchParams && window._catStitchParams.line) || p);
+          if (dgpRS && isFinite(_aP.rowSpacing)) { dgpRS.value = _aP.rowSpacing; dgpRSV.textContent = Number(_aP.rowSpacing).toFixed(2) + ' mm'; }
+          if (dgpSL && isFinite(_aP.stitchLength)) { dgpSL.value = _aP.stitchLength; dgpSLV.textContent = Number(_aP.stitchLength).toFixed(1) + ' mm'; }
           if (dgpPC && isFinite(p.pullCompensation)) { dgpPC.value = p.pullCompensation; dgpPCV.textContent = Number(p.pullCompensation).toFixed(2) + ' mm'; }
           if (dgpUL) dgpUL.checked = p.underlay !== false;
           var dgpAdjEl = document.getElementById('dgpAdjustLast');
@@ -41647,7 +41961,7 @@ window.__LINEA_DEBUG__ = {
           /* Winkel + Underlay sub-params */
           var dgpAngEl = document.getElementById('dgpAngle');
           var dgpAngVEl = document.getElementById('dgpAngleVal');
-          if (dgpAngEl && isFinite(p.angle)) { dgpAngEl.value = p.angle; if (dgpAngVEl) dgpAngVEl.textContent = Math.round(p.angle) + '°'; }
+          if (dgpAngEl && isFinite(_aP.angle)) { dgpAngEl.value = _aP.angle; if (dgpAngVEl) dgpAngVEl.textContent = Math.round(_aP.angle) + '°'; }
           var dgpUAEl = document.getElementById('dgpUnderlayAngle');
           var dgpUAVEl = document.getElementById('dgpUnderlayAngleVal');
           if (dgpUAEl && isFinite(p.underlayAngle)) { dgpUAEl.value = p.underlayAngle; if (dgpUAVEl) dgpUAVEl.textContent = Math.round(p.underlayAngle) + '°'; }
@@ -41668,10 +41982,21 @@ window.__LINEA_DEBUG__ = {
           if (dgpOutSLEl && isFinite(p.outlineStitchLength)) { dgpOutSLEl.value = p.outlineStitchLength; if (dgpOutSLVEl) dgpOutSLVEl.textContent = Number(p.outlineStitchLength).toFixed(1) + ' mm'; }
           var outSubEl = document.getElementById('dgpOutlineSub');
           if (outSubEl && dgpOutlineEl) outSubEl.style.display = dgpOutlineEl.checked ? 'grid' : 'none';
-          /* [satin-dichte v1] Satin-Linien-Dichte aus der aktiven Form spiegeln */
+          /* [VT-SATIN-SCOPE v1] Satin-Dichte aus der ersten als Satin gestickten Form spiegeln - offen ODER
+             geschlossen (Kreise/Kurven), passend zum erweiterten Apply-Scope. */
           var dgpSatPEl = document.getElementById('dgpSatinPitch');
           var dgpSatPVEl = document.getElementById('dgpSatinPitchVal');
-          if (dgpSatPEl) { var _sp = Number(p.satinPitch) > 0 ? Number(p.satinPitch) : 0.4; dgpSatPEl.value = _sp; if (dgpSatPVEl) dgpSatPVEl.textContent = _sp.toFixed(2) + ' mm'; }
+          if (dgpSatPEl) {
+            var _satShape = (window.shapes || []).filter(function (x) { return x && x.stitch && x.stitch.params && (x.stitch.type === 'satincol' || x.stitch.type === 'satin'); })[0];
+            var _sp;
+            if (_satShape) { _sp = Number(_satShape.stitch.params.satinPitch) > 0 ? Number(_satShape.stitch.params.satinPitch) : 0.4; }
+            else {
+              /* [satin-dichte-fix v2] keine reine Satin-Form -> eine gefuellte Form mit Umriss-Satinband (rimDensity) spiegeln */
+              var _rimShape = (window.shapes || []).filter(function (x) { return x && x.stitch && x.stitch.params && Number(x.stitch.params.rimDensity) > 0; })[0];
+              _sp = _rimShape ? Number(_rimShape.stitch.params.rimDensity) : (Number(_lP.satinPitch) > 0 ? Number(_lP.satinPitch) : 0.4);
+            }
+            dgpSatPEl.value = _sp; if (dgpSatPVEl) dgpSatPVEl.textContent = _sp.toFixed(2) + ' mm';
+          }
           /* [umriss-2farbe v5] Umriss-Dichte aus der aktiven Form spiegeln */
           var dgpRimDEl = document.getElementById('dgpRimDensity');
           var dgpRimDVEl = document.getElementById('dgpRimDensityVal');
@@ -47391,17 +47716,26 @@ function _pairContourFlowFill(rail1, rail2, opts){
   var inset=_mm2px(0.05);
   /* Phase 1: Runs sammeln (zusammenhaengende In-Ink-Stuecke pro Reihe). */
   var runs=[], rowIdx, dir=1, oi, run=[];
+  /* [VT-LAENGS-STAGGER v1] Reihen-VERSATZ entlang dem Strich: ohne Versatz liegen die Stich-
+     Endpunkte aller Reihen auf derselben Querlinie (sichtbare "Tramlines", Nadelloecher in einer
+     Spalte). Pro Reihe wird die Laengs-Sampling-Phase um ph*stitchLen verschoben (Brick-Muster,
+     stag-fach), via fraktionaler Querschnitt-Interpolation -> bricht die Querlinien auf (Lukas). */
+  var stag=(opts && opts.staggers) || 4;
   for(rowIdx=-halfRows; rowIdx<=halfRows; rowIdx++){
     var offset=rowIdx*rowSpacing;   /* FESTER physischer Abstand von der Mittellinie */
-    for(oi=0; oi<=steps; oi++){ k=dir>0?oi:(steps-oi); var c=cs[k], half=c.w*0.5;
-      if(c.w>2*inset){
-        var off2=Math.max(-(half-inset), Math.min(half-inset, offset));   /* an die KANTE klemmen statt brechen
-           -> Reihe bleibt DURCHGEHEND (kein Sprung); wo der Strich zu schmal ist, kollabiert die Aussenreihe
-           auf die Kante (koinzident -> Mikrofilter cullt) statt einen Sprung quer ueber den Buchstaben zu machen.
-           Das nimmt das Sprung-Wirrwarr in der Stiche-Ansicht raus (Lukas „nicht harmonisch"). */
-        var v=0.5 + off2/c.w;
-        run.push({x:c.a.x+(c.b.x-c.a.x)*v, y:c.a.y+(c.b.y-c.a.y)*v});
-      } else if(run.length){ runs.push(run); run=[]; }   /* nur bei echtem ~0-Breite-Unterbruch brechen */
+    var ph=(((rowIdx%stag)+stag)%stag)/stag;   /* 0..1 Phasenversatz je Reihe */
+    for(oi=0; oi<=steps; oi++){
+      var fk=dir>0?(oi+ph):(steps-oi-ph); if(fk<0)fk=0; else if(fk>steps)fk=steps;
+      var i0=Math.floor(fk), i1=(i0<steps?i0+1:steps), tt=fk-i0;
+      var c0=cs[i0], c1=cs[i1];
+      var ax=c0.a.x+(c1.a.x-c0.a.x)*tt, ay=c0.a.y+(c1.a.y-c0.a.y)*tt;
+      var bx=c0.b.x+(c1.b.x-c0.b.x)*tt, by=c0.b.y+(c1.b.y-c0.b.y)*tt;
+      var cw=Math.hypot(bx-ax, by-ay), half=cw*0.5;
+      if(cw>2*inset){
+        var off2=Math.max(-(half-inset), Math.min(half-inset, offset));   /* an die KANTE klemmen (Reihe bleibt durchgehend) */
+        var v=0.5 + off2/cw;
+        run.push({x:ax+(bx-ax)*v, y:ay+(by-ay)*v});
+      } else if(run.length){ runs.push(run); run=[]; }
     }
     if(run.length){ runs.push(run); run=[]; }
     dir=-dir;   /* Boustrophedon entlang dem Strich */
@@ -47592,24 +47926,35 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
      Contour-Flow-Fill (extreme Bowls). Loest den Kurven-Kamm strukturell. */
   var cls=_classifyRibbon(cen, hw, rail1, rail2);
   var zz;
-  if(cls.mode==='forceTatami'){
+  var _bfTop=(typeof window!=='undefined'&&window._bowlFill)||'satin';
+  /* [VT-TEXT-DENSITY v1] Schrift-Dichte (Quer-/Reihenabstand) steuerbar: state.textDensityMM kommt
+     vom "Abstand zwischen Reihen"-Slider (textToStitches). Default 0.30 mm. Ersetzt die fixen
+     Querabstaende aller Stricharten -> ein Regler steuert Satin/Tatami/Laengs-Dichte. */
+  var _densPx=_mm2px((typeof state!=='undefined'&&isFinite(state.textDensityMM)&&state.textDensityMM>0)?state.textDensityMM:0.30);
+  if(_bfTop==='laengs'){
+    /* [VT-LAENGS-ALL v1] "Laengs" gilt fuer JEDEN Strich (auch gerade): contourFlow laeuft
+       ENTLANG der eigenen Skelett-Achse des Strichs. Ohne das blieben gerade Striche (z.B.
+       die H-Balken) im turning/forceTatami-Zweig quer = "Laufrichtung falsch erkannt" (Lukas). */
+    zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
+    cls.mode='contourFlow';
+  } else if(cls.mode==='forceTatami'){
     /* dickes Faecher-Segment (Lobster-k-Loop): IMMER per-Segment-Tatami, egal welcher Bowl-Toggle
        (Satin wuerde fächern). Kein Ganzglyph-Fill -> die Segment-Travels verbinden kurz. */
-    zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 });
+    zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(2.2), staggers:4 });
     cls.mode='tatami';
   } else if(cls.mode==='contourFlow'){
-    zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_mm2px(0.22), stitchLenPx:_mm2px(1.1) });
+    zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
   } else if(cls.mode==='satinSectioned'){
     /* UI-TOGGLE window._bowlFill (gekruemmte Bowls): 'satin' (perpendikulare Satin, Sheen - faechert
        auf dicken engen Bowls), 'tatami' (gewinkelte Fuellung + Stagger = kammfrei, Fill-Optik),
        'laengs' (contourFlow-Reihen entlang). Default 'satin'. */
     var _bf=(typeof window!=='undefined'&&window._bowlFill)||'satin';
-    if(_bf==='tatami') zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 });   /* 0.32->0.24 (2026-06-20, Lukas "tatami nicht ueberall gleichmaessig"): per-Segment-Tatami war duenner als die Satin-Rungs (0.22) + Fill-Konturtatami (0.28) -> Reihen-Luecken. Auf ~Satin-Dichte angeglichen. */
-    else if(_bf==='laengs') zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_mm2px(0.22), stitchLenPx:_mm2px(1.1) });
-    else zz=_pairSatinSectioned(rail1, rail2, _mm2px(0.24), _mm2px(2.0));
+    if(_bf==='tatami') zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(2.2), staggers:4 });
+    else if(_bf==='laengs') zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
+    else zz=_pairSatinSectioned(rail1, rail2, _densPx, _mm2px(2.0));
     cls.mode = (_bf==='tatami')?'tatami':(_bf==='laengs')?'contourFlow':'satinSectioned';
   } else {
-    zz=_pairTurningSatinContinuous(rail1, rail2, _mm2px(0.24), cls);
+    zz=_pairTurningSatinContinuous(rail1, rail2, _densPx, cls);
   }
   return { stitches:zz.stitches, rail1:rail1, rail2:rail2, rungs:zz.rungs, ribbonMode:cls.mode };
 }
@@ -48472,8 +48817,17 @@ function textToStitches(opts){
   state.sizeMM=_px2mm(opts.fontSizePx||_mm2px(20));
   state.bold=!!opts.bold; state.italic=!!opts.italic;
   state.pitch=isFinite(opts.pitchMM)?opts.pitchMM:0.3; state.stitch='satin'; state.underlay=false;
+  /* [VT-TEXT-DENSITY v1] Schrift-Dichte (Quer-/Reihenabstand in mm) vom "Abstand zwischen Reihen"-
+     Slider; steuert Satin/Tatami/Laengs-Dichte in _satinByCrossSection. Default 0.30 mm. */
+  state.textDensityMM=(isFinite(opts.densityMM)&&opts.densityMM>0)?opts.densityMM:0.30;
+  /* bowlFill steuert die Strich-Fuellung: 'satin' (Satin-Saeulen), 'tatami' (Reihen),
+     'laengs' (contourFlow = Stiche LAENGS der Strichachse). Engine liest window._bowlFill;
+     temporaer setzen + zuruecksetzen, damit es nichts anderes beeinflusst. */
+  var _prevBowl=(typeof window!=='undefined')?window._bowlFill:undefined;
+  if(typeof window!=='undefined') window._bowlFill=opts.bowlFill||'satin';
   try{ if(typeof _segCache!=='undefined'){ for(var k in _segCache) delete _segCache[k]; } }catch(e){}
-  var r=wordStitches();
+  var r;
+  try{ r=wordStitches(); } finally { if(typeof window!=='undefined') window._bowlFill=_prevBowl; }
   return r||[];
 }
 return { textToStitches:textToStitches, drawReal:drawReal, _mm2px:_mm2px, _px2mm:_px2mm };
