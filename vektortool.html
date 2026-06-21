@@ -47721,10 +47721,16 @@ function _pairContourFlowFill(rail1, rail2, opts){
      Endpunkte aller Reihen auf derselben Querlinie (sichtbare "Tramlines", Nadelloecher in einer
      Spalte). Pro Reihe wird die Laengs-Sampling-Phase um ph*stitchLen verschoben (Brick-Muster,
      stag-fach), via fraktionaler Querschnitt-Interpolation -> bricht die Querlinien auf (Lukas). */
-  var stag=(opts && opts.staggers) || 4;
+  /* [VT-LAENGS-STAGGER v2] Der fruehere progressive Sawtooth-Versatz (0, 1/4, 2/4, 3/4, ...) liess die
+     Stich-Endpunkte DIAGONAL durch den Strich wandern (Lukas: "diagonale durchs grosse I"). Stattdessen
+     pseudo-ZUFAELLIGER Phasenversatz je Reihe (Hash) -> kein regelmaessiges Muster, keine Diagonalen.
+     Seed an den globalen Versatz-Reroll gekoppelt (window._stitchOffsetSeed), damit "andere Streuung
+     wuerfeln" auch den Laengs neu mischt. */
+  var _stagSeed=(typeof window!=='undefined' && window._stitchOffsetSeed) || 0;
   for(rowIdx=-halfRows; rowIdx<=halfRows; rowIdx++){
     var offset=rowIdx*rowSpacing;   /* FESTER physischer Abstand von der Mittellinie */
-    var ph=(((rowIdx%stag)+stag)%stag)/stag;   /* 0..1 Phasenversatz je Reihe */
+    var _hx=Math.sin((rowIdx + _stagSeed*0.001) * 12.9898 + 78.233) * 43758.5453;
+    var ph=_hx - Math.floor(_hx);   /* 0..1 pseudo-zufaellig je Reihe (kein Sawtooth -> keine Diagonale) */
     for(oi=0; oi<=steps; oi++){
       var fk=dir>0?(oi+ph):(steps-oi-ph); if(fk<0)fk=0; else if(fk>steps)fk=steps;
       var i0=Math.floor(fk), i1=(i0<steps?i0+1:steps), tt=fk-i0;
