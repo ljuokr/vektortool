@@ -15233,11 +15233,55 @@ function decomposeShapeInPlace(s, options) {
 // unabhaengige editierbare Pfade zerlegen. Jeder Teil bekommt eine eigene gid (im
 // Gegensatz zum normalen Decompose, das die gid teilt) und KEIN generatedSetId,
 // damit die Konturen wirklich getrennt anklick- und editierbar sind.
+// LOCH-BEWUSST: verschachtelte Konturen (z.B. Auge im Koerper) bleiben als Loch
+// bei ihrer umschliessenden Aussenkontur, sonst stanzt die Stickerei das Loch als
+// Overlay und legt einen Travel-Kanal zum Loch. Nur echte getrennte Aussenkonturen
+// werden eigene Formen.
 function _decomposeSvgPathInPlace(s, options) {
   options = options || {};
   if (!s || s.type !== 'svgpath' || !s.svgEditable) return null;
   var subs = _getEditableSvgPathSubpaths(s);
   if (!subs || subs.length < 2) return null;
+
+  function _ptInPoly(poly, x, y) {
+    var inside = false;
+    for (var a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+      var xi = poly[a].x, yi = poly[a].y, xj = poly[b].x, yj = poly[b].y;
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  function _subInside(inner, outer) {
+    var p = inner.points[0];
+    return _ptInPoly(outer.points, p.x, p.y);
+  }
+  function _polyArea(poly) {
+    var ar = 0;
+    for (var a = 0, b = poly.length - 1; a < poly.length; b = a++) ar += (poly[b].x + poly[a].x) * (poly[b].y - poly[a].y);
+    return Math.abs(ar / 2);
+  }
+  var depth = subs.map(function(_, i) {
+    var d = 0;
+    for (var j = 0; j < subs.length; j++) if (j !== i && _subInside(subs[i], subs[j])) d++;
+    return d;
+  });
+  var groups = [], outerOf = {};
+  for (var gi = 0; gi < subs.length; gi++) {
+    if (depth[gi] % 2 === 0) { var g = { outer: gi, holes: [] }; groups.push(g); outerOf[gi] = g; }
+  }
+  for (var hi = 0; hi < subs.length; hi++) {
+    if (depth[hi] % 2 === 1) {
+      var best = -1, bestArea = Infinity;
+      for (var oi = 0; oi < subs.length; oi++) {
+        if (oi === hi || depth[oi] % 2 !== 0) continue;
+        if (_subInside(subs[hi], subs[oi])) { var ar = _polyArea(subs[oi].points); if (ar < bestArea) { bestArea = ar; best = oi; } }
+      }
+      if (best >= 0 && outerOf[best]) outerOf[best].holes.push(hi);
+      else { var g2 = { outer: hi, holes: [] }; groups.push(g2); outerOf[hi] = g2; }
+    }
+  }
+  if (groups.length < 2) return null;
+
   var idx = shapes.indexOf(s);
   if (idx < 0) return null;
   if (options.pushUndo !== false) pu();
@@ -15248,16 +15292,27 @@ function _decomposeSvgPathInPlace(s, options) {
   shapes.splice(idx, 1);
   var insertedIds = [];
   var firstId = null;
-  for (var i = 0; i < subs.length; i++) {
-    var sub = subs[i];
-    if (!sub.points || sub.points.length < 2) continue;
+  function _clonePts(pts) {
+    return pts.map(function(p) { var q = { x: p.x, y: p.y }; if (p.h1x !== undefined) { q.h1x = p.h1x; q.h1y = p.h1y; } if (p.h2x !== undefined) { q.h2x = p.h2x; q.h2y = p.h2y; } return q; });
+  }
+  for (var grp = 0; grp < groups.length; grp++) {
+    var memberIdx = [groups[grp].outer].concat(groups[grp].holes);
+    var flat = [], metas = [];
+    for (var m = 0; m < memberIdx.length; m++) {
+      var msub = subs[memberIdx[m]];
+      if (!msub.points || msub.points.length < 2) continue;
+      var mp = _clonePts(msub.points);
+      metas.push({ start: flat.length, count: mp.length, closed: !!msub.closed });
+      for (var fp = 0; fp < mp.length; fp++) flat.push(mp[fp]);
+    }
+    if (!metas.length) continue;
     var ns = {
       type: 'svgpath', svgEditable: true,
       svgNodeSmooth: s.svgNodeSmooth !== false,
       svgFillRule: s.svgFillRule || 'nonzero',
-      points: sub.points.map(function(p) { var q = { x: p.x, y: p.y }; if (p.h1x !== undefined) { q.h1x = p.h1x; q.h1y = p.h1y; } if (p.h2x !== undefined) { q.h2x = p.h2x; q.h2y = p.h2y; } return q; }),
-      svgNodeSubpaths: [{ start: 0, count: sub.points.length, closed: !!sub.closed }],
-      closed: !!sub.closed, smooth: false,
+      points: flat,
+      svgNodeSubpaths: metas,
+      closed: !!subs[groups[grp].outer].closed, smooth: false,
       stroke: s.stroke || 'none', strokeWidth: s.strokeWidth || 0,
       fill: s.fill || 'none', fillEnabled: !!s.fillEnabled,
       lineStyle: s.lineStyle || 0, effectStrength: s.effectStrength || 1,
