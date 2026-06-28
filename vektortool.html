@@ -43930,7 +43930,7 @@ function buildPanelOutline(w, h, edges, opts, includeEdges, insets) {
   var slotKerf = opts.slotKerf != null ? opts.slotKerf : 0; /* [box-wandstaerke v1] Slot symmetrisch zum Tab kerf-kompensieren */
   var fl = Math.max(fingerLen, t); /* [box-wandstaerke v1] Finger-Zielbreite nie schmaler als Materialstaerke (TabbedBoxMaker: Tab >= 1t) */
   var inc = includeEdges || { N:true, E:true, S:true, W:true };
-  var ins = insets || { N:0, E:0, S:0, W:0 }; /* [box-hierarchie v1] Eck-Aussparung pro Kante (mm) */
+  var ins = insets || { N:{s:0,e:0}, E:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0} }; /* [box-finger-passung v1] Eck-Aussparung pro Kantenende (mm) */
 
   /* Erzeugt Punkte einer Kante (ohne Start-Eckpunkt).
      [box-hierarchie v1] inset (mm): Eck-Aussparung an Kanten, die eine GEKUERZTE Nachbarwand
@@ -43939,14 +43939,19 @@ function buildPanelOutline(w, h, edges, opts, includeEdges, insets) {
      Deckel/Boden) steht. Sonst sind die Mate-Kanten ungleich lang (top-W=D vs left-N=D-2t) und die
      Finger greifen an den Ecken ins Leere. inset=0 -> exakt das alte Verhalten. */
   function makeStrip(sx, sy, dx, dy, len, mode, nx, ny, inset) {
-    inset = inset || 0;
+    /* [box-finger-passung v1] Inset pro Ende {s,e}: ein Capper (Deckel/Boden bzw.
+       Vorne/Hinten) kann an EINEM Kantenende stehen und am anderen fehlen (offene Box).
+       Symmetrisch (eine Zahl) bleibt unterstuetzt. */
+    var io = (typeof inset === 'number') ? { s: inset, e: inset } : (inset || { s:0, e:0 });
+    var insetStart = io.s || 0, insetEnd = io.e || 0;
     var pts = [];
     if (mode === 'flat' || len < 4) {
       pts.push({ x: sx + dx*len, y: sy + dy*len });
       return pts;
     }
-    var L = inset > 0 ? (len - 2*inset) : len;   /* Finger-Region (Mitte) */
-    if (inset > 0 && L < 4) {                    /* zu kurz fuer Finger -> ganz glatt */
+    var hasInset = insetStart > 0 || insetEnd > 0;
+    var L = hasInset ? (len - insetStart - insetEnd) : len;   /* Finger-Region */
+    if (hasInset && L < 4) {                    /* zu kurz fuer Finger -> ganz glatt */
       pts.push({ x: sx + dx*len, y: sy + dy*len });
       return pts;
     }
@@ -43961,10 +43966,10 @@ function buildPanelOutline(w, h, edges, opts, includeEdges, insets) {
     var segLen = L / segCount;
     var sign = (mode === 'tab') ? 1 : -1;
     var c = (mode === 'slot') ? (clearance - slotKerf/2) : 0; /* [box-wandstaerke v1] Slot um kerf/2 pro Seite schmaler -> Spiel = clearance statt clearance+kerf */
-    if (inset > 0) pts.push({ x: sx + dx*inset, y: sy + dy*inset }); /* glattes Anfangsstueck Ecke->inset */
+    if (insetStart > 0) pts.push({ x: sx + dx*insetStart, y: sy + dy*insetStart }); /* glattes Anfangsstueck Ecke->inset */
     for (var i = 0; i < segCount; i++) {
-      var sFrac = inset + i * segLen;
-      var eFrac = inset + (i + 1) * segLen;
+      var sFrac = insetStart + i * segLen;
+      var eFrac = insetStart + (i + 1) * segLen;
       if ((i & 1) === 0) {
         var ePos = eFrac;
         if (mode === 'slot' && i < segCount - 1) ePos = eFrac - c;
@@ -43978,7 +43983,7 @@ function buildPanelOutline(w, h, edges, opts, includeEdges, insets) {
         pts.push({ x: sx + dx*ePos2, y: sy + dy*ePos2 });
       }
     }
-    if (inset > 0) pts.push({ x: sx + dx*len, y: sy + dy*len }); /* glattes Endstueck (len-inset)->Ecke */
+    if (insetEnd > 0) pts.push({ x: sx + dx*len, y: sy + dy*len }); /* glattes Endstueck (len-inset)->Ecke */
     return pts;
   }
 
@@ -44029,14 +44034,15 @@ function buildPanelOutline(w, h, edges, opts, includeEdges, insets) {
     var holeR = Math.max(1.2, Math.min(2.0, t * 0.6));
     function addEdgeHoles(sx, sy, dx, dy, len, mode, nx, ny, included, inset) {
       if (!included || mode !== 'tab') return;
-      inset = inset || 0; /* [box-hierarchie v1] Loecher nur ueber die Finger-Region */
-      var L = inset > 0 ? (len - 2*inset) : len;
+      var io = (typeof inset === 'number') ? { s: inset, e: inset } : (inset || { s:0, e:0 }); /* [box-finger-passung v1] Loecher nur ueber die Finger-Region, Inset pro Ende */
+      var insetStart = io.s || 0, insetEnd = io.e || 0;
+      var L = (insetStart>0||insetEnd>0) ? (len - insetStart - insetEnd) : len;
       if (L < 4) return;
       var nF = Math.max(1, Math.min(3, Math.round(L / Math.max(20, fl*3)))); /* [box-wandstaerke v1] fl an t (Loch mittig auf Finger) */
       var segCount = 2*nF + 1;
       var segLen = L / segCount;
       for (var hi = 1; hi < segCount; hi += 2) {
-        var mid = inset + (hi + 0.5) * segLen;
+        var mid = insetStart + (hi + 0.5) * segLen;
         holes.push({ x: sx + dx*mid + nx*t*0.5, y: sy + dy*mid + ny*t*0.5, r: holeR });
       }
     }
@@ -44120,22 +44126,37 @@ function panelDims(faceName) {
 }
 
 function panelInsets(faceName) {
-  /* [box-hierarchie v1] Eck-Aussparung pro Kante (mm): top/bottom/front/back haben an ihren E/W-
-     Kanten (die die GEKUERZTEN Waende Links/Rechts treffen) die Finger nur in der Mitte; die
-     aeussersten t bleiben glatt, weil dort die volle Nachbarwand (Vorne/Hinten bzw. Deckel/Boden)
-     steht. Nur im Standard-Vollausbau (beide D- bzw. H-Cappers da); sonst 0 (offene Box hat dort
-     keine durchgehende Verzahnung). Links/Rechts selbst = gekuerzte Waende -> kein Inset. */
-  var t = B.t, z = { N:0, E:0, S:0, W:0 };
+  /* [box-finger-passung v1] Eck-Aussparung pro Kantenende {s,e} (mm).
+     panelDims kuerzt Links/Rechts pro VORHANDENEM Capper (Deckel/Boden bzw. Vorne/Hinten)
+     um je t (insH / insD zaehlen jeden Capper EINZELN). Die Mate-Kante (E/W an
+     top/bottom/front/back) muss daher an JEDEM Ende genau dann ein glattes t bekommen,
+     wenn der Capper an DIESEM Ende steht. Frueher (box-hierarchie v1) gab es Inset nur,
+     wenn BEIDE Capper da waren -> bei offener Box kuerzte die eine Seite, die andere
+     nicht, die Finger-Regionen wurden ungleich lang und die Zaehne breiter als die
+     Luecken (segLen = L/segCount, proportional). Jetzt pro Ende konsistent.
+     s = Start-Eck, e = End-Eck in Walk-Richtung (N:L->R, E:T->B, S:R->L, W:B->T).
+     Fehlt die Seitenwand selbst, ist die Kante 'flat' und das Inset wird ignoriert.
+     Links/Rechts = die gekuerzten Waende selbst -> nie Inset. */
+  var t = B.t, T = function(c){ return c ? t : 0; };
+  var z = { N:{s:0,e:0}, E:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0} };
   if (B.joint === 'butt') return z;
   switch (faceName) {
-    case 'top': case 'bottom':
-      return { N:0, S:0,
-        E: (B.fRight && B.fFront && B.fBack) ? t : 0,
-        W: (B.fLeft  && B.fFront && B.fBack) ? t : 0 };
-    case 'front': case 'back':
-      return { N:0, S:0,
-        E: (B.fRight && B.fTop && B.fBottom) ? t : 0,
-        W: (B.fLeft  && B.fTop && B.fBottom) ? t : 0 };
+    case 'front':   /* N=Deckel oben, S=Boden unten; W laeuft unten->oben, E oben->unten */
+      return { N:{s:0,e:0}, S:{s:0,e:0},
+        W:{ s:T(B.fBottom), e:T(B.fTop)    },
+        E:{ s:T(B.fTop),    e:T(B.fBottom) } };
+    case 'back':    /* gespiegelt: N=Boden, S=Deckel */
+      return { N:{s:0,e:0}, S:{s:0,e:0},
+        W:{ s:T(B.fTop),    e:T(B.fBottom) },
+        E:{ s:T(B.fBottom), e:T(B.fTop)    } };
+    case 'top':     /* N=Hinten, S=Vorne; W laeuft vorne->hinten, E hinten->vorne */
+      return { N:{s:0,e:0}, S:{s:0,e:0},
+        W:{ s:T(B.fFront), e:T(B.fBack)  },
+        E:{ s:T(B.fBack),  e:T(B.fFront) } };
+    case 'bottom':  /* N=Vorne, S=Hinten */
+      return { N:{s:0,e:0}, S:{s:0,e:0},
+        W:{ s:T(B.fBack),  e:T(B.fFront) },
+        E:{ s:T(B.fFront), e:T(B.fBack)  } };
   }
   return z;
 }
