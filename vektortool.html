@@ -976,6 +976,16 @@ body.hero-collapsed #rpanel .panel-hero.panel-hero-info { display:none !importan
 .rp-info { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; border:1px solid var(--fg3); color:var(--fg3); font-size:var(--fs-2xs); font-weight:700; font-style:italic; font-family:Georgia,serif; cursor:help; flex-shrink:0; line-height:1; user-select:text; -webkit-user-select:text; }
 .rp-info:hover { color:var(--ac); border-color:var(--ac); }
 .rp-row label { display:flex; align-items:center; gap:var(--space-2); }
+/* [uxfix v1] Geometrie-Panel: schmale, rechtsbündige Wertfelder (Standard-Number-Input
+   ist 150px und ragt aus dem 160px-Panel), + Aufklapp-Pfeil im Titel. */
+.rp-row.geom-row { gap:var(--space-2); }
+.rp-row.geom-row label { min-width:44px; flex:0 0 auto; }
+.rp-row .geom-inp { flex:0 0 52px; width:52px; text-align:right; padding:2px 4px; box-sizing:border-box; font-size:var(--fs-sm); -moz-appearance:textfield; }
+.rp-row .geom-inp::-webkit-outer-spin-button, .rp-row .geom-inp::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.rp-row .rp-unit { flex:0 0 auto; margin-left:2px; }
+.geom-title { display:flex; align-items:center; justify-content:space-between; }
+.geom-title::after { content:'\25be'; font-size:0.85em; color:var(--fg3); font-weight:400; }
+.rp-section.collapsed .geom-title::after { content:'\25b8'; }
 #hintBox { display:none; }
 
 #rsidebar { position:fixed; top:calc(var(--topbar-h) + var(--tabbar-h)); right:0; width:var(--rsidebar-w); bottom:var(--statusbar-h); background:var(--panel); border-left:1px solid var(--border); display:flex !important; flex-direction:column; align-items:center; padding:var(--space-3) var(--space-2); gap:var(--space-1); z-index:95; }
@@ -1268,7 +1278,7 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 #vtChangelog .vtcl-foot a:hover { text-decoration:underline; }
 #vtChangelogBtn { padding:2px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); color:var(--ac); cursor:pointer; font-size:var(--fs-sm); }
 #vtChangelogBtn:hover { border-color:var(--ac); }
-#importChoiceOverlay { position:fixed; inset:0; z-index:9999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); }
+#importChoiceOverlay { position:fixed; inset:0; z-index:10010; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); } /* [uxfix v1] B06: über dstvModal (9999) und stitchPanel (10000), sonst öffnete der Dialog unsichtbar HINTER dem Stick-Viewer */
 #importChoiceDialog { background:var(--white); border-radius:var(--radius-lg); box-shadow:var(--shadow-4); padding:28px 32px 22px; min-width:320px; max-width:400px; text-align:center; }
 #importChoiceDialog h3 { margin:0 0 var(--space-3); font-size:var(--fs-xl); font-weight:700; color:var(--fg); }
 #importChoiceDialog .icd-sub { font-size:var(--fs-md); color:var(--n-500); margin-bottom:18px; }
@@ -1696,7 +1706,7 @@ body.layer-panel-open #rsActions { display:none !important; }
   <div class="tb-stack" title="Linienstärke">
     <span class="tb-label">Stärke</span>
     <div style="display:flex;align-items:center;gap:var(--space-2)">
-      <input type="number" id="lineWidth" min="0.1" max="50" step="0.5" value="1" style="width:40px;text-align:center;font-size:var(--fs-md);padding:var(--space-1) 0;border:1px solid var(--border);border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--white);color:var(--fg);-moz-appearance:textfield;-webkit-appearance:none;appearance:textfield"><select id="lineWidthPresets" style="width:16px;height:22px;padding:0;border:1px solid var(--border);border-left:0;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--white);color:var(--fg);font-size:var(--fs-2xs);cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%225%22><path d=%221,1 4,4 7,1%22 fill=%22none%22 stroke=%22%23666%22 stroke-width=%221.2%22/></svg>');background-repeat:no-repeat;background-position:center"><option value="">&#9662;</option><option value="0.5">0.5</option><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="8">8</option><option value="10">10</option><option value="14">14</option><option value="20">20</option></select>
+      <input type="number" id="lineWidth" min="0.1" max="20" step="0.5" value="1" style="width:40px;text-align:center;font-size:var(--fs-md);padding:var(--space-1) 0;border:1px solid var(--border);border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--white);color:var(--fg);-moz-appearance:textfield;-webkit-appearance:none;appearance:textfield"><select id="lineWidthPresets" style="width:16px;height:22px;padding:0;border:1px solid var(--border);border-left:0;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--white);color:var(--fg);font-size:var(--fs-2xs);cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%225%22><path d=%221,1 4,4 7,1%22 fill=%22none%22 stroke=%22%23666%22 stroke-width=%221.2%22/></svg>');background-repeat:no-repeat;background-position:center"><option value="">&#9662;</option><option value="0.5">0.5</option><option value="1">1</option><option value="1.5">1.5</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="8">8</option><option value="10">10</option><option value="14">14</option><option value="20">20</option></select>
       <div id="lineWidthVis"><span></span></div>
     </div>
   </div>
@@ -1790,11 +1800,12 @@ body.layer-panel-open #rsActions { display:none !important; }
 <div class="export-dropdown" id="exportDropdown">
   <button id="saveProjectBtn" title="Vollständiges Projekt mit allen Objekten und Einstellungen zum Weiterbearbeiten. Öffnet nur in diesem Tool wieder."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3,1.5h7l2.5,2.5V13a1,1,0,0,1-1,1H3a1,1,0,0,1-1-1V2.5A1,1,0,0,1,3,1.5Z"/><rect x="5" y="8.5" width="5" height="4"/><path d="M5,1.5v3h4"/></svg>Projekt speichern (.linea)</button>
   <div class="exp-sep"></div>
-  <button id="exportSvgBtn" title="Verlustfreie Vektorgrafik in echten mm. Beliebig skalierbar und in Inkscape oder Illustrator weiter bearbeitbar. Gut als Austauschformat, für Web und Schneideplotter."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2,2h12v12H2z"/><path d="M5,11l3-3 3,3"/><circle cx="10" cy="6" r="1.5"/></svg>SVG-Vektorgrafik</button>
-  <button id="exportPngBtn" title="Pixelbild mit transparentem Hintergrund, dreifache Auflösung. Nicht verlustfrei skalierbar (fester Raster). Für Vorschau, Web und Social Media."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2,11l4-4 3,3 2-2 3,3"/></svg>PNG-Rasterbild</button>
-  <button id="exportPdfBtn" title="Druckfertiges Dokument in echten mm (A4 usw.), Bild eingebettet. Zum Ausdrucken, Versenden und Archivieren."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4,1h6l3,3v11H4z"/><path d="M10,1v3h3"/><path d="M6,8h4M6,10.5h3"/></svg>PDF-Dokument</button>
+  <button id="exportSvgBtn" title="Vektorgrafik in echten mm. Beliebig skalierbar und in Inkscape oder Illustrator weiter bearbeitbar. Gut als Austauschformat, für Web und Schneideplotter. Hinweis: Formregler (Zacken, Zähne usw.), Kurven-Feinheit und Stickerei-Einstellungen bleiben nur in der .linea-Projektdatei erhalten - für den vollständigen Roundtrip .linea speichern."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2,2h12v12H2z"/><path d="M5,11l3-3 3,3"/><circle cx="10" cy="6" r="1.5"/></svg>SVG-Vektorgrafik</button>
+  <button id="exportPngBtn" title="Pixelbild mit transparentem Hintergrund, dreifache Auflösung. Nicht verlustfrei skalierbar (fester Raster). Für Vorschau, Web und Social Media. Hinweis: Text wird als Bild gerastert - manche Schriften erscheinen dabei in einer Ersatzschrift. Wenn die Schrift exakt stimmen muss, SVG oder .linea nutzen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2,11l4-4 3,3 2-2 3,3"/></svg>PNG-Rasterbild</button>
+  <button id="exportPdfBtn" title="Druckfertiges Dokument in echten mm (A4 usw.), Bild eingebettet. Zum Ausdrucken, Versenden und Archivieren. Hinweis: Text wird als Bild eingebettet - manche Schriften erscheinen dabei in einer Ersatzschrift. Wenn die Schrift exakt stimmen muss, SVG nutzen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4,1h6l3,3v11H4z"/><path d="M10,1v3h3"/><path d="M6,8h4M6,10.5h3"/></svg>PDF-Dokument</button>
   <!-- [export3d-raus v1] "SVG 3D-Druck"-Button entfernt (Lukas 2026-06-09: "brauche ich jetzt nicht mehr").
        buildExportSVG3D + window-Expose bleiben (Goldentests/3D-Pipeline); bei Bedarf Button aus Backup zurueck. -->
+  <button id="exportDxfBtn" title="DXF für CAD/CNC/Laser (LibreCAD, Fusion, LightBurn). Linien und Umrisse in echten mm. Hinweis: Füllungen, Text und Bilder werden nicht exportiert."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2,8h12M8,2v12M4,4l8,8M12,4l-8,8"/></svg>DXF (CAD/CNC)</button><!-- [uxfix v1] G8: buildExportDXF() war fertig, aber ohne Aufrufer; Header versprach DXF -->
   <div class="exp-sep"></div>
   <button id="exportClipBtn" title="Aktuelle Zeichnung als SVG in die Zwischenablage, direkt in anderen Programmen einfügbar."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M3,11V3h8"/></svg>SVG kopieren</button>
 </div>
@@ -1823,6 +1834,10 @@ body.layer-panel-open #rsActions { display:none !important; }
   </button>
   <button class="tb-btn" id="zoomOut" title="Verkleinern (-)">
     <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><line x1="12" y1="12" x2="16" y2="16"/><line x1="5.5" y1="8" x2="10.5" y2="8"/></svg>
+  </button>
+  <!-- [uxfix v1] Sichtbarer Einpassen-Knopf: doZoomFit() war nur ueber Taste 0 erreichbar -->
+  <button class="tb-btn" id="zoomFitBtn" title="Einpassen (0)">
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6V2h4"/><path d="M16 6V2h-4"/><path d="M2 12v4h4"/><path d="M16 12v4h-4"/></svg>
   </button>
   <div class="rsb-sep"></div>
   <!-- UPGRADE — Feature 4: Ebenen-Button -->
@@ -2105,7 +2120,7 @@ body.layer-panel-open #rsActions { display:none !important; }
       <div class="gen3d-row"><label>Grösse<span id="gen3dMSzV">100%</span></label><input type="range" id="gen3dMSz" min="30" max="200" value="100" step="5"></div>
     </div>
     <div class="gen3d-sec">
-      <div class="gen3d-sec-t">Fläche <span style="color:var(--fg3);font-weight:400;font-size:var(--fs-2xs);">mm · inkl. 15 mm Rand</span></div>
+      <div class="gen3d-sec-t">Fläche <span style="color:var(--fg3);font-weight:400;font-size:var(--fs-2xs);">mm · Rand 15 mm (Canvas füllen: 10 mm)</span></div><!-- [uxfix v1] Titel nannte pauschal 15 mm direkt ueber der 10-mm-Checkbox; beide Modi ehrlich benennen (manuell 15 mm, Canvas fuellen 10 mm) -->
       <!-- [gen3d-defaults v1] Canvas füllen: Muster auf die ganze Zeichenfläche, Rand 10 mm -->
       <label class="gen3d-cbr" title="Muster auf die ganze Zeichenfläche ausdehnen - Breite/Höhe folgen dem Dokument, Rand 10 mm"><input type="checkbox" id="gen3dOCanvasFill" checked> Canvas füllen (Rand 10 mm)</label>
       <div class="gen3d-row"><label>Breite<span id="gen3dWv">150</span></label><input type="range" id="gen3dW" min="10" max="350" value="150" step="5"></div>
@@ -2115,7 +2130,7 @@ body.layer-panel-open #rsActions { display:none !important; }
       <div class="gen3d-sec-t">Raster</div>
       <div class="gen3d-row"><label>Anzahl<span id="gen3dNv">20</span></label><input type="range" id="gen3dN" min="2" max="30" value="20"></div>
       <div class="gen3d-row" id="gen3dRowES"><label>Element<span id="gen3dEsv">100%</span></label><input type="range" id="gen3dEs" min="20" max="150" value="100" step="5"></div>
-      <div class="gen3d-row" id="gen3dRowGap"><label>Abstand<span id="gen3dGapv">0%</span></label><input type="range" id="gen3dGap" min="0" max="60" value="0" step="2"></div>
+      <div class="gen3d-row" id="gen3dRowGap"><label>Abstand<span id="gen3dGapv">18%</span></label><input type="range" id="gen3dGap" min="0" max="60" value="18" step="2"></div>
       <div class="gen3d-row" id="gen3dRowAmp"><label>Amplitude<span id="gen3dAmpv">400%</span></label><input type="range" id="gen3dAmp" min="0" max="800" value="400" step="5"></div>
     </div>
     <div class="gen3d-sec">
@@ -2157,7 +2172,7 @@ body.layer-panel-open #rsActions { display:none !important; }
     <div class="box-sec">
       <div class="box-sec-t">Material</div>
       <div class="box-row"><label>Stärke<input type="number" class="box-num" id="boxTv" value="3.0" min="1" max="12" step="0.1"></label><input type="range" id="boxT" min="1" max="12" value="3" step="0.1"></div>
-      <div class="box-row" title="Kerf = Schnittfugen-Breite: wie viel Material der Laser/Fräser beim Schneiden wegnimmt. Wird zur Passung kompensiert (Finger etwas breiter, Schlitze etwas schmaler). Laser typisch 0.1–0.2 mm, Fräser = Werkzeugdurchmesser."><label>Kerf<input type="number" class="box-num" id="boxKv" value="0.10" min="0" max="0.5" step="0.01"></label><input type="range" id="boxK" min="0" max="50" value="10" step="1" title="Schnittfugen-Breite in mm (Laser ~0.1–0.2)"></div>
+      <div class="box-row" title="Kerf = Schnittfugen-Breite: wie viel Material der Laser/Fräser beim Schneiden wegnimmt. Wird zur Passung kompensiert (Finger etwas breiter, Schlitze etwas schmaler). Laser typisch 0.1-0.2 mm, Fräser = Werkzeugdurchmesser (üblich 1-3 mm)."><label>Kerf<input type="number" class="box-num" id="boxKv" value="0.10" min="0" max="3" step="0.01"></label><input type="range" id="boxK" min="0" max="300" value="10" step="1" title="Schnittfugen-Breite in mm (Laser ~0.1-0.2, Fräser = Werkzeugdurchmesser)"></div><!-- [uxfix v1] Kerf-max 0.5->3 mm: Fräser-Fall (Werkzeugdurchmesser) wie im Tooltip beschrieben jetzt einstellbar; en-dashes -> Bindestriche -->
     </div>
     <div class="box-sec" id="boxSecFinger">
       <div class="box-sec-t" style="display:flex;align-items:center;gap:var(--space-4);">Zinken<label class="box-cbr" style="margin:0;font-weight:400;text-transform:none;letter-spacing:0;" title="Haken = ohne Zinken, stumpf zum Verkleben. Ohne Haken = Finger-Joint (ineinandergreifende Zähne, ohne Kleber stabil)."><input type="checkbox" id="boxOButt"> ohne</label></div><!-- [box-ohne-zinken v1] "ohne" neben dem Zinken-Titel -->
@@ -2200,7 +2215,7 @@ body.layer-panel-open #rsActions { display:none !important; }
     </select>
   </div>
   <div class="rp-row"><label>Achsen</label><input type="range" id="mirAxesCount" min="1" max="64" value="1" style="flex:1"><span class="val" id="mirAxesCountVal">1</span></div>
-  <div class="rp-row"><label>Abstand</label><input type="range" id="mirAxesSpacing" min="10" max="200" value="10" style="flex:1"><span class="val" id="mirAxesSpacingVal">10</span></div>
+  <div class="rp-row"><label>Abstand px</label><input type="range" id="mirAxesSpacing" min="10" max="200" value="10" style="flex:1"><span class="val" id="mirAxesSpacingVal">10</span></div><!-- [uxfix v1] Einheit px ins Label: dieser Wert laeuft intern in px, nicht mm -->
   <div class="rp-row"><label>Neigung °</label><input type="range" id="mirAxesTilt" min="-90" max="90" value="0" style="flex:1"><span class="val" id="mirAxesTiltVal">0°</span></div>
   <div class="rp-row" id="mirRelTiltRow" style="display:none"><label>Rel. Neigung °</label><input type="range" id="mirRelTilt" min="-90" max="90" value="0" style="flex:1" oninput="this.nextElementSibling.textContent=this.value+'°'"><span class="val" id="mirRelTiltVal">0°</span></div>
   <div class="rp-row"><label><input type="checkbox" id="mirFlipAlt"> Alternierend flippen</label></div>
@@ -2288,10 +2303,9 @@ body.layer-panel-open #rsActions { display:none !important; }
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="6.5"/><circle cx="10" cy="10" r="3"/><circle cx="10" cy="10" r="1.5"/><line x1="10" y1="3.5" x2="10" y2="6.5"/><line x1="10" y1="13.5" x2="10" y2="16.5"/><line x1="3.5" y1="10" x2="6.5" y2="10"/><line x1="13.5" y1="10" x2="16.5" y2="10"/><line x1="5.4" y1="5.4" x2="7.7" y2="7.7"/><line x1="12.3" y1="12.3" x2="14.6" y2="14.6"/></svg>
         <span class="key">W</span>
       </button>
-      <button class="tool-btn" data-tool="solid3d" title="Körper (D)">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M10,2 L17,5.5 L17,13 L10,16.5 L3,13 L3,5.5Z"/><path d="M10,2 L10,9.5 L17,13"/><path d="M10,9.5 L3,13"/><path d="M3,5.5 L10,9 L17,5.5"/></svg>
-        <span class="key">D</span>
-      </button>
+      <!-- [uxfix v1] „Körper" (solid3d) aus der Werkzeugleiste entfernt (Lukas: wirkt fremd
+           im Gesamtbild). Render-/Migrationscode bleibt, damit alte Dateien mit 3D-Körpern
+           weiter angezeigt werden; nur der Zeichen-Einstieg (Button + D-Kürzel) ist raus. -->
     </div>
   </div>
 </div>
@@ -2308,15 +2322,15 @@ body.layer-panel-open #rsActions { display:none !important; }
     <h3>Bild importieren</h3>
     <div class="icd-sub" id="importChoiceFilename"></div>
     <div class="icd-btns">
-      <div class="icd-btn" id="importChoiceSilhouette">
+      <div class="icd-btn" id="importChoiceSilhouette" tabindex="0" role="button">
         <svg viewBox="-3 -5 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9,-0.2 Q5.3,-2.8 1.5,0.5 Q-1.8,3.8 0.8,8 Q3,11.3 9,9.5 Q15,11.3 17.3,8 Q19.8,3.8 16.5,0.5 Q12.8,-2.8 9,-0.2Z"/><path d="M9,9.5 Q4.9,8.3 3.4,10.5 Q1.8,13.3 4.1,15.5 Q6.5,17.8 9,16.1 Q11.5,17.8 14.1,15.5 Q16.2,13.3 14.6,10.5 Q13.1,8.3 9,9.5Z"/><line x1="9" y1="-0.2" x2="6.5" y2="-3.2" stroke-width="1.1"/><line x1="9" y1="-0.2" x2="11.5" y2="-3.2" stroke-width="1.1"/></svg>
         <div><strong>Umriss nachzeichnen</strong><small>Umriss / Kontur extrahieren</small></div>
       </div>
-      <div class="icd-btn" id="importChoiceTrace">
+      <div class="icd-btn" id="importChoiceTrace" tabindex="0" role="button">
         <svg viewBox="-3 -5 24 24" fill="none" stroke="#2f4858" stroke-width="0.7" stroke-linejoin="round"><path d="M9,-0.2 Q5.3,-2.8 1.5,0.5 Q-1.8,3.8 0.8,8 Q3,11.3 9,9.5 Q15,11.3 17.3,8 Q19.8,3.8 16.5,0.5 Q12.8,-2.8 9,-0.2Z" fill="#ffb703"/><path d="M9,9.5 Q4.9,8.3 3.4,10.5 Q1.8,13.3 4.1,15.5 Q6.5,17.8 9,16.1 Q11.5,17.8 14.1,15.5 Q16.2,13.3 14.6,10.5 Q13.1,8.3 9,9.5Z" fill="#fb8500"/><path d="M3.3,2.3 Q5.4,0.9 7.5,2.9" stroke="#d62828" stroke-width="0.9"/><path d="M14.7,2.3 Q12.6,0.9 10.5,2.9" stroke="#219ebc" stroke-width="0.9"/><path d="M5.3,14.3 Q6.6,15.2 8,13.9" stroke="#d62828" stroke-width="0.85"/><path d="M12.8,14.3 Q11.4,15.2 10,13.9" stroke="#219ebc" stroke-width="0.85"/><line x1="9" y1="-0.2" x2="6.5" y2="-3.2" stroke-width="1.1"/><line x1="9" y1="-0.2" x2="11.5" y2="-3.2" stroke-width="1.1"/><circle cx="6.1" cy="-3.6" r="0.8" fill="#2f4858"/><circle cx="11.9" cy="-3.6" r="0.8" fill="#2f4858"/><line x1="9" y1="-0.2" x2="9" y2="17.8" stroke="#fff3e0" stroke-width="1"/></svg>
         <div><strong>Bild nachzeichnen</strong><small>Farben vektorisieren (Bildnachzeichner)</small></div>
       </div>
-      <div class="icd-btn" id="importChoiceRaw">
+      <div class="icd-btn" id="importChoiceRaw" tabindex="0" role="button">
         <svg viewBox="0 0 18 18" fill="none"><rect x="2" y="2" width="14" height="14" rx="1.5" stroke="#888" stroke-width="1.1"/><path d="M2 12l4-4 3 3 2.5-2.5L16 13" stroke="#888" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="6" r="1.5" fill="#888"/></svg>
         <div><strong>Bild unverändert einfügen</strong><small>Rasterbild direkt platzieren</small></div>
       </div>
@@ -2358,13 +2372,17 @@ body.layer-panel-open #rsActions { display:none !important; }
     <div style="grid-column:1/-1;height:1px;background:var(--border);margin:var(--space-2) 0"></div>
     <div><kbd>Ctrl+Z</kbd> Rückgängig</div><div><kbd>Ctrl+Shift+Z</kbd> Wiederherstellen</div>
     <div><kbd>Ctrl+G</kbd> Gruppieren</div><div><kbd>Ctrl+Shift+G</kbd> Ungruppieren</div>
+    <div><kbd>Ctrl+L</kbd> Pfade glätten</div>
     <div><kbd>Ctrl+C</kbd> Kopieren</div><div><kbd>Ctrl+V</kbd> Einfügen</div>
-    <div><kbd>Ctrl+D</kbd> Duplizieren</div><div><kbd>Ctrl+A</kbd> Alles auswählen</div>
+    <div><kbd>Ctrl+X</kbd> Ausschneiden</div><div><kbd>Ctrl+D</kbd> Duplizieren</div>
+    <div><kbd>Ctrl+A</kbd> Alles auswählen</div><div><kbd>Ctrl+Y</kbd> Wiederherstellen</div>
+    <div><kbd>Ctrl+L</kbd> Kurven glätten</div><div><kbd>Enter</kbd> Linie/Kurve abschliessen</div>
     <div style="grid-column:1/-1;height:1px;background:var(--border);margin:var(--space-2) 0"></div>
     <div><kbd>+</kbd> <kbd>-</kbd> Zoom</div><div><kbd>0</kbd> Einpassen</div>
     <div><kbd>Pfeile</kbd> Verschieben</div><div><kbd>Shift+Pfeile</kbd> Schnell verschieben</div>
     <div><kbd>Leertaste+Drag</kbd> Canvas verschieben</div>
     <div><kbd>Shift+Drag</kbd> Proportional</div>
+    <div style="grid-column:1/-1;margin-top:var(--space-2);color:var(--fg2);font-size:var(--fs-xs)">Auf Mac: <kbd>Cmd</kbd> statt <kbd>Ctrl</kbd></div>
   </div>
 </div>
 
@@ -2575,7 +2593,9 @@ body.layer-panel-open #rsActions { display:none !important; }
 </div>
 
 
-<script src="demo_data.js" onerror="/* optional file */"></script>
+<!-- [uxfix v1] B(demo_data): externe demo_data.js entfernt - online 404, _builtinDemos wird
+     nirgends mehr verwendet (Galerie wird im Code erzeugt). Sparte einen toten Request +
+     Konsolen-404 pro Seitenladen. -->
 <script id="polygon-clipping-inline">
 /* polygon-clipping v0.15.7 - MIT License (github.com/mfogel/polygon-clipping). Inline eingebettet fuer Vektortool Ink Tier 1: echte Polygon-Booleans (Union/Differenz) fuer Loecher und Overlaps. */
 !function(t,e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define(e):(t="undefined"!=typeof globalThis?globalThis:t||self).polygonClipping=e()}(this,(function(){"use strict";
@@ -4983,6 +5003,7 @@ function normalizeShapesList(list) {
 
 function canonicalShapeCopy(shape) {
   var clone = _vtDeepClone(normalizeShapeSchema(shape));
+  delete clone._editing; /* [uxfix v1] B19: Laufzeit-Flag nie in Autosave/Projektdatei */
   delete clone.ellipsePointed;
   delete clone.ellipseSharpness;
   delete clone.ellipseCenterLine;
@@ -5308,7 +5329,7 @@ function renderTabs() {
       var idx = parseInt(this.getAttribute('data-tidx'));
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); switchTab(idx); }
       else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
+        e.preventDefault(); e.stopPropagation(); /* [uxfix v1] Pfeil nicht an document weiterreichen -> kein Doppel-Nudge/Pan */
         var n = canvasTabs.length, ni = (idx + (e.key === 'ArrowRight' ? 1 : n - 1)) % n;
         switchTab(ni);
         var nt = $('tabbar').querySelector('.tab[data-tidx="' + ni + '"]'); if (nt) nt.focus();
@@ -6197,8 +6218,8 @@ function generateGuideShapes() {
     ['star','Stern','S','Zacken innen/aussen einstellbar.'],
     ['spiral','Spirale','I','Spiralen mit Windungen und Abstand.'],
     ['gear','Zahnrad','Z','Parametrische Zahnraeder.'],
-    ['wheel','Rad','W','Speichenraeder, Felgen, Naben.'],
-    ['solid3d','3D-Koerper','D','Schattierte Koerper als Vektor.']
+    ['wheel','Rad','W','Speichenraeder, Felgen, Naben.']
+    /* [uxfix v1] '3D-Koerper' aus der Werkzeug-Legende entfernt (Werkzeug ist raus) */
   ];
   var lTop = 152, lRowH = 40, lHeadX = 6, lTailX = 34, lIconX = 44, lIcon = 32, lTextX = 86, lRailR = 286;
   for (var li=0; li<leftItems.length; li++){
@@ -6715,11 +6736,11 @@ function buildTexturePicker(popup) {
     html += '<input type="range" id="ppTexSize" min="8" max="60" value="'+curSize+'" style="width:100%">';
     html += '</div>';
     html += '<div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:4px">';
-    html += '<label>Versatz <span id="ppTexOffsetVal">'+Math.round(curOffset*100)+'</span></label>';
+    html += '<label>Versatz % <span id="ppTexOffsetVal">'+Math.round(curOffset*100)+'</span></label>'; /* [uxfix v1] Einheit % ins Label (Wert-Span wird bei input roh ueberschrieben) */
     html += '<input type="range" id="ppTexOffset" min="0" max="100" value="'+Math.round(curOffset*100)+'" style="width:100%">';
     html += '</div>';
     html += '<div style="font-size:var(--fs-sm);color:var(--fg2);margin-bottom:4px">';
-    html += '<label>Winkel <span id="ppTexAngleVal">'+curAngle+'</span></label>';
+    html += '<label>Winkel ° <span id="ppTexAngleVal">'+curAngle+'</span></label>'; /* [uxfix v1] Einheit Grad ins Label */
     html += '<input type="range" id="ppTexAngle" min="0" max="360" value="'+curAngle+'" style="width:100%">';
     html += '</div>';
     html += '<button id="ppTexRemove" style="display:block;width:100%;text-align:center;font-size:var(--fs-sm);color:var(--red-tx);cursor:pointer;border:none;background:none;margin-top:4px;padding:var(--space-2)">Textur entfernen</button>';
@@ -6965,10 +6986,16 @@ function _updateUndoButtons() {
 var undoLabels = [];
 var redoLabels = [];
 var _puToolNames = {select:'Verschieben',node:'Punkte bearbeiten',freehand:'Freihand',line:'Linie',curve:'Kurve',rect:'Rechteck',ellipse:'Ellipse',polygon:'Polygon',star:'Stern',spiral:'Spirale',gear:'Zahnrad',wheel:'Rad',solid3d:'3D-K\u00f6rper',text:'Text',tracer:'Nachzeichnen',mirror:'Spiegeln'};
+/* [uxfix v1] B19: _editing ist reiner Laufzeit-Zustand (Text im Inline-Editor wird nicht
+   gerendert) und darf in KEINEM Snapshot landen - sonst stellt Undo/Redo/Autosave einen
+   dauerhaft unsichtbaren Text wieder her. */
+function _puSerializeShapes() {
+  return JSON.stringify(shapes, function(_k, _v) { return _k === '_editing' ? undefined : _v; });
+}
 function pu(label) {
   _renderStaticCache = null; /* [VT-PREVIEW-LAYER v1] jede Mutation invalidiert den Statik-Cache */
   window._canvasCloseWasLast = false; /* [canvas-reopen v1] neue Zeichenaktion ist jetzt die juengste, nicht mehr das Tab-Schliessen */
-  undoStack.push(JSON.stringify(shapes));
+  undoStack.push(_puSerializeShapes());
   undoLabels.push(label || _puToolNames[tool] || 'Bearbeiten');
   if (undoStack.length > 80) { undoStack.shift(); undoLabels.shift(); }
   redoStack = [];
@@ -6980,7 +7007,7 @@ function pu(label) {
 function undo() {
   if (!undoStack.length) return;
   _renderStaticCache = null; /* [VT-PREVIEW-LAYER v1] */
-  redoStack.push(JSON.stringify(shapes));
+  redoStack.push(_puSerializeShapes()); /* [uxfix v1] B19 */
   redoLabels.push(undoLabels.pop() || 'Aktion');
   shapes = JSON.parse(undoStack.pop());
   selId = null; selIds.clear(); render();
@@ -6990,7 +7017,7 @@ function undo() {
 function redo() {
   if (!redoStack.length) return;
   _renderStaticCache = null; /* [VT-PREVIEW-LAYER v1] */
-  undoStack.push(JSON.stringify(shapes));
+  undoStack.push(_puSerializeShapes()); /* [uxfix v1] B19 */
   undoLabels.push(redoLabels.pop() || 'Aktion');
   shapes = JSON.parse(redoStack.pop());
   selId = null; selIds.clear(); render();
@@ -8162,6 +8189,10 @@ function wheelSVGPaths(cx, cy, outerR, params) {
   var curve = params.spokeCurve || 0;
   var hubR = ((params.hubDia || 15) / 2) * scale;
   var axleR = ((params.axleDia || 8) / 2) * scale;
+  /* [uxfix v1] Achsbohrung muss kleiner als die Nabe bleiben, sonst liegt der Loch-
+     Kreis ausserhalb des Nabenkreises -> Selbstueberschneidung (verletzt geschlossen/
+     ueberschneidungsfrei fuer 3D-/Laser-Export). Analog zum innerR-Clamp unten. */
+  if (axleR > hubR - 1 * scale) axleR = Math.max(0, hubR - 1 * scale);
   var style = params.spokeStyle || 'straight';
   var valve = !!params.valveHole;
   var innerR = outerR - rimW;
@@ -8972,7 +9003,9 @@ function render() {
     var _shMain = (tool === 'rect') ? '\u21e7 ' + _shT('Shift = Quadrat')
                 : (tool === 'ellipse') ? '\u21e7 ' + _shT('Shift = Kreis')
                 : '\u21e7 ' + _shT('Shift = proportional'); /* [shift-i18n v1] uebersetzt */
-    var _shSub = '';
+    /* [uxfix v1] G6: Aufzieh-Modus sichtbar machen - radiale Formen ziehen aus der Mitte,
+       Box-Formen von der Ecke. Vorher war das nur im Verhalten sp\u00fcrbar, nirgends angeschrieben. */
+    var _shSub = (typeof CENTER_DRAW_TOOLS !== 'undefined' && CENTER_DRAW_TOOLS.indexOf(tool) >= 0) ? _shT('ab Mitte') : _shT('ab Ecke');
     var _shFs = 13 / zoom, _shFs2 = 10 / zoom;
     var _shX = _drawHintPt.x + 20/zoom, _shY = _drawHintPt.y - 10/zoom;
     var _shW = Math.max(_shFs * _shMain.length * 0.56, _shFs2 * _shSub.length * 0.56) + 12/zoom;
@@ -10912,8 +10945,24 @@ function _autoSave() {
       })
     };
     localStorage.setItem(_autoSaveKey, JSON.stringify(data));
-  } catch(e) { /* quota exceeded or private mode — ignore */ }
+    window._autoSaveOk = true; /* [uxfix v1] B04: erfolgreiche Sicherung merken */
+  } catch(e) {
+    /* [uxfix v1] B04: Quota voll / privater Modus -> Autosave scheitert. Nicht mehr
+       stumm: Flag setzen (beforeunload warnt dann) und einmalig einen Toast zeigen. */
+    window._autoSaveOk = false;
+    if (!window._autoSaveWarned && window._vtToast) {
+      window._autoSaveWarned = true;
+      window._vtToast(window.t('Automatisches Speichern nicht möglich (Speicher voll oder privater Modus). Bitte über „Speichern“ exportieren.'));
+    }
+  }
 }
+/* [uxfix v1] B04: Vor dem Verlassen warnen, wenn Inhalt da ist und die letzte
+   automatische Sicherung fehlgeschlagen ist (sonst ginge die Arbeit verloren). */
+window.addEventListener('beforeunload', function(e) {
+  var hatInhalt = (typeof shapes !== 'undefined' && shapes && shapes.length) ||
+    (typeof canvasTabs !== 'undefined' && canvasTabs.some(function(t){ return !t.isGuide && !t.isDemo && t.shapes && t.shapes.length; }));
+  if (hatInhalt && window._autoSaveOk === false) { e.preventDefault(); e.returnValue = ''; return ''; }
+});
 function _autoLoad() {
   try {
     var raw = localStorage.getItem(_autoSaveKey);
@@ -11008,6 +11057,10 @@ render = function() {
 };
 
 function renderShape(s) {
+  /* [uxfix v1] Ebenen-Auge: ausgeblendete Formen nicht auf die Zeichenfläche rendern.
+     Bisher wirkte s.hidden nur auf Export/Stickerei, nicht auf die Canvas-Ansicht -
+     „Ebene ausblenden" tat sichtbar nichts. */
+  if (s && s.hidden) return '';
   var sw = s.strokeWidth || 1;
   var sc = s.stroke || '#2b2b2b';
   var fc = (s.fillEnabled && s.fill && s.fill !== 'none') ? s.fill : 'none';
@@ -11416,7 +11469,8 @@ function renderMultiSelectionBox() {
   var corners = [[allBb.x,allBb.y],[allBb.x+allBb.w,allBb.y],[allBb.x+allBb.w,allBb.y+allBb.h],[allBb.x,allBb.y+allBb.h]];
   var cursors2 = ['nwse-resize','nesw-resize','nwse-resize','nesw-resize'];
   for (var ci = 0; ci < 4; ci++) {
-    html2 += '<rect x="'+(corners[ci][0]-hs)+'" y="'+(corners[ci][1]-hs)+'" width="'+(hs*2)+'" height="'+(hs*2)+'" fill="transparent" stroke="none" pointer-events="all" style="cursor:'+cursors2[ci]+'" data-handle="'+ci+'"/>';
+    /* [uxfix v1] Griffe sichtbar machen (weiss, boxColor-Rand) - waren transparent, dadurch sah niemand die echten Skalier-Griffe der Gesamtbox. Trefflogik unveraendert. */
+    html2 += '<rect x="'+(corners[ci][0]-hs)+'" y="'+(corners[ci][1]-hs)+'" width="'+(hs*2)+'" height="'+(hs*2)+'" fill="white" stroke="'+boxColor+'" stroke-width="'+sw2+'" rx="1" pointer-events="all" style="cursor:'+cursors2[ci]+'" data-handle="'+ci+'"/>';
   }
   // Rotation handle
   var rr = 5.5 / zoom;
@@ -11665,6 +11719,17 @@ function hitTestOne(s, x, y, strokeOnly) {
         if (Math.min(dL,dR,dT,dB) > margin + 3/zoom) return false;
       }
     }
+    /* [uxfix v1] Ungefuellte/parametrische Ellipse ohne points nicht in ihren BBox-Ecken
+       greifen lassen - sonst stiehlt sie Klicks auf darunterliegende Objekte. Inneres
+       bleibt (wie bei geschlossenen Polygonen) treffbar, aussen nur noch nahe der Kontur. */
+    if (!strokeOnly && s.type === 'ellipse' && (!s.points || s.points.length < 2)) {
+      var _hcx=bb.x+bb.w/2, _hcy=bb.y+bb.h/2, _hrx=bb.w/2||1, _hry=bb.h/2||1;
+      var _hn = Math.pow((tx-_hcx)/_hrx,2) + Math.pow((ty-_hcy)/_hry,2);
+      if (_hn > 1) {
+        var _hdist = Math.abs(_hn - 1);
+        if (_hdist > (margin+3/zoom) * 2 / Math.min(_hrx,_hry)) return false;
+      }
+    }
     return true;
   }
   return false;
@@ -11673,6 +11738,7 @@ function hitTest(x, y, strokeOnly) {
   var hitId = null;
   for (var i = shapes.length - 1; i >= 0; i--) {
     var s = shapes[i];
+    if (s && s.hidden) continue; /* [uxfix v1] ausgeblendete Ebenen sind nicht anklickbar */
     if (!hitTestOne(s, x, y, strokeOnly)) continue;
     hitId = s.id;
     break;
@@ -12332,8 +12398,11 @@ function _startInlineTextEdit(shapeId) {
   inp.setAttribute('data-inline-edit', shapeId);
   wrap.appendChild(inp);
   /* Hide the SVG text while editing */
-  s._editing = true;
+  /* [uxfix v1] B19: pu() VOR _editing=true - sonst landet _editing:true im Undo-Snapshot
+     und ein späteres Undo stellt einen dauerhaft unsichtbaren Text wieder her
+     (_renderText überspringt Shapes mit _editing). */
   pu('Text bearbeiten');
+  s._editing = true;
   render();
   inp.focus();
   /* Cursor ans Ende setzen statt den ganzen Text zu markieren. Das automatische
@@ -12408,6 +12477,34 @@ function _endInlineTextEdit(inpArg) {
   if (inp.parentNode) inp.parentNode.removeChild(inp);
 }
 canvasEl.addEventListener('dblclick', function(e) {
+  /* [uxfix v1] Punkte-Werkzeug: Doppelklick auf ein Segment fuegt einen Knoten ein.
+     Nutzt das bereits vorhandene insertPointIntoShapeAt (afterIdx<0 = automatische
+     Projektion aufs naechste Segment). Nur editierbare Punkt-Formen, keine svgpath. */
+  if (tool === 'node') {
+    var ptN = svgCoord(e);
+    var cand = [];
+    if (selIds && selIds.size) { selIds.forEach(function(id){ var sc = findShape(id); if (sc) cand.push(sc); }); }
+    else if (selId) { var sp = findShape(selId); if (sp) cand.push(sp); }
+    var thr = Math.max(8 / zoom, 4);
+    var bestS = null, bestD = Infinity, bestIdx = -1;
+    for (var ci = 0; ci < cand.length; ci++) {
+      var cs = cand[ci];
+      if (!cs.points || cs.points.length < 2) continue;
+      if (cs.type === 'svgpath' && cs.svgEditable) continue;
+      var segN = cs.closed ? cs.points.length : cs.points.length - 1;
+      for (var sgi = 0; sgi < segN; sgi++) {
+        var pa = cs.points[sgi];
+        var pb = cs.points[(sgi + 1) % cs.points.length];
+        var dSeg = distToSeg(ptN, pa, pb);
+        if (dSeg < bestD) { bestD = dSeg; bestS = cs; bestIdx = sgi; }
+      }
+    }
+    if (bestS && bestD < thr) {
+      pu();
+      if (insertPointIntoShapeAt(bestS, ptN, bestIdx, thr)) { render(); updateRightPanel(); }
+    }
+    return;
+  }
   if (tool !== 'select') return;
   var pt = svgCoord(e);
   // Hit-test text shapes
@@ -12425,6 +12522,17 @@ canvasEl.addEventListener('wheel', onWheel, {passive: false});
 // ---- Context menu ----
 var ctxMenuEl = document.createElement('div'); ctxMenuEl.id = 'ctxMenu'; ctxMenuEl.className = 'ctx-menu'; document.body.appendChild(ctxMenuEl);
 function hideCtxMenu() { ctxMenuEl.style.display = 'none'; }
+/* [uxfix v1] B03: Auswahl in interne + System-Zwischenablage kopieren (Direktweg fürs
+   Kontextmenü, ohne synthetische Key-Events). Liefert true, wenn etwas kopiert wurde. */
+function _ctxCopySelection() {
+  if (!selId) return false;
+  var toCopy = []; selIds.forEach(function(id){ var s2 = findShape(id); if (s2) toCopy.push(s2); });
+  if (!toCopy.length) { var s3 = findShape(selId); if (s3) toCopy.push(s3); }
+  if (!toCopy.length) return false;
+  clipboard = _vtDeepClone(toCopy);
+  try { _writeClipboardSvg(buildSvgForShapes(toCopy)); } catch (e) { /* System-Clipboard optional */ }
+  return true;
+}
 document.addEventListener('click', hideCtxMenu);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') hideCtxMenu(); });
 
@@ -12536,6 +12644,27 @@ function duplicateSelectionMirrored(axis) {
   updateRightPanel();
 }
 
+/* [uxfix v1] Spiegeln an Ort und Stelle (ohne Kopie). Spiegelt die Auswahl selbst
+   um die Mitte ihrer gemeinsamen Bounding-Box - das direkte Gegenstueck zu
+   duplicateSelectionMirrored, das bisher der einzige Weg zum Spiegeln war. */
+function mirrorSelectionInPlace(axis) {
+  var picked = collectSelectedShapes();
+  if (!picked.length) return;
+  var bb = combinedRotBBox(selIds.size ? selIds : new Set(picked.map(function(s){ return s.id; })));
+  if (!bb) return;
+  var cx = bb.x + bb.w / 2;
+  var cy = bb.y + bb.h / 2;
+  var flipX = axis === 'lr';
+  var flipY = axis === 'tb';
+  pu();
+  picked.forEach(function(s) {
+    mirrorShapeAboutAxis(s, cx, cy, flipX, flipY);
+    normalizeShapeSchema(s);
+  });
+  render();
+  updateRightPanel();
+}
+
 canvasEl.addEventListener('contextmenu', function(e){
   e.preventDefault();
   var pt = svgCoord(e);
@@ -12554,13 +12683,19 @@ canvasEl.addEventListener('contextmenu', function(e){
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="copy">Kopieren<span class="ctx-key">Ctrl+C</span></div>';
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="cut">Ausschneiden<span class="ctx-key">Ctrl+X</span></div>';
   html += '<div class="ctx-item'+(hasClip?'':' disabled')+'" data-ctx="paste">Einf\u00fcgen<span class="ctx-key">Ctrl+V</span></div>';
-  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="dup">Duplizieren<span class="ctx-key">Ctrl+D / Ctrl+D</span></div>';
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="dup">Duplizieren<span class="ctx-key">Ctrl+D</span></div>'; /* [uxfix v1] Label-Bug: war „Ctrl+D / Ctrl+D" */
   html += '<div class="ctx-item ctx-parent'+(hasSel?'':' disabled')+'">Gespiegelt Duplizieren<span class="ctx-key">▶</span><div class="ctx-submenu"><div class="ctx-item" data-ctx="mirrordup-lr">Links ↔ Rechts</div><div class="ctx-item" data-ctx="mirrordup-tb">Oben ↕ Unten</div></div></div>';
+  /* [uxfix v1] Spiegeln der Auswahl selbst (an Ort und Stelle) */
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="mirror-lr">Horizontal spiegeln</div>';
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="mirror-tb">Vertikal spiegeln</div>';
   html += '<div class="ctx-sep"></div>';
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="delete">L\u00f6schen<span class="ctx-key">Delete</span></div>';
   html += '<div class="ctx-sep"></div>';
-  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="front">Nach vorne</div>';
-  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="back">Nach hinten</div>';
+  /* [uxfix v1] Label ehrlich (Aktion schiebt ans Ende) + schrittweises Anheben/Absenken ergaenzt */
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="front">Ganz nach vorne</div>';
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="fwdstep">Eine Ebene nach vorne</div>';
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="backstep">Eine Ebene nach hinten</div>';
+  html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="back">Ganz nach hinten</div>';
   html += '<div class="ctx-sep"></div>';
   html += '<div class="ctx-item'+(multiSel?'':' disabled')+'" data-ctx="group">Gruppieren<span class="ctx-key">Ctrl+G</span></div>';
   html += '<div class="ctx-item'+(inGroup?'':' disabled')+'" data-ctx="ungroup">Gruppe aufl\u00f6sen<span class="ctx-key">Ctrl+Shift+G</span></div>';
@@ -12569,6 +12704,7 @@ canvasEl.addEventListener('contextmenu', function(e){
   var _simplifyTarget = s || (hit ? findShape(hit) : null);
   var canSimplify = _simplifyTarget && _simplifyTarget.points && _simplifyTarget.points.length >= 3 && (_simplifyTarget.type==='path'||_simplifyTarget.type==='freehand'||(_simplifyTarget.type==='svgpath'&&_simplifyTarget.svgEditable));
   html += '<div class="ctx-item'+(canSimplify?'':' disabled')+'" data-ctx="simplify">Pfad vereinfachen\u2026</div>';
+  html += '<div class="ctx-item'+(canSimplify?'':' disabled')+'" data-ctx="smooth">Pfad gl\u00e4tten (Ctrl+L)</div>'; /* [uxfix v1] G2: Gl\u00e4tten war nur \u00fcber das undokumentierte Ctrl+L erreichbar */
   ctxMenuEl.innerHTML = html;
   // Position near cursor, keep on screen
   var mx = e.clientX, my = e.clientY;
@@ -12583,19 +12719,28 @@ canvasEl.addEventListener('contextmenu', function(e){
       ev.stopPropagation();
       hideCtxMenu();
       var action = this.getAttribute('data-ctx');
-      if (action==='copy') document.dispatchEvent(new KeyboardEvent('keydown',{key:'c',ctrlKey:true,bubbles:true}));
-      else if (action==='cut') document.dispatchEvent(new KeyboardEvent('keydown',{key:'x',ctrlKey:true,bubbles:true}));
-      else if (action==='paste') document.dispatchEvent(new KeyboardEvent('keydown',{key:'v',ctrlKey:true,bubbles:true}));
+      /* [uxfix v1] B03: copy/cut/paste liefen über synthetische KeyboardEvents - die lösen
+         aber nie native clipboard-Events aus, darum tat "Einfügen" nichts und "Ausschneiden"
+         löschte nicht (und liess _pendingCut als Spätfolgen-Falle hängen). Jetzt Direktaufrufe;
+         die Systemzwischenablage wird per Async-API mitgeschrieben (Klick = User-Geste). */
+      if (action==='copy') _ctxCopySelection();
+      else if (action==='cut') { if (_ctxCopySelection()) deleteSelected(); }
+      else if (action==='paste') { if (clipboard) pasteClipboard(); }
       else if (action==='dup') document.dispatchEvent(new KeyboardEvent('keydown',{key:'d',ctrlKey:true,bubbles:true}));
       else if (action==='delete') deleteSelected();
       else if (action==='front') { if(selId){pu();var idsF=new Set(selIds);var mF=[],sF=[];for(var iF=0;iF<shapes.length;iF++){if(idsF.has(shapes[iF].id))mF.push(shapes[iF]);else sF.push(shapes[iF]);}shapes=sF.concat(mF);render();updateRightPanel();} }
       else if (action==='back') { if(selId){pu();var idsB=new Set(selIds);var mB=[],sB=[];for(var iB=0;iB<shapes.length;iB++){if(idsB.has(shapes[iB].id))mB.push(shapes[iB]);else sB.push(shapes[iB]);}shapes=mB.concat(sB);render();updateRightPanel();} }
+      else if (action==='fwdstep' || action==='backstep') { /* [uxfix v1] Block um genau 1 Position verschieben (inline im Editor-Scope, _zOrder liegt in anderem Scope) */
+        if(selId){ var idsS=new Set(selIds); var maxI=-1,minI=shapes.length; for(var iS=0;iS<shapes.length;iS++){ if(idsS.has(shapes[iS].id)){ if(iS>maxI)maxI=iS; if(iS<minI)minI=iS; } } var mvS=[],rsS=[]; for(var iS2=0;iS2<shapes.length;iS2++){ if(idsS.has(shapes[iS2].id))mvS.push(shapes[iS2]); else rsS.push(shapes[iS2]); } if(mvS.length){ var resS=null; if(action==='fwdstep'){ var swF=-1; for(var fS=maxI+1;fS<shapes.length;fS++){ if(!idsS.has(shapes[fS].id)){swF=fS;break;} } if(swF>=0){ var swIdF=shapes[swF].id; var rpF=rsS.findIndex(function(x){return x.id===swIdF;}); if(rpF>=0) resS=rsS.slice(0,rpF+1).concat(mvS).concat(rsS.slice(rpF+1)); } } else { var swB=-1; for(var bS=minI-1;bS>=0;bS--){ if(!idsS.has(shapes[bS].id)){swB=bS;break;} } if(swB>=0){ var swIdB=shapes[swB].id; var rpB=rsS.findIndex(function(x){return x.id===swIdB;}); if(rpB>=0) resS=rsS.slice(0,rpB).concat(mvS).concat(rsS.slice(rpB)); } } if(resS){ pu(); shapes=resS; render(); updateRightPanel(); } } } } /* [uxfix v1] Klammer-Fix: else-if-Block schliessen */
       else if (action==='group') groupSelected();
       else if (action==='ungroup') ungroupSelected();
       else if (action==='decompose') decomposeSelected();
       else if (action==='mirrordup-lr') duplicateSelectionMirrored('lr');
       else if (action==='mirrordup-tb') duplicateSelectionMirrored('tb');
+      else if (action==='mirror-lr') mirrorSelectionInPlace('lr'); /* [uxfix v1] */
+      else if (action==='mirror-tb') mirrorSelectionInPlace('tb'); /* [uxfix v1] */
       else if (action==='simplify') simplifySelectedPath(_simplifyTarget ? _simplifyTarget.id : null);
+      else if (action==='smooth') { if(_simplifyTarget){ selIds.clear(); selId=_simplifyTarget.id; selIds.add(_simplifyTarget.id); } _smoothSelectedPaths(); } /* [uxfix v1] G2 */
     });
   });
 });
@@ -12616,7 +12761,7 @@ function onPointerDown(e) {
   if (e.target && e.target.closest && e.target.closest('.tool-btn, .tb-btn, .top-bar, #rightPanel, .tab-bar, .ctx-menu')) return;
   _dragMoved = false;
   _nodeGrab = null; // Fix 3: Greif-Offset wird beim ersten Node-Move neu bestimmt
-  if (e.button === 1 || (e.button === 0 && e.altKey)) {
+  if (e.button === 1 || (e.button === 0 && e.altKey) || (e.button === 0 && window._spacePanHeld)) { /* [uxfix v1] Leertaste+Ziehen = Pan (wie dokumentiert) */
     dragType = 'pan';
     dragStart = {x:e.clientX - panX, y:e.clientY - panY};
     canvasEl.style.cursor = 'grabbing';
@@ -12639,11 +12784,25 @@ function onPointerDown(e) {
   if (e.detail >= 2 && tool === 'select') {
     var dblHit = hitTest(pt.x, pt.y, true) || hitTest(pt.x, pt.y);
     if (dblHit) {
+      /* [uxfix v1] B20: Doppelklick auf Text öffnet wieder den Text-Editor. Der dblclick-
+         Handler kam nie zum Zug, weil dieser pointerdown-Zweig (detail>=2) vorher schon
+         auf das Punkte-Werkzeug umschaltete (tool!=='select' -> dblclick brach ab). */
+      var dblShape = findShape(dblHit);
+      if (dblShape && dblShape.type === 'text' && !dblShape.onPath) {
+        selIds.clear(); selId = dblHit; selIds.add(dblHit);
+        _startInlineTextEdit(dblHit);
+        return;
+      }
       selIds.clear();
       selId = dblHit;
       getFullSelection(dblHit).forEach(function(fid) { selIds.add(fid); });
       selectedNodes.clear();
       selectedNodeIdx = -1;
+      /* [uxfix v1] Nur in den Punkte-Modus wechseln, wenn die Form dort auch editierbar ist.
+         gear/wheel sind nicht dekomponierbar und haben keine points -> sonst leerer
+         Punkte-Modus mit verlorener Auswahl. Diese Formen einfach selektiert lassen. */
+      var _dblEditable = isDecomposableShape(dblShape) || (dblShape.points && dblShape.points.length >= 2) || dblShape.type === 'svgpath';
+      if (!_dblEditable) { render(); updateRightPanel(); return; }
       setTool('node');
       onNodeDown(e, pt);
       return;
@@ -12916,6 +13075,17 @@ function onSelectDown(e, pt) {
   var hit = hitTest(pt.x, pt.y);
   if (hit) {
     if (e.shiftKey) {
+      /* [uxfix v1] Shift+Klick togglet jetzt: bereits selektierte Form wieder abwaehlen
+         (samt Spiegel-/Nutzergruppe + Text-auf-Pfad-Partnern), statt nur hinzuzufuegen -
+         Standard in Vektoreditoren und gleiches Verhalten wie im Punkte-Werkzeug. */
+      if (selIds.has(hit)) {
+        getFullSelection(hit).forEach(function(fid){ selIds.delete(fid); });
+        _getTextOnPathPartners(hit).forEach(function(pid){ selIds.delete(pid); });
+        if (selId === hit || !selIds.has(selId)) { selId = selIds.size > 0 ? selIds.values().next().value : null; }
+        render();
+        updateRightPanel();
+        return;
+      }
       var fullSel = getFullSelection(hit);
       fullSel.forEach(function(fid){ selIds.add(fid); });
       _getTextOnPathPartners(hit).forEach(function(pid){ selIds.add(pid); });
@@ -13012,6 +13182,22 @@ function onSelectMove(e, pt) {
   } else if (dragType === 'resize' && origMultiBBox && origMultiStates) {
     var ob = origMultiBBox;
     var ddx = pt.x - dragStart.x, ddy = pt.y - dragStart.y;
+    /* [uxfix v1] B21: Skalieren einer EINZELNEN gedrehten Form rechnete bisher mit
+       Welt-Deltas auf der ungedrehten BBox - der Griff folgte nicht dem Cursor und
+       die Form wuchs in die falsche Richtung. Fix: Maus-Delta ins lokale (ungedrehte)
+       System der Form drehen; nach dem Skalieren hält eine Positionskorrektur den
+       gegenüberliegenden Anker-Eckpunkt in Welt-Koordinaten fest. Mehrfachauswahl
+       bleibt unverändert (dort skaliert weiterhin die gemeinsame BBox). */
+    var _rzRot = 0;
+    if (selIds.size === 1) {
+      var _rzOnly = origMultiStates[selIds.values().next().value];
+      if (_rzOnly && _rzOnly.rotation) _rzRot = _rzOnly.rotation % 360;
+    }
+    if (_rzRot) {
+      var _rzRad = _rzRot * DEG, _rzC = Math.cos(_rzRad), _rzS = Math.sin(_rzRad);
+      var _ldx = ddx * _rzC + ddy * _rzS, _ldy = -ddx * _rzS + ddy * _rzC;
+      ddx = _ldx; ddy = _ldy;
+    }
     // Compute new combined bbox
     var nx = ob.x, ny = ob.y, nw = ob.w, nh = ob.h;
     // Anchor point = opposite corner that stays fixed
@@ -13064,6 +13250,32 @@ function onSelectMove(e, pt) {
         if (cur.type === 'text' && !cur.onPath) cur.wFixed = true;
       }
     });
+    /* [uxfix v1] B21 Teil 2: Anker-Korrektur für die gedrehte Einzelform. Die Rotation
+       läuft um das BBox-Zentrum; das wandert beim Skalieren, darum muss die Form so
+       verschoben werden, dass der Anker-Eckpunkt in WELT-Koordinaten stehen bleibt. */
+    if (_rzRot) {
+      var _cx0 = ob.x + ob.w / 2, _cy0 = ob.y + ob.h / 2;
+      var _cx1 = nx + nw / 2, _cy1 = ny + nh / 2;
+      var _ax1, _ay1;
+      if (handleIdx === 0) { _ax1 = nx + nw; _ay1 = ny + nh; }
+      else if (handleIdx === 1) { _ax1 = nx; _ay1 = ny + nh; }
+      else if (handleIdx === 2) { _ax1 = nx; _ay1 = ny; }
+      else { _ax1 = nx + nw; _ay1 = ny; }
+      var _dx0 = anchorX - _cx0, _dy0 = anchorY - _cy0;
+      var _dx1 = _ax1 - _cx1, _dy1 = _ay1 - _cy1;
+      var _corrX = (_cx0 + _dx0 * _rzC - _dy0 * _rzS) - (_cx1 + _dx1 * _rzC - _dy1 * _rzS);
+      var _corrY = (_cy0 + _dx0 * _rzS + _dy0 * _rzC) - (_cy1 + _dx1 * _rzS + _dy1 * _rzC);
+      if (_corrX || _corrY) selIds.forEach(function(id) {
+        var cur = findShape(id); if (!cur) return;
+        if (cur.points) for (var _pi = 0; _pi < cur.points.length; _pi++) {
+          var _pp = cur.points[_pi];
+          _pp.x += _corrX; _pp.y += _corrY;
+          if (_pp.h1x != null) { _pp.h1x += _corrX; _pp.h1y += _corrY; }
+          if (_pp.h2x != null) { _pp.h2x += _corrX; _pp.h2y += _corrY; }
+        }
+        if (cur.x !== undefined) { cur.x += _corrX; cur.y += _corrY; }
+      });
+    }
     scheduleRender();
   } else if (dragType === 'rotate' && origMultiBBox && origMultiStates) {
     var gcx = origMultiBBox.x + origMultiBBox.w/2;
@@ -13664,6 +13876,7 @@ function onLineDown(e, pt) {
   }
   drawPoints.push({x:pt.x, y:pt.y});
   activeSnapPt = null; _snapSuppressOrigin = {x:pt.x, y:pt.y};
+  $('fbHint').textContent = '⇧ Shift = ohne Raster'; /* [uxfix v1] beim Stift schaltet Shift nur das Einrasten aus, keine Ecke - Banner ehrlich machen */
   if (drawPoints.length >= 2) $('finishBanner').classList.add('show');
 }
 
@@ -13827,6 +14040,7 @@ function onCurveDown(e, pt) {
     }
   }
   render(); /* [VT-PEN-HANDLE v1] synchron: gesetzter Strich sofort sichtbar, ohne auf rAF/Mausbewegung zu warten */
+  $('fbHint').textContent = '⇧ Shift = Ecke'; /* [uxfix v1] bei der Kurve stimmt der Ecken-Hinweis - falls der Stift den Text zuvor geaendert hat, zuruecksetzen */
   if (drawPoints.length >= 2) $('finishBanner').classList.add('show');
 }
 
@@ -14197,12 +14411,43 @@ function _nudgeSelection(dx, dy) {
 }
 
 /* ---- KEYBOARD ---- */
+/* [uxfix v1] B07: liegt gerade ein blockierendes Modal über dem Editor? */
+function _vtBlockingModalOpen() {
+  var dm = document.getElementById('dstvModal');
+  if (dm && dm.classList.contains('open')) return true;
+  var ids = ['tracerOverlay', 'stitchTestDlg', 'importChoiceOverlay'];
+  for (var i = 0; i < ids.length; i++) {
+    var el = document.getElementById(ids[i]);
+    if (el && el.style.display && el.style.display !== 'none') return true;
+  }
+  return false;
+}
+
 document.addEventListener('keydown', function(e) {
   var k = e.key.toLowerCase();
-  var tag = document.activeElement ? document.activeElement.tagName : '';
-  var inInput = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+  var _ae = document.activeElement;
+  var tag = _ae ? _ae.tagName : '';
+  /* [uxfix v1] B09: contenteditable-Wertfelder (z. B. dgp*Val-Spans) zählen als Eingabefeld,
+     sonst löscht Backspace dort die selektierte Form statt der Ziffer. */
+  var inInput = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(_ae && _ae.isContentEditable));
 
-  var toolKeys = {v:'select',a:'node',f:'freehand',p:'line',c:'curve',r:'rect',e:'ellipse',g:'polygon',s:'star',i:'spiral',z:'gear',w:'wheel',d:'solid3d',t:'text',b:'tracer'};
+  /* [uxfix v1] B07: Bei offenem Modal (Stick-Viewer, Tracer, Test-Karte, Import-Wahl) keine
+     globalen Editor-Shortcuts im Hintergrund - Werkzeugtasten wechselten sonst unbemerkt
+     das Werkzeug, Delete löschte unsichtbar die Auswahl. Escape regeln die Modale selbst. */
+  if (_vtBlockingModalOpen()) return;
+
+  /* [uxfix v1] Leertaste = Pan-Modifikator (in Popup/Onboarding/i18n dokumentiert).
+     Nur ausserhalb von Eingabefeldern und ohne Ctrl/Cmd/Alt; Seiten-Scroll unterbinden. */
+  if (k === ' ' && !inInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (!window._spacePanHeld) {
+      window._spacePanHeld = true;
+      if (typeof canvasEl !== 'undefined' && canvasEl && dragType !== 'pan') canvasEl.style.cursor = 'grab';
+    }
+    e.preventDefault();
+    return;
+  }
+
+  var toolKeys = {v:'select',a:'node',f:'freehand',p:'line',c:'curve',r:'rect',e:'ellipse',g:'polygon',s:'star',i:'spiral',z:'gear',w:'wheel',t:'text',b:'tracer'}; /* [uxfix v1] d:'solid3d' entfernt (Körper-Werkzeug raus) */
   if (!e.ctrlKey && !e.metaKey && !e.altKey && !inInput) {
     if (toolKeys[k]) {
       if (k === 'b') _tracerRequestedMode = 'trace';
@@ -14447,12 +14692,24 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
   }
 
+  /* [uxfix v1] B01/B10: Im Eingabefeld gehören Ctrl-Kürzel dem Browser (Text-Undo,
+     Text-Kopieren/-Ausschneiden), nicht dem Canvas. Ohne diesen Guard löschte Ctrl+X
+     im Textfeld die selektierte Form und Ctrl+Z machte Canvas- statt Text-Undo. */
+  if ((e.ctrlKey || e.metaKey) && inInput) return;
+
   if ((e.ctrlKey || e.metaKey) && k === 'z' && !e.shiftKey) { undoOrReopen(); e.preventDefault(); } /* [canvas-reopen v1] */
   if ((e.ctrlKey || e.metaKey) && k === 'z' && e.shiftKey) { redo(); e.preventDefault(); }
   if ((e.ctrlKey || e.metaKey) && k === 'y') { redo(); e.preventDefault(); }
+  /* [uxfix v1] Ctrl+S/Cmd+S faengt den Browser-Dialog „Seite speichern" ab und loest
+     stattdessen den vorhandenen Projekt-Speichern-Knopf aus (.linea-Export). */
+  if ((e.ctrlKey || e.metaKey) && k === 's' && !e.shiftKey) {
+    e.preventDefault();
+    var _spb = document.getElementById('saveProjectBtn');
+    if (_spb) _spb.click();
+  }
 
   /* Ctrl+L = Pfade glätten / vereinfachen */
-  if ((e.ctrlKey || e.metaKey) && k === 'l') {
+  if ((e.ctrlKey || e.metaKey) && k === 'l' && (selId || selIds.size)) { /* [uxfix v1] nur bei Auswahl abfangen -> Ctrl+L bleibt sonst die Browser-Adressleiste */
     e.preventDefault();
     _smoothSelectedPaths();
   }
@@ -14606,6 +14863,14 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+/* [uxfix v1] Leertaste loslassen beendet den Pan-Modus und stellt den Cursor her. */
+document.addEventListener('keyup', function(e) {
+  if (e.key === ' ' && window._spacePanHeld) {
+    window._spacePanHeld = false;
+    if (typeof canvasEl !== 'undefined' && canvasEl && dragType !== 'pan') canvasEl.style.cursor = '';
+  }
+});
+
 function deleteSelected() {
   if (!selId && selIds.size === 0) return;
   pu('L\u00f6schen');
@@ -14723,7 +14988,10 @@ function selectionGroupIds() {
 
 function ungroupSelected() {
   var gids = selectionGroupIds();
-  if (!Object.keys(gids).length) return;
+  if (!Object.keys(gids).length) {
+    if (window._vtToast) window._vtToast(window.t('Die Auswahl enthält keine Gruppe zum Auflösen.'));  /* [uxfix v1] G1: vorher stiller No-Op ohne Feedback */
+    return;
+  }
   pu();
   for (var i = 0; i < shapes.length; i++) {
     if (shapes[i].groupId && gids[shapes[i].groupId]) delete shapes[i].groupId;
@@ -15362,6 +15630,7 @@ $('fbFinish').addEventListener('click', function(e) {
 $('fbCancel').addEventListener('click', function(e) {
   e.stopPropagation();
   drawPoints = []; pendingSnapLinks = []; previewShapes = null; activeSnapPt = null; _snapSuppressOrigin = null;
+  $('stDrawSize').textContent = ''; _curveHandleGuide = null; _lastCurveMovePt = null; /* [uxfix v1] wie der Escape-Zweig aufraeumen: mm-Anzeige + Kurven-Fuehrung entfernen, sonst bleibt die Segmentlaenge stehen */
   $('finishBanner').classList.remove('show');
   render();
 });
@@ -15580,10 +15849,28 @@ function _applyLineWidth(val, fromInput) {
   }
 }
 $('lineWidth').addEventListener('input', function() {
+  /* [uxfix v1] Getippte Werte auf min/max des Feldes klemmen. Bisher wurde nur v>0
+     geprueft -> eine getippte 500 ergab einen 500-px-Strich, die HTML-min/max griffen
+     nur fuer die (ausgeblendeten) Spinner. */
   var v = parseFloat(this.value);
-  if (v > 0) _applyLineWidth(v, true);
+  if (!(v > 0)) return;
+  var _mn = parseFloat(this.min), _mx = parseFloat(this.max);
+  if (isFinite(_mn) && v < _mn) v = _mn;
+  if (isFinite(_mx) && v > _mx) v = _mx;
+  _applyLineWidth(v, true);
 });
-$('lineWidth').addEventListener('change', function() { _lwUndoPushed = false; });
+$('lineWidth').addEventListener('change', function() {
+  /* [uxfix v1] Nach dem Tippen den geklemmten Wert auch im Feld zeigen, sonst steht
+     im Feld 500 waehrend der Canvas 20 nutzt. */
+  var v = parseFloat(this.value);
+  if (v > 0) {
+    var _mn = parseFloat(this.min), _mx = parseFloat(this.max);
+    if (isFinite(_mn) && v < _mn) v = _mn;
+    if (isFinite(_mx) && v > _mx) v = _mx;
+    if (String(v) !== this.value) this.value = v;
+  }
+  _lwUndoPushed = false;
+});
 $('lineWidthPresets').addEventListener('change', function() {
   var v = parseFloat(this.value);
   if (v > 0) { _applyLineWidth(v); _lwUndoPushed = false; }
@@ -15870,6 +16157,8 @@ _bindCheckToggle('gridFlipVCb', function(){ return gridFlipV; }, function(v){ gr
 $('zoomIn').addEventListener('click', function() { zoom = clamp(zoom * 1.25, 0.05, 20); render(); });
 $('zoomOut').addEventListener('click', function() { zoom = clamp(zoom / 1.25, 0.05, 20); render(); });
 $('zoomFit').addEventListener('click', function() { doZoomFit(); render(); });
+/* [uxfix v1] sichtbarer Einpassen-Knopf in der Zoom-Leiste */
+if ($('zoomFitBtn')) $('zoomFitBtn').addEventListener('click', function() { doZoomFit(); render(); });
 
 $('gridToggle').addEventListener('click', function() {
   gridOn = !gridOn;
@@ -16085,20 +16374,41 @@ $('boolSubtractBtn').addEventListener('click', function() {
     return {id: id, idx: shapes.findIndex(function(s){ return s.id === id; })};
   }).sort(function(a, b) { return a.idx - b.idx; });
   var bottomId = sorted[0].id;
-  var topId = sorted[sorted.length - 1].id;
   var bottom = findShape(bottomId);
-  var top = findShape(topId);
-  if (!bottom || !top) return;
+  if (!bottom) return;
   var bottomD = _shapeToPathD(bottom);
-  var topD = _shapeToPathD(top);
-  if (!bottomD || !topD) {
+  if (!bottomD) {
     $('stDrawSize').textContent = 'Shapes nicht kompatibel';
     setTimeout(function(){ $('stDrawSize').textContent = ''; }, 2000);
     return;
   }
+  /* [uxfix v1] G1: vorher wurde nur die OBERSTE Form abgezogen (mittlere ignoriert) -
+     jetzt ALLE Top-Formen wie beim Dropdown 'Differenz'. Zusaetzlich BBox-Ueberlappungs-
+     Guard: ohne Ueberlappung wurde die obere Form nur ersatzlos geloescht (kein Loch)
+     und trotzdem 'Ausgeschnitten!' gemeldet. */
+  var _topIds = [], _topDs = [], _anyOv = false;
+  var _bBB = geoBBox(bottom);
+  for (var _ti = 1; _ti < sorted.length; _ti++) {
+    var _tsh = findShape(sorted[_ti].id);
+    var _td = _shapeToPathD(_tsh);
+    if (!_td) {
+      $('stDrawSize').textContent = 'Shapes nicht kompatibel';
+      setTimeout(function(){ $('stDrawSize').textContent = ''; }, 2000);
+      return;
+    }
+    _topIds.push(sorted[_ti].id);
+    _topDs.push(_td);
+    var _tBB = geoBBox(_tsh);
+    if (_bBB && _tBB && !(_tBB.x > _bBB.x + _bBB.w + 1 || _tBB.x + _tBB.w < _bBB.x - 1 ||
+                          _tBB.y > _bBB.y + _bBB.h + 1 || _tBB.y + _tBB.h < _bBB.y - 1)) _anyOv = true;
+  }
+  if (!_anyOv) {
+    if (window._vtToast) window._vtToast(window.t('Formen überlappen sich nicht - nichts auszuschneiden.'));
+    return;
+  }
   pu('Ausschneiden');
   /* Combined path with evenodd + clip to bottom boundary */
-  var combined = bottomD + ' ' + topD;
+  var combined = bottomD + ' ' + _topDs.join(' ');
   /* Keep bottom's visual properties */
   var keepStroke = bottom.stroke;
   var keepSW = bottom.strokeWidth;
@@ -16123,8 +16433,8 @@ $('boolSubtractBtn').addEventListener('click', function() {
   bottom.rotation = 0;
   delete bottom.points;
   delete bottom.closed;
-  /* Remove top shape */
-  shapes = shapes.filter(function(s) { return s.id !== topId; });
+  /* Remove top shapes */
+  shapes = shapes.filter(function(s) { return _topIds.indexOf(s.id) < 0; });  /* [uxfix v1] G1: alle abgezogenen Formen entfernen, nicht nur die oberste */
   _invalidateShapeIndex();
   selIds.clear(); selIds.add(bottomId);
   selId = bottomId;
@@ -16165,6 +16475,24 @@ function booleanOp(ids, op) {
       return;
     }
     topDs.push(d);
+  }
+
+  /* [uxfix v1] G1: 'Schnitt' ohne Überlappung ergab ein leeres Clip-Ergebnis und
+     löschte trotzdem alle Formen - inkl. falscher 'fertig'-Meldung. Vor der Mutation
+     prüfen, ob bottom mit mindestens einer Top-BBox überlappt (1px Toleranz, damit
+     bündige Kanten zählen). Nur BBox-Test, kein echter Polygon-Schnitt. */
+  if (op === 'intersection') {
+    var _bBB = geoBBox(bottom);
+    var _anyOv = false;
+    for (var _ovi = 1; _ovi < sorted.length && _bBB; _ovi++) {
+      var _tBB = geoBBox(findShape(sorted[_ovi].id));
+      if (_tBB && !(_tBB.x > _bBB.x + _bBB.w + 1 || _tBB.x + _tBB.w < _bBB.x - 1 ||
+                    _tBB.y > _bBB.y + _bBB.h + 1 || _tBB.y + _tBB.h < _bBB.y - 1)) { _anyOv = true; break; }
+    }
+    if (!_anyOv) {
+      if (window._vtToast) window._vtToast(window.t('Formen überlappen sich nicht - kein Schnitt möglich.'));
+      return;
+    }
   }
 
   var opLabels = {union:'Vereinen', intersection:'Schnitt', difference:'Differenz', xor:'Ausschluss'};
@@ -16372,7 +16700,18 @@ function showAreaDialog() {
   };
   overlay.querySelector('#areaDlgClose').addEventListener('click', closeDlg);
   overlay.querySelector('#areaCustomBtn').addEventListener('click', function(){
-    setDocSize(parseInt(overlay.querySelector('#areaW').value, 10) || 297, parseInt(overlay.querySelector('#areaH').value, 10) || 210, 'Eigenes');
+    /* [uxfix v1] Ungueltige/leere Eingabe nicht mehr still durch A4 ersetzen: Toast
+       zeigen + Dialog offen lassen. Bei gueltiger Eingabe die tatsaechlich gesetzten
+       (evtl. auf 5..5000 mm geklemmten) Masse bestaetigen, damit ein geklemmter Wert
+       sichtbar wird. */
+    var _w = parseFloat((overlay.querySelector('#areaW').value || '').replace(',', '.'));
+    var _h = parseFloat((overlay.querySelector('#areaH').value || '').replace(',', '.'));
+    if (!(_w > 0) || !(_h > 0)) {
+      if (window._vtToast) window._vtToast(window.t('Bitte gültige Masse in mm eingeben (z. B. 210 x 297).'));
+      return;
+    }
+    setDocSize(_w, _h, 'Eigenes');
+    if (window._vtToast) window._vtToast(window.t('Zeichenfläche gesetzt:') + ' ' + Math.round(px2mm(docW)) + ' x ' + Math.round(px2mm(docH)) + ' mm');
     closeDlg();
   });
   overlay.addEventListener('click', function(ev){ if(ev.target===overlay) closeDlg(); });
@@ -16503,7 +16842,15 @@ async function _writeClipboardSvg(svgStr) {
    Inkscape on macOS would paste that as a literal text element ("text can
    only create text element"). text/html is safer: Inkscape either recognises
    the SVG fragment or ignores it, but won't misinterpret as text. */
+/* [uxfix v1] B01: copy/cut im Eingabefeld gehören dem Browser. Ohne Guard konnte ein
+   hängengebliebenes _pendingSvgCopy den Text-Kopiervorgang kapern (SVG statt Text in
+   der Zwischenablage) bzw. deleteSelected() die Form löschen. */
+function _vtClipboardFocusInField() {
+  var ae = document.activeElement, tg = ae ? ae.tagName : '';
+  return tg === 'INPUT' || tg === 'TEXTAREA' || !!(ae && ae.isContentEditable);
+}
 document.addEventListener('copy', function(e) {
+  if (_vtClipboardFocusInField()) return;
   if (_pendingSvgCopy && !_pendingCut) {
     var svgStr = buildSvgForShapes(_pendingSvgCopy);
     e.clipboardData.setData('text/html', svgStr);
@@ -16514,6 +16861,7 @@ document.addEventListener('copy', function(e) {
 });
 
 document.addEventListener('cut', function(e) {
+  if (_vtClipboardFocusInField()) return;
   if (_pendingSvgCopy && _pendingCut) {
     var svgStr = buildSvgForShapes(_pendingSvgCopy);
     e.clipboardData.setData('text/html', svgStr);
@@ -16528,6 +16876,7 @@ document.addEventListener('cut', function(e) {
 // --- Paste helper functions ---
 function _importSvgText(svgText) {
   var imported = parseSvgToShapes(svgText);
+  if (!imported.length) { if (window._vtToast) window._vtToast(window.t('Keine vektorisierbaren Elemente in der SVG gefunden.')); return; }  /* [uxfix v1] G1: Drop/Paste ohne unterstuetzte Elemente schwieg vorher - jetzt gleiche Meldung wie der Button-Pfad */
   if (imported.length > 0) {
     pu();
     var newIds = [];
@@ -16567,7 +16916,7 @@ function _importImageFile(imageFile) {
 // --- Paste from external apps (Inkscape, Illustrator, etc.) ---
 document.addEventListener('paste', function(e) {
   var tag = document.activeElement ? document.activeElement.tagName : '';
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || _vtClipboardFocusInField()) return; /* [uxfix v1] B09: auch contenteditable */
 
   var items = e.clipboardData && e.clipboardData.items;
   var svgText = null;
@@ -16945,6 +17294,7 @@ function parseSvgToShapes(svgStr) {
   if (!svg) return [];
 
   var results = [];
+  var _vtSkippedImport = 0; /* [uxfix v1] übersprungene Verläufe/Texturen/Bilder */
   var DEFAULT_SW = 1;
 
   /* ---- CSS-Klassenkarte aus <style> ---- */
@@ -17205,7 +17555,7 @@ function parseSvgToShapes(svgStr) {
     subs = subs.filter(function(sp){ return sp.segs.length >= 2; });
     if (!subs.length) return;
     var st = styleFor(el, mat);
-    if (st.fill === 'none' && st.stroke === 'none') return;
+    if (st.fill === 'none' && st.stroke === 'none') { _vtSkippedImport++; return; } /* [uxfix v1] Verlauf-/Textur-Fill (url()) wurde zu none normalisiert -> Form ginge sonst stumm verloren; zählen. */
     var bb = subsBBox(subs);
     if (!(bb.w > 0.0001) && !(bb.h > 0.0001)) return;
     var closed = subsAnyClosed(subs) || (st.fill !== 'none');
@@ -17273,14 +17623,31 @@ function parseSvgToShapes(svgStr) {
     if (tag === 'polygon') { var pg = el.getAttribute('points'); if (pg) emitSvgPath(el, polySubs(pg, true), mat); return; }
     if (tag === 'line') { emitFreehand(el, [{ closed:false, segs:[{c:'M',p:[parseNum(el.getAttribute('x1')),parseNum(el.getAttribute('y1'))]},{c:'L',p:[parseNum(el.getAttribute('x2')),parseNum(el.getAttribute('y2'))]}] }], mat, false); return; }
     if (tag === 'polyline') { var pl = el.getAttribute('points'); if (pl) emitFreehand(el, polySubs(pl, false), mat, false); return; }
+    /* [uxfix v1] <image>/<use> werden nicht importiert - wenigstens zählen, damit der Verlust hinterher sichtbar gemacht werden kann. */
+    if (tag === 'image' || tag === 'use') { _vtSkippedImport++; return; }
     if (tag === 'text') {
       var tp = matApply(mat, parseNum(el.getAttribute('x')), parseNum(el.getAttribute('y')));
-      var textContent = el.textContent || '';
-      if (textContent.trim()) {
+      /* [uxfix v1] Mehrzeiliger Text: pro <tspan> eine Zeile mit \n verbinden statt
+         textContent-Zeilen zusammenzukleben (Export schreibt ein tspan je Zeile). */
+      var _tspans = el.getElementsByTagName ? el.getElementsByTagName('tspan') : null;
+      var textContent;
+      if (_tspans && _tspans.length) {
+        var _tl = [];
+        for (var _tsi = 0; _tsi < _tspans.length; _tsi++) _tl.push(_tspans[_tsi].textContent || '');
+        textContent = _tl.join('\n');
+      } else {
+        textContent = el.textContent || '';
+      }
+      if (textContent.replace(/[\s\n]/g, '') !== '') {
         var st = styleFor(el, mat);
         var fs = parseNum(el.getAttribute('font-size') || inheritAttr(el, 'font-size'), 24) * matScale(mat);
         var ff = inheritAttr(el, 'font-family');
-        results.push({ type:'text', x: tp[0], y: tp[1] - fs, text: textContent.trim(), fontSize: fs, fontFamily: ff ? ff.replace(/['"]/g, '') : 'Nunito', stroke:'none', strokeWidth:0, fill: st.fill === 'none' ? '#000000' : st.fill, fillEnabled: true, lineStyle: 0, w: fs * textContent.length * 0.6, h: fs * 1.2 });
+        /* [uxfix v1] Textrotation aus der Matrix ableiten, damit gedrehter Text den Roundtrip überlebt. */
+        var _trot = Math.round(Math.atan2(mat[1], mat[0]) * 180 / Math.PI * 10) / 10;
+        if (!isFinite(_trot)) _trot = 0;
+        var _tlines = textContent.split('\n');
+        var _tmaxLen = 0; for (var _tli = 0; _tli < _tlines.length; _tli++) if (_tlines[_tli].length > _tmaxLen) _tmaxLen = _tlines[_tli].length;
+        results.push({ type:'text', x: tp[0], y: tp[1] - fs, text: textContent.replace(/^\n+|\n+$/g, ''), fontSize: fs, fontFamily: ff ? ff.replace(/['"]/g, '') : 'Nunito', stroke:'none', strokeWidth:0, fill: st.fill === 'none' ? '#000000' : st.fill, fillEnabled: true, lineStyle: 0, rotation: _trot, w: fs * _tmaxLen * 0.6, h: fs * 1.2 * _tlines.length });
       }
       return;
     }
@@ -17326,6 +17693,7 @@ function parseSvgToShapes(svgStr) {
   }
 
   for (var ri2 = 0; ri2 < results.length; ri2++) normalizeShapeSchema(results[ri2]);
+  results._vtSkipped = _vtSkippedImport; /* [uxfix v1] Zahl der stumm übersprungenen Objekte für Import-Hinweis */
   return results;
 }
 
@@ -17559,8 +17927,21 @@ function buildExportSVGShaper() {
 
 // SVG Export
 $('exportSvgBtn').addEventListener('click', function() {
-  downloadBlob(new Blob([buildExportSVG()], {type:'image/svg+xml'}), 'vektortool-export.svg');
+  if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }  /* [uxfix v1] G1: leerer Canvas erzeugte ein Metadata-only-SVG ohne Hinweis */
+  downloadBlob(new Blob([buildExportSVG()], {type:'image/svg+xml'}), ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.svg'); /* [uxfix v1] Dokumentname im Dateinamen */
 });
+/* [uxfix v1] G8: DXF-Export verdrahtet (buildExportDXF war fertig, aber tot). Warnt vor
+   nicht exportierbaren Elementen (Füllung/Text/Bild) via _cncSkipMsg, dann Download. */
+(function(){ var _dxfBtn = $('exportDxfBtn'); if (!_dxfBtn) return;
+  _dxfBtn.addEventListener('click', function() {
+    if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }
+    var _sk = {text:0, image:0, other:0};
+    for (var _i=0; _i<shapes.length; _i++){ var _s=shapes[_i]; if(!_s||_s.hidden)continue; if(_s.type==='text')_sk.text++; else if(_s.type==='image')_sk.image++; }
+    var _skip = (typeof _cncSkipMsg === 'function') ? _cncSkipMsg(_sk) : '';
+    if (_skip && !confirm(_skip)) return;
+    downloadBlob(new Blob([buildExportDXF()], {type:'application/dxf'}), ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.dxf');
+  });
+})();
 
 // SVG 3D-Druck Export (weiss = leer/Loch, rest = schwarz)
 function _isWhiteColor3D(c) {
@@ -17960,6 +18341,7 @@ function _check3DExportIssues() {
 
 // PNG Export
 $('exportPngBtn').addEventListener('click', function() {
+  if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }  /* [uxfix v1] G1: sonst transparentes Leer-PNG ohne Hinweis */
   var scale = 3; // 3x resolution for sharp output
   var canvas = document.createElement('canvas');
   canvas.width = docW * scale;
@@ -17972,14 +18354,20 @@ $('exportPngBtn').addEventListener('click', function() {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);
     canvas.toBlob(function(blob) {
-      downloadBlob(blob, 'vektortool-export.png');
+      if (!blob) { if (window._vtToast) window._vtToast(window.t('PNG-Export fehlgeschlagen (Zeichenfläche zu gross?).')); return; }  /* [uxfix v1] G1: toBlob liefert bei Canvas-Limit null */
+      downloadBlob(blob, ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.png'); /* [uxfix v1] Dokumentname im Dateinamen */
     }, 'image/png');
+  };
+  img.onerror = function() {  /* [uxfix v1] G1: vorher toter Button bei Renderfehler */
+    URL.revokeObjectURL(url);
+    if (window._vtToast) window._vtToast(window.t('PNG-Export fehlgeschlagen - Grafik konnte nicht gerendert werden.'));
   };
   img.src = url;
 });
 
 // PDF Export (SVG embedded in PDF)
 $('exportPdfBtn').addEventListener('click', function() {
+  if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }  /* [uxfix v1] G1: sonst leeres PDF ohne Hinweis */
   var wmm = Math.round(px2mm(docW));
   var hmm = Math.round(px2mm(docH));
   var wpt = wmm * 2.83465; // mm to PDF points
@@ -18036,13 +18424,18 @@ $('exportPdfBtn').addEventListener('click', function() {
     // Download as binary
     var pdfBytes = new Uint8Array(pdf.length);
     for (var pi = 0; pi < pdf.length; pi++) pdfBytes[pi] = pdf.charCodeAt(pi);
-    downloadBlob(new Blob([pdfBytes], {type:'application/pdf'}), 'vektortool-export.pdf');
+    downloadBlob(new Blob([pdfBytes], {type:'application/pdf'}), ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.pdf'); /* [uxfix v1] Dokumentname im Dateinamen */
+  };
+  img.onerror = function() {  /* [uxfix v1] G1: vorher toter Button bei Renderfehler */
+    URL.revokeObjectURL(url);
+    if (window._vtToast) window._vtToast(window.t('PDF-Export fehlgeschlagen - Grafik konnte nicht gerendert werden.'));
   };
   img.src = url;
 });
 
 // Copy SVG to clipboard (entire document)
 $('exportClipBtn').addEventListener('click', function() {
+  if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }  /* [uxfix v1] G1: leeres Clipboard darf nicht 'Kopiert!' melden */
   _pendingSvgCopy = shapes.slice();
   document.execCommand('copy');
   var btn = $('exportClipBtn');
@@ -18076,6 +18469,12 @@ $('importFile').addEventListener('change', function(e){
               });
             }
             if (data.canvases && data.canvases.length) {
+              /* [uxfix v1] B17: Das Mehr-Canvas-Format ersetzt ALLE Tabs samt Undo-Stacks -
+                 das pu() darunter landet im weggeworfenen alten Tab und ist wirkungslos,
+                 und der Autosave zementiert den neuen Stand nach 2 s. Darum vorher fragen,
+                 wenn aktuell echte Inhalte da sind (Galerie/Anleitung zählen nicht). */
+              var _hatInhalt = canvasTabs.some(function(t){ return !t.isGuide && !t.isDemo && t.shapes && t.shapes.length; }) || (shapes && shapes.length);
+              if (_hatInhalt && !confirm(window.t('Aktuelles Projekt ersetzen? Alle offenen Zeichenflächen werden durch die geladene Datei ersetzt (kein Rückgängig).'))) return;
               pu();
               canvasTabs = data.canvases.map(function(canvas, index) {
                 var next = {
@@ -18131,6 +18530,10 @@ $('importFile').addEventListener('change', function(e){
               selId = null; selIds.clear(); selectedNodes.clear();
               updateAreaStatus();
               render(); updateRightPanel();
+            } else {
+              /* [uxfix v1] G1: gueltiges JSON ohne 'canvases'/'shapes' lief still durch
+                 und tat so, als sei geladen worden - jetzt ehrliche Fehlermeldung. */
+              alert(window.t('Datei enthält keine ladbaren Zeichenflächen oder Formen.'));
             }
           } catch(err) { alert(window.t('Fehler beim Laden:')+' ' + err.message); }
         };
@@ -18153,6 +18556,8 @@ $('importFile').addEventListener('change', function(e){
           selIds.clear(); selId = newIds[0];
           for (var ni = 0; ni < newIds.length; ni++) selIds.add(newIds[ni]);
           setTool('select'); render(); updateRightPanel();
+          /* [uxfix v1] Auf stumm übersprungene Objekte (Verläufe/Texturen/Bilder) hinweisen. */
+          if (imported._vtSkipped && typeof window._vtToast === 'function') window._vtToast(imported._vtSkipped + ' Objekt(e) konnten nicht importiert werden (Verläufe, Texturen oder eingebettete Bilder).');
         };
         reader2.readAsText(file);
       } else if (ext === 'dxf') {
@@ -18180,8 +18585,12 @@ $('importFile').addEventListener('change', function(e){
           setTool('select'); render(); updateRightPanel();
         };
         readerDxf.readAsText(file);
+      } else if (typeof window._tracerHandleImageFile === 'function' && file.type && /^image\//.test(file.type)) {
+        /* [uxfix v1] Rasterbild über den Import-Knopf: denselben Wahldialog (Umriss/Nachzeichnen/Original)
+           zeigen wie bei Drag&Drop, sonst verpassen Button-Nutzer den Tracer-Einstieg. */
+        window._tracerHandleImageFile(file);
       } else {
-        // Raster image (png, jpg, etc.)
+        // Raster image (png, jpg, etc.) - Fallback: direkt einfügen (z. B. Datei ohne Bild-MIME)
         var reader3 = new FileReader();
         reader3.onload = function(ev){
           var img = new Image();
@@ -18379,6 +18788,15 @@ function _updateRsidebarActions() {
     html += '<button style="'+bs+'" data-align="centerV" title="V-Mitte"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="8" x2="15" y2="8" stroke-dasharray="1.5 1.5"/><rect x="3" y="2" width="4" height="12" rx="1"/><rect x="9" y="4" width="4" height="8" rx="1"/></svg></button>';
     html += '<button style="'+bs+'" data-align="bottom" title="Unten"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="1" y1="14" x2="15" y2="14"/><rect x="3" y="2" width="4" height="10" rx="1"/><rect x="9" y="6" width="4" height="6" rx="1"/></svg></button>';
     html += '</div>';
+    /* [uxfix v1] B(Verteilen): distributeShapes() + [data-dist]-Verdrahtung waren im Code,
+       nur die Buttons fehlten. Ab 3 Formen (sonst wirkungslos) einblenden. */
+    if (selIds.size >= 3) {
+      html += '<div style="'+lbl+'">Verteilen</div>';
+      html += '<div style="'+row+'">';
+      html += '<button style="'+bs+'" data-dist="h" title="Horizontal verteilen"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="5" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="6" rx="1"/><rect x="12" y="5" width="3" height="6" rx="1"/></svg></button>';
+      html += '<button style="'+bs+'" data-dist="v" title="Vertikal verteilen"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="1" width="6" height="3" rx="1"/><rect x="5" y="6.5" width="6" height="3" rx="1"/><rect x="5" y="12" width="6" height="3" rx="1"/></svg></button>';
+      html += '</div>';
+    }
     html += sep;
     html += '<div style="'+lbl+'">Gruppieren</div>';
     html += '<div style="'+row+'">';
@@ -18390,14 +18808,17 @@ function _updateRsidebarActions() {
 
   html += '<div style="'+lbl+'">Ebene</div>';
   html += '<div style="'+row+'">';
-  html += '<button style="'+bs+'" data-rs="front" title="Nach vorne"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5" y="1" width="7" height="7" fill="var(--ac2)" stroke="currentColor"/><rect x="3" y="7" width="7" height="7" fill="none"/></svg></button>';
-  html += '<button style="'+bs+'" data-rs="back" title="Nach hinten"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="7" width="7" height="7" fill="var(--ac2)" stroke="currentColor"/><rect x="5" y="1" width="7" height="7" fill="none"/></svg></button>';
+  html += '<button style="'+bs+'" data-rs="front" title="Ganz nach vorne"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5" y="1" width="7" height="7" fill="var(--ac2)" stroke="currentColor"/><rect x="3" y="7" width="7" height="7" fill="none"/></svg></button>';
+  html += '<button style="'+bs+'" data-rs="back" title="Ganz nach hinten"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="7" width="7" height="7" fill="var(--ac2)" stroke="currentColor"/><rect x="5" y="1" width="7" height="7" fill="none"/></svg></button>';
   html += '<button style="'+bs+'" data-rs="delete" title="L\u00f6schen (Del)"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3"><polyline points="2,4 14,4"/><path d="M5,4V2.5h6V4"/><path d="M4,4l.8,9h6.4l.8-9"/></svg></button>';
   html += '</div>';
   container.innerHTML = html;
   /* Bind events on the new buttons */
   container.querySelectorAll('[data-align]').forEach(function(btn) {
     btn.addEventListener('click', function() { alignShapes(this.getAttribute('data-align')); });
+  });
+  container.querySelectorAll('[data-dist]').forEach(function(btn) { /* [uxfix v1] B(Verteilen) */
+    btn.addEventListener('click', function() { distributeShapes(this.getAttribute('data-dist')); render(); updateRightPanel(); });
   });
   container.querySelectorAll('[data-rs]').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -18409,6 +18830,61 @@ function _updateRsidebarActions() {
       else if (action === 'ungroup') { ungroupSelected(); }
     });
   });
+}
+
+/* [uxfix v1] G(numerische Eingabe): Präzise X/Y/Breite/Höhe (mm) + Winkel für die
+   Einzelauswahl. Box-/Radialformen tragen x/y/w/h (Renderer rechnet Punkte daraus),
+   Punktformen tragen points - beide Wege spiegeln die bestehende Resize-Drag-Logik. */
+var _GEOM_BOX_TYPES = { rect:1, ellipse:1, star:1, polygon:1, gear:1, wheel:1, solid3d:1, text:1, image:1 };
+function _shapeGeomRead(s) {
+  /* Box-/Radialformen werden aus x/y/w/h gerendert; Punktformen (Linie/Pfad/Freihand/
+     Kurve/Pfeil/svgpath) rendern aus points, auch wenn sie ein w/h-Cache tragen. */
+  if (_GEOM_BOX_TYPES[s.type] && s.w !== undefined && s.x !== undefined) return { x:s.x, y:s.y, w:s.w, h:s.h, box:true };
+  var bb = (typeof geoBBox === 'function') ? geoBBox(s) : null;
+  return bb ? { x:bb.x, y:bb.y, w:bb.w, h:bb.h, box:false } : null;
+}
+/* [uxfix v1] Aufklapp-Zustand des Geometrie-Panels merken (das Panel wird bei jeder
+   Auswahl neu gebaut - ohne persistenten Zustand würde es sonst jedes Mal aufspringen). */
+/* [uxfix v1] Standardmässig geschlossen; nur explizit auf '0' gesetzt = offen. */
+var _vtGeomCollapsed = (function(){ try { return localStorage.getItem('vt_geom_collapsed') !== '0'; } catch(e){ return true; } })();
+function makeGeomSection(s) {
+  var g = _shapeGeomRead(s); if (!g) return '';
+  var boxRot = ['rect','ellipse','polygon','star','gear','wheel','solid3d','text'].indexOf(s.type) >= 0;
+  function mm(px){ return Math.round(px2mm(px)*10)/10; }
+  var u = '<span class="rp-unit">mm</span>';
+  var h = '<div class="rp-section'+(_vtGeomCollapsed?' collapsed':'')+'"><div class="rp-title geom-title">Position &amp; Grösse</div>';
+  h += '<div class="rp-row geom-row"><label>X</label><input type="number" class="geom-inp" data-geom="x" step="0.5" value="'+mm(g.x)+'">'+u+'</div>';
+  h += '<div class="rp-row geom-row"><label>Y</label><input type="number" class="geom-inp" data-geom="y" step="0.5" value="'+mm(g.y)+'">'+u+'</div>';
+  h += '<div class="rp-row geom-row"><label>Breite</label><input type="number" class="geom-inp" data-geom="w" step="0.5" min="0.1" value="'+mm(g.w)+'">'+u+'</div>';
+  h += '<div class="rp-row geom-row"><label>Höhe</label><input type="number" class="geom-inp" data-geom="h" step="0.5" min="0.1" value="'+mm(g.h)+'">'+u+'</div>';
+  if (boxRot) h += '<div class="rp-row geom-row"><label>Winkel</label><input type="number" class="geom-inp" data-geom="angle" step="1" value="'+(Math.round((s.rotation||0)*10)/10)+'"><span class="rp-unit">°</span></div>';
+  h += '</div>';
+  return h;
+}
+function _applyGeom(s, field, valMm) {
+  if (!s || !isFinite(valMm)) return;
+  var g = _shapeGeomRead(s); if (!g) return;
+  pu('Position/Grösse');
+  if (field === 'angle') { s.rotation = valMm; }
+  else if (field === 'x' || field === 'y') {
+    var tgt = mm2px(valMm), d = tgt - (field==='x' ? g.x : g.y);
+    var dx = field==='x'?d:0, dy = field==='y'?d:0;
+    if (g.box) { s.x += dx; s.y += dy; }
+    else if (s.points) { for (var i=0;i<s.points.length;i++){ var p=s.points[i]; p.x+=dx;p.y+=dy; if(p.h1x!=null){p.h1x+=dx;p.h1y+=dy;} if(p.h2x!=null){p.h2x+=dx;p.h2y+=dy;} } }
+  } else if (field === 'w' || field === 'h') {
+    var np = mm2px(valMm); if (np < 1) np = 1;
+    if (g.box) { if (field==='w') s.w = np; else s.h = np; }
+    else if (s.points) {
+      var sx = field==='w' ? np/(g.w||1) : 1, sy = field==='h' ? np/(g.h||1) : 1;
+      for (var j=0;j<s.points.length;j++){ var q=s.points[j];
+        q.x = g.x + (q.x-g.x)*sx; q.y = g.y + (q.y-g.y)*sy;
+        if(q.h1x!=null){ q.h1x=g.x+(q.h1x-g.x)*sx; q.h1y=g.y+(q.h1y-g.y)*sy; }
+        if(q.h2x!=null){ q.h2x=g.x+(q.h2x-g.x)*sx; q.h2y=g.y+(q.h2y-g.y)*sy; }
+      }
+    }
+  }
+  if (typeof _invalidateShapeIndex === 'function') _invalidateShapeIndex();
+  render(); updateRightPanel();
 }
 
 function updateRightPanel() {
@@ -18425,6 +18901,7 @@ function updateRightPanel() {
   /* Mirror info section removed — controls are in topbar popups */
 
   if (s) {
+    html += makeGeomSection(s); /* [uxfix v1] numerische Position/Grösse/Winkel zuoberst */
     if (s.type === 'star') html += makeStarSettings(s);
     else if (s.type === 'polygon') html += makePolygonSettings(s);
     else if (s.type === 'spiral') html += makeSpiralSettings(s);
@@ -18452,6 +18929,20 @@ function updateRightPanel() {
   }
   ts.innerHTML = html;
   bindSettingsEvents(ts, s);
+  /* [uxfix v1] numerische Geometrie-Felder verdrahten (change = commit, ein Undo-Schritt) */
+  if (s) ts.querySelectorAll('.geom-inp').forEach(function(inp){
+    inp.addEventListener('change', function(){
+      var cur = selId ? findShape(selId) : null; if (!cur) return;
+      _applyGeom(cur, this.getAttribute('data-geom'), parseFloat((this.value||'').replace(',', '.')));
+    });
+  });
+  /* [uxfix v1] Aufklapp-Zustand persistieren: läuft NACH dem generischen .rp-title-Toggle
+     (gleiches Click-Event, später gebunden) und liest den resultierenden Zustand. */
+  if (s) { var _gt = ts.querySelector('.geom-title'); if (_gt) _gt.addEventListener('click', function(){
+    var sec = this.closest('.rp-section'); if (!sec) return;
+    _vtGeomCollapsed = sec.classList.contains('collapsed');
+    try { localStorage.setItem('vt_geom_collapsed', _vtGeomCollapsed ? '1' : '0'); } catch(e){}
+  }); }
   if (typeof window._stitchOnUpdateRightPanel === 'function') { try { window._stitchOnUpdateRightPanel(); } catch(e){console.warn('[vt:swallowed]',e)} }
 }
 window.updateRightPanel = updateRightPanel;
@@ -18618,6 +19109,10 @@ function _toggleLinestyle() {
     bodies[i].style.display = bodies[i].style.display === 'none' ? 'block' : 'none';
   }
 }
+/* [uxfix v1] B16: Inline-onclick löst im globalen Scope auf, die Funktion lebt aber in
+   der Editor-IIFE - ohne diesen Export war der "Stil ▾"-Knopf in allen Formen-Panels
+   tot (ReferenceError). */
+window._toggleLinestyle = _toggleLinestyle;
 function makeStrokeWidthSection(s, title) {
   var widthVal = s && s.strokeWidth != null ? s.strokeWidth : 1;
   return '<div class="rp-row"><label>Strichdicke</label><input type="range" class="sset" data-prop="strokeWidth" min="0.2" max="20" step="0.1" value="'+widthVal+'"><span class="val">'+formatPanelNumber(widthVal)+'</span><button onclick="_toggleLinestyle()" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-2xs);color:var(--ac);padding:var(--space-1) var(--space-3);cursor:pointer;margin-left:4px;white-space:nowrap">Stil \u25be</button></div>';
@@ -18816,7 +19311,8 @@ function makeGearSettings(s) {
   var gpSvg = _gearPreviewSVG({teeth:s.gearTeeth||20, module:s.gearModule||2, toothWidth:s.gearToothWidth||50, rounding:s.gearRounding||0, bore:s.gearBore||5, hubWidth:s.gearHubWidth||0, angle:s.gearPressureAngle||20, tipWidth:s.gearTipWidth!=null?s.gearTipWidth:60});
   return makePanelHeroSection('Zahnrad', 'gear', '<div class="live-preview shape-live-preview"><svg viewBox="0 0 70 70">'+gpSvg+'</svg></div>', toolGuideItems('gear')) +
     _gearSliders('sset', 'data-prop', s) +
-    '<div class="rp-row"><label><input type="checkbox" class="rp-check" data-prop="gearInternal"'+(s.gearInternal?' checked':'')+'> Innenverzahnung</label></div>' +
+    /* [uxfix v1] „Innenverzahnung"-Checkbox entfernt: gearInternal wurde nie im Rendering
+       gelesen, die Option war wirkungslos. */
     makeStrokeWidthSection(s) + '</div>';
 }
 function makeGearSettingsGlobal() {
@@ -19660,9 +20156,10 @@ function _bindStylePickerEvents(container) {
   });
   // Spitze slider (per-shape): 0 = none, >0 = pointed with sharpness
   container.querySelectorAll('.sset-spitze').forEach(function(el) {
-    el.addEventListener('mousedown', function() { if (selId) pu(); });
+    var _spitzePushed = false; /* [uxfix v1] Undo an die erste Wertaenderung koppeln (nicht an mousedown) - wirkt auch bei Pfeiltasten, kein Leer-Eintrag beim blossen Klick */
     el.addEventListener('input', function() {
       if (!selId) return;
+      if (!_spitzePushed) { pu('Eigenschaft'); _spitzePushed = true; }
       var v = parseFloat(this.value);
       var bothCb = container.querySelector('.sset-spitze-both');
       var isBoth = bothCb ? bothCb.checked : true;
@@ -19679,7 +20176,7 @@ function _bindStylePickerEvents(container) {
       render();
       refreshSettingsPreview(container, selId ? findShape(selId) : null);
     });
-    el.addEventListener('change', function() { updateRightPanel(); });
+    el.addEventListener('change', function() { _spitzePushed = false; updateRightPanel(); }); /* [uxfix v1] Geste beendet -> naechste Aenderung wird ein neuer Undo-Schritt */
   });
   // Spitze beidseitig checkbox (per-shape)
   container.querySelectorAll('.sset-spitze-both').forEach(function(cb) {
@@ -19753,13 +20250,12 @@ function _bindEditorEvents(container) {
   var _gb = container.querySelector('#groupBtn');
   var _ugb = container.querySelector('#ungroupBtn');
   var _db = container.querySelector('#deleteBtn');
-  var _bfb = container.querySelector('#bringFrontBtn');
-  var _sbb = container.querySelector('#sendBackBtn');
   if (_gb) _gb.addEventListener('click', groupSelected);
   if (_ugb) _ugb.addEventListener('click', ungroupSelected);
   if (_db) _db.addEventListener('click', deleteSelected);
-  if (_bfb) _bfb.addEventListener('click', function(){ if(!selId)return;pu();var ids=new Set(selIds);var m=[],s2=[];for(var i=0;i<shapes.length;i++){if(ids.has(shapes[i].id))m.push(shapes[i]);else s2.push(shapes[i]);}shapes=s2.concat(m);render(); });
-  if (_sbb) _sbb.addEventListener('click', function(){ if(!selId)return;pu();var ids=new Set(selIds);var m=[],s2=[];for(var i=0;i<shapes.length;i++){if(ids.has(shapes[i].id))m.push(shapes[i]);else s2.push(shapes[i]);}shapes=m.concat(s2);render(); });
+  /* [uxfix v1] B(tote Reste): #bringFrontBtn/#sendBackBtn existieren im DOM nicht mehr
+     (Z-Ordnung läuft über data-rs=front/back in der Seitenleiste + Kontextmenü). Tote
+     Handler-Zuweisungen entfernt. */
   // Collapsible sections
   container.querySelectorAll('.rp-section > .rp-title').forEach(function(title) {
     title.addEventListener('click', function(e) {
@@ -19790,13 +20286,15 @@ function _bindEditorEvents(container) {
   // Text editing in right panel
   var rpTextEdit = container.querySelector('#rpTextEdit');
   if (rpTextEdit) {
+    var _rpTextPushed = false; /* [uxfix v1] genau EIN Undo-Schritt pro Texteingabe (analog _ssetPushed), nicht pro Tastendruck */
     rpTextEdit.addEventListener('input', function() {
       if (!selId) return;
-      pu();
+      if (!_rpTextPushed) { pu('Text'); _rpTextPushed = true; }
       var txt = this.value;
       getAllSelectedShapes().forEach(function(s){ s.text = txt; });
       render();
     });
+    rpTextEdit.addEventListener('blur', function() { _rpTextPushed = false; }); /* [uxfix v1] Feld verlassen -> naechste Eingabe wird ein neuer Undo-Schritt */
   }
   // Font buttons in right panel
   container.querySelectorAll('.rp-font').forEach(function(btn) {
@@ -25910,6 +26408,8 @@ function _applyTracerResult() {
         popup.style.display = 'none';
       }
     });
+    /* [uxfix v1] Escape schliesst das Info-Popup (der A11y-Kommentar behauptete das bereits). */
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && popup.style.display === 'block') popup.style.display = 'none'; });
   }
 })();
 
@@ -25945,6 +26445,8 @@ function _applyTracerResult() {
         popup.style.display = 'none';
       }
     });
+    /* [uxfix v1] Escape schliesst das Tastenkürzel-Popup (der A11y-Kommentar behauptete das bereits). */
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && popup.style.display === 'block') popup.style.display = 'none'; });
   }
 })();
 
@@ -26184,7 +26686,8 @@ function _silApplyExclusion() {
     flip.addEventListener('click', function(){ facing = (facing === 'environment') ? 'user' : 'environment'; start(); });
     cancel.addEventListener('click', close);
     ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
-    document.addEventListener('keydown', function _esc(e){ if (e.key === 'Escape'){ document.removeEventListener('keydown', _esc); close(); } });
+    /* [uxfix v1] Escape schliesst NUR die Kamera (oberste Ebene), nicht das darunterliegende Tracer-Modal. Capture-Phase + stopImmediatePropagation, damit der beim Init registrierte Tracer-Bubble-Handler (der _closeTracerModal ruft) gar nicht mehr feuert - wie das gestapelte DST-Info-Panel. */
+    document.addEventListener('keydown', function _esc(e){ if (e.key === 'Escape'){ e.preventDefault(); e.stopImmediatePropagation(); document.removeEventListener('keydown', _esc, true); close(); } }, true);
     start();
   }
   if (_tEl('tracerCamBtn')) _tEl('tracerCamBtn').addEventListener('click', _tracerOpenCamera);
@@ -26510,7 +27013,11 @@ function _silApplyExclusion() {
     var fnEl = document.getElementById('importChoiceFilename');
     if (fnEl) fnEl.textContent = f.name || 'Bild';
     if (overlay) overlay.style.display = 'flex';
+    /* [uxfix v1] B08: Fokus auf die erste Option, damit der Dialog per Tastatur bedienbar ist. */
+    var firstBtn = document.getElementById('importChoiceSilhouette');
+    if (firstBtn) firstBtn.focus();
   }
+  window._tracerHandleImageFile = _tracerHandleImageFile; /* [uxfix v1] damit der Import-Knopf denselben Tracer-Wahldialog wie Drag&Drop nutzt */
 
   function _loadFileIntoTracer(f) {
     var reader = new FileReader();
@@ -26576,6 +27083,16 @@ function _silApplyExclusion() {
   /* Close on overlay click (outside dialog) */
   document.getElementById('importChoiceOverlay').addEventListener('click', function(e) {
     if (e.target === this) _importChoiceHide();
+  });
+  /* [uxfix v1] B08: Tastatur-Bedienung - Escape schliesst, Enter/Leertaste wählt die
+     fokussierte Option (die icd-btn sind DIVs mit role=button, kein natives <button>). */
+  document.addEventListener('keydown', function(e) {
+    var ov = document.getElementById('importChoiceOverlay');
+    if (!ov || ov.style.display === 'none' || !ov.style.display) return;
+    if (e.key === 'Escape') { e.preventDefault(); _importChoiceHide(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.classList && e.target.classList.contains('icd-btn')) {
+      e.preventDefault(); e.target.click();
+    }
   });
 
 
@@ -27278,6 +27795,13 @@ function _makeRow(entry, depth) {
       var anyHidden = entry.members.some(function(m){ return m.hidden; });
       entry.members.forEach(function(m){ m.hidden = !anyHidden; });
     }
+    /* [uxfix v1] Ausgeblendete Formen aus der Auswahl nehmen - sonst blieben Griffe um
+       eine unsichtbare Form stehen und Nudge/Löschen würden sie treffen. */
+    try {
+      var _ids = entry.kind === 'shape' ? [entry.shape] : entry.members;
+      _ids.forEach(function(sh){ if (sh.hidden && window.selIds) { window.selIds.delete(sh.id); if (String(window.selId) === String(sh.id)) window.selId = window.selIds.size ? window.selIds.values().next().value : null; } });
+      if (typeof window.updateRightPanel === 'function') window.updateRightPanel();
+    } catch(e){}
     if (typeof window.render === 'function') window.render();
     renderLayerList();
   });
@@ -27595,6 +28119,14 @@ window._closeLayerPanelIfOpen = function() {
 
 layerBtn.addEventListener('click', _toggleLayerPanel);
 if (layerCloseBtn) layerCloseBtn.addEventListener('click', _toggleLayerPanel);
+/* [uxfix v1] F(Escape-Kongruenz): Escape schliesst das Ebenen-Panel (wie Box/3D/Stick).
+   Nur wenn kein Textfeld fokussiert ist und das Panel wirklich offen ist. */
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape' || !_layerOpen) return;
+  var t = e.target, tag = t && t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+  _toggleLayerPanel();
+});
 
 /* Sticktool schliesst Ebenen-Panel automatisch */
 var _stitchBtnEl = document.getElementById('stitchBtn');
@@ -28928,6 +29460,13 @@ function _stitchNormColor(c) {
    ist und ohne Underlay-Shapes keinen Effekt hat (Tiebreak greift). */
 function _stitchOptimizeShapeOrder(orderedShapes) {
   if (!orderedShapes || orderedShapes.length < 2) return orderedShapes ? orderedShapes.slice() : [];
+  /* [uxfix v1] B13: Hat der Nutzer die Reihenfolge per Drag&Drop selbst festgelegt
+     (_orderManual), gilt sie 1:1 - der Optimizer (Farbgruppierung + Nearest-Neighbor)
+     sortierte sie bisher trotz UI-Versprechen "per Drag & Drop anpassen" wieder um. */
+  for (var _omI = 0; _omI < orderedShapes.length; _omI++) {
+    var _omSt = orderedShapes[_omI].stitch;
+    if (_omSt && _omSt._orderManual) return orderedShapes.slice();
+  }
 
   function shapeRowSpacing(sh) {
     var p = sh && sh.stitch && sh.stitch.params;
@@ -29071,7 +29610,7 @@ window._stitchRecalcAllChunkedAsync = async function(progressCb) {
   var ss = window.shapes || [];
   var stitchShapes = [];
   for (var i = 0; i < ss.length; i++) {
-    if (ss[i].stitch && ss[i].stitch.type !== 'none') stitchShapes.push(ss[i]);
+    if (ss[i].stitch && ss[i].stitch.type !== 'none' && !ss[i].stitch.hidden) stitchShapes.push(ss[i]); /* [uxfix v1] ausgeblendete Formen (Auge) raus - so decken sich Fortschritts-/Erfolgszahl mit dem Export (der hidden ebenfalls filtert); Wiedereinblenden loest einen frischen Recalc aus */
   }
   var total = stitchShapes.length;
   if (typeof progressCb === 'function') progressCb(0, total, null);
@@ -29195,6 +29734,7 @@ var _stitchTypeRefreshQueue = [];
 var _stitchCheckDirty = true;
 var _stitchParamTarget = { kind: 'shape', shapeId: null, color: null };
 var _stitchParamCollapsed = false;
+var _stitchParamUndoPushed = false; /* [uxfix v1] Slider-Geste: genau EIN Undo-Snapshot pro Zieh-Vorgang (analog _lwUndoPushed/_ssetPushed) */
 
 function _stitchMarkCheckDirty() {
   _stitchCheckDirty = true;
@@ -30245,6 +30785,7 @@ function _stitchUpdateTypeList() {
       var st = _ensureStitch(shape);
       var prevType = st.type || 'none';
       var nextType = this.value;
+      _puL('Stichtyp'); /* [uxfix v1] Stichtyp-Wechsel je Shape undo-bar */
       st.disabled = false;
       st.type = nextType;
       st._typeExplicit = true;
@@ -30263,6 +30804,7 @@ function _stitchUpdateTypeList() {
     sel.addEventListener('change', function() {
       var col2 = this.getAttribute('data-col');
       var type = this.value;
+      _puL('Stichtyp'); /* [uxfix v1] Stichtyp-Wechsel je Farbgruppe undo-bar */
       for (var j = 0; j < ss.length; j++) {
         if (ss[j].mirrorIndex > 0) continue;
         if (_shapeColor(ss[j]) === col2) {
@@ -33728,7 +34270,7 @@ function _stitchScanFillD(d, shape, opts) {
   try {
     var params = (shape.stitch && shape.stitch.params) || {};
     var rowSp = _mm2px(Math.max(0.1, (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (isFinite(params.rowSpacing) ? params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM))); /* [VT-STITCH-F8 v1] war 0.4; [VT-UIFIX v1] Boden 0.1mm (Inkstitch-Paritaet) */
-    if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.4);
+    if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.15); /* [uxfix v1] war 0.4 - selber invertierender Sprung wie im Kontur-Fill; dichteste Stellung darf nicht lockerer werden */
     var stLen = _mm2px((opts && isFinite(opts.stitchLength)) ? opts.stitchLength : (isFinite(params.stitchLength) ? params.stitchLength : 2.5));
     if (!(stLen > _mm2px(0.8))) stLen = _mm2px(2.5);
     var nums = (d.match(/-?\d+\.?\d*/g) || []).map(Number);
@@ -33998,7 +34540,7 @@ function _calcSpiralFillStitch(shape, opts) {
     function inside(x, y) { return _fillPointInsideShape(shape, x, y, hasSVGPath, outline, nEdges); }
     var params = (shape.stitch && shape.stitch.params) || {};
     var rowSp = _mm2px(Math.max(0.1, (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : (isFinite(params.rowSpacing) ? params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM))); /* [VT-STITCH-F8 v1] war 0.4; [VT-UIFIX v1] Boden 0.1mm (Inkstitch-Paritaet) */
-    if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.4);
+    if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.15); /* [uxfix v1] war 0.4 - der Sprung machte die DICHTESTE Slider-Stellung lockerer als 0.20mm (invertiert). Jetzt Boden = Schwelle 0.15mm, Monotonie bleibt; Raster-Perf ist unten separat gedeckelt (W*H-Loop) */
     var stLen = _mm2px((opts && isFinite(opts.stitchLength)) ? opts.stitchLength : (isFinite(params.stitchLength) ? params.stitchLength : 3));
     if (!(stLen > _mm2px(0.8))) stLen = _mm2px(3);
     var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
@@ -35952,6 +36494,7 @@ function _stitchWarnInnerHtml(shapes) {
   for (var i = 0; i < list.length; i++) {
     var s = list[i];
     if (!s || !s.stitch || s.stitch.type !== 'fill') continue;
+    if (s.stitch.hidden) continue; /* [uxfix v1] ausgeblendete Formen (Auge) sind nicht im Export -> keine Warnung, sonst zeigt die Warnung eine Form, die die DST gar nicht enthaelt, und der Marker-Klick findet nichts */
     var nps = s.stitch.needlePoints;
     if (!nps || !nps.length) continue;
     var d = _stitchDensity(s);
@@ -36231,6 +36774,7 @@ function _stitchOnManualNumber(num) {
   if (span && span.classList && span.classList.contains('val')) {
     span.textContent = _stitchParamValueText(slider.getAttribute('data-sp'), v, false);
   }
+  _puL('Stich-Parameter'); /* [uxfix v1] manueller Wert committet -> genau ein Undo-Schritt */
   _stitchApplyParamsToTargets(slider.getAttribute('data-stype'), slider.getAttribute('data-sp'), v);
 }
 
@@ -36272,6 +36816,7 @@ function _stitchTargetIsOff(spec) {
 function _stitchToggleOffSpec(spec) {
   var shapes = _stitchShapesForTargetSpec(spec);
   if (!shapes.length) return;
+  _puL('Sichtbarkeit'); /* [uxfix v1] Bereich aus-/einblenden undo-bar */
   var allOff = _stitchTargetIsOff(spec);
   for (var i = 0; i < shapes.length; i++) {
     var s = shapes[i];
@@ -36480,6 +37025,7 @@ function _stitchUpdateParamTargetList() {
     container.addEventListener('input', function(e) {
       var inp = e.target.closest && e.target.closest('.stitch-param');
       if (!inp || !container.contains(inp)) return;
+      if (!_stitchParamUndoPushed) { _puL('Stich-Parameter'); _stitchParamUndoPushed = true; } /* [uxfix v1] Snapshot vor der ersten Wertaenderung -> Slider-Aenderung ist per Ctrl+Z zuruecknehmbar */
       var type = inp.getAttribute('data-stype');
       var prop = inp.getAttribute('data-sp');
       var val = parseFloat(inp.value);
@@ -36488,6 +37034,10 @@ function _stitchUpdateParamTargetList() {
       var numEl = inp.parentNode && inp.parentNode.querySelector('.stitch-param-num');
       if (numEl) numEl.value = inp.value;
       _stitchApplyParamsToTargets(type, prop, val);
+    });
+    container.addEventListener('change', function(e) { /* [uxfix v1] Slider losgelassen -> naechster Zieh-Vorgang bekommt wieder einen eigenen Undo-Schritt */
+      var sl = e.target.closest && e.target.closest('.stitch-param');
+      if (sl && container.contains(sl)) _stitchParamUndoPushed = false;
     });
     /* [VT-STICK-MANUAL v1] Manuelle Zahleneingabe, Live-Schalter, Berechnen-Button. */
     container.addEventListener('change', function(e) {
@@ -36518,11 +37068,13 @@ function _stitchUpdateParamTargetList() {
       var val = !!cb.checked;
       var span = cb.nextElementSibling;
       if (span) span.textContent = val ? 'an' : 'aus';
+      _puL('Stich-Parameter'); /* [uxfix v1] Bool-Parameter (z. B. Unterlage) undo-bar */
       _stitchApplyParamsToTargets(type, prop, val);
     });
     container.addEventListener('change', function(e) {
       var sel = e.target.closest && e.target.closest('.stitch-param-sel');
       if (!sel || !container.contains(sel)) return;
+      _puL('Stich-Parameter'); /* [uxfix v1] Auswahl-Parameter undo-bar */
       _stitchApplyParamsToTargets(sel.getAttribute('data-stype'), sel.getAttribute('data-sp'), sel.value);
     });
     /* "Standard laden" quick-fix link for the row-spacing warning. */
@@ -36730,6 +37282,7 @@ function _stitchUpdateOrder() {
     /* Stichtyp: automatisch (Füllstich bei Fläche, Laufstich bei Linie) -
        statisches Label statt Dropdown (keine manuelle Auswahl). */
     var _rowTypeLbl = (st.type && st.type !== 'fill' && STITCH_TYPES[st.type]) ? (STITCH_TYPES[st.type].icon + ' ' + STITCH_TYPES[st.type].label) : ''; /* [stickui v1] Füllstich (Default) nicht beschriften - redundant; nur abweichende Typen (Satin/Lauf/Bohne) zeigen */
+    if (!st.type || st.type === 'none') _rowTypeLbl = window.t('Füllung/Kontur geben');  /* [uxfix v1] G1: 'Kein Stich'-Zeile ehrlich beschriften - nennt den einzigen echten Weg */
     html += '<span class="stitch-row-type-static" style="flex:1;min-width:0;font-size:var(--fs-xs);color:var(--fg2);padding:var(--space-1) var(--space-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _rowTypeLbl + '</span>';
 
     /* Stichzahl */
@@ -36764,6 +37317,7 @@ function _stitchUpdateOrder() {
     if (below) insertIdx += 1;   /* unterhalb der Zielzeile einfuegen */
     list.splice(insertIdx, 0, moved);
     /* v44: Drag&Drop sortiert frei — keine Lock-Gruppen-Umsortierung. */
+    _puL('Stickreihenfolge'); /* [uxfix v1] Umsortieren per Ctrl+Z zuruecknehmbar */
     _stitchApplyOrder(list);
     _stitchUpdateOrder();
     _stitchRenderPreview();
@@ -36828,6 +37382,7 @@ function _stitchUpdateOrder() {
         if (_stitchNormColor(_stitchShapeColor(ss[i])) === col && ss[i].stitch.locked) { anyLocked = true; break; }
       }
       var next = !anyLocked;   /* toggeln: wenn irgendeine locked → alle entriegeln, sonst alle verriegeln */
+      _puL('Sperren'); /* [uxfix v1] Schloss-Toggle undo-bar */
       for (var j = 0; j < ss.length; j++) {
         if (ss[j].mirrorIndex > 0 || !ss[j].stitch) continue;
         if (_stitchNormColor(_stitchShapeColor(ss[j])) === col) ss[j].stitch.locked = next;
@@ -36848,6 +37403,7 @@ function _stitchUpdateOrder() {
       var sh = (window.shapes || []).find(function (x) { return x.id === sid; });
       if (!sh) return;
       var nextType = this.value;
+      _puL('Stichtyp'); /* [uxfix v1] Stichtyp-Wechsel (auch auf ganze Lock-Gruppe) undo-bar */
       /* Lock-Gruppe? Typ auf alle Mitglieder anwenden. */
       var members = _stitchLockGroupMembers(sh);
       for (var m = 0; m < members.length; m++) {
@@ -36881,6 +37437,7 @@ function _stitchUpdateOrder() {
       var sid = parseInt(this.getAttribute('data-sid'));
       var sh = (window.shapes || []).find(function (x) { return x.id === sid; });
       if (!sh || !sh.stitch) return;
+      _puL('Sichtbarkeit'); /* [uxfix v1] Auge pro Zeile undo-bar (deckungsgleich mit dem Ebenen-Panel-Auge) */
       sh.stitch.hidden = !sh.stitch.hidden;
       _stitchUpdateOrder();
       if (typeof _stitchRenderPreview === 'function') _stitchRenderPreview();
@@ -36906,6 +37463,7 @@ function _stitchUpdateOrder() {
     var list = _stitchOrderedShapes(true);
     var anyH = list.some(function (x) { return x.stitch && x.stitch.hidden; });
     var next = !anyH;   /* irgendeine ausgeblendet -> alle einblenden, sonst alle ausblenden */
+    _puL('Sichtbarkeit'); /* [uxfix v1] Master-Auge undo-bar */
     for (var k = 0; k < list.length; k++) { if (list[k].stitch) list[k].stitch.hidden = next; }
     _stitchUpdateOrder();
     if (typeof _stitchRenderPreview === 'function') _stitchRenderPreview();
@@ -36939,13 +37497,21 @@ function _stitchUpdateOrder() {
 var _STITCH_GEAR_PARAMS = {
   fill: [
     ['angle',            'Winkel',       0,   180, 5,    '°',  0],
-    ['rowSpacing',       'Zeilenabstand',0.1, 0.8, 0.01, 'mm', 2],
+    ['rowSpacing',       'Zeilenabstand',0.1, 3.0, 0.01, 'mm', 2], /* [uxfix v1] max 0.8->3.0 = deckt den Bereich des rechten Panels (max 3), sonst klemmt das Zahnrad einen dort gesetzten Wert still auf 0.8 */
     ['stitchLength',     'Stichlänge',   1.0, 6.0, 0.1,  'mm', 1],
-    ['pullCompensation', 'Pull-Komp.',   -0.5,0.5, 0.01, 'mm', 2]
+    ['pullCompensation', 'Pull-Komp.',   -0.5,2.0, 0.01, 'mm', 2] /* [uxfix v1] max 0.5->2.0 = deckt den Bereich des rechten Panels (max 2), sonst klemmt das Zahnrad einen dort gesetzten Wert still auf 0.5 */
   ],
   satin: [
     ['zigzagWidth',  'Breite',     0.5, 8.0, 0.1,  'mm', 1],
     ['stitchLength', 'Stichlänge', 0.2, 3.0, 0.05, 'mm', 2]
+  ],
+  /* [uxfix v1] F17: satincol (Auto-Typ für Linien/Konturen ab 0.8 mm Strichbreite) hatte
+     keinen Eintrag -> Zahnrad-Popover war leer. Werte spiegeln das rechte Panel (Z.30224 ff.). */
+  satincol: [
+    ['angle',            'Winkel',        0,   360, 5,    '°',  0],
+    ['zigzagWidth',      'Breite',        0.5, 6.0, 0.1,  'mm', 1],
+    ['stitchLength',     'Zickzack-Abst.',0.2, 3.0, 0.05, 'mm', 2],
+    ['shortStitchInset', 'Kurven-Einzug', 0,   0.5, 0.05, 'mm', 2]
   ],
   zigzag: [
     ['zigzagWidth',  'Breite',     0.5, 8.0, 0.1,  'mm', 1],
@@ -36978,7 +37544,10 @@ function _stitchOpenGearPopover(sid, anchorEl) {
   if (!sh) return;
   var st = _ensureStitch(sh);
   var type = st.type || 'none';
-  if (type === 'none') return;
+  if (type === 'none') {
+    if (window._vtToast) window._vtToast(window.t('Dieser Form fehlt Füllung/Kontur - erst eine Farbe geben, dann erscheint ein Stichtyp.'));  /* [uxfix v1] G1: vorher stummer Klick */
+    return;
+  }
   var members = _stitchLockGroupMembers(sh);
   var isGroup = members.length > 1;
   var params = _STITCH_GEAR_PARAMS[type] || [];
@@ -37091,7 +37660,9 @@ function _stitchOpenGearPopover(sid, anchorEl) {
   function _gearDoRecalc() { _gearPending = false; _gearRecalcMembers(); _gearUpdateBtn(); }
 
   pop.querySelectorAll('.stitch-gear-slider').forEach(function (sl) {
+    sl.addEventListener('change', function () { _stitchParamUndoPushed = false; }); /* [uxfix v1] Zieh-Vorgang beendet -> naechster bekommt eigenen Undo-Schritt */
     sl.addEventListener('input', function () {
+      if (!_stitchParamUndoPushed) { _puL('Stich-Parameter'); _stitchParamUndoPushed = true; } /* [uxfix v1] Snapshot vor erster Wertaenderung im Zahnrad-Popover */
       var key = this.getAttribute('data-key');
       var dec = parseInt(this.getAttribute('data-dec'), 10) || 0;
       var v = parseFloat(this.value);
@@ -37106,7 +37677,7 @@ function _stitchOpenGearPopover(sid, anchorEl) {
       var key = this.getAttribute('data-key');
       var dec = parseInt(this.getAttribute('data-dec'), 10) || 0;
       var sl = pop.querySelector('.stitch-gear-slider[data-key="' + key + '"]');
-      var v = parseFloat(this.value);
+      var v = parseFloat((this.value || '').replace(',', '.')); /* [uxfix v1] Dezimal-Komma akzeptieren (CH-Tastatur), sonst NaN bei nicht-de Locale */
       var mn = parseFloat(this.min), mx = parseFloat(this.max), stp = parseFloat(this.step);
       if (!isFinite(v)) { this.value = sl ? (dec > 0 ? parseFloat(sl.value).toFixed(dec) : Math.round(parseFloat(sl.value))) : ''; return; }
       if (isFinite(mn) && v < mn) v = mn;
@@ -37114,12 +37685,13 @@ function _stitchOpenGearPopover(sid, anchorEl) {
       if (isFinite(stp) && stp > 0 && isFinite(mn)) { v = mn + Math.round((v - mn) / stp) * stp; v = parseFloat(v.toFixed(4)); }
       this.value = (dec > 0 ? v.toFixed(dec) : Math.round(v));
       if (sl) sl.value = v;
+      _puL('Stich-Parameter'); /* [uxfix v1] manueller Zahnrad-Wert undo-bar */
       applyGear(key, v);
     });
     num.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); this.blur(); } });
   });
   var ulCb = document.getElementById('stitchGearUnderlay');
-  if (ulCb) ulCb.addEventListener('change', function () { applyGear('underlay', this.checked); });
+  if (ulCb) ulCb.addEventListener('change', function () { _puL('Stich-Parameter'); applyGear('underlay', this.checked); }); /* [uxfix v1] Unterlage-Toggle undo-bar */
 
   var _gearLiveCb = pop.querySelector('.stitch-gear-live');
   if (_gearLiveCb) _gearLiveCb.addEventListener('change', function () {
@@ -37712,7 +38284,13 @@ function _stitchExportDstBody(skipDownload) {
       }
     }
   }
-  if (!rawPts.length) return;
+  if (!rawPts.length) {
+    /* [uxfix v1] B12: DST schwieg bei 0 sichtbaren Stichen, PES/EXP meldeten einen Toast -
+       jetzt gleiche Rückmeldung statt stillem No-Op (nur beim direkten Export, nicht bei
+       internen skipDownload-Läufen). */
+    if (!skipDownload && window._vtToast) window._vtToast(window.t('Kein Stickmuster vorhanden — erst Formen mit Stichtypen anlegen.'));
+    return;
+  }
   function sameDstCoord(a, b, x, y) {
     return a === x && b === y;
   }
@@ -38228,12 +38806,30 @@ function _stitchExportDstBody(skipDownload) {
   data.set(new Uint8Array(stitchBytes), 512);
   /* skipDownload (PES-Pfad): nur _lastExportData zaehlt, kein DST-File. */
   if (skipDownload) return;
+  /* [uxfix v1] G1: Rahmen-Ueberlauf war nur als dezentes ⚠ im Viewer sichtbar, der
+     Export lief kommentarlos durch. Vor dem Download gegen den aktuellen Stickrahmen
+     pruefen (halfW/halfH = Design-Halbextents in DST-Units 0.1mm; 1mm Toleranz wie im
+     Viewer-Overlay) und bei Ueberlauf rueckfragen. */
+  try {
+    var _hoop = (typeof window._currentHoopShape === 'function') ? window._currentHoopShape() : null;
+    if (_hoop && _hoop.wMM > 0 && _hoop.hMM > 0) {
+      var _dwMM = (halfW * 2) / 10, _dhMM = (halfH * 2) / 10;
+      if (_dwMM > _hoop.wMM + 1 || _dhMM > _hoop.hMM + 1) {
+        if (!confirm(window.t('Die Stickerei ist grösser als der Stickrahmen') + ' ('
+            + Math.round(_dwMM) + ' × ' + Math.round(_dhMM) + ' mm > '
+            + Math.round(_hoop.wMM) + ' × ' + Math.round(_hoop.hMM) + ' mm). '
+            + window.t('Trotzdem exportieren?'))) return;
+      }
+    }
+  } catch (eHoop) { /* Rahmenpruefung darf den Export nie blockieren */ }
   var blob = new Blob([data], { type: 'application/octet-stream' });
-  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'vektortool-stickerei.dst'; a.click();
+  /* [uxfix v1] Dokumentname im Dateinamen, damit mehrere Stickdateien unterscheidbar bleiben. */
+  var _dstName = ((docName || 'vektortool-stickerei').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-stickerei') + '.dst';
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = _dstName; a.click();
   /* Auto-Open im integrierten DST-Viewer: gleicher Buffer, kein zweiter
      Klick nötig. Hook ist im DST-Viewer-IIFE auf window exponiert. */
   if (typeof window._dstvAutoOpenWithBuffer === 'function') {
-    window._dstvAutoOpenWithBuffer(data.buffer.slice(0), 'vektortool-stickerei.dst');
+    window._dstvAutoOpenWithBuffer(data.buffer.slice(0), _dstName);
   }
 }
 
@@ -39231,6 +39827,14 @@ window.__LINEA_DEBUG__ = {
     display: flex !important;
     flex-direction: column !important;
   }
+  /* [uxfix v1] F19: Unter ~1000px Fensterbreite schob der Spacer den 2D/3D-Umschalter samt
+     Kopf-Controls nach rechts unter das 400px-Panel (unklickbar). Fix: im Merged-Modus die
+     Kopf-Controls links packen (Spacer wächst nicht mehr) und die Kopfzeile bei Enge
+     horizontal scrollbar machen, statt Inhalt unter dem Panel verschwinden zu lassen. */
+  body.dstv-with-stitch #dstvModal .dstv-top { overflow-x: auto; overflow-y: hidden; }
+  body.dstv-with-stitch #dstvModal .dstv-spacer { flex: 0 0 var(--space-6); }
+  body.dstv-with-stitch #dstvModal .dstv-group-btns { flex-shrink: 0; }
+  body.dstv-with-stitch #dstvModal .dstv-title { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
   /* Head (Topline + Buttons + Globale Parameter) nicht wachsen lassen; die
      Globals-Box kappt sich intern (max 38vh, scrollt) → Tabs + Footer
      bleiben immer sichtbar. */
@@ -39651,7 +40255,7 @@ window.__LINEA_DEBUG__ = {
            Stil + Verbindung bleiben gekoppelt im Gemeinsam-Block unten (Radio-Kacheln + Kontur-Sperre). -->
 
       <!-- [VT-TOPBAND v1] Aktionsband ganz oben (Lukas): Zurücksetzen/Neu berechnen/Auto links; der Schliessen-X (#stitchPanelCloseX, schwebt absolut) sitzt rechts darauf; vollbreit bis zum rechten Rand (negative Margins). padding-right haelt die Buttons vom X frei. -->
-      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><button id="dstvResetView" title="Ansicht/Zoom zur&uuml;cksetzen (R)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></div>
+      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><button id="dstvResetView" title="Alle Stick-Einstellungen + Ansicht zur&uuml;cksetzen (kein Undo) - nur Zoom: Taste R" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></div>
 
       <!-- Sektion FLAECHEN (Fuellstich) -->
       <div id="dgpAreaSection" style="margin-bottom:0;">
@@ -40852,8 +41456,16 @@ window.__LINEA_DEBUG__ = {
     /* Canvas-Farben nur bei Vektortool-eigenem Load (Dateiname enthält „linea"):
        window._lastExportData.colors steht in colorIndex-Reihenfolge bereit. Bei
        Fremd-DST gibt es keine Farb-Info → Palette. */
-    _dstvState.lineaColors = (/linea|vektortool/i.test(filename || '') && window._lastExportData && window._lastExportData.colors) ? window._lastExportData.colors : null;
-    document.getElementById('dstvFilename').textContent = filename || '';
+    /* [uxfix v1] B14: leerer Dateiname = intern gerenderte DST (Recalc lädt mit '') -> echte
+       Designfarben verwenden. Vorher fiel die Vorschau nach jeder Neuberechnung auf die
+       Fest-Palette zurück, weil '' den linea|vektortool-Namenstest nicht bestand. */
+    _dstvState.lineaColors = ((!filename || /linea|vektortool/i.test(filename)) && window._lastExportData && window._lastExportData.colors) ? window._lastExportData.colors : null;
+    /* [uxfix v1] B15: Fremd-Stickdatei = reine Ansicht. Flag setzen (schützt vor dem
+       Auto-Recalc, der die Ansicht sonst still durch das Canvas-Design ersetzte) und
+       das ehrlich anschreiben. */
+    _dstvState.externalFile = !!(filename && !/linea|vektortool/i.test(filename));
+    window._dstvExternalFile = _dstvState.externalFile; /* fuer den Scheduler (anderer Scope) */
+    document.getElementById('dstvFilename').textContent = (filename || '') + (_dstvState.externalFile ? ' · ' + window.t('Ansicht - Regler wirken auf das Canvas-Design, erst „Neu berechnen" wechselt dorthin') : '');
     document.getElementById('dstvEmpty').style.display = 'none';
     var scrub = document.getElementById('dstvScrub');
     scrub.max = String(parsed.records.length - 1);
@@ -41280,7 +41892,7 @@ window.__LINEA_DEBUG__ = {
       setRadio('dgpRStyle', 'parallel');
       setRadio('dgpRConn', 'continuous');
       var rng = {dgpAngle:0, dgpRowSpacing:0.3, dgpStitchLength:3.0, dgpPullComp:-0.1, dgpUnderlayAngle:90, dgpUnderlaySpacing:4.5, dgpUnderlayStitchLength:2.5, dgpOutlineStitchLength:2.5, dgpSatinPitch:0.4, dgpRimDensity:0.2, toplineTrimMM:10}; /* [rs-default-03 v1] [umriss-2farbe v5] [satin-dichte v1] */
-      var chk = {dgpRandomOffset:true, dgpUnderlay:true, dgpOutline:false, toplineTrim:false}; /* [VT-UIFIX v1] Faden-Trimmen Standard aus */
+      var chk = {dgpRandomOffset:true, dgpUnderlay:true, dgpOutline:false, toplineTrim:true}; /* [uxfix v1] Faden-Trimmen AN = deckt sich mit dem Boot-Default (_dstTrimSettings.enabled=true); vorher stellte der Reset Trim auf AUS und aenderte damit unbemerkt das Export-Verhalten gegenueber einer frischen Sitzung */
       Object.keys(rng).forEach(function(id){ var el = document.getElementById(id); if (el){ el.value = rng[id]; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); } });
       Object.keys(chk).forEach(function(id){ var el = document.getElementById(id); if (el && el.checked !== chk[id]){ el.checked = chk[id]; el.dispatchEvent(new Event('change', {bubbles:true})); } });
       if (typeof _dstvFit === 'function') { _dstvFit(); _dstvRender(); }
@@ -41358,6 +41970,10 @@ window.__LINEA_DEBUG__ = {
     var arDebouncer = null;
     window._dstvScheduleAutoRecalc = function() {
       if (window._dstvAutoRecalc === false) return;
+      /* [uxfix v1] B15: Solange eine FREMDE Stickdatei angezeigt wird, ersetzt der
+         Auto-Recalc die Ansicht nicht mehr stillschweigend durch das Canvas-Design.
+         Der manuelle "Neu berechnen"-Knopf tut das weiterhin (bewusste Aktion). */
+      if (window._dstvExternalFile) return;
       /* [stick-nur-auf-klick v1] Im Hintergrund (Stick-Viewer zu) NICHT rechnen.
          Editor-Aenderungen wie die Strichstaerke sollen die Stickerei nicht von
          selbst starten. Die Stickerei wird erst berechnet, wenn der Viewer offen
@@ -41535,12 +42151,29 @@ window.__LINEA_DEBUG__ = {
         var _row = document.getElementById('dgpFillConnectRow');
         if (_row) _row.style.display = 'contents';
       }
+      /* [uxfix v1] Im Kontur-Fuellstil (spiral) hat der Winkel keine Wirkung - _calcSpiralFillStitch
+         folgt der Formkontur (Iso-Konturen), liest kein angle. Slider daher im Kontur-Modus disablen
+         + abdunkeln (ehrlich) und im Parallel-Modus wieder freigeben. Ein disabled Slider feuert kein
+         input-Event -> kein pixelidentischer Leer-Recalc mehr. */
+      function _dgpSyncAngleForStyle() {
+        var _isKontur = dgpFS && dgpFS.value === 'spiral';
+        var _aIn = document.getElementById('dgpAngle');
+        var _aVal = document.getElementById('dgpAngleVal');
+        if (_aIn) {
+          _aIn.disabled = !!_isKontur;
+          _aIn.style.opacity = _isKontur ? '0.4' : '';
+          _aIn.title = _isKontur ? 'Im Kontur-Modus ohne Wirkung - die Füllung folgt der Form, es gibt keine Stickrichtung' : '';
+        }
+        if (_aVal) _aVal.style.opacity = _isKontur ? '0.4' : '';
+      }
       if (dgpFS) dgpFS.addEventListener('change', function () {
         if (window._v44ApplyParamToAllShapesQuiet) window._v44ApplyParamToAllShapesQuiet('fillStyle', this.value);
         _dgpSyncConnectVis();
+        _dgpSyncAngleForStyle(); /* [uxfix v1] Winkel-Slider passend zum Stil sperren/freigeben */
         if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
       });
       _dgpSyncConnectVis();
+      _dgpSyncAngleForStyle();
       /* Verbindungs-Methode (Sprünge / Travel-Router) → fillConnect auf alle Shapes + Recalc. */
       var dgpFC = document.getElementById('dgpFillConnect');
       if (dgpFC) dgpFC.addEventListener('change', function () {
@@ -41741,6 +42374,15 @@ window.__LINEA_DEBUG__ = {
             hits = window._v44ApplyParamToAllShapesQuiet(paramName, value) || 0;
           }
           console.info('[dgp] ' + paramName + '=' + value + ' applied to ' + hits + ' shape(s)');
+          if (hits === 0 && (cat || paramName === 'satinPitch')) {
+            /* [uxfix v1] Kategorie-Regler ohne passende Form: NICHT "✓ 100 % aktualisiert" faken und keinen sinnlosen Recalc anstossen, sondern ehrlich melden, dass die Einstellung keine Zielform hatte. */
+            if (dgpStatus) {
+              dgpStatus.style.color = 'var(--fg2)';
+              dgpStatus.style.fontStyle = 'normal';
+              dgpStatus.innerHTML = 'Keine ' + (cat === 'area' ? 'Flächen' : 'passenden') + '-Formen - Einstellung ohne Wirkung';
+            }
+            return;
+          }
           if (hits === 0 && !cat && paramName !== 'satinPitch') {
             /* Nur bei GLOBALEN Params warnen. Bei Kategorie-Reglern heisst hits=0 nur "keine Form dieser
                Kategorie vorhanden" - kein Fehler, einfach still neu rechnen. */
@@ -42157,22 +42799,31 @@ window.__LINEA_DEBUG__ = {
              (Reihen/Stiche/Winkel) aus der ersten AREA-Form, die Satin-Dichte aus der ersten LINE-Form.
              Text hat den eigenen Sync (_dgpSyncTextStitch). Fallback: firstFill (p). */
           var _areaShape = null, _lineShape = null;
+          /* [uxfix v1] Misch-Erkennung: gibt es mehrere Flaechen-Formen mit UNTERSCHIEDLICHEM Wert (per Zahnrad gesetzt), markieren wir das Slider-Label mit " · gemischt" - sonst ueberschreibt ein globaler Sliderklick die Einzelwerte unbemerkt. */
+          var _amRS = false, _amSL = false, _amAng = false;
           for (var _ci = 0; _ci < ss.length; _ci++) {
             var _cs = ss[_ci];
             if (!(_cs && _cs.stitch && _cs.stitch.params)) continue;
             var _ct = _cs.stitch.type;
             if (_ct !== 'fill' && _ct !== 'satin' && _ct !== 'zigzag' && _ct !== 'satincol') continue;
             var _ccat = (typeof window._shapeStitchCat === 'function') ? window._shapeStitchCat(_cs) : 'area';
-            if (_ccat === 'area' && !_areaShape) _areaShape = _cs;
-            else if (_ccat === 'line' && !_lineShape) _lineShape = _cs;
+            if (_ccat === 'area') {
+              if (!_areaShape) _areaShape = _cs;
+              else {
+                var _ap0 = _areaShape.stitch.params, _apN = _cs.stitch.params;
+                if (isFinite(_apN.rowSpacing) && isFinite(_ap0.rowSpacing) && Math.abs(_apN.rowSpacing - _ap0.rowSpacing) > 1e-4) _amRS = true;
+                if (isFinite(_apN.stitchLength) && isFinite(_ap0.stitchLength) && Math.abs(_apN.stitchLength - _ap0.stitchLength) > 1e-4) _amSL = true;
+                if (isFinite(_apN.angle) && isFinite(_ap0.angle) && Math.abs(_apN.angle - _ap0.angle) > 0.5) _amAng = true;
+              }
+            } else if (_ccat === 'line' && !_lineShape) _lineShape = _cs;
           }
           /* [VT-CAT-SEKTIONEN v1] Fallback kategorie-REIN: existiert keine Form der Kategorie, den gemerkten
              Kategorie-Default zeigen (nicht eine fremde Form), sonst stuenden in der Flaechen-Sektion z.B.
              Text-Werte. */
           var _aP = _areaShape ? _areaShape.stitch.params : ((window._catStitchParams && window._catStitchParams.area) || p);
           var _lP = _lineShape ? _lineShape.stitch.params : ((window._catStitchParams && window._catStitchParams.line) || p);
-          if (dgpRS && isFinite(_aP.rowSpacing)) { dgpRS.value = _aP.rowSpacing; dgpRSV.textContent = Number(_aP.rowSpacing).toFixed(2) + ' mm'; }
-          if (dgpSL && isFinite(_aP.stitchLength)) { dgpSL.value = _aP.stitchLength; dgpSLV.textContent = Number(_aP.stitchLength).toFixed(1) + ' mm'; }
+          if (dgpRS && isFinite(_aP.rowSpacing)) { dgpRS.value = _aP.rowSpacing; dgpRSV.textContent = Number(_aP.rowSpacing).toFixed(2) + ' mm' + (_amRS ? ' · gemischt' : ''); } /* [uxfix v1] Misch-Hinweis */
+          if (dgpSL && isFinite(_aP.stitchLength)) { dgpSL.value = _aP.stitchLength; dgpSLV.textContent = Number(_aP.stitchLength).toFixed(1) + ' mm' + (_amSL ? ' · gemischt' : ''); } /* [uxfix v1] Misch-Hinweis */
           if (dgpPC && isFinite(p.pullCompensation)) { dgpPC.value = p.pullCompensation; dgpPCV.textContent = Number(p.pullCompensation).toFixed(2) + ' mm'; }
           if (dgpUL) dgpUL.checked = p.underlay !== false;
           var dgpAdjEl = document.getElementById('dgpAdjustLast');
@@ -42180,7 +42831,7 @@ window.__LINEA_DEBUG__ = {
           /* Winkel + Underlay sub-params */
           var dgpAngEl = document.getElementById('dgpAngle');
           var dgpAngVEl = document.getElementById('dgpAngleVal');
-          if (dgpAngEl && isFinite(_aP.angle)) { dgpAngEl.value = _aP.angle; if (dgpAngVEl) dgpAngVEl.textContent = Math.round(_aP.angle) + '°'; }
+          if (dgpAngEl && isFinite(_aP.angle)) { dgpAngEl.value = _aP.angle; if (dgpAngVEl) dgpAngVEl.textContent = Math.round(_aP.angle) + '°' + (_amAng ? ' · gemischt' : ''); } /* [uxfix v1] Misch-Hinweis */
           var dgpUAEl = document.getElementById('dgpUnderlayAngle');
           var dgpUAVEl = document.getElementById('dgpUnderlayAngleVal');
           if (dgpUAEl && isFinite(p.underlayAngle)) { dgpUAEl.value = p.underlayAngle; if (dgpUAVEl) dgpUAVEl.textContent = Math.round(p.underlayAngle) + '°'; }
@@ -42227,7 +42878,7 @@ window.__LINEA_DEBUG__ = {
          (contenteditable; Enter/Blur clampt + setzt den Slider, die bestehende Apply-
          Pipeline läuft per dispatch('input') = eine Neuberechnung statt Slider-Geschiebe). */
       function _dgpEnableManualEntry() {
-        var spans = document.querySelectorAll('[id^="dgp"][id$="Val"]');
+        var spans = document.querySelectorAll('[id^="dgp"][id$="Val"], #toplineTrimMMVal'); /* [uxfix v1] Trim-Schwelle mit aufnehmen: sie heisst toplineTrimMMVal (nicht dgp*) und war als einziger Wert im Panel nicht tippbar; der range-Guard unten schuetzt weiter */
         Array.prototype.forEach.call(spans, function (span) {
           if (span._manualWired) return;
           var sl = document.getElementById(span.id.replace(/Val$/, ''));
@@ -42264,12 +42915,20 @@ window.__LINEA_DEBUG__ = {
             if (span._cancel) { span._cancel = false; sl.dispatchEvent(new Event('input', { bubbles: true })); return; }
             var v = parseFloat((span.textContent || '').replace(',', '.'));
             if (!isFinite(v)) { sl.dispatchEvent(new Event('input', { bubbles: true })); return; }
-            var mn = parseFloat(sl.min), mx = parseFloat(sl.max), stp = parseFloat(sl.step);
+            var mn = parseFloat(sl.min), mx = parseFloat(sl.max);
             if (isFinite(mn) && v < mn) v = mn;
             if (isFinite(mx) && v > mx) v = mx;
-            if (isFinite(stp) && stp > 0 && isFinite(mn)) { v = mn + Math.round((v - mn) / stp) * stp; v = parseFloat(v.toFixed(4)); }
+            /* [uxfix v1] F18: Manuelle Eingabe NICHT mehr auf den groben Slider-Step rasten
+               (0,25 mm wurde so still zu 0,3). Nur auf 2 Nachkommastellen runden - das ist
+               die Präzision, die die Stick-Engine ohnehin nutzt (Zahnrad-Popover: Step 0,01).
+               Damit die feine Zahl im Slider hält, wird für die Zuweisung step='any' gesetzt
+               und danach der Drag-Step wiederhergestellt. */
+            v = parseFloat(v.toFixed(2));
+            var _origStep = sl.step;
+            sl.step = 'any';
             sl.value = v;
             sl.dispatchEvent(new Event('input', { bubbles: true }));
+            sl.step = _origStep;
           });
         });
       }
@@ -42317,7 +42976,7 @@ var stitchBtnEl = document.getElementById('stitchBtn');
 if (!panel || !btn) return;
 
 var G = {
-  pat: 'miura', canvasFill: true, w: 150, h: 150, n: 20, elSc: 100, gap: 0, amp: 400, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400 */
+  pat: 'miura', canvasFill: true, w: 150, h: 150, n: 20, elSc: 100, gap: 18, amp: 400, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400; [gap-default-vis v1] Start-Abstand 18% (auch dichte/Mehrfach-Facetten-Muster zeigen klar Abstand) */
   rA: 0, rB: 0, sc: 100, fill: false, invert: true, border: false, mirror: false,
   motif: 'flower6', mCnt: 6, mSz: 100
 };
@@ -42699,9 +43358,15 @@ function genPaths() {
   var n = G.n, es = G.elSc/100, P = [];
   var gp = Math.max(0, Math.min(0.6, (G.gap||0)/100));   /* Abstand 0..60 % */
   var ap = Math.max(0, Math.min((G.pat === 'miura' ? 8 : 2), (G.amp||100)/100));   /* Amplitude 0..2; Miura bis 8 [gen3d-defaults v1] */
+  /* [gap-uniform v1] Im druckbaren Invert kommt die Luecke ZENTRAL aus der
+     Render-Ebene (eine einzige gleich breite, kantenparallele Luecke fuer alle
+     Zellen). Darum hier KEIN gp-Schrumpf (sonst ungleich breite Luecken bei
+     gescherten/rechteckigen Zellen) - cellEs ist im pci-Invert nur Element (es).
+     Nicht-Invert + Nicht-Zell-Invert behalten den cellEs-Gap. */
+  var pci = G.invert && isPrintableCellInvertPattern(G.pat);
   /* Cell-Skalierung: Gap verkleinert jede Zelle zusätzlich von ihrem
      Zentrum (Faktor 1.5 für deutlich sichtbaren Effekt). */
-  var cellEs = Math.max(0.05, es * (1 - gp * 1.5));
+  var cellEs = Math.max(0.05, es * (pci ? 1 : (1 - gp * 1.5)));
   /* Universelles Area-Shrinking: Gap verringert auch die Gesamtfläche,
      damit Linien/Wellen/Miura/etc. sichtbar Abstand zum Rand bekommen.
      Halbe Stärke gegenüber Cell-Skalierung. */
@@ -42760,6 +43425,16 @@ function genPaths() {
     }
     return outI;
   }
+  /* [gap-even v1] Faltmuster-Zelle (Miura/Yoshizawa/Zickzack): Element UND Abstand
+     als GLEICH breiten kantenparallelen Innen-Offset. Zentroid-Skalierung (scPoly)
+     macht bei gescherten Parallelogrammen je Kante UNTERSCHIEDLICH breite Luecken
+     -> Zellen wirken ungleich gross. _cellInset schiebt jede Kante um dasselbe d
+     -> ueberall gleich breite Faltstege, kongruente Zellen bleiben kongruent.
+     d=0 bei es=1 & gp=0 (buendig); es>1 -> d<=0 -> Roh-Zelle (kein Wachsen). */
+  function _gapCell(pts, dx, dy) {
+    var d = Math.min(dx, dy) * 0.5 * (1 - es); /* [gap-uniform v1] nur Element; Abstand zentral via Render-Luecke */
+    return (d > 0) ? (_cellInset(pts, d) || pts) : pts;
+  }
   switch (G.pat) {
     case 'lines': {
       if (n === 1) {
@@ -42816,7 +43491,7 @@ function genPaths() {
          Tropfen-Ketten, "Aussparungen unterschiedlich gross"). Schrumpfung
          um den DREIECK-SCHWERPUNKT statt der Zellmitte + Mini-Padding. */
       var c=n, dx=we/c, r=Math.max(2,Math.round(he/(dx*0.866))), dy=he/r;
-      var triPad = Math.max(0.015, gp);
+      var triPad = pci ? 0 : gp * 1.5; /* [gap-uniform v1] Invert: Luecke via Render-Ebene; Nicht-Invert: cellEs-Gap */
       var triS = es * (1 - triPad);
       var triPush = function(p1,p2,p3){
         var xs=[p1[0],p2[0],p3[0]];
@@ -42852,8 +43527,7 @@ function genPaths() {
          Abstand (gap) verkleinert jeden Hex von seiner Mitte aus, damit
          benachbarte Eckpunkte sich visuell nicht überschneiden. */
       var Rtile = we / (1.5*n + 0.5);
-      /* Default-Mini-Padding (1 %), damit Eckpunkte nicht visuell verschmelzen */
-      var hexPad = Math.max(0.01, gp);
+      var hexPad = pci ? 0 : gp * 1.5; /* [gap-uniform v1] Invert: Luecke via Render-Ebene; Nicht-Invert: cellEs-Gap */
       var R = Rtile * es * (1 - hexPad);
       var H = Rtile * Math.sqrt(3);
       var halfEps = 0.5;
@@ -42906,12 +43580,14 @@ function genPaths() {
       };
       if (G.invert) {
         for (var mri=0;mri<r;mri++) for (var mci=0;mci<c;mci++) {
-          P.push({tp:'poly', printCell:1, pts:[
+          /* [gap-even v1] gleich breite Luecke via _gapCell (kantenparallel), nicht scPoly */
+          var mPts=[
             [gx2(mri,mci),-hhe+mri*dy],
             [gx2(mri,mci+1),-hhe+mri*dy],
             [gx2(mri+1,mci+1),-hhe+(mri+1)*dy],
             [gx2(mri+1,mci),-hhe+(mri+1)*dy]
-          ]});
+          ];
+          P.push({tp:'poly', printCell:1, pts: _gapCell(mPts, dx, dy)});
         }
       } else {
         for (var ri=0;ri<=r;ri++){var pts=[];for(var ci=0;ci<=c;ci++)pts.push([gx2(ri,ci),-hhe+ri*dy]);P.push({tp:'pline',pts:pts});}
@@ -42960,9 +43636,10 @@ function genPaths() {
             var yt=yUp?yy0+depth:yy1-depth;         /* Chevron-Spitze    */
             for (var yci=0; yci<c; yci++) {
               var x0=-hwe+yci*dx, x1=x0+dx, xm=x0+dx/2;
-              pushClean([[x0,ya],[x1,ya],[xm,yt]]);
-              pushClean([[x0,ya],[xm,yt],[xm,yb],[x0,yb]]);
-              pushClean([[xm,yt],[x1,ya],[x1,yb],[xm,yb]]);
+              /* [gap-even v1] je Facette gleich breiter kantenparalleler Innen-Offset */
+              pushClean(_gapCell([[x0,ya],[x1,ya],[xm,yt]], dx, dy));
+              pushClean(_gapCell([[x0,ya],[xm,yt],[xm,yb],[x0,yb]], dx, dy));
+              pushClean(_gapCell([[xm,yt],[x1,ya],[x1,yb],[xm,yb]], dx, dy));
             }
           }
         }
@@ -43031,10 +43708,12 @@ function genPaths() {
         for (var sz=0; sz<rows; sz++) {
           for (var czf=0; czf<cols; czf++) {
             var x0=-hwe+czf*dxZ, x1=-hwe+(czf+1)*dxZ;
-            P.push({tp:'poly', printCell:1, pts:[
+            /* [gap-even v1] gleich breite Luecke via _gapCell (kantenparallel) */
+            var zPts=[
               [x0,_zigY(sz,czf)],[x1,_zigY(sz,czf+1)],
               [x1,_zigY(sz+1,czf+1)],[x0,_zigY(sz+1,czf)]
-            ]});
+            ];
+            P.push({tp:'poly', printCell:1, pts: _gapCell(zPts, dxZ, dyZ)});
           }
         }
       } else {
@@ -43200,7 +43879,7 @@ function genPaths() {
              Jetzt kantenparalleler Innen-Offset (_cellInset, skaliert mit der
              Zellgroesse wie von gen3d-fixes v1 gewollt) -> ueberall gleich breite
              Faltstege; degenerierte Facetten werden uebersprungen. */
-          var twD = Math.max(0.9, Math.min(dx, dy) * 0.015); /* konstant-duenne Stege: flache Ring-Dreiecke duerfen nicht aufgezehrt werden */
+          var twD = 0; /* [gap-uniform v1] Facetten-Luecke zentral via Render-Ebene (gleich breit wie Zell-Luecke) */
           var twPush = function(pp){ var sI = _cellInset(pp, twD); P.push({tp:'poly', printCell:1, pts: sI || pp}); }; /* null -> roh pushen, der globale 1.2px-Shrink uebernimmt (kein Loch im Muster) */
           twPush(innerPts);
           for (var tk=0; tk<4; tk++) {
@@ -43352,7 +44031,7 @@ function genPaths() {
         var gx=0, gy=0, q;
         for (q=0;q<pp.length;q++){ gx+=pp[q][0]; gy+=pp[q][1]; }
         gx/=pp.length; gy/=pp.length;
-        var s = Math.max(0.5, 0.90 - gp) * es;
+        var s = Math.max(0.3, es); /* [gap-uniform v1] nur Element; Ring-Luecke zentral via Render-Ebene */
         return pp.map(function(t){ return [gx+(t[0]-gx)*s, gy+(t[1]-gy)*s]; });
       };
       if (G.invert) {
@@ -43497,6 +44176,11 @@ function pathsToShapes(forReal) {
   var dW = window.docW || (297*MM), dH = window.docH || (210*MM);
   var cxPx = dW/2, cyPx = dH/2;
   var printableCellInvert = !!(G.invert && isPrintableCellInvertPattern(G.pat));
+  /* [gap-uniform v1] Abstand-Anteil 0..0.6; 0% = Kacheln beruehren sich (buendig).
+     Die tatsaechliche Luecken-Breite (uniformInset) wird unten EINMAL aus der
+     Median-Zellgroesse berechnet und auf ALLE Zellen gleich angewandt -> jede
+     Luecke (Zell-Luecke wie innerer Faltschlitz) exakt gleich breit. */
+  var gapFrac = Math.max(0, Math.min(0.6, (G.gap||0) / 100));
 
   /* Invertieren: Ink + Paper tauschen, vor den Muster-Shapes kommt ein
      ausgefüllter Hintergrund in Ink-Farbe. Die Muster-Shapes werden in
@@ -43657,6 +44341,28 @@ function pathsToShapes(forReal) {
     pathData.push({ p:p0, pts:pts0 });
   }
 
+  /* [gap-uniform v1] EINE gleich breite, kantenparallele Luecke fuer alle Invert-Zellen.
+     Inset = halbe Luecke, FIX fuer alle Zellen aus der Median-FACETTEN-Groesse x Abstand%
+     -> Zell-Luecken und innere Faltschlitze exakt gleich breit. 0 bei gp=0 (buendig).
+     Facetten-basiert ist noetig: ein zell-grosser Inset wuerde die kleinen Facetten
+     (Waterbomb 8 Dreiecke etc.) aufzehren. Mehrfach-Facetten-Muster haben darum
+     geometrisch bedingt feinere Luecken - die Sichtbarkeit kommt ueber den Default-n. */
+  var uniformInset = 0;
+  if (printableCellInvert && gapFrac > 0) {
+    var _cellAreas = [];
+    for (var _qi = 0; _qi < pathData.length; _qi++) {
+      var _pp = pathData[_qi];
+      if (!_pp.p || _pp.p.tp !== 'poly' || _pp.p.border || _pp.pts.length < 3) continue;
+      var _a = 0, _n = _pp.pts.length;
+      for (var _k = 0; _k < _n; _k++) { var _j = (_k + 1) % _n; _a += _pp.pts[_k].x * _pp.pts[_j].y - _pp.pts[_j].x * _pp.pts[_k].y; }
+      _cellAreas.push(Math.abs(_a) / 2);
+    }
+    if (_cellAreas.length) {
+      _cellAreas.sort(function(a, b){ return a - b; });
+      uniformInset = Math.sqrt(_cellAreas[Math.floor(_cellAreas.length / 2)]) * gapFrac * 0.85;
+    }
+  }
+
   if (useSvgPath && !G.fill) {
     for (var odi = 0; odi < pathData.length; odi++) {
       var od = pathData[odi];
@@ -43699,7 +44405,7 @@ function pathsToShapes(forReal) {
          Polygon extrudiert. Keine svgpath-Transform-Chain, keine Skalierung. ── */
       if (p.tp === 'poly') {
         /* Geschlossenes Polygon: direkt gefüllt speichern. */
-        var outlinePtsA = (printableCellInvert && !p.border) ? shrinkPolyToCenter(pts, Math.max(strokeW * 0.9, 1.2)) : pts.slice();
+        var outlinePtsA = (printableCellInvert && !p.border) ? shrinkPolyToCenter(pts, uniformInset) : pts.slice();
         var bbP = _bb(outlinePtsA);
         sh = markInvertHole({
           type:'freehand', points: outlinePtsA, closed:true, smooth:false,
@@ -43731,7 +44437,7 @@ function pathsToShapes(forReal) {
           x:bb.x, y:bb.y, w:bb.w, h:bb.h
         };
       } else if (p.tp === 'poly') {
-        var previewPts = (printableCellInvert && !p.border) ? shrinkPolyToCenter(pts, Math.max(strokeW * 0.9, 1.2)) : pts;
+        var previewPts = (printableCellInvert && !p.border) ? shrinkPolyToCenter(pts, uniformInset) : pts;
         var previewBb = previewPts === pts ? bb : _bb(previewPts);
         sh = {
           type:'freehand', points: previewPts, closed:true, smooth:false,
@@ -45295,7 +46001,7 @@ function bindSlider(id, vId, key, fmt, scale) {
     scheduleUpdate();
   });
   if (vEl && vEl.tagName === 'INPUT') vEl.addEventListener('change', function(){
-    var v = parseFloat(vEl.value);
+    var v = parseFloat((vEl.value || '').replace(',', '.')); /* [uxfix v1] Dezimal-Komma akzeptieren (CH-Tastatur), sonst NaN bei nicht-de Locale */
     if (!isFinite(v)) { _setV(B[key]); return; }
     var mn = parseFloat(vEl.min), mx = parseFloat(vEl.max);
     if (isFinite(mn) && v < mn) v = mn;
@@ -45538,7 +46244,9 @@ _boxBtnEl.addEventListener('click', function() {
       });
 
       /* C2: Topbar-Controls ohne sichtbares Label benennen */
-      var c2 = { lineWidth: 'Linienstärke in mm', lineWidthPresets: 'Linienstärke-Vorlagen',
+      /* [uxfix v1] F21: strokeWidth wird in px gespeichert/gestickt (_px2mm rechnet erst beim
+         Export), das aria-Label "in mm" war irreführend. */
+      var c2 = { lineWidth: 'Linienstärke', lineWidthPresets: 'Linienstärke-Vorlagen',
                  areaPreset: 'Zeichenfläche / Format', strokeColor: 'Linienfarbe', fillColor: 'Füllfarbe' };
       Object.keys(c2).forEach(function (id) {
         var el = document.getElementById(id);
@@ -45684,7 +46392,8 @@ _boxBtnEl.addEventListener('click', function() {
           var cs = getComputedStyle(el);
           if (cs.display === 'none' || cs.visibility === 'hidden') return false;
           if (el.classList.contains('open')) return true;
-          return el.offsetParent !== null;
+          /* [uxfix v1] offsetParent ist bei position:fixed IMMER null -> tracerOverlay/importChoiceOverlay fielen faelschlich als "unsichtbar" durch. display/visibility sind oben schon geprueft; getClientRects().length erkennt fixed-Overlays korrekt (>0 sichtbar, 0 bei display:none). */
+          return el.getClientRects().length > 0;
         }
         function foc(m) {
           return Array.prototype.slice.call(m.querySelectorAll(SEL))
@@ -45739,7 +46448,7 @@ _boxBtnEl.addEventListener('click', function() {
           else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (i - 1 + tabs.length) % tabs.length;
           else if (e.key === 'Home') n = 0;
           else if (e.key === 'End') n = tabs.length - 1;
-          if (n < 0) return; e.preventDefault();
+          if (n < 0) return; e.preventDefault(); e.stopPropagation(); /* [uxfix v1] Pfeil nicht an document weiterreichen -> kein Doppel-Nudge/Pan */
           tabs.forEach(function (t) { t.setAttribute('tabindex', '-1'); });
           tabs[n].setAttribute('tabindex', '0'); tabs[n].focus();
           if (tabs[n].click) tabs[n].click();
@@ -46254,6 +46963,15 @@ _boxBtnEl.addEventListener('click', function() {
     $('stDlgX').addEventListener('click', closeDialog);
     $('stCancel').addEventListener('click', closeDialog);
     dlg.addEventListener('click', function (e) { if (e.target === dlg) closeDialog(); });
+    /* [uxfix v1] F15: Escape schliesst auch diesen Dialog (Kongruenz mit Box/3D/Stick-Viewer).
+       Der Dialog wird wiederverwendet (nur display umgeschaltet), darum bleibt der Handler
+       dauerhaft und prüft die Sichtbarkeit. Capture + stopPropagation: nur die oberste
+       Ebene schliesst, der Stick-Viewer darunter bleibt offen. */
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !dlg || dlg.style.display === 'none') return;
+      e.stopPropagation(); e.preventDefault();
+      closeDialog();
+    }, true);
     $('stGo').addEventListener('click', function () {
       var mode = $('stMode').value;
       var hoop = $('stHoop').value.split('x').map(Number);
@@ -46722,7 +47440,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     document.addEventListener('click', function(ev){ if(!wrap.contains(ev.target)) close(); });
     window.addEventListener('resize', close); /* [langsel-fix v1] */
     window.addEventListener('scroll', function(ev){ if(list.classList.contains('open') && ev.target!==list) close(); }, true); /* [langsel-fix v1] Topbar-/Seiten-Scroll: fixed-Liste wuerde vom Trigger wegdriften -> schliessen (Eigen-Scroll der Liste ausgenommen) */
-    trig.addEventListener('keydown', function(ev){ if(ev.key==='Enter'||ev.key===' '||ev.key==='ArrowDown'){ ev.preventDefault(); open(); } else if(ev.key==='Escape'){ close(); } });
+    trig.addEventListener('keydown', function(ev){ if(ev.key==='Enter'||ev.key===' '||ev.key==='ArrowDown'){ ev.preventDefault(); ev.stopPropagation(); open(); } else if(ev.key==='Escape'){ close(); } }); /* [uxfix v1] stopPropagation: ArrowDown pannte sonst zusaetzlich die Ansicht */
     sel.addEventListener('change', sync);   /* langauto/i18n koennte select aendern -> Trigger nachziehen */
     sync();
   }
@@ -47288,7 +48006,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
-    {d:'2026-06-21', t:'Getrackte/importierte Umrisse trennen: Rechtsklick „In Pfad auflösen“, Importe als auflösbare Gruppe, dünne Konturen leichter anklickbar', c:'71866e8'},
+    {d:'2026-07-04', t:'Neu: numerische Eingabe von Position, Grösse (mm) und Winkel für ausgewählte Objekte; Objekte verteilen (horizontal/vertikal); DXF-Export (CAD/CNC); „Pfad glätten“ im Rechtsklick-Menü; Spiegeln an Ort und Stelle; Zoom-Einpassen-Knopf', c:'uxfix'},
+    {d:'2026-07-04', t:'UX-Feinschliff: Tastenkürzel wirken nicht mehr in Eingabefelder hinein (Ctrl+X/C/Z), Kontextmenü Kopieren/Einfügen/Ausschneiden funktioniert, „Stil“-Knopf im Formen-Panel öffnet wieder das Linienstil-Menü, Doppelklick auf Text öffnet den Texteditor, gedrehte Formen skalieren korrekt, Escape schliesst alle Dialoge einheitlich, Stickerei-Einstellungen sind rückgängig-fähig, leerer Export wird gemeldet, Drag&Drop-Stickreihenfolge bleibt erhalten', c:'uxfix'},
     {d:'2026-06-13', t:'Manuelle Werteingabe + Berechnen-Knopf in den Stickerei-Einstellungen', c:'55d3076'},
     {d:'2026-06-13', t:'Änderungsverlauf mit Versions-Download in der Infoseite', c:'20693b2'},
     {d:'2026-06-13', t:'DXF-Import (CAD/CNC/Laser) als echte Vektoren', c:'d1e4155'},
