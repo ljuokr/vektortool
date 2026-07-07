@@ -2111,14 +2111,6 @@ body.layer-panel-open #rsActions { display:none !important; }
       <div style="margin-top:6px;font-size:var(--fs-xs);color:var(--fg2);line-height:1.45;">Die Muster lassen sich direkt auf netzartige Textilien (z. B. Tüll) drucken.</div>
       <div class="gen3d-info" id="gen3dPatInfo" style="display:none"><!-- [gen3d-fixes v2] Lukas: Beschreibungstexte braucht es nicht; JS-Updates bleiben defensiv -->Miura-Ori ★ – japanisches Origami-Faltmuster, Parallelogramm-Tiling.</div>
     </div>
-    <div class="gen3d-sec" id="gen3dSecMotif" style="display:none;">
-      <div class="gen3d-sec-t">Motiv</div>
-      <div class="gen3d-row"><label>Typ</label><select id="gen3dMotifSel" style="flex:1;">
-        <option value="flower6">Blume 6</option><option value="flower8">Blume 8</option><option value="daisy">Margerite</option><option value="sakura">Kirschblüte</option><option value="rosette">Rosette</option><option value="leaf">Blatt</option><option value="maple">Ahorn</option><option value="ginkgo">Ginkgo</option><option value="fern">Farn</option><option value="star">Stern</option><option value="snowflake">Schneeflocke</option><option value="spiral">Spirale</option><option value="pinwheel">Windrad</option><option value="sun">Sonne</option><option value="diamond4">Raute</option><option value="heart">Herz</option><option value="tulip">Tulpe</option>
-      </select></div>
-      <div class="gen3d-row"><label>Wiederh.<span id="gen3dMCntV">6</span></label><input type="range" id="gen3dMCnt" min="1" max="20" value="6"></div>
-      <div class="gen3d-row"><label>Grösse<span id="gen3dMSzV">100%</span></label><input type="range" id="gen3dMSz" min="30" max="200" value="100" step="5"></div>
-    </div>
     <div class="gen3d-sec">
       <div class="gen3d-sec-t">Fläche <span style="color:var(--fg3);font-weight:400;font-size:var(--fs-2xs);">mm · Rand 15 mm (Canvas füllen: 10 mm)</span></div><!-- [uxfix v1] Titel nannte pauschal 15 mm direkt ueber der 10-mm-Checkbox; beide Modi ehrlich benennen (manuell 15 mm, Canvas fuellen 10 mm) -->
       <!-- [gen3d-defaults v1] Canvas füllen: Muster auf die ganze Zeichenfläche, Rand 10 mm -->
@@ -43493,8 +43485,7 @@ if (!panel || !btn) return;
 
 var G = {
   pat: 'miura', canvasFill: true, w: 150, h: 150, n: 20, elSc: 100, gap: 18, amp: 400, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400; [gap-default-vis v1] Start-Abstand 18% (auch dichte/Mehrfach-Facetten-Muster zeigen klar Abstand) */
-  rA: 0, rB: 0, sc: 100, fill: false, invert: true, border: false, mirror: false,
-  motif: 'flower6', mCnt: 6, mSz: 100
+  rA: 0, rB: 0, sc: 100, fill: false, invert: true, border: false, mirror: false
 };
 var DEF = _vtDeepClone(G);
 var open = false;
@@ -43520,15 +43511,12 @@ var PAT_DESC = {
   penrose: "Penrose-Stern ⚠ – nur 10 Rauten, eher dekorativ als Tessellation.",
   voronoi: "Voronoi ★ – organische Zellen, druckt sehr gut auf Stoff.",
   flasher: "Starshade (NASA/JPL) \u2605 \u2013 wickelbares Satelliten-Faltmuster: verdrehte Ringe.",
-  truchet: "Truchet ✓ – Quartal-Bögen, fliessende Kurven als Wände.",
   wave: "Wellen ✓ – organisch flexibel (Amplitude steuert Auslenkung).",
   zigzag: "Zickzack ✓ – spitze Faltmuster (Amplitude = Höhe).",
   circles: "Kreise ⚠ – isolierte Elemente, schwache Haftung auf Stoff.",
   scales: "Schuppen ✓ – überlappende Bögen, druckt als verbundene Wand.",
   brick: "Backstein ★ – Mauerstruktur, hohe Stabilität beim 3D-Druck.",
-  sashiko: "Sashiko ⚠ – kleine isolierte Kreuze (Stickerei statt Druck).",
-  gradmesh: "Gradient-Netz ✓ – dicht an Rändern, offen in der Mitte.",
-  motifs: "Motiv-Tapete ⚠ – Druck-Tauglichkeit hängt vom Motiv ab."
+  gradmesh: "Gradient-Netz ✓ – dicht an Rändern, offen in der Mitte."
 };
 /* elSc=Grösse (Element vs. Zelle), gap=Abstand zwischen Zellen, amp=Amplitude
    für Wellen/Zickzack/Yoshizawa/Miura-Versatz. Pro Muster wird gesetzt, welche
@@ -43550,22 +43538,18 @@ var PAT_PARAMS = {
   penrose:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0, n:0}, /* [muster-audit v1] n steuert bei Penrose nichts (fix 10 Rauten) -> Anzahl-Slider ausblenden */
   voronoi:  {elSc:1, gap:1, amp:1, rotB:0, mirror:0},
   flasher:  {elSc:1, gap:1, amp:1, rotB:0, mirror:0}, /* [gen3d-fixes v1] */
-  truchet:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   wave:     {elSc:0, gap:1, amp:1, rotB:0, mirror:0},
   zigzag:   {elSc:1, gap:1, amp:1, rotB:0, mirror:0}, /* [muster-audit v1] elSc wirkt via _gapCell im Invert - Slider zeigen statt stale-leak */
   circles:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   scales:   {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   brick:    {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
-  sashiko:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
-  gradmesh: {elSc:0, gap:1, amp:1, rotB:1, mirror:0}, /* [muster-audit v1] horizontales Linienset ist B:1 und dreht mit G.rB - Slider zeigen statt stale-leak */
-  motifs:   {elSc:0, gap:1, amp:0, rotB:0, mirror:0, n:0} /* [muster-audit v1] Anzahl läuft über mCnt */
+  gradmesh: {elSc:0, gap:1, amp:1, rotB:1, mirror:0} /* [muster-audit v1] horizontales Linienset ist B:1 und dreht mit G.rB - Slider zeigen statt stale-leak */
 };
 
 /* [VT-ORIGAMI-INVERT v1] Patterns die im Invert-Modus als "Druck-Zellen"
    behandelt werden: jede Zelle wird als separates Polygon mit leichter
    Schrumpfung zur Zellen-Mitte gerendert (=> 3D-druckbare separate Tiles).
-   Voraussetzung: Pattern emittiert tp:'poly'-Pfade (keine reinen Linien).
-   truchet ist bogen-basiert -> bewusst nicht in dieser Liste. */
+   Voraussetzung: Pattern emittiert tp:'poly'-Pfade (keine reinen Linien). */
 var PRINTABLE_CELL_INVERT_PATTERNS = {
   triangles:1, quads:1, hexagons:1, diamonds:1, miura:1, circles:1, brick:1,
   auxetic:1, penrose:1, voronoi:1,
@@ -43574,278 +43558,6 @@ var PRINTABLE_CELL_INVERT_PATTERNS = {
 function isPrintableCellInvertPattern(pat) {
   return !!PRINTABLE_CELL_INVERT_PATTERNS[pat];
 }
-
-var MOTIFS = {
-  /* Klassische Stern-/Blütenform mit konkaven Zwischenpunkten – 6 Spitzen */
-  flower6:function(s){
-    var pts=[];
-    for (var i=0;i<6;i++){
-      var a=i/6*Math.PI*2-Math.PI/2;
-      pts.push([Math.cos(a)*s, Math.sin(a)*s]);
-      var a2=a+Math.PI/6;
-      pts.push([Math.cos(a2)*s*0.42, Math.sin(a2)*s*0.42]);
-    }
-    pts.push([pts[0][0], pts[0][1]]);
-    return [pts];
-  },
-  /* 8-zackige Blüte */
-  flower8:function(s){
-    var pts=[];
-    for (var i=0;i<8;i++){
-      var a=i/8*Math.PI*2-Math.PI/2;
-      pts.push([Math.cos(a)*s, Math.sin(a)*s]);
-      var a2=a+Math.PI/8;
-      pts.push([Math.cos(a2)*s*0.36, Math.sin(a2)*s*0.36]);
-    }
-    pts.push([pts[0][0], pts[0][1]]);
-    return [pts];
-  },
-  /* Margerite: 8 längliche Blütenblätter (gefüllte Ellipsen) + Mittelkreis */
-  daisy:function(s){
-    var paths=[];
-    for (var i=0;i<8;i++){
-      var a=i/8*Math.PI*2;
-      var ca=Math.cos(a), sa=Math.sin(a);
-      var petal=[];
-      for (var t=0;t<=20;t++){
-        var u=t/20*Math.PI*2;
-        var lx=Math.cos(u)*s*0.42 + s*0.55;       /* Ellipse mit Mittelpunkt versetzt */
-        var ly=Math.sin(u)*s*0.16;
-        petal.push([ca*lx - sa*ly, sa*lx + ca*ly]);
-      }
-      paths.push(petal);
-    }
-    var c=[]; for (var j=0;j<=20;j++){var aa=j/20*Math.PI*2; c.push([Math.cos(aa)*s*0.2, Math.sin(aa)*s*0.2]);}
-    paths.push(c);
-    return paths;
-  },
-  /* Kirschblüte: 5 herzförmige Blütenblätter + kleines Stempel-Zentrum */
-  sakura:function(s){
-    var paths=[];
-    for (var i=0;i<5;i++){
-      var a=i/5*Math.PI*2-Math.PI/2;
-      var ca=Math.cos(a), sa=Math.sin(a);
-      var petal=[];
-      for (var t=0;t<=24;t++){
-        var u=t/24;
-        /* Herzförmiges Blütenblatt — ausgehend von der Mitte */
-        var ang=u*Math.PI*2;
-        var rr=Math.sin(ang)*0.12 + 0.46;
-        var px=Math.sin(ang)*rr*s;
-        var py=(0.12 - Math.cos(ang)*rr)*s + s*0.30;
-        /* leichte Einkerbung an der Spitze */
-        if (u > 0.45 && u < 0.55) py += Math.sin((u-0.5)*Math.PI*10)*s*0.04;
-        paths.push;
-        petal.push([ca*px - sa*py, sa*px + ca*py]);
-      }
-      paths.push(petal);
-    }
-    /* Pollen-Punkte als kleine Sterne */
-    for (var k=0;k<5;k++){
-      var ang=k/5*Math.PI*2;
-      var px2=Math.cos(ang)*s*0.10, py2=Math.sin(ang)*s*0.10;
-      paths.push([[px2-s*0.02,py2],[px2+s*0.02,py2]]);
-      paths.push([[px2,py2-s*0.02],[px2,py2+s*0.02]]);
-    }
-    return paths;
-  },
-  /* Blatt mit Mittelrippe und Seitenadern */
-  leaf:function(s){
-    var outline=[];
-    for (var t=0;t<=24;t++){var u=t/24; outline.push([Math.sin(u*Math.PI)*s*0.42, (-0.55+u*1.1)*s]);}
-    for (var t2=24;t2>=0;t2--){var u2=t2/24; outline.push([-Math.sin(u2*Math.PI)*s*0.42, (-0.55+u2*1.1)*s]);}
-    outline.push([outline[0][0], outline[0][1]]);
-    var vein=[[0,-s*0.5],[0,s*0.45]];
-    var paths=[outline, vein];
-    for (var i=1;i<=5;i++){
-      var y=(-0.35+i*0.14)*s;
-      var ww=Math.sin(i/6*Math.PI)*s*0.34;
-      paths.push([[0,y],[ ww, y-s*0.07]]);
-      paths.push([[0,y],[-ww, y-s*0.07]]);
-    }
-    return paths;
-  },
-  /* Ahornblatt mit Stiel und drei Hauptlappen */
-  maple:function(s){
-    /* Stilisierte Spitzen — alternierende Tiefe für lobed look */
-    var pts=[], tips=[
-      [0,-1.0],[0.18,-0.78],[0.40,-0.78],[0.30,-0.55],[0.62,-0.42],
-      [0.55,-0.15],[0.92,-0.05],[0.55, 0.10],[0.42, 0.42],[0.20, 0.32],
-      [0.18, 0.55],[0,    0.35],
-      [-0.18,0.55],[-0.20,0.32],[-0.42,0.42],[-0.55,0.10],
-      [-0.92,-0.05],[-0.55,-0.15],[-0.62,-0.42],[-0.30,-0.55],
-      [-0.40,-0.78],[-0.18,-0.78]
-    ];
-    for (var i=0;i<tips.length;i++) pts.push([tips[i][0]*s, tips[i][1]*s]);
-    pts.push([pts[0][0], pts[0][1]]);
-    var stem=[[0, s*0.35],[0, s*0.90]];
-    return [pts, stem];
-  },
-  /* 5-zackiger Stern (klassisch) */
-  star:function(s){
-    var pts=[];
-    for (var i=0;i<5;i++){
-      var a=i/5*Math.PI*2-Math.PI/2;
-      pts.push([Math.cos(a)*s, Math.sin(a)*s]);
-      var a2=a+Math.PI/5;
-      pts.push([Math.cos(a2)*s*0.38, Math.sin(a2)*s*0.38]);
-    }
-    pts.push([pts[0][0], pts[0][1]]);
-    return [pts];
-  },
-  /* Ginkgoblatt: fächerförmig mit zentraler Einkerbung und feinen Adern */
-  ginkgo:function(s){
-    var pts=[];
-    for (var t=0;t<=32;t++){
-      var u=t/32;
-      var a=-Math.PI*0.62 + u*Math.PI*1.24;
-      var rr=s*(0.42 + Math.sin(u*Math.PI)*0.55);
-      pts.push([Math.cos(a)*rr, Math.sin(a)*rr - s*0.18]);
-    }
-    /* Einkerbung an der Spitze (Mitte) */
-    pts.push([0, -s*0.25]);
-    /* zurück zum Startpunkt über den Stiel-Bereich */
-    pts.push([0, s*0.05]);
-    pts.push([pts[0][0], pts[0][1]]);
-    var paths=[pts, [[0, s*0.05],[0, s*0.85]]];
-    /* feine Fächer-Adern */
-    for (var k=-2;k<=2;k++){
-      var aa = -Math.PI/2 + k*0.30;
-      paths.push([[0, s*0.05],[Math.cos(aa)*s*0.55, s*0.05 + Math.sin(aa)*s*0.55]]);
-    }
-    return paths;
-  },
-  /* Herz */
-  heart:function(s){
-    var pts=[];
-    for (var t=0;t<=48;t++){
-      var a=t/48*Math.PI*2;
-      var x=s*0.45*(16*Math.pow(Math.sin(a),3))/16;
-      var y=-s*0.45*(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a))/17;
-      pts.push([x, y]);
-    }
-    return [pts];
-  },
-  /* Tulpe: Becher mit drei Spitzen und zwei Blättern */
-  tulip:function(s){
-    var cup=[];
-    /* Spitzen-Bezier ähnlich Tulpe */
-    var profile = [
-      [0.00,-0.50],[0.18,-0.40],[0.18,-0.18],[0.34,-0.18],[0.34,-0.40],
-      [0.46,-0.30],[0.40, 0.05],[0.20, 0.20],[-0.20, 0.20],[-0.40, 0.05],
-      [-0.46,-0.30],[-0.34,-0.40],[-0.34,-0.18],[-0.18,-0.18],[-0.18,-0.40],
-      [0.00,-0.50]
-    ];
-    for (var i=0;i<profile.length;i++) cup.push([profile[i][0]*s, profile[i][1]*s]);
-    var stem=[[0, s*0.20],[0, s*0.85]];
-    var leafL=[[-s*0.04, s*0.50],[-s*0.34, s*0.32],[-s*0.30, s*0.55]];
-    var leafR=[[ s*0.04, s*0.55],[ s*0.30, s*0.40],[ s*0.28, s*0.62]];
-    return [cup, stem, leafL, leafR];
-  },
-  /* Farn-Wedel mit symmetrischen Fiedern */
-  fern:function(s){
-    var paths=[[[0, s*0.50],[0,-s*0.55]]];
-    for (var i=1;i<=7;i++){
-      var y=(-0.42 + i*0.12)*s;
-      var len=s*(0.13 + Math.sin(i/8*Math.PI)*0.30);
-      var right=[], left=[];
-      for (var t=0;t<=10;t++){var u=t/10; right.push([u*len, y - u*s*0.06 - Math.sin(u*Math.PI)*s*0.05]);}
-      for (var t2=0;t2<=10;t2++){var u2=t2/10; left.push([-u2*len, y - u2*s*0.06 - Math.sin(u2*Math.PI)*s*0.05]);}
-      paths.push(right); paths.push(left);
-    }
-    return paths;
-  },
-  /* — NEUE MOTIVE — */
-  /* Schneeflocke: 6 Strahlen mit Verzweigungen */
-  snowflake:function(s){
-    var paths=[];
-    for (var i=0;i<6;i++){
-      var a=i/6*Math.PI*2;
-      var ca=Math.cos(a), sa=Math.sin(a);
-      paths.push([[0,0], [ca*s, sa*s]]);
-      /* zwei Verzweigungen pro Strahl */
-      for (var k=0;k<2;k++){
-        var t=0.45 + k*0.30;
-        var bx=ca*s*t, by=sa*s*t;
-        var arm=s*0.20;
-        var ba1=a+Math.PI/3, ba2=a-Math.PI/3;
-        paths.push([[bx,by],[bx+Math.cos(ba1)*arm, by+Math.sin(ba1)*arm]]);
-        paths.push([[bx,by],[bx+Math.cos(ba2)*arm, by+Math.sin(ba2)*arm]]);
-      }
-    }
-    return paths;
-  },
-  /* Spirale (Doppel-Spirale) */
-  spiral:function(s){
-    var pts=[];
-    for (var t=0;t<=80;t++){
-      var u=t/80;
-      var a=u*Math.PI*5;
-      var rr=u*s;
-      pts.push([Math.cos(a)*rr, Math.sin(a)*rr]);
-    }
-    return [pts];
-  },
-  /* Windrad: 4 gebogene Flügel */
-  pinwheel:function(s){
-    var paths=[];
-    for (var i=0;i<4;i++){
-      var a=i/4*Math.PI*2;
-      var ca=Math.cos(a), sa=Math.sin(a);
-      var blade=[[0,0]];
-      for (var t=0;t<=12;t++){
-        var u=t/12;
-        var lr=u*s;
-        var off=Math.sin(u*Math.PI)*s*0.35;
-        var lx=lr;
-        var ly=off;
-        blade.push([ca*lx - sa*ly, sa*lx + ca*ly]);
-      }
-      blade.push([0,0]);
-      paths.push(blade);
-    }
-    return paths;
-  },
-  /* Rosette: 12 schmale Blütenblätter */
-  rosette:function(s){
-    var paths=[];
-    for (var i=0;i<12;i++){
-      var a=i/12*Math.PI*2;
-      var ca=Math.cos(a), sa=Math.sin(a);
-      var petal=[];
-      for (var t=0;t<=18;t++){
-        var u=t/18*Math.PI*2;
-        var lx=Math.cos(u)*s*0.42 + s*0.45;
-        var ly=Math.sin(u)*s*0.10;
-        petal.push([ca*lx - sa*ly, sa*lx + ca*ly]);
-      }
-      paths.push(petal);
-    }
-    var c=[]; for (var j=0;j<=20;j++){var aa=j/20*Math.PI*2; c.push([Math.cos(aa)*s*0.18, Math.sin(aa)*s*0.18]);}
-    paths.push(c);
-    return paths;
-  },
-  /* Diamant / Raute mit innerem Kreuz */
-  diamond4:function(s){
-    var d=[[0,-s],[s,0],[0,s],[-s,0],[0,-s]];
-    var inner=[[0,-s*0.5],[s*0.5,0],[0,s*0.5],[-s*0.5,0],[0,-s*0.5]];
-    var cross1=[[-s,0],[s,0]];
-    var cross2=[[0,-s],[0,s]];
-    return [d, inner, cross1, cross2];
-  },
-  /* Sonne mit Strahlen */
-  sun:function(s){
-    var paths=[];
-    var c=[]; for (var j=0;j<=24;j++){var aa=j/24*Math.PI*2; c.push([Math.cos(aa)*s*0.32, Math.sin(aa)*s*0.32]);}
-    paths.push(c);
-    for (var i=0;i<12;i++){
-      var a=i/12*Math.PI*2;
-      var ca=Math.cos(a), sa=Math.sin(a);
-      paths.push([[ca*s*0.42, sa*s*0.42],[ca*s*0.95, sa*s*0.95]]);
-    }
-    return paths;
-  }
-};
 
 /* ══ Pattern-Generator ══
    Gibt Liste von Path-Objekten zurück:
@@ -44308,23 +44020,6 @@ function genPaths() {
       }
       break;
     }
-    case 'sashiko': {
-      /* Jūji-tsunagi (Kreuzkette): in jeder Zelle ein Plus-Zeichen (waag-
-         rechter + senkrechter Stich gleicher Länge). Klassisches, klar
-         lesbares Sashiko-Muster. Stichlänge skaliert über elSc/gap. */
-      var c = n, r = Math.max(2, Math.round(n*he/we));
-      var dx = we/c, dy = he/r;
-      var sLen = Math.min(dx, dy) * 0.72 * cellEs;
-      for (var ri=0;ri<r;ri++) {
-        var cy = -hhe + (ri + 0.5) * dy;
-        for (var ci=0;ci<c;ci++) {
-          var cx = -hwe + (ci + 0.5) * dx;
-          P.push({tp:'line', pts:[[cx - sLen/2, cy], [cx + sLen/2, cy]]});
-          P.push({tp:'line', pts:[[cx, cy - sLen/2], [cx, cy + sLen/2]]});
-        }
-      }
-      break;
-    }
     case 'gradmesh': {
       /* Gradient-Netz: dichter an den Rändern, offen in der Mitte. Amplitude
          steuert die Verzerrungs-Stärke (1 = Standard, 0 = gleichmässig,
@@ -44584,52 +44279,6 @@ function genPaths() {
            Gegen-Twist-Diagonale wie im Invert: innen(fa+1) -> aussen(fa). */
         for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
           P.push({tp:'pline', pts:[FP[fk][(fa+1)%mArm], FP[fk+1][fa]]});
-        }
-      }
-      break;
-    }
-    case 'truchet': {
-      /* Truchet-Kacheln: pro Quadrat-Zelle zwei Quartal-Bögen in zwei
-         gegenüberliegenden Ecken. Variante A (TL/BR) oder B (TR/BL) wird
-         pseudo-zufällig gewählt – ergibt fliessende Kurven über die Fläche. */
-      var c = n, r = Math.max(2, Math.round(n*he/we));
-      var dx = we/c, dy = he/r;
-      var seedT = n * 31 + 17;
-      function tRand() { seedT = (seedT * 9301 + 49297) % 233280; return seedT/233280; }
-      for (var ri=0; ri<r; ri++) for (var ci=0; ci<c; ci++) {
-        var cx = -hwe + (ci+0.5)*dx, cy = -hhe + (ri+0.5)*dy;
-        var hx = (dx/2) * cellEs, hy = (dy/2) * cellEs;
-        var rad = Math.min(hx, hy);
-        var variant = tRand() > 0.5;
-        var arc1 = [], arc2 = [];
-        for (var t2=0; t2<=14; t2++) {
-          var an = t2/14 * Math.PI/2;
-          if (variant) {
-            arc1.push([cx-hx + rad*Math.cos(an), cy-hy + rad*Math.sin(an)]);
-            arc2.push([cx+hx - rad*Math.cos(an), cy+hy - rad*Math.sin(an)]);
-          } else {
-            arc1.push([cx+hx - rad*Math.cos(an), cy-hy + rad*Math.sin(an)]);
-            arc2.push([cx-hx + rad*Math.cos(an), cy+hy - rad*Math.sin(an)]);
-          }
-        }
-        P.push({tp:'pline', pts:arc1});
-        P.push({tp:'pline', pts:arc2});
-      }
-      break;
-    }
-    case 'motifs': {
-      var mGen = MOTIFS[G.motif]; if (!mGen) break;
-      var mCount = G.mCnt, rows = Math.max(1, Math.round(mCount*he/we)), dx = we/mCount, dy = he/rows;
-      /* gap verkleinert die Zelle, in welcher das Motiv gezeichnet wird. */
-      var motifScaleFactor = (G.mSz/100) * (1 - gp);
-      var mScale = Math.min(dx,dy)*0.45 * motifScaleFactor;
-      for (var ri=0;ri<rows;ri++) for (var ci=0;ci<mCount;ci++){
-        var cx=-hwe+(ci+.5)*dx, cy=-hhe+(ri+.5)*dy;
-        var paths = mGen(mScale);
-        for (var p=0;p<paths.length;p++){
-          var pts = paths[p].map(function(pt){return [pt[0]+cx, pt[1]+cy];});
-          var isClosed = paths[p].length>2 && Math.abs(paths[p][0][0]-paths[p][paths[p].length-1][0])<0.01 && Math.abs(paths[p][0][1]-paths[p][paths[p].length-1][1])<0.01;
-          P.push({tp: isClosed ? 'poly' : 'pline', pts: isClosed ? pts.slice(0,-1) : pts});
         }
       }
       break;
@@ -45021,7 +44670,7 @@ var patInfo = $$('gen3dPatInfo');
 function updateParamVisibility() {
   var params = PAT_PARAMS[G.pat] || {elSc:1, gap:1, amp:0, rotB:1, mirror:1};
   var cellInvert = !!(G.invert && isPrintableCellInvertPattern(G.pat));
-  $$('gen3dRowN').style.display = (params.n === 0) ? 'none' : 'flex'; /* [muster-audit v1] Anzahl ausblenden, wo n nichts steuert (penrose/motifs) */
+  $$('gen3dRowN').style.display = (params.n === 0) ? 'none' : 'flex'; /* [muster-audit v1] Anzahl ausblenden, wo n nichts steuert (penrose) */
   $$('gen3dRowES').style.display = params.elSc ? 'flex' : 'none';
   $$('gen3dRowGap').style.display = params.gap ? 'flex' : 'none';
   $$('gen3dRowAmp').style.display = params.amp ? 'flex' : 'none';
@@ -45029,7 +44678,6 @@ function updateParamVisibility() {
   $$('gen3dRowMirr').style.display = params.mirror ? 'flex' : 'none';
   $$('gen3dRowFill').style.display = cellInvert ? 'none' : 'flex';
   $$('gen3dRowBord').style.display = cellInvert ? 'none' : 'flex';
-  $$('gen3dSecMotif').style.display = (G.pat === 'motifs') ? 'block' : 'none';
   _gen3dDefaultsSync(); /* [gen3d-defaults v1] Amp-Max je Muster + Canvas-füllen-UI */
 }
 
@@ -45115,11 +44763,6 @@ bindSlider('gen3dRa','gen3dRav','rA');
 bindSlider('gen3dRb','gen3dRbv','rB');
 /* Skalierung-Slider entfernt – Fläche (Breite/Höhe) erfüllt dieselbe Funktion.
    G.sc bleibt intern auf 100 (wirkungsneutral) für Abwärtskompatibilität. */
-bindSlider('gen3dMCnt','gen3dMCntV','mCnt');
-bindSlider('gen3dMSz','gen3dMSzV','mSz','%');
-
-var motifSel = $$('gen3dMotifSel');
-if (motifSel) motifSel.addEventListener('change', function(){ G.motif = motifSel.value; scheduleUpdate(); });
 
 function bindCbx(id, key) { var el=$$(id); if (!el) return; el.addEventListener('change', function(){ G[key]=el.checked; scheduleUpdate(); }); }
 bindCbx('gen3dOFill','fill');
@@ -45132,19 +44775,19 @@ bindCbx('gen3dOCanvasFill','canvasFill');
    Anzahl (n) und Amplitude auf frische Startwerte gesetzt. Kalibriert auf
    A4 quer mit "Canvas füllen" (nutzbar 277x190 mm): Ziel-Zellgrösse ~12-16 mm,
    Referenz Miura n=20 (Zellbreite 277/20 = 13.85 mm). penrose (n steuert nur
-   die Ring-Anzahl, Grösse kommt aus der Fläche) und motifs (Anzahl läuft über
-   mCnt) fehlen bewusst: dort bleibt der letzte n-Wert stehen. */
+   die Ring-Anzahl, Grösse kommt aus der Fläche) fehlt bewusst: dort bleibt
+   der letzte n-Wert stehen. */
 var PAT_DENSITY_N = {
   lines:20, grid:20, crosshatch:13, triangles:20, quads:20, hexagons:22,
   diamonds:20, asanoha:20, miura:20, yoshizawa:20, waterbomb:20,
   twist:8, /* [gen3d-fixes v1] Square-Twist braucht grosse Zellen */
   flasher:6, /* [gen3d-fixes v1] Anzahl = Ringe */
-  auxetic:20, voronoi:20, truchet:20, wave:14, zigzag:14, circles:20,
-  scales:20, brick:20, sashiko:20, gradmesh:18
+  auxetic:20, voronoi:20, wave:14, zigzag:14, circles:20,
+  scales:20, brick:20, gradmesh:18
 };
 function _gen3dPatDensityDefaults() {
   var dn = PAT_DENSITY_N[G.pat];
-  if (dn == null) return; /* penrose/motifs: n unverändert lassen */
+  if (dn == null) return; /* penrose: n unverändert lassen */
   G.n = dn;
   G.amp = (G.pat === 'miura') ? 400 : 100;
   var nEl = $$('gen3dN'), nV = $$('gen3dNv');
@@ -45198,13 +44841,10 @@ $$('gen3dResetBtn').addEventListener('click', function(){
   $$('gen3dAmp').value = G.amp; $$('gen3dAmpv').textContent = G.amp+'%';
   $$('gen3dRa').value = G.rA; $$('gen3dRav').textContent = G.rA;
   $$('gen3dRb').value = G.rB; $$('gen3dRbv').textContent = G.rB;
-  $$('gen3dMCnt').value = G.mCnt; $$('gen3dMCntV').textContent = G.mCnt;
-  $$('gen3dMSz').value = G.mSz; $$('gen3dMSzV').textContent = G.mSz+'%';
   $$('gen3dOFill').checked = G.fill;
   $$('gen3dOInv').checked = G.invert;
   $$('gen3dOBord').checked = G.border;
   $$('gen3dOMirr').checked = G.mirror;
-  if (motifSel) motifSel.value = G.motif;
   pgrid.querySelectorAll('.gen3d-pbtn').forEach(function(x){ x.classList.toggle('active', x.dataset.p===G.pat); });
   if (patInfo) patInfo.textContent = PAT_DESC[G.pat] || '';
   scheduleUpdate();
