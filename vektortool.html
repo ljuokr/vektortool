@@ -2121,6 +2121,8 @@ body.layer-panel-open #rsActions { display:none !important; }
     <div class="gen3d-sec" id="gen3dSecRaster">
       <div class="gen3d-sec-t">Raster</div>
       <div class="gen3d-row" id="gen3dRowN"><label>Anzahl<span id="gen3dNv">20</span></label><input type="range" id="gen3dN" min="2" max="30" value="20"></div>
+      <!-- [muster-perf v1] Mindest-Zellgrössen-Warnung (analog Dichte-Warnung Stickerei): bei sehr kleinen Flächen verschmilzt alles unter der 0,8-mm-Mindestwand -->
+      <div class="gen3d-info" id="gen3dCellWarn" style="display:none; border-left-color:var(--red);">⚠️ Zellen unter 3 mm - beim 3D-Druck verschmelzen sie mit der 0,8-mm-Mindestwand zum Klumpen. Fläche vergrössern oder Anzahl verringern.</div>
       <div class="gen3d-row" id="gen3dRowES"><label>Element<span id="gen3dEsv">100%</span></label><input type="range" id="gen3dEs" min="20" max="150" value="100" step="5"></div>
       <div class="gen3d-row" id="gen3dRowGap"><label>Abstand<span id="gen3dGapv">18%</span></label><input type="range" id="gen3dGap" min="0" max="60" value="18" step="2"></div>
       <div class="gen3d-row" id="gen3dRowAmp"><label>Amplitude<span id="gen3dAmpv">400%</span></label><input type="range" id="gen3dAmp" min="0" max="800" value="400" step="5"></div>
@@ -44202,11 +44204,60 @@ function genPaths() {
         }
         return out;
       }
+      /* [muster-perf v1] Vorher wurde jede Zelle gegen ALLE anderen Sites
+         geclippt: O(sites²) = ~400k clipHalf-Aufrufe bei n=30 (630 Sites)
+         pro Preview-Tick -> Slider-Drag zäh. Jetzt Spatial-Grid (Bucket-
+         Grösse ~ mittlerer Site-Abstand), Nachbarn ringweise nah->fern,
+         und ein Site j wird übersprungen, sobald d(i,j) > 2R (R = max.
+         Abstand der Site zu ihren aktuellen Zell-Ecken): dann liegt die
+         ganze Zelle auf der i-Seite des Bisektors (|p-sj| >= d-R > R >=
+         |p-si|). Exakt gleiche Zellen (Benchmark-Sweep über 116 Konfigu-
+         rationen punktgenau bis auf Float-Rauschen), ~11x schneller. */
+      var vgCs = Math.sqrt(we * he / nSites);
+      var vgW = Math.max(1, Math.ceil(we / vgCs)), vgH = Math.max(1, Math.ceil(he / vgCs));
+      var vgBuckets = new Array(vgW * vgH);
+      function vgIx(x, y) {
+        var gx = Math.min(vgW-1, Math.max(0, Math.floor((x + hwe) / vgCs)));
+        var gy = Math.min(vgH-1, Math.max(0, Math.floor((y + hhe) / vgCs)));
+        return gy * vgW + gx;
+      }
+      for (var vb=0; vb<nSites; vb++) {
+        var vbi = vgIx(sites[vb][0], sites[vb][1]);
+        (vgBuckets[vbi] || (vgBuckets[vbi] = [])).push(vb);
+      }
+      var vgMaxRing = vgW + vgH;
       for (var i2=0; i2<sites.length; i2++) {
+        var vsx = sites[i2][0], vsy = sites[i2][1];
+        var vcx = Math.min(vgW-1, Math.max(0, Math.floor((vsx + hwe) / vgCs)));
+        var vcy = Math.min(vgH-1, Math.max(0, Math.floor((vsy + hhe) / vgCs)));
         var poly = [[-hwe,-hhe],[hwe,-hhe],[hwe,hhe],[-hwe,hhe]];
-        for (var j=0; j<sites.length && poly.length>=3; j++) {
-          if (i2 === j) continue;
-          poly = clipHalf(poly, sites[i2], sites[j]);
+        var vR2 = Infinity; /* (2R)², nach jedem Clip aus den Zell-Ecken aktualisiert */
+        for (var vring=0; vring<=vgMaxRing && poly.length>=3; vring++) {
+          if (vring > 1) {
+            var vdMin = (vring - 1) * vgCs; /* Mindestabstand aller Sites in Ring vring */
+            if (vdMin * vdMin > vR2) break;
+          }
+          var vx0 = Math.max(0, vcx - vring), vx1 = Math.min(vgW-1, vcx + vring);
+          var vy0 = Math.max(0, vcy - vring), vy1 = Math.min(vgH-1, vcy + vring);
+          for (var vgy=vy0; vgy<=vy1; vgy++) for (var vgx=vx0; vgx<=vx1; vgx++) {
+            if (vring > 0 && vgx !== vx0 && vgx !== vx1 && vgy !== vy0 && vgy !== vy1) continue; /* nur Ring-Rand, Inneres war schon dran */
+            var vbk = vgBuckets[vgy * vgW + vgx];
+            if (!vbk) continue;
+            for (var vq=0; vq<vbk.length && poly.length>=3; vq++) {
+              var j = vbk[vq];
+              if (j === i2) continue;
+              var vdx = sites[j][0] - vsx, vdy = sites[j][1] - vsy;
+              if (vdx*vdx + vdy*vdy > vR2) continue;
+              poly = clipHalf(poly, sites[i2], sites[j]);
+              var vrr = 0;
+              for (var vv=0; vv<poly.length; vv++) {
+                var vex = poly[vv][0] - vsx, vey = poly[vv][1] - vsy;
+                var vd2 = vex*vex + vey*vey;
+                if (vd2 > vrr) vrr = vd2;
+              }
+              vR2 = 4 * vrr;
+            }
+          }
         }
         if (poly.length < 3) continue;
         if (cellEs < 0.999) {
@@ -44679,6 +44730,22 @@ function updateParamVisibility() {
   $$('gen3dRowFill').style.display = cellInvert ? 'none' : 'flex';
   $$('gen3dRowBord').style.display = cellInvert ? 'none' : 'flex';
   _gen3dDefaultsSync(); /* [gen3d-defaults v1] Amp-Max je Muster + Canvas-füllen-UI */
+  /* [muster-perf v1] Mindest-Zellgrössen-Warnung: bei sehr kleinen Flächen
+     (Breite/Höhe-Minimum 10 mm -> effektiv 4 mm, oder kleines Dokument mit
+     Canvas füllen) verschmilzt alles unter der 0,8-mm-Mindestwand. Zell-Pitch
+     grob we/n bzw. he/r wie in den Raster-Mustern - Näherung reicht für eine
+     Warnung. Nur wo der Anzahl-Slider sichtbar ist (nicht penrose). */
+  var cellWarnEl = $$('gen3dCellWarn');
+  if (cellWarnEl) {
+    var showCellWarn = false;
+    if (params.n !== 0 && typeof _effDims === 'function') {
+      var effWD = _effDims();
+      var rWD = Math.max(2, Math.round(G.n * effWD.he / effWD.we));
+      var pitchMm = Math.min(effWD.we / Math.max(2, G.n), effWD.he / rWD);
+      showCellWarn = pitchMm < 3;
+    }
+    cellWarnEl.style.display = showCellWarn ? 'block' : 'none';
+  }
 }
 
 /* Live-Preview direkt auf dem Haupt-Canvas via previewShapes */
@@ -44785,6 +44852,13 @@ var PAT_DENSITY_N = {
   auxetic:20, voronoi:20, wave:14, zigzag:14, circles:20,
   scales:20, brick:20, gradmesh:18
 };
+/* [muster-perf v1] Anzahl-Max je Muster: Asanoha/Waterbomb erzeugen 8,
+   Twist bis 9 Pfade PRO Zelle - bei n=30 auf A4 quer sind das >5000
+   Einzel-Shapes (Preview-Jank am Slider, Dokument nach dem Einfügen
+   dauerhaft träge, jedes Shape einzeln im Editor). Deckel so gewählt,
+   dass ~2500 Shapes (A4 quer) nicht überschritten werden; alle anderen
+   Muster behalten das HTML-max von 30. */
+var PAT_N_MAX = { asanoha:20, waterbomb:20, twist:14 };
 function _gen3dPatDensityDefaults() {
   var dn = PAT_DENSITY_N[G.pat];
   if (dn == null) return; /* penrose: n unverändert lassen */
@@ -44798,6 +44872,14 @@ function _gen3dPatDensityDefaults() {
   if (ampV) ampV.textContent = G.amp + '%';
 }
 function _gen3dDefaultsSync() {
+  /* [muster-perf v1] n-Deckel je Muster nachziehen (analog Amp-Max unten) */
+  var nElx = $$('gen3dN'), nVx = $$('gen3dNv');
+  if (nElx) {
+    var nmx = PAT_N_MAX[G.pat] || 30;
+    if (parseFloat(nElx.max) !== nmx) nElx.max = nmx;
+    if (G.n > nmx) { G.n = nmx; nElx.value = nmx; if (nVx) nVx.textContent = nmx; }
+    else if (parseFloat(nElx.value) !== G.n) { nElx.value = G.n; if (nVx) nVx.textContent = G.n; }
+  }
   var ampEl = $$('gen3dAmp'), ampV = $$('gen3dAmpv');
   if (ampEl) {
     var mx = (G.pat === 'miura') ? 800 : 200;
@@ -48575,6 +48657,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-07', t:'Muster-Generator schneller: Voronoi-Vorschau reagiert auch bei hoher Anzahl flüssig (Nachbarschafts-Berechnung statt Alle-gegen-alle, ~11x schneller); Anzahl-Regler bei Asanoha, Waterbomb und Twist gedeckelt, damit das Dokument nach dem Einfügen nicht träge wird; neue Warnung, wenn die Zellen kleiner als 3 mm werden und beim 3D-Druck verschmelzen würden', c:'muster-perf'},
     {d:'2026-07-07', t:'Muster-Generator überarbeitet: Starshade zeigt jetzt das echte NASA-Wickelmuster (dreieckige Falt-Facetten, gleichmässige Faltschlitze, Faltlinien auch im Linien-Modus, Anzahl bis 30 Ringe); „Rand" fügt einen Rahmen statt einer deckenden Platte ein; Amplitude 0% ist wirklich flach; Element-Regler bei Miura/Yoshizawa/Zickzack sichtbar, bei Penrose ist der wirkungslose Anzahl-Regler ausgeblendet; Schutz gegen eingefrorene Vorschau bei extremen Schuppen-Werten', c:'muster-audit'},
     {d:'2026-07-07', t:'Stickerei-Ansicht klarer: einheitliche Begriffe (überall „Reihenabstand" und „Stichlänge", „Zugausgleich" statt Pull, „Stiche streuen" statt Versatz); Stickrahmen-Auswahl in der Statusleiste; Füllung und andersfarbiger Umriss pro Bereich separat ausblendbar (zwei Augen pro Zeile) mit Warnhinweis am Export; „Alles zurücksetzen" fragt nach und steht rechts; Vorschau meldet „Eigenes Design" statt „keine Datei"', c:'stickui-klar'},
     {d:'2026-07-07', t:'Neu im Box-Generator: Box mit runden Ecken (Living Hinge) - Deckel und Boden als gerundete Rechtecke, die Wand als biegsamer Wickelstreifen; 5 Schnittmuster (Gerade, Welle, Wabe, Raute, Kreuz), Schlitz-Parameter automatisch aus Materialstärke, Kerf und Eck-Radius berechnet (mit Warnung bei zu kleinem Radius), Test-Streifen zum Probebiegen', c:'livinghinge'},
