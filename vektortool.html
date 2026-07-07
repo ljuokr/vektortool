@@ -28156,6 +28156,9 @@ if (_gen3dBtnEl) {
 (function() {
 'use strict';
 
+/* [stickui-klar v1] _puL ist im vorigen Script-Block definiert und hier (getrennter Scope) nicht sichtbar -> gleicher Shim wie dort, sonst stirbt jeder Handler mit ReferenceError */
+function _puL() { if (typeof window.pu === 'function') window.pu.apply(null, arguments); }
+
 var stitchPanel = document.getElementById('stitchPanel');
 var stitchBtn = document.getElementById('stitchBtn');
 var _stitchOpen = false;
@@ -48006,6 +48009,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-07', t:'Fehlerkorrektur: Ausblenden in der Stickreihenfolge (Auge pro Zeile und „Alle") funktioniert wieder', c:'stickui-klar'},
     {d:'2026-07-04', t:'Neu: numerische Eingabe von Position, Grösse (mm) und Winkel für ausgewählte Objekte; Objekte verteilen (horizontal/vertikal); DXF-Export (CAD/CNC); „Pfad glätten“ im Rechtsklick-Menü; Spiegeln an Ort und Stelle; Zoom-Einpassen-Knopf', c:'uxfix'},
     {d:'2026-07-04', t:'UX-Feinschliff: Tastenkürzel wirken nicht mehr in Eingabefelder hinein (Ctrl+X/C/Z), Kontextmenü Kopieren/Einfügen/Ausschneiden funktioniert, „Stil“-Knopf im Formen-Panel öffnet wieder das Linienstil-Menü, Doppelklick auf Text öffnet den Texteditor, gedrehte Formen skalieren korrekt, Escape schliesst alle Dialoge einheitlich, Stickerei-Einstellungen sind rückgängig-fähig, leerer Export wird gemeldet, Drag&Drop-Stickreihenfolge bleibt erhalten', c:'uxfix'},
     {d:'2026-06-13', t:'Manuelle Werteingabe + Berechnen-Knopf in den Stickerei-Einstellungen', c:'55d3076'},
