@@ -1925,7 +1925,7 @@ body.layer-panel-open #rsActions { display:none !important; }
           </label>
         </div>
         <!-- rowSpacing -->
-        <label style="font-weight:600;color:var(--fg);" title="Abstand zwischen Stich-Reihen (kleiner = dichter)">Zeilenabstand</label>
+        <label style="font-weight:600;color:var(--fg);" title="Abstand zwischen den Stichreihen in mm. Kleiner = dichter und deckender, aber mehr Stiche.">Reihenabstand</label>
         <input id="gpRowSpacing" type="range" min="0.1" max="1.0" value="0.3" step="0.1" style="width:100%;accent-color:var(--ac);">
         <span id="gpRowSpacingVal" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">0.30 mm</span>
         <!-- stitchLength -->
@@ -1933,7 +1933,7 @@ body.layer-panel-open #rsActions { display:none !important; }
         <input id="gpStitchLength" type="range" min="1.0" max="5.0" value="3.0" step="0.1" style="width:100%;accent-color:var(--ac);">
         <span id="gpStitchLengthVal" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">3.0 mm</span>
         <!-- pullCompensation -->
-        <label style="font-weight:600;color:var(--fg);" title="Korrigiert den Faden-Zug — verschiebt Stiche nach außen">Pull-Komp.</label>
+        <label style="font-weight:600;color:var(--fg);" title="Beim Sticken zieht der Faden den Stoff zusammen - Zugausgleich korrigiert das.">Zugausgleich</label>
         <input id="gpPullComp" type="range" min="-0.5" max="0.5" value="0" step="0.05" style="width:100%;accent-color:var(--ac);">
         <span id="gpPullCompVal" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">0.00 mm</span>
         <!-- underlay toggle -->
@@ -2067,7 +2067,7 @@ body.layer-panel-open #rsActions { display:none !important; }
 	  <div id="stitchExportFooter" style="flex-shrink:0;display:flex;align-items:center;gap:var(--space-4);padding:var(--space-2) var(--space-6);border-top:1px solid var(--border);background:#f8f5ef;"><!-- [stickui-bars v1] schlanker, naeher an der Statusleiste -->
 	    <button id="stitchExportFooterDst" style="flex:1;padding:var(--space-2) var(--space-6);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-size:var(--fs-sm);font-weight:700;">&#x2913; <span>Exportieren zum Sticken</span></button><!-- [export-dropdown v1] Format steht im Dropdown rechts; Span = eigener Textknoten, der Live-Walker uebersetzt ihn bei jedem Sprachwechsel -->
 	    <select id="stitchExportFormat" aria-label="Format" style="padding:var(--space-2) var(--space-3);border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-size:var(--fs-sm);font-weight:700;"><option value="dst" selected title="DST (Tajima) — Industriestandard für Stickmaschinen">DST</option><option value="pes" title="PES — Brother">PES</option><option value="exp" title="EXP — Melco/Bernina">EXP</option><option value="pec" title="PEC — Brother (Rohformat)">PEC</option></select><!-- [export-dropdown v1] ersetzt den PES-Button; Formatnamen sind Eigennamen (kein i18n) -->
-	    <button id="stitchImportBtn" type="button" title="Stickdatei importieren (DST, PES, EXP, PEC)" aria-label="Stickdatei importieren" onclick="document.getElementById('dstvFileInput').click()" style="padding:var(--space-2) var(--space-4);border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-size:var(--fs-md);line-height:1;">&#x2912;</button><!-- [stick-import v1] ersetzt den i-Knopf unten rechts: Pfeil nach oben = Stickdatei importieren (loest dstvFileInput aus) -->
+	    <button id="stitchImportBtn" type="button" title="Stickdatei importieren (DST, PES, EXP, PEC)" aria-label="Stickdatei importieren" onclick="document.getElementById('dstvFileInput').click()" style="display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-size:var(--fs-sm);line-height:1;">&#x2912; <span>Import</span></button><!-- [stickui-klar v1] sichtbares Label statt Icon-only --><!-- [stick-import v1] ersetzt den i-Knopf unten rechts: Pfeil nach oben = Stickdatei importieren (loest dstvFileInput aus) -->
 	  </div>
 	</div>
 
@@ -30961,7 +30961,7 @@ function _stitchParamSectionHtml(type, shapes) {
     var underAngleInfo = _stitchParamValueInfo(shapes, 'underlayAngle');
     var underSpacingInfo = _stitchParamValueInfo(shapes, 'underlaySpacing');
     html += '<div class="rp-row"><label>Winkel' + _paramInfoIcon('angle') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="angle" min="0" max="360" value="' + (angleInfo.value == null ? 0 : angleInfo.value) + '" step="5"><span class="val">' + _stitchParamValueText('angle', angleInfo.value == null ? 0 : angleInfo.value, angleInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Zeilenabstand' + _paramInfoIcon('rowSpacing') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="rowSpacing" min="0.15" max="3" value="' + (rowInfo.value == null ? 0.25 : rowInfo.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('rowSpacing', rowInfo.value == null ? 0.25 : rowInfo.value, rowInfo.mixed) + '</span></div>';
+    html += '<div class="rp-row"><label>Reihenabstand' + _paramInfoIcon('rowSpacing') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="rowSpacing" min="0.15" max="3" value="' + (rowInfo.value == null ? 0.25 : rowInfo.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('rowSpacing', rowInfo.value == null ? 0.25 : rowInfo.value, rowInfo.mixed) + '</span></div>';
     /* Warn visibly when row spacing is wider than ~0.4 mm — anything above
        that shows through as visible "gaps" between rows (Industry-Standard
        ist 0.3 mm, was auch unser Preset ist). */
@@ -30969,13 +30969,13 @@ function _stitchParamSectionHtml(type, shapes) {
     if (_rsVal != null && Number(_rsVal) >= 0.4) {
       html += '<div class="rp-row" style="padding-top:0"><label></label>' +
         '<span style="font-size:var(--fs-xs);color:#c9720c;line-height:1.3">' +
-          '\u26A0 Zeilenabstand ' + Number(_rsVal).toFixed(2) + ' mm ist gross &mdash; ' +
+          '\u26A0 Reihenabstand ' + Number(_rsVal).toFixed(2) + ' mm ist gross &mdash; ' +
           'Standard w\u00e4re 0.3 mm (dichtere F\u00fcllung ohne sichtbare L\u00fccken). ' +
           '<a href="#" class="stitch-reset-fill-defaults" style="color:#c9720c;text-decoration:underline">Standard laden</a>' +
         '</span></div>';
     }
     html += '<div class="rp-row"><label>Stichlaenge' + _paramInfoIcon('stitchLength') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="stitchLength" min="1" max="5" value="' + (lenInfo.value == null ? 3.0 : lenInfo.value) + '" step="0.1"><span class="val">' + _stitchParamValueText('stitchLength', lenInfo.value == null ? 3.0 : lenInfo.value, lenInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Kompensation' + _paramInfoIcon('pullCompensation') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="pullCompensation" min="-0.5" max="2" value="' + (pullInfo.value == null ? -0.1 : pullInfo.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('pullCompensation', pullInfo.value == null ? -0.1 : pullInfo.value, pullInfo.mixed) + '</span></div>';
+    html += '<div class="rp-row"><label>Zugausgleich' + _paramInfoIcon('pullCompensation') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="pullCompensation" min="-0.5" max="2" value="' + (pullInfo.value == null ? -0.1 : pullInfo.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('pullCompensation', pullInfo.value == null ? -0.1 : pullInfo.value, pullInfo.mixed) + '</span></div>';
     html += '<div class="rp-row"><label>Unterlage' + _paramInfoIcon('underlay') + '</label><input type="checkbox" class="stitch-param-bool" data-stype="fill" data-sp="underlay"' + (underInfo.value ? ' checked' : '') + '><span class="val">' + (underInfo.mixed ? 'gemischt' : (underInfo.value ? 'an' : 'aus')) + '</span></div>';
     html += '<div class="rp-row"><label>Unterlage-Winkel' + _paramInfoIcon('underlayAngle') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="underlayAngle" min="0" max="360" value="' + (underAngleInfo.value == null ? 90 : underAngleInfo.value) + '" step="5"><span class="val">' + _stitchParamValueText('underlayAngle', underAngleInfo.value == null ? 90 : underAngleInfo.value, underAngleInfo.mixed) + '</span></div>';
     html += '<div class="rp-row"><label>Unterlage-Abstand' + _paramInfoIcon('underlaySpacing') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="underlaySpacing" min="1" max="8" value="' + (underSpacingInfo.value == null ? 3.0 : underSpacingInfo.value) + '" step="0.25"><span class="val">' + _stitchParamValueText('underlaySpacing', underSpacingInfo.value == null ? 3.0 : underSpacingInfo.value, underSpacingInfo.mixed) + '</span></div>';
@@ -36930,8 +36930,8 @@ function _stitchWarnInnerHtml(shapes) {
     ? '⚠ ' + nDense + ' <span>Formen: dichte Füllung - Fadenbruchrisiko</span>'
     : '⚠ <span>Dichte Füllung</span> (' + denseEx.toFixed(2) + ' St./mm²) - <span>Fadenbruchrisiko</span>', 'dense'));  /* [dichte-stiche v1] nur die zu dichten Stiche markieren */
   if (nSparse) msgs.push(_stitchWarnLine(idSparse, nSparse > 1
-    ? '⚠ ' + nSparse + ' <span>Formen dünn - kann löchrig wirken, Zeilenabstand verkleinern</span>'
-    : '⚠ <span>Dünne Füllung</span> (' + sparseEx.toFixed(2) + ' St./mm²) - <span>kann löchrig wirken, Zeilenabstand verkleinern</span>'));
+    ? '⚠ ' + nSparse + ' <span>Formen dünn - kann löchrig wirken, Reihenabstand verkleinern</span>'
+    : '⚠ <span>Dünne Füllung</span> (' + sparseEx.toFixed(2) + ' St./mm²) - <span>kann löchrig wirken, Reihenabstand verkleinern</span>'));
   if (nSmall) msgs.push(_stitchWarnLine(idSmall, nSmall > 1
     ? '⚠ ' + nSmall + ' <span>sehr kleine Details - wird auf der Maschine evtl. unsauber</span>'
     : '⚠ <span>Sehr kleines Detail - wird auf der Maschine evtl. unsauber</span>'));
@@ -37622,10 +37622,14 @@ function _stitchUpdateOrder() {
   var _EYE_ON_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
   var _EYE_OFF_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
   /* [VT-STITCHHIDE v1] Master-Auge oben: blendet alle Bereiche aus/ein. */
-  var _anyHidden = false;
-  for (var _hi = 0; _hi < ordered.length; _hi++) { if (ordered[_hi].stitch && ordered[_hi].stitch.hidden) { _anyHidden = true; break; } }
+  var _anyHidden = false, _hidCount = 0, _hidOutline = 0; /* [stickui-klar v1] hidden zaehlen fuer Bilanz-Badge; [v3] + Umrisse */
+  for (var _hi = 0; _hi < ordered.length; _hi++) {
+    if (ordered[_hi].stitch && ordered[_hi].stitch.hidden) { _anyHidden = true; _hidCount++; }
+    if (ordered[_hi].stitch && ordered[_hi].stitch.hiddenOutline && typeof _stitchOutlineColorFor === 'function' && _stitchOutlineColorFor(ordered[_hi])) _hidOutline++;
+  }
   var html = '<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:6px;">'
-    + '<span style="flex:1;min-width:0;font-size:var(--fs-xs);color:var(--fg2);">Für Simulation und Export. Schloss verbindet alle Bereiche einer Farbe.</span>'
+    + '<span style="flex:1;min-width:0;font-size:var(--fs-xs);color:var(--fg2);">Für Simulation und Export. Schloss verbindet alle Bereiche einer Farbe.'
+    + ((_hidCount + _hidOutline) ? ' <b style="color:var(--warn-tx,#8a4b08);font-weight:700;">' + (_hidCount + _hidOutline) + ' ' + window.t('ausgeblendet') + '</b>' : '') + '</span>'
     + '<button id="stitchHideAll" title="' + (_anyHidden ? 'Alle Bereiche wieder einblenden' : 'Alle Bereiche ausblenden (nicht sticken/exportieren)') + '" '
     + 'style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 var(--space-2);border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;font-size:var(--fs-2xs);color:var(--fg2);line-height:1;white-space:nowrap;">'
     + (_anyHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '<span>Alle</span></button>'
@@ -37690,8 +37694,8 @@ function _stitchUpdateOrder() {
     /* Farb-Swatch */
     html += '<span style="width:11px;height:11px;border-radius:var(--radius-2xs);background:' + col + ';border:1px solid rgba(0,0,0,0.15);flex-shrink:0;"></span>';
 
-    /* #ID */
-    html += '<span style="font-size:var(--fs-xs);color:var(--fg2);width:30px;flex-shrink:0;">#' + s.id + '</span>';
+    /* #ID - [stickui-klar v1] Ellipsis statt Ueberlauf: lange Bezeichner liefen ueber den Stichtyp-Text */
+    html += '<span title="#' + s.id + '" style="font-size:var(--fs-xs);color:var(--fg2);min-width:30px;max-width:96px;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">#' + s.id + '</span>';
 
     /* Stichtyp: automatisch (Füllstich bei Fläche, Laufstich bei Linie) -
        statisches Label statt Dropdown (keine manuelle Auswahl). */
@@ -37699,20 +37703,54 @@ function _stitchUpdateOrder() {
     if (!st.type || st.type === 'none') _rowTypeLbl = window.t('Füllung/Kontur geben');  /* [uxfix v1] G1: 'Kein Stich'-Zeile ehrlich beschriften - nennt den einzigen echten Weg */
     html += '<span class="stitch-row-type-static" style="flex:1;min-width:0;font-size:var(--fs-xs);color:var(--fg2);padding:var(--space-1) var(--space-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _rowTypeLbl + '</span>';
 
-    /* Stichzahl */
-    html += '<span style="font-size:var(--fs-2xs);color:var(--fg3);width:46px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;">' + (stitchCount ? stitchCount.toLocaleString('de-DE') : '0') + ' St.</span>';
+    /* Stichzahl - [stickui-klar v1] CH-Format + Tooltip, was gezaehlt wird */
+    html += '<span title="' + window.t('Stiche in diesem Bereich, ohne Sprünge') + '" style="font-size:var(--fs-2xs);color:var(--fg3);width:46px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;">' + (stitchCount ? stitchCount.toLocaleString('de-CH') : '0') + ' St.</span>';
 
     /* [VT-STITCHHIDE v1] Auge: diese eine Zeile aus-/einblenden (nicht sticken/exportieren) */
     var _rowHidden = !!st.hidden;
-    html += '<button class="stitch-row-hide" data-sid="' + s.id + '" title="' + (_rowHidden ? 'Ausgeblendet, klicken zum Einblenden' : 'Ausblenden (nicht sticken/exportieren)') + '" style="flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;color:var(--fg2);display:flex;align-items:center;justify-content:center;line-height:1;">' + (_rowHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '</button>';
+    html += '<button class="stitch-row-hide" data-sid="' + s.id + '" aria-pressed="' + (_rowHidden ? 'true' : 'false') + '" aria-label="' + (_rowHidden ? 'Ausgeblendet, klicken zum Einblenden' : 'Ausblenden (nicht sticken/exportieren)') + '" title="' + (_rowHidden ? 'Ausgeblendet, klicken zum Einblenden' : 'Ausblenden (nicht sticken/exportieren)') + '" style="flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;color:var(--fg2);display:flex;align-items:center;justify-content:center;line-height:1;">' + (_rowHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '</button>';
+
+    /* [stickui-klar v3] Umriss-Auge: der andersfarbige Umriss ist ein eigener
+       Farbblock und laesst sich separat ausblenden. Farbiger Unterstrich = Umrissfarbe.
+       Rows ohne eigenen Umriss bekommen einen Platzhalter (Spalten-Alignment). */
+    var _olColRow = (typeof _stitchOutlineColorFor === 'function') ? _stitchOutlineColorFor(s) : null;
+    if (_olColRow) {
+      var _olHidden = !!st.hiddenOutline;
+      html += '<button class="stitch-row-hide-outline" data-sid="' + s.id + '" aria-pressed="' + (_olHidden ? 'true' : 'false') + '" aria-label="' + (_olHidden ? 'Umriss einblenden' : 'Umriss ausblenden') + '" title="' + (_olHidden ? 'Umriss ausgeblendet, klicken zum Einblenden' : 'Umriss ausblenden (eigener Farbblock)') + '" style="flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid var(--border);border-bottom:3px solid ' + _olColRow + ';border-radius:var(--radius-xs);background:var(--white);cursor:pointer;color:var(--fg2);display:flex;align-items:center;justify-content:center;line-height:1;' + (_olHidden ? 'opacity:0.55;' : '') + '">' + (_olHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '</button>';
+    } else {
+      html += '<span style="flex-shrink:0;width:22px;"></span>';
+    }
 
     /* Zahnrad */
-    html += '<button class="stitch-row-gear" data-sid="' + s.id + '" title="Parameter dieser '
+    html += '<button class="stitch-row-gear" data-sid="' + s.id + '" aria-label="Parameter dieser ' + (lockKey ? 'Gruppe' : 'Form') + '" title="Parameter dieser '
       + (lockKey ? 'Gruppe' : 'Shape') + '" style="flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;font-size:var(--fs-md);line-height:1;">⚙</button>';
 
     html += '</div>';
   }
   container.innerHTML = html;
+
+  /* [stickui-klar v1] Bilanz ausgeblendeter Bereiche direkt am Export-Footer:
+     Ausblenden halbiert sonst still die Stickdatei, ohne dass es beim Export
+     sichtbar waere. Zeile erscheint nur bei >0 ausgeblendeten Bereichen. */
+  (function () {
+    var f = document.getElementById('stitchExportFooter');
+    if (!f) return;
+    var note = document.getElementById('stitchHiddenNote');
+    if (_hidCount > 0 || _hidOutline > 0) {
+      if (!note) {
+        note = document.createElement('div');
+        note.id = 'stitchHiddenNote';
+        note.setAttribute('role', 'status');
+        note.style.cssText = 'flex-shrink:0;padding:var(--space-2) var(--space-6);font-size:var(--fs-xs);font-weight:600;color:var(--warn-tx,#8a4b08);background:var(--warn-bg,#fdf3e3);border-top:1px solid var(--border);';
+        f.parentNode.insertBefore(note, f);
+      }
+      var _noteParts = []; /* [stickui-klar v3] */
+      if (_hidCount > 0) _noteParts.push(_hidCount + ' von ' + ordered.length + ' ' + window.t('Füllungen ausgeblendet'));
+      if (_hidOutline > 0) _noteParts.push(_hidOutline + ' ' + window.t(_hidOutline === 1 ? 'Umriss ausgeblendet' : 'Umrisse ausgeblendet'));
+      note.textContent = '⚠ ' + _noteParts.join(' · ') + ' - ' + window.t('nicht gestickt, nicht exportiert');
+      note.style.display = '';
+    } else if (note) { note.style.display = 'none'; }
+  })();
 
   /* Ausgewählte Zeile in den sichtbaren Bereich scrollen */
   var selRow = container.querySelector('.stitch-order-row[data-sid="' + window.selId + '"]');
@@ -37835,11 +37873,20 @@ function _stitchUpdateOrder() {
     });
   });
 
+  /* [stickui-klar v1] data-sid robust aufloesen: parseInt frisst String-IDs
+     (z. B. importierte/generierte Shapes) und der Klick verpufft dann stumm.
+     Erst exakter String-Match gegen echte Shape-IDs, parseInt nur als Fallback. */
+  function _stitchSidFromAttr(el) {
+    var raw = el.getAttribute('data-sid');
+    var m = (window.shapes || []).find(function (x) { return String(x.id) === raw; });
+    return m ? m.id : parseInt(raw);
+  }
+
   /* Zahnrad → Parameter-Popover */
   container.querySelectorAll('.stitch-row-gear').forEach(function (btn) {
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      var sid = parseInt(this.getAttribute('data-sid'));
+      var sid = _stitchSidFromAttr(this);
       _stitchOpenGearPopover(sid, this);
     });
   });
@@ -37848,7 +37895,7 @@ function _stitchUpdateOrder() {
   container.querySelectorAll('.stitch-row-hide').forEach(function (btn) {
     btn.addEventListener('click', function (e) {
       e.stopPropagation();
-      var sid = parseInt(this.getAttribute('data-sid'));
+      var sid = _stitchSidFromAttr(this);
       var sh = (window.shapes || []).find(function (x) { return x.id === sid; });
       if (!sh || !sh.stitch) return;
       _puL('Sichtbarkeit'); /* [uxfix v1] Auge pro Zeile undo-bar (deckungsgleich mit dem Ebenen-Panel-Auge) */
@@ -37867,6 +37914,28 @@ function _stitchUpdateOrder() {
           else if (typeof window._dstvReloadFromLinea === 'function') window._dstvReloadFromLinea();
         }
       } catch (eHL1) { console.warn('[vt:swallowed]', eHL1); }
+    });
+  });
+
+  /* [stickui-klar v3] Umriss-Auge pro Zeile: hiddenOutline togglen, gleiche Live-Logik wie das Fuell-Auge */
+  container.querySelectorAll('.stitch-row-hide-outline').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var sid = _stitchSidFromAttr(this);
+      var sh = (window.shapes || []).find(function (x) { return x.id === sid; });
+      if (!sh || !sh.stitch) return;
+      _puL('Sichtbarkeit');
+      sh.stitch.hiddenOutline = !sh.stitch.hiddenOutline;
+      _stitchUpdateOrder();
+      if (typeof _stitchRenderPreview === 'function') _stitchRenderPreview();
+      if (typeof _stitchMarkCheckDirty === 'function') _stitchMarkCheckDirty();
+      try {
+        var _dmHO = document.getElementById('dstvModal');
+        if (_dmHO && _dmHO.classList.contains('open')) {
+          if (window._dstvAutoRecalc !== false && typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
+          else if (typeof window._dstvReloadFromLinea === 'function') window._dstvReloadFromLinea();
+        }
+      } catch (eHO1) { console.warn('[vt:swallowed]', eHO1); }
     });
   });
 
@@ -38254,6 +38323,7 @@ document.getElementById('stitchRunCheck').addEventListener('click', function() {
 document.getElementById('stitchCopyCheck').addEventListener('click', function() {
   _stitchCopyCheckReport();
 });
+
 
 /* ── DST balanced-ternary stitch encoder (Tajima public spec) ── */
 /* Bit layout per byte (Tajima DST-Spec, EduTechWiki):                                */
@@ -38644,7 +38714,10 @@ function _stitchExportDstBody(skipDownload) {
   _stitchCountAll();
   /* Generate DST (Tajima) binary format with correct balanced-ternary encoding */
   var exportShapes = [];
-  var ss = _stitchOptimizeShapeOrder(_stitchOrderedShapes());
+  /* [stickui-klar v2] hidden-Formen mitnehmen: das Auge blendet nur die FUELLUNG
+     aus, ein andersfarbiger Umriss (eigener Farbblock) bleibt gestickt (Lukas).
+     Im Loop unten wird fuer hidden-Formen nur der Umriss-Block emittiert. */
+  var ss = _stitchOptimizeShapeOrder(_stitchOrderedShapes(true));
   /* Diagnostic: log per-shape fill parameters so the user can verify why
      density vom Standard abweicht (üblicherweise rowSpacing > 0.25 mm). */
   try {
@@ -38667,23 +38740,26 @@ function _stitchExportDstBody(skipDownload) {
   var colorChanges = 0;
   var rawPts = [];
   for (var i = 0; i < ss.length; i++) {
+    var _hiddenFill = !!(ss[i].stitch && ss[i].stitch.hidden); /* [stickui-klar v2] Auge = nur Fuellung aus */
     var nps = ss[i].stitch.needlePoints;
-    if (!nps || !nps.length) continue;
-    exportShapes.push({
-      shape: ss[i],
-      color: _stitchShapeColor(ss[i]),
-      runs: _stitchPointRuns(nps)
-    });
-    for (var j = 0; j < nps.length; j++) {
-      var rp = nps[j];
-      if (rp) rawPts.push({ x: rp.x, y: rp.y });
+    if (!_hiddenFill) {
+      if (!nps || !nps.length) continue;
+      exportShapes.push({
+        shape: ss[i],
+        color: _stitchShapeColor(ss[i]),
+        runs: _stitchPointRuns(nps)
+      });
+      for (var j = 0; j < nps.length; j++) {
+        var rp = nps[j];
+        if (rp) rawPts.push({ x: rp.x, y: rp.y });
+      }
     }
     /* [umriss-2farbe v2] Gefuellte Form mit andersfarbigem Umriss: der Umriss
        wird als ZWEITE FLAECHE (Satin-Band in Strichbreite) in der Umrissfarbe
        direkt nach dem Fuell-Block exportiert. Der Farbwechsel-Mechanismus weiter
        unten (es.color !== lastColor) erzeugt den Farbwechsel automatisch. */
     var _olCol = _stitchOutlineColorFor(ss[i]);
-    if (_olCol) {
+    if (_olCol && !(ss[i].stitch && ss[i].stitch.hiddenOutline)) { /* [stickui-klar v3] Umriss separat ausblendbar */
       var _olPts = _stitchOutlineAreaPoints(ss[i]);
       if (_olPts && _olPts.length >= 2) {
         exportShapes.push({
@@ -40669,7 +40745,7 @@ window.__LINEA_DEBUG__ = {
            Stil + Verbindung bleiben gekoppelt im Gemeinsam-Block unten (Radio-Kacheln + Kontur-Sperre). -->
 
       <!-- [VT-TOPBAND v1] Aktionsband ganz oben (Lukas): Zurücksetzen/Neu berechnen/Auto links; der Schliessen-X (#stitchPanelCloseX, schwebt absolut) sitzt rechts darauf; vollbreit bis zum rechten Rand (negative Margins). padding-right haelt die Buttons vom X frei. -->
-      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><button id="dstvResetView" title="Alle Stick-Einstellungen + Ansicht zur&uuml;cksetzen (kein Undo) - nur Zoom: Taste R" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg2);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Zur&uuml;cksetzen</button><button id="dstvManualRecalc" class="stitch-recalc-inline" title="DST jetzt neu berechnen (bypasst Auto-Toggle)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--dstv-primary);color:#fff;cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch DST neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto</span></label></div>
+      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><!-- [stickui-klar v1] Reihenfolge: Auto-Vorschau zuerst (Normalfall), Neu berechnen sekundaer (Primaer-Gewicht gehoert dem Export), Zuruecksetzen als destruktive Aktion rot und rechts aussen --><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto-Vorschau</span></label><button id="dstvManualRecalc" class="stitch-recalc-inline" title="Jetzt neu berechnen (unabhängig von Auto-Vorschau)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--white);color:var(--dstv-primary);cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><button id="dstvResetView" title="Alle Stick-Einstellungen auf Standard zur&uuml;cksetzen (kein Undo) - nur Zoom: Taste R" style="margin-left:auto;font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--red);border-radius:var(--radius-xs);background:var(--white);color:var(--red);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Alles zur&uuml;cksetzen</button></div>
 
       <!-- Sektion FLAECHEN (Fuellstich) -->
       <div id="dgpAreaSection" style="margin-bottom:0;">
@@ -40687,16 +40763,16 @@ window.__LINEA_DEBUG__ = {
             <option value="parallel">Parallel (Reihen)</option>
             <option value="spiral">Kontur (folgt Form)</option>
           </select>
-          <!-- Zeilenabstand (rowSpacing) -->
-          <label title="Abstand zwischen Stich-Reihen (kleiner = dichter)" style="font-weight:600;">Abstand zwischen Reihen</label>
+          <!-- Zeilenabstand (rowSpacing) - [stickui-klar v1] EIN Wort fuer das Konzept in allen Sektionen: "Reihenabstand" -->
+          <label for="dgpRowSpacing" title="Abstand zwischen den Stichreihen in mm. Kleiner = dichter und deckender, aber mehr Stiche." style="font-weight:600;">Reihenabstand</label>
           <input id="dgpRowSpacing" type="range" min="0.10" max="1.00" value="0.3" step="0.1" style="accent-color:var(--fg);">
           <span id="dgpRowSpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
-          <!-- Stichlänge (stitchLength) -->
-          <label title="Länge eines einzelnen Stichs" style="font-weight:600;">Abstand zwischen Stichen</label>
+          <!-- Stichlänge (stitchLength) - [stickui-klar v1] Label sagte "Abstand", Tooltip "Laenge": jetzt beides "Stichlaenge" -->
+          <label for="dgpStitchLength" title="Länge eines einzelnen Stichs in mm." style="font-weight:600;">Stichlänge</label>
           <input id="dgpStitchLength" type="range" min="1.0" max="6.0" value="3.0" step="0.1" style="accent-color:var(--fg);">
           <span id="dgpStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">3.0 mm</span>
           <!-- Winkel (angle) -->
-          <label title="Stick-Richtung in Grad. 0=horizontal, 90=vertikal." style="font-weight:600;">Winkel</label>
+          <label for="dgpAngle" title="Stick-Richtung in Grad. 0=horizontal, 90=vertikal." style="font-weight:600;">Winkel</label>
           <input id="dgpAngle" type="range" min="0" max="180" value="0" step="5" style="accent-color:var(--fg);">
           <span id="dgpAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0°</span>
           </div>
@@ -40733,8 +40809,8 @@ window.__LINEA_DEBUG__ = {
              verschoben (wirken nur auf Flaechen). Pull bleibt gemeinsam. -->
 
         <!-- [VT-UIFIX v1] Pull-Kompensation: Label "Pull" mit EINEM Zahnrad + (i); Schieber (wie Stich) erst auf Zahnrad-Klick (Lukas) -->
-        <label id="dgpPullLabel" style="font-weight:600;display:flex;align-items:center;gap:var(--space-2);">
-          <span>Pull</span>
+        <label id="dgpPullLabel" title="Beim Sticken zieht der Faden den Stoff zusammen. Plus-Werte machen die Fläche leicht grösser (weiche Stoffe), Minus-Werte kleiner. Standard -0,1 mm." style="font-weight:600;display:flex;align-items:center;gap:var(--space-2);">
+          <span>Zugausgleich (Pull)</span>
           <button id="dgpPullGear" type="button" title="Pull-Kompensation ein-/ausklappen" aria-label="Pull-Kompensation ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
         </label>
         <input id="dgpPullComp" class="dgpPullSlider" type="range" min="-0.3" max="0.5" value="-0.1" step="0.01" style="display:none;accent-color:var(--fg);"><!-- [stickui-pull v1] min auf -0.3: der echte Default ist -0.1 (Kanten-Spikes/Halo + Dichte), der war mit min=0 unsichtbar -->
@@ -40752,23 +40828,23 @@ window.__LINEA_DEBUG__ = {
           <div style="display:flex;align-items:center;gap:var(--space-2);">
             <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;">
               <input id="dgpUnderlay" type="checkbox" checked style="cursor:pointer;">
-              <span>Underlay</span>
+              <span>Unterlage</span>
               <!-- "Rand anpassen" (adjustLastStitch) aus dem UI entfernt — bleibt intern auf an (Default). -->
               <input id="dgpAdjustLast" type="checkbox" checked style="display:none;">
             </label>
-            <button id="dgpUnderlayGear" type="button" title="Underlay-Einstellungen ein-/ausklappen" aria-label="Underlay-Einstellungen ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
+            <button id="dgpUnderlayGear" type="button" title="Unterlage-Einstellungen ein-/ausklappen" aria-label="Unterlage-Einstellungen ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
           </div>
           <!-- [underlay-neutral v1] Underlay-Sub neutral; [VT-UIFIX v1] eingeklappt, Zahnrad oeffnet -->
           <div id="dgpUnderlaySub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
-            <label title="Winkel der Underlay-Reihen (typ. 90° zum Main-Fill)">Winkel</label>
+            <label for="dgpUnderlayAngle" title="Winkel der Unterlage-Reihen, üblich 90° quer zur Füllrichtung">Winkel</label>
             <input id="dgpUnderlayAngle" type="range" min="0" max="180" value="90" step="5" style="accent-color:var(--fg);">
             <span id="dgpUnderlayAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">90°</span>
 
-            <label title="Abstand zwischen Underlay-Reihen">Reihe</label>
+            <label for="dgpUnderlaySpacing" title="Abstand zwischen den Unterlage-Reihen in mm">Reihenabstand</label>
             <input id="dgpUnderlaySpacing" type="range" min="1.0" max="6.0" value="4.5" step="0.1" style="accent-color:var(--fg);">
             <span id="dgpUnderlaySpacingVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">4.5 mm</span>
 
-            <label title="Stichlänge der Underlay-Stiche">Stich</label>
+            <label for="dgpUnderlayStitchLength" title="Länge der Unterlage-Stiche in mm">Stichlänge</label>
             <input id="dgpUnderlayStitchLength" type="range" min="1.0" max="5.0" value="2.5" step="0.1" style="accent-color:var(--fg);">
             <span id="dgpUnderlayStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;">2.5 mm</span>
           </div>
@@ -40790,9 +40866,9 @@ window.__LINEA_DEBUG__ = {
           </div>
         </div>
         <!-- Versatz (kein Sub) -->
-        <label id="dgpVersatzLabel" style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Versatz: streut die Stich-Reihen gleichmaessig (Blue-Noise) statt im festen 4er-Treppenmuster. Bricht die diagonalen Punkt-Linien im Parallel-Fuellstil.">
+        <label id="dgpVersatzLabel" style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Verteilt die Einstiche leicht unregelmässig, damit im Füllstich keine sichtbaren diagonalen Linien entstehen.">
           <input id="dgpRandomOffset" type="checkbox" checked style="cursor:pointer;">
-          <span>Versatz</span>
+          <span>Stiche streuen</span>
         </label>
         <!-- [VT-CAT-SEKTIONEN v3] Abschlusskontur + Umriss-Dichte entfernt (Lukas). Handler/Sync sind id-guarded, daher gefahrlos. -->
         <!-- [tip-always v3] Spitzen-Dropdown entfernt (Lukas): im Hintergrund fest auf "Verjuengt (spitz)" -->
@@ -40804,11 +40880,11 @@ window.__LINEA_DEBUG__ = {
       <div id="dgpLineSection" style="margin-bottom:0;">
         <h4 id="dgpLineSectionTitle" class="dgp-reiter" title="Linien-Einstellungen ein-/ausklappen">
           <span id="dgpLineCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;display:inline-block;min-width:12px;">▾</span>
-          <span>Linien <span style="font-weight:400;color:var(--fg2);">(werden mit Satin gestickt)</span></span>
+          <span>Linien <span style="font-weight:400;color:var(--fg2);">(Satin für Linien und Konturen)</span></span>
         </h4>
         <div id="dgpLineBody" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
           <!-- Satin-Dichte (satinPitch): Stichabstand wenn eine Linie/Kontur als Satin gestickt wird -->
-          <label title="Dichte der Satin-Linien: Stichabstand, wenn eine gezeichnete Linie/Kontur als Satin gestickt wird. Kleiner = dichter." style="font-weight:600;">Satin-Dichte</label>
+          <label for="dgpSatinPitch" title="Abstand der Satin-Stiche in mm. Kleiner = dichter. Wirkt nur auf Linien, die als Satin gestickt werden." style="font-weight:600;">Reihenabstand (Satin)</label>
           <input id="dgpSatinPitch" type="range" min="0.15" max="0.60" value="0.4" step="0.05" style="accent-color:var(--fg);">
           <span id="dgpSatinPitchVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.40 mm</span>
         </div>
@@ -40823,14 +40899,14 @@ window.__LINEA_DEBUG__ = {
         <div id="dgpTextBody" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
           <!-- [VT-TEXT-SATIN v1] Text-Stickart: Satin=echte Satin-Saeulen, Tatami=Flaechenfuellung, Laengs=Reihen laengs der Schrift. Gilt fuer alle Text-Formen. -->
           <div id="dgpTextStitchRow" style="display:contents">
-          <label style="font-weight:600;" title="Wie getexteter Text gestickt wird">Text-Stickart</label>
+          <label style="font-weight:600;" title="Wie Textobjekte gestickt werden">Text-Stickart</label>
           <div style="grid-column:2 / -1;display:flex;gap:4px;">
-            <button type="button" class="dgp-ts" data-ts="satin" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Satin</button>
-            <button type="button" class="dgp-ts" data-ts="tatami" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Tatami</button>
-            <button type="button" class="dgp-ts" data-ts="laengs" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Längs</button>
+            <button type="button" class="dgp-ts" data-ts="satin" title="Glänzende, dichte Stichsäulen - Standard für Schrift" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Satin</button>
+            <button type="button" class="dgp-ts" data-ts="tatami" title="Flächige Füllung - für grosse, breite Buchstaben" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Tatami</button>
+            <button type="button" class="dgp-ts" data-ts="laengs" title="Stichreihen folgen der Schreibrichtung - für dünne Schrift" style="flex:1;padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;font-weight:600;font-size:var(--fs-sm);">Längs</button>
           </div>
           <!-- [VT-TEXT-DENSITY-SLIDER v1] eigener Dichte-Regler NUR fuer Text -->
-          <label style="font-weight:600;" title="Stich-Dichte nur für Text (kleiner = dichter)">Dichte</label>
+          <label for="dgpTextDensity" title="Abstand der Stichreihen nur für Text. Kleiner = dichter." style="font-weight:600;">Reihenabstand</label>
           <input id="dgpTextDensity" type="range" min="0.15" max="0.80" value="0.30" step="0.05" style="accent-color:var(--fg);">
           <span id="dgpTextDensityVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
           </div>
@@ -41347,7 +41423,7 @@ window.__LINEA_DEBUG__ = {
       _dstvCtx.stroke();
       _dstvCtx.restore();
       var si = document.getElementById('dstvHoopSize');
-      if (si) si.textContent = 'Rahmen: ' + Math.round(hoop.wMM) + ' \u00d7 ' + Math.round(hoop.hMM) + ' mm';
+      if (si) si.textContent = window.t('Fläche') + ': ' + Math.round(hoop.wMM) + ' \u00d7 ' + Math.round(hoop.hMM) + ' mm'; /* [stickui-klar v1] ehrlich: Zeichenflaeche, kein Geraete-Rahmen */
       var wn = document.getElementById('dstvHoopWarn');
       if (wn) {
         wn.style.display = tooSmall ? '' : 'none';
@@ -41879,7 +41955,9 @@ window.__LINEA_DEBUG__ = {
        das ehrlich anschreiben. */
     _dstvState.externalFile = !!(filename && !/linea|vektortool/i.test(filename));
     window._dstvExternalFile = _dstvState.externalFile; /* fuer den Scheduler (anderer Scope) */
-    document.getElementById('dstvFilename').textContent = (filename || '') + (_dstvState.externalFile ? ' · ' + window.t('Ansicht - Regler wirken auf das Canvas-Design, erst „Neu berechnen" wechselt dorthin') : '');
+    /* [stickui-klar v1] Ohne Dateinamen ist trotzdem ein Design geladen (aus den
+       eigenen Formen berechnet). "— keine Datei —" las sich wie ein Fehler. */
+    document.getElementById('dstvFilename').textContent = (filename || window.t('Eigenes Design (noch nicht als Datei gespeichert)')) + (_dstvState.externalFile ? ' · ' + window.t('Ansicht - Regler wirken auf das Canvas-Design, erst „Neu berechnen" wechselt dorthin') : '');
     document.getElementById('dstvEmpty').style.display = 'none';
     var scrub = document.getElementById('dstvScrub');
     scrub.max = String(parsed.records.length - 1);
@@ -41989,6 +42067,25 @@ window.__LINEA_DEBUG__ = {
     /* v44: Stickerei-Panel als mittlere Spalte einblenden falls offen.
        body.dstv-with-stitch löst CSS-Grid-Anpassung + Panel-Repositionierung. */
     _v44SyncStitchPanelInModal();
+    /* [stickui-klar v1] Stickrahmen-Auswahl (15 Presets, funktionierender
+       change-Handler) lag unsichtbar in einer display:none-Legacy-Sektion.
+       Einmalig in die Statusleiste neben die Flaechen-Anzeige re-parenten. */
+    try {
+      var _hoopSel = document.getElementById('stitchHoop');
+      var _hoopInfo = document.getElementById('dstvHoopInfo');
+      if (_hoopSel && _hoopInfo && _hoopSel.parentElement !== _hoopInfo) {
+        _hoopSel.style.cssText = 'font-size:var(--fs-sm);max-width:170px;padding:1px var(--space-2);border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);color:var(--fg);cursor:pointer;margin-left:var(--space-2);';
+        /* Platzhalter voranstellen: ohne ihn zeigte das Select faelschlich das
+           erste Geraete-Preset (Bernina S) als gewaehlt, obwohl keins aktiv ist. */
+        if (!_hoopSel.querySelector('option[value=""]')) {
+          var _ph = document.createElement('option');
+          _ph.value = ''; _ph.textContent = window.t('Rahmen wählen …');
+          _hoopSel.insertBefore(_ph, _hoopSel.firstChild);
+        }
+        _hoopSel.value = '';
+        _hoopInfo.appendChild(_hoopSel);
+      }
+    } catch (eHP) { console.warn('[vt:swallowed]', eHP); }
     /* Defer resize to after the modal has rendered so getBoundingClientRect is valid. */
     requestAnimationFrame(function() { _dstvResize(); _dstvFit(); _dstvRender(); });
   }
@@ -42167,9 +42264,9 @@ window.__LINEA_DEBUG__ = {
             label = 'Bereite ' + total + ' Shape' + (total !== 1 ? 's' : '') + ' vor …';
           } else if (i < total) {
             label = 'Shape ' + i + '/' + total
-                  + (stitchCount ? ' · ' + stitchCount.toLocaleString('de-DE') + ' Stiche' : '');
+                  + (stitchCount ? ' · ' + stitchCount.toLocaleString('de-CH') + ' Stiche' : '');
           } else {
-            label = 'Recalc fertig · ' + (stitchCount || 0).toLocaleString('de-DE') + ' Stiche';
+            label = 'Recalc fertig · ' + (stitchCount || 0).toLocaleString('de-CH') + ' Stiche';
           }
           _setProgress(pct, label);
         });
@@ -42220,7 +42317,7 @@ window.__LINEA_DEBUG__ = {
       if (modalEl && modalEl.classList.contains('open')) {
         _dstvLoadBuf(buf, '');  /* [stickui-fs-fn v1] Dateiname nicht mehr anschreiben (intern gerenderte DST) */
       }
-      _setProgress(100, '✓ ' + (recalcResult.stitches || 0).toLocaleString('de-DE') + ' Stiche · '
+      _setProgress(100, '✓ ' + (recalcResult.stitches || 0).toLocaleString('de-CH') + ' Stiche · '
                        + (recalcResult.total || 0) + ' Shape' + ((recalcResult.total || 0) !== 1 ? 's' : ''));
       await _yieldPaint();
     }
@@ -42232,6 +42329,9 @@ window.__LINEA_DEBUG__ = {
     doLoad().catch(function(e) {
       console.warn('[dstv] doLoad failed', e);
     }).finally(function() {
+      /* [stickui-klar v1] Zeilen-Stichzahlen nachziehen: die Reihenfolge-Zeilen
+         wurden vor dem Recalc gerendert und zeigten bis dahin 0 St. */
+      if (typeof window._stitchUpdateOrder === 'function') { try { window._stitchUpdateOrder(); } catch(eUO){} }
       /* Kurz auf 100% verharren bevor verstecken */
       setTimeout(function() {
         if (typeof window._hideLoadingOverlay === 'function') window._hideLoadingOverlay();
@@ -42298,6 +42398,8 @@ window.__LINEA_DEBUG__ = {
 
 
     document.getElementById('dstvResetView').addEventListener('click', function() {
+      /* [stickui-klar v1] destruktiv ohne Undo -> vorher fragen */
+      if (!window.confirm(window.t('Alle Stick-Einstellungen auf Standard zurücksetzen? Das kann nicht rückgängig gemacht werden.'))) return;
       /* [stickui-reset v1] "Zuruecksetzen" = globale Stick-Parameter auf Standard (Lukas: der reine
          View-Reset reichte nicht). Setzt die dgp-Controls auf die _stitchDefaults()-Werte + Stil/
          Verbindung, feuert change/input -> bestehende Handler wenden an, Radios syncen, DST rechnet
@@ -47797,8 +47899,8 @@ _boxBtnEl.addEventListener('click', function() {
     row.style.cssText = 'flex-shrink:0;display:flex;padding:var(--space-3) var(--space-6) 0;';
     var b = document.createElement('button');
     b.id = 'stitchTestBtn';
-    b.innerHTML = '&#x229E; Test-Karte';
-    b.title = 'Stich-Test-Karte erzeugen (Dichte/Länge-Matrix, wie eine Laser-Speed/Power-Matrix)';
+    b.innerHTML = '&#x229E; Probe-Muster (Test-Karte)'; /* [stickui-klar v1] */
+    b.title = 'Einstellungen auf Stoff testen: erzeugt eine Matrix kleiner Probefelder mit verschiedenen Werten für Reihenabstand und Stichlänge';
     b.style.cssText = 'flex:1;font-size:var(--fs-xs);padding:var(--space-2) var(--space-4);border:1px solid var(--border);border-radius:var(--radius-sm,5px);background:var(--white,#fff);color:var(--fg2,#33414d);cursor:pointer;font-weight:700;letter-spacing:0.3px;';
     b.addEventListener('click', openDialog);
     row.appendChild(b);
@@ -48442,6 +48544,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       '.dgp-rtile:hover{border-color:var(--ac2);}'+
       '.dgp-rtile.sel{border-color:var(--ac);background:rgba(var(--ac-rgb),0.07);}'+
       '.dgp-rtile.dgp-disabled{opacity:0.38;pointer-events:none;cursor:not-allowed;filter:grayscale(0.6);}'+
+      '.dgp-rtile:has(input:focus-visible){outline:2px solid var(--ac);outline-offset:2px;}'+ /* [stickui-klar v1] Tastatur-Fokus sichtbar */
       '.dgp-rtile input{position:absolute;opacity:0;width:0;height:0;pointer-events:none;}'+
       '.dgp-rill{display:block;width:100%;}'+
       '.dgp-rill svg{display:block;width:100%;height:auto;}'+
@@ -48795,6 +48898,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-07', t:'Stickerei-Ansicht klarer: einheitliche Begriffe (überall „Reihenabstand" und „Stichlänge", „Zugausgleich" statt Pull, „Stiche streuen" statt Versatz); Stickrahmen-Auswahl in der Statusleiste; Füllung und andersfarbiger Umriss pro Bereich separat ausblendbar (zwei Augen pro Zeile) mit Warnhinweis am Export; „Alles zurücksetzen" fragt nach und steht rechts; Vorschau meldet „Eigenes Design" statt „keine Datei"', c:'stickui-klar'},
     {d:'2026-07-07', t:'Neu im Box-Generator: Box mit runden Ecken (Living Hinge) - Deckel und Boden als gerundete Rechtecke, die Wand als biegsamer Wickelstreifen; 5 Schnittmuster (Gerade, Welle, Wabe, Raute, Kreuz), Schlitz-Parameter automatisch aus Materialstärke, Kerf und Eck-Radius berechnet (mit Warnung bei zu kleinem Radius), Test-Streifen zum Probebiegen', c:'livinghinge'},
     {d:'2026-07-07', t:'Neu: magnetische Ausrichtlinien beim Verschieben (Shift-Hinweis an der Linie, Shift schaltet das Einrasten aus, Ctrl verschiebt achsengerade); 8 Skaliergriffe statt 4 (Seitengriffe einachsig, Alt vom Zentrum, Durchziehen über die Gegenkante spiegelt); Alt+Klick wählt das Objekt darunter, Alt+Ziehen zieht eine Kopie; Tab schaltet durch die Objekte, Bild-auf/ab und Home/End ordnen die Ebenen, Escape hebt die Auswahl auf; Ausrichten wahlweise relativ zur Seite, schon ab einem Objekt', c:'uikonv'},
     {d:'2026-07-07', t:'Fehlerkorrektur: Ausblenden in der Stickreihenfolge (Auge pro Zeile und „Alle") funktioniert wieder', c:'stickui-klar'},
