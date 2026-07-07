@@ -2381,7 +2381,17 @@ body.layer-panel-open #rsActions { display:none !important; }
     <div><kbd>+</kbd> <kbd>-</kbd> Zoom</div><div><kbd>0</kbd> Einpassen</div>
     <div><kbd>Pfeile</kbd> Verschieben</div><div><kbd>Shift+Pfeile</kbd> Schnell verschieben</div>
     <div><kbd>Leertaste+Drag</kbd> Canvas verschieben</div>
-    <div><kbd>Shift+Drag</kbd> Proportional</div>
+    <div><kbd>Shift+Griff</kbd> Proportional skalieren</div>
+    <!-- [uikonv v1] neue Konventions-Gesten -->
+    <div><kbd>Ctrl+Drag</kbd> Gerade verschieben</div>
+    <div><kbd>Shift+Drag</kbd> Einrasten aus</div>
+    <div><kbd>Alt+Griff</kbd> Vom Zentrum skalieren</div>
+    <div><kbd>Alt+Klick</kbd> Objekt darunter wählen</div>
+    <div><kbd>Alt+Drag</kbd> Kopie ziehen</div>
+    <div><kbd>Tab</kbd> Nächstes Objekt</div>
+    <div><kbd>Esc</kbd> Auswahl aufheben</div>
+    <div><kbd>PgUp/PgDn</kbd> Ebene vor/zurück</div>
+    <div><kbd>Home/End</kbd> Ganz nach vorne/hinten</div>
     <div style="grid-column:1/-1;margin-top:var(--space-2);color:var(--fg2);font-size:var(--fs-xs)">Auf Mac: <kbd>Cmd</kbd> statt <kbd>Ctrl</kbd></div>
   </div>
 </div>
@@ -9130,6 +9140,45 @@ function render() {
     }
   }
 
+  /* [uikonv v1] Smart-Guide-Linien waehrend des Verschiebens (gesetzt in onSelectMove) */
+  if (window._vtSmartGuides && dragType === 'move') {
+    var _sgL = window._vtSmartGuides, _sgExt = Math.max(docW, docH) * 4;
+    if (_sgL.v !== null && _sgL.v !== undefined) dyn += '<line x1="'+_sgL.v+'" y1="'+(-_sgExt)+'" x2="'+_sgL.v+'" y2="'+_sgExt+'" style="stroke:var(--red)" stroke-width="'+(1/zoom)+'" stroke-dasharray="'+(5/zoom)+' '+(3/zoom)+'"/>';
+    if (_sgL.h !== null && _sgL.h !== undefined) dyn += '<line x1="'+(-_sgExt)+'" y1="'+_sgL.h+'" x2="'+_sgExt+'" y2="'+_sgL.h+'" style="stroke:var(--red)" stroke-width="'+(1/zoom)+'" stroke-dasharray="'+(5/zoom)+' '+(3/zoom)+'"/>';
+    /* [uikonv v4] Hinweis direkt an der Linie: Shift loest das Einrasten (gleiche
+       Bauart wie der "(Shift ausschalten)"-Tooltip des Zeichen-Snaps). */
+    var _sgTxt = '⇧ Shift ausschalten';
+    var _sgFs = 11 / zoom;
+    var _sgLbw = _sgFs * _sgTxt.length * 0.56 + 12/zoom, _sgLbh = _sgFs + 8/zoom;
+    var _sgLx, _sgLy;
+    /* [uikonv v4b] Label an den sichtbaren Canvas-Rand, auf Hoehe der Linie und
+       auf der objektabgewandten Seite (Lukas: "oben oder am rand, nahe bei der
+       linie, aber weg vom objekt"). Sichtbarer Doc-Ausschnitt aus derselben
+       Offset-Formel wie der Haupt-Transform (dx = panX + (W - docW*zoom)/2). */
+    var _sgOffX = panX + (W - docW * zoom) / 2, _sgOffY = panY + (H - docH * zoom) / 2;
+    var _sgVisX0 = -_sgOffX / zoom, _sgVisX1 = (W - _sgOffX) / zoom;
+    var _sgVisY0 = -_sgOffY / zoom;
+    if (_sgL.h !== null && _sgL.h !== undefined) {
+      /* horizontale Linie: Standard = rechter Rand (links liegen die schwebenden
+         Werkzeug-Panels ueber dem Canvas), knapp ueber der Linie. Nur wenn das
+         Objekt selbst in der rechten Randzone haengt, nach links ausweichen -
+         dort eingerueckt an den Panels vorbei. */
+      var _sgObjRechts = (_sgL.cx || 0) > _sgVisX1 - (_sgLbw + 80/zoom);
+      _sgLx = _sgObjRechts ? (_sgVisX0 + 260/zoom) : (_sgVisX1 - _sgLbw - 14/zoom);
+      _sgLy = _sgL.h - _sgLbh - 5/zoom;
+      if (_sgLy < _sgVisY0 + 4/zoom) _sgLy = _sgL.h + 5/zoom; /* Linie am oberen Rand -> darunter */
+    } else {
+      /* nur vertikale Linie: oben am Rand (unterhalb der mm-Ticks), auf der
+         objektabgewandten Seite der Linie */
+      _sgLy = _sgVisY0 + 26/zoom;
+      _sgLx = ((_sgL.cx || 0) > _sgL.v) ? (_sgL.v - _sgLbw - 6/zoom) : (_sgL.v + 6/zoom);
+      if (_sgLx < _sgVisX0 + 4/zoom) _sgLx = _sgL.v + 6/zoom;
+      if (_sgLx + _sgLbw > _sgVisX1 - 4/zoom) _sgLx = _sgL.v - _sgLbw - 6/zoom;
+    }
+    dyn += '<rect x="'+_sgLx+'" y="'+_sgLy+'" width="'+_sgLbw+'" height="'+_sgLbh+'" rx="'+(4/zoom)+'" style="fill:var(--red)" opacity="0.92" pointer-events="none"/>';
+    dyn += '<text x="'+(_sgLx + 6/zoom)+'" y="'+(_sgLy + _sgFs + 3/zoom)+'" font-size="'+_sgFs+'" fill="white" font-family="system-ui,sans-serif" font-weight="600" pointer-events="none">'+_sgTxt+'</text>';
+  }
+
   // marquee — erst ab einer kleinen Mindest-Ziehdistanz zeichnen, damit ein
   // blosser Klick (mit minimaler Mausbewegung/Jitter) nicht kurz blau aufblitzt.
   if (marqueeRect && (marqueeRect.w * zoom > 6 || marqueeRect.h * zoom > 6)) {
@@ -11338,6 +11387,16 @@ function renderSelectionHandles(s) {
   for (var i = 0; i < 4; i++) {
     html += '<rect x="'+(corners[i][0]-hs)+'" y="'+(corners[i][1]-hs)+'" width="'+(hs*2)+'" height="'+(hs*2)+'" fill="white" stroke="'+UI_ACCENT+'" stroke-width="'+sw2+'" rx="1" pointer-events="all" style="cursor:'+cursors[i]+'" data-handle="'+i+'"/>';
   }
+  /* [uikonv v1] Seiten-Handles fuer einachsiges Skalieren (Standard: 8 Griffe).
+     Etwas kleiner als die Ecken; nur wenn die Kante genug Platz laesst, damit
+     sich die Griffe bei kleinen Formen nicht ueberlagern. */
+  var _shList = [];
+  if (bb.w * zoom > 34) { _shList.push([bb.x+bb.w/2, bb.y, 'n', 'ns-resize']); _shList.push([bb.x+bb.w/2, bb.y+bb.h, 's', 'ns-resize']); }
+  if (bb.h * zoom > 34) { _shList.push([bb.x+bb.w, bb.y+bb.h/2, 'e', 'ew-resize']); _shList.push([bb.x, bb.y+bb.h/2, 'w', 'ew-resize']); }
+  var _shs = hs * 0.8;
+  for (var _shI = 0; _shI < _shList.length; _shI++) {
+    html += '<rect x="'+(_shList[_shI][0]-_shs)+'" y="'+(_shList[_shI][1]-_shs)+'" width="'+(_shs*2)+'" height="'+(_shs*2)+'" fill="white" stroke="'+UI_ACCENT+'" stroke-width="'+sw2+'" rx="1" pointer-events="all" style="cursor:'+_shList[_shI][3]+'" data-handle="'+_shList[_shI][2]+'"/>';
+  }
   var rr = 5.5 / zoom;
   var rcx = bb.x+bb.w/2, rcy = bb.y - 20/zoom;
   html += '<line x1="'+rcx+'" y1="'+bb.y+'" x2="'+rcx+'" y2="'+rcy+'" stroke="'+UI_ACCENT+'" stroke-width="'+sw2+'"/>';
@@ -11471,6 +11530,14 @@ function renderMultiSelectionBox() {
   for (var ci = 0; ci < 4; ci++) {
     /* [uxfix v1] Griffe sichtbar machen (weiss, boxColor-Rand) - waren transparent, dadurch sah niemand die echten Skalier-Griffe der Gesamtbox. Trefflogik unveraendert. */
     html2 += '<rect x="'+(corners[ci][0]-hs)+'" y="'+(corners[ci][1]-hs)+'" width="'+(hs*2)+'" height="'+(hs*2)+'" fill="white" stroke="'+boxColor+'" stroke-width="'+sw2+'" rx="1" pointer-events="all" style="cursor:'+cursors2[ci]+'" data-handle="'+ci+'"/>';
+  }
+  /* [uikonv v1] Seiten-Handles auch an der Gesamtbox der Mehrfachauswahl */
+  var _mhList = [];
+  if (allBb.w * zoom > 34) { _mhList.push([allBb.x+allBb.w/2, allBb.y, 'n', 'ns-resize']); _mhList.push([allBb.x+allBb.w/2, allBb.y+allBb.h, 's', 'ns-resize']); }
+  if (allBb.h * zoom > 34) { _mhList.push([allBb.x+allBb.w, allBb.y+allBb.h/2, 'e', 'ew-resize']); _mhList.push([allBb.x, allBb.y+allBb.h/2, 'w', 'ew-resize']); }
+  var _mhs = hs * 0.8;
+  for (var _mhI = 0; _mhI < _mhList.length; _mhI++) {
+    html2 += '<rect x="'+(_mhList[_mhI][0]-_mhs)+'" y="'+(_mhList[_mhI][1]-_mhs)+'" width="'+(_mhs*2)+'" height="'+(_mhs*2)+'" fill="white" stroke="'+boxColor+'" stroke-width="'+sw2+'" rx="1" pointer-events="all" style="cursor:'+_mhList[_mhI][3]+'" data-handle="'+_mhList[_mhI][2]+'"/>';
   }
   // Rotation handle
   var rr = 5.5 / zoom;
@@ -11751,6 +11818,18 @@ function hitTest(x, y, strokeOnly) {
     }
   }
   return hitId;
+}
+
+/* [uikonv v1] Alle Treffer an einer Stelle, oberste zuerst - fuer Alt+Klick
+   (Stapel nach unten durchschalten bei ueberlappenden Formen). */
+function hitTestStack(x, y) {
+  var ids = [];
+  for (var i = shapes.length - 1; i >= 0; i--) {
+    var s = shapes[i];
+    if (s && s.hidden) continue;
+    if (hitTestOne(s, x, y, false)) ids.push(s.id);
+  }
+  return ids;
 }
 
 function distToSeg(p, a, b) {
@@ -12761,7 +12840,7 @@ function onPointerDown(e) {
   if (e.target && e.target.closest && e.target.closest('.tool-btn, .tb-btn, .top-bar, #rightPanel, .tab-bar, .ctx-menu')) return;
   _dragMoved = false;
   _nodeGrab = null; // Fix 3: Greif-Offset wird beim ersten Node-Move neu bestimmt
-  if (e.button === 1 || (e.button === 0 && e.altKey) || (e.button === 0 && window._spacePanHeld)) { /* [uxfix v1] Leertaste+Ziehen = Pan (wie dokumentiert) */
+  if (e.button === 1 || (e.button === 0 && window._spacePanHeld)) { /* [uikonv v1] Alt pannt nicht mehr (Pan = Leertaste/Mitteltaste, doppelt belegt war verschenkt); Alt+Klick = Objekt darunter, Alt+Drag = Kopie ziehen, wie Inkscape/Illustrator */
     dragType = 'pan';
     dragStart = {x:e.clientX - panX, y:e.clientY - panY};
     canvasEl.style.cursor = 'grabbing';
@@ -12834,7 +12913,7 @@ function onPointerDown(e) {
       dragStart = pt;
       return;
     }
-    handleIdx = parseInt(ds.handle);
+    handleIdx = (ds.handle === 'n' || ds.handle === 'e' || ds.handle === 's' || ds.handle === 'w') ? ds.handle : parseInt(ds.handle); /* [uikonv v1] Seiten-Handles als String-Ids */
     dragType = 'resize';
     pu('Grösse ändern'); /* [undo-rotresize v1] Snapshot vor dem Skalieren, sonst kein Ctrl+Z */
     var hs = findShape(selId);
@@ -13007,6 +13086,7 @@ function _endDragSafely() {
   origShapeState = null; origMultiStates = null; origMultiBBox = null;
   dragMirrorCenter = false; marqueeStart = null; marqueeRect = null;
   _nodeGrab = null; mouseIsDown = false;
+  window._vtSmartGuides = null; window._mvOrigin = null; window._mvBB0 = null; window._altDupArmed = false; window._marqueeAdditive = false; /* [uikonv v1] */
   if (canvasEl) canvasEl.style.cursor = '';
   render();
 }
@@ -13041,7 +13121,7 @@ function onPointerUp(e) {
     nodeClickedWithoutDrag = null; dragShapeId = null;
     dragType = null; dragNodeIdx = -1; _nodeGrab = null; mouseIsDown = false; render(); return;
   }
-  if (dragType === 'move' || dragType === 'resize' || dragType === 'rotate') { _dropUndoIfNoMove(); dragType = null; handleIdx = -1; origShapeState = null; origMultiStates = null; origMultiBBox = null; mouseIsDown = false; render(); return; }
+  if (dragType === 'move' || dragType === 'resize' || dragType === 'rotate') { _dropUndoIfNoMove(); dragType = null; handleIdx = -1; origShapeState = null; origMultiStates = null; origMultiBBox = null; mouseIsDown = false; window._vtSmartGuides = null; window._mvOrigin = null; window._mvBB0 = null; window._altDupArmed = false; /* [uikonv v1] */ render(); return; }
   if (dragType === 'node-marquee') { dragType = null; onNodeUp(e, pt); mouseIsDown = false; return; }
 
   switch(tool) {
@@ -13073,6 +13153,16 @@ function _getTextOnPathPartners(id) {
 }
 function onSelectDown(e, pt) {
   var hit = hitTest(pt.x, pt.y);
+  /* [uikonv v1] Alt+Klick schaltet bei ueberlappenden Formen durch den Stapel nach
+     unten (Inkscape-Konvention). Referenz = aktuell selektierte Form, falls sie an
+     der Klickstelle liegt, sonst die oberste; naechster Eintrag darunter, zyklisch. */
+  if (e.altKey && hit) {
+    var _stk = hitTestStack(pt.x, pt.y);
+    if (_stk.length > 1) {
+      var _stkRef = (selId != null && _stk.indexOf(selId) >= 0) ? _stk.indexOf(selId) : _stk.indexOf(hit);
+      hit = _stk[(_stkRef + 1) % _stk.length];
+    }
+  }
   if (hit) {
     if (e.shiftKey) {
       /* [uxfix v1] Shift+Klick togglet jetzt: bereits selektierte Form wieder abwaehlen
@@ -13109,11 +13199,19 @@ function onSelectDown(e, pt) {
     }
     dragType = 'move';
     selDragOffset = {x: pt.x, y: pt.y};
+    /* [uikonv v1] Startpunkt + Start-BBox merken: daraus rechnet onSelectMove die
+       Ziel-Position (fuer Shift-Achsen-Constraint und Smart-Guide-Snap) statt nur
+       inkrementeller Deltas. Alt haelt ein Duplikat bereit (Alt+Drag = Kopie ziehen). */
+    window._mvOrigin = {x: pt.x, y: pt.y};
+    window._mvBB0 = combinedGeoBBox(selIds);
+    window._altDupArmed = !!e.altKey;
     pu();
     render();
     updateRightPanel();
   } else {
-    selId = null; selIds.clear();
+    /* [uikonv v1] Shift+Aufziehen erweitert die bestehende Auswahl statt sie zu ersetzen */
+    if (!e.shiftKey) { selId = null; selIds.clear(); }
+    window._marqueeAdditive = !!e.shiftKey;
     // Click on empty: start marquee selection
     marqueeStart = pt;
     marqueeRect = {x:pt.x, y:pt.y, w:0, h:0};
@@ -13122,9 +13220,105 @@ function onSelectDown(e, pt) {
   }
 }
 
+/* [uikonv v1] Smart Guides: beim Verschieben magnetisch an Kanten/Mitten der
+   anderen Formen sowie Seitenraendern/Seitenmitte einrasten (Schwelle 6
+   Bildschirm-px). Liefert Snap-Delta + Linienposition fuers Overlay; die
+   Linien zeichnet render() aus window._vtSmartGuides. */
+function _smartGuideSnap(bb) {
+  var thr = 6 / zoom;
+  var candX = [0, docW / 2, docW], candY = [0, docH / 2, docH];
+  for (var i = 0; i < shapes.length; i++) {
+    var s = shapes[i];
+    if (!s || s.hidden || selIds.has(s.id)) continue;
+    var ob = geoBBox(s);
+    if (!ob) continue;
+    candX.push(ob.x, ob.x + ob.w / 2, ob.x + ob.w);
+    candY.push(ob.y, ob.y + ob.h / 2, ob.y + ob.h);
+  }
+  var myX = [bb.x, bb.x + bb.w / 2, bb.x + bb.w];
+  var myY = [bb.y, bb.y + bb.h / 2, bb.y + bb.h];
+  var best = {dx: 0, dy: 0, vx: null, hy: null, _bx: thr, _by: thr};
+  for (var a = 0; a < 3; a++) {
+    for (var c = 0; c < candX.length; c++) {
+      var d = candX[c] - myX[a];
+      if (Math.abs(d) < best._bx) { best._bx = Math.abs(d); best.dx = d; best.vx = candX[c]; }
+    }
+    for (var c2 = 0; c2 < candY.length; c2++) {
+      var d2 = candY[c2] - myY[a];
+      if (Math.abs(d2) < best._by) { best._by = Math.abs(d2); best.dy = d2; best.hy = candY[c2]; }
+    }
+  }
+  return best;
+}
+
 function onSelectMove(e, pt) {
   if (dragType === 'move' && selId) {
-    var dx = pt.x - selDragOffset.x, dy = pt.y - selDragOffset.y;
+    /* [uikonv v1] Alt+Drag = Kopie ziehen (Illustrator-Konvention): beim ersten
+       echten Zug (>3 Bildschirm-px, damit Alt+Klick zum Durchschalten nicht aus
+       Versehen dupliziert) Duplikate an Ort erzeugen und DIE am Cursor weiterziehen;
+       die Originale bleiben liegen. pu() vom pointerdown deckt das Undo ab. */
+    if (window._altDupArmed) {
+      if (Math.hypot(pt.x - selDragOffset.x, pt.y - selDragOffset.y) <= 3 / zoom) return;
+      window._altDupArmed = false;
+      var _adSrc = []; selIds.forEach(function(id) { var s0 = findShape(id); if (s0) _adSrc.push(s0); });
+      if (_adSrc.length) {
+        var _adGid = mkId(), _adGidMap = {}, _adNew = [];
+        _adSrc.forEach(function(s0) { if (s0.groupId && !_adGidMap[s0.groupId]) _adGidMap[s0.groupId] = mkId(); });
+        _adSrc.forEach(function(orig) {
+          var ns = _vtDeepClone(orig);
+          ns.id = mkId(); ns.gid = _adGid;
+          if (ns.groupId) ns.groupId = _adGidMap[ns.groupId];
+          shapes.push(ns);
+          _adNew.push(ns.id);
+        });
+        selIds.clear();
+        _adNew.forEach(function(nid) { selIds.add(nid); });
+        selId = _adNew[_adNew.length - 1];
+        if (typeof _invalidateShapeIndex === 'function') _invalidateShapeIndex(); /* sonst findet findShape() die frischen Kopien nicht und der Drag laeuft ins Leere */
+      }
+    }
+    /* [uikonv v1] Ziel-Position aus Gesamt-Verschiebung seit Drag-Start rechnen:
+       Shift beschraenkt auf 0/45/90 Grad (Konvention), danach Smart-Guide-Snap.
+       Angewendet wird weiterhin inkrementell (dx/dy = Ziel minus Ist), damit
+       linked nodes/boundaryLinks unveraendert funktionieren. */
+    var dx, dy;
+    var _mvCur = (window._mvOrigin && window._mvBB0) ? combinedGeoBBox(selIds) : null;
+    if (_mvCur) {
+      var _tdx = pt.x - window._mvOrigin.x, _tdy = pt.y - window._mvOrigin.y;
+      /* [uikonv v2] Shift = Einrasten AUS und frei bewegen (konsistent mit dem
+         Zeichen-Snap "Shift ausschalten" und Inkscape). Achsengerade verschieben
+         liegt auf Ctrl/Cmd (Inkscape-Konvention) - v1 hatte beides auf Shift,
+         dadurch klebte die Bewegung auf einer Diagonale statt den Snap zu loesen. */
+      var _sgAllowX = !e.shiftKey, _sgAllowY = !e.shiftKey;
+      if ((e.ctrlKey || e.metaKey) && (_tdx || _tdy)) {
+        var _cAng = Math.atan2(_tdy, _tdx);
+        var _cSnap = Math.round(_cAng / (Math.PI / 4)) * (Math.PI / 4);
+        var _cLen = Math.hypot(_tdx, _tdy) * Math.cos(_cAng - _cSnap);
+        _tdx = Math.cos(_cSnap) * _cLen; _tdy = Math.sin(_cSnap) * _cLen;
+        if (Math.abs(Math.sin(_cSnap)) < 1e-9) _tdy = 0;
+        if (Math.abs(Math.cos(_cSnap)) < 1e-9) _tdx = 0;
+        /* Auf der festgehaltenen Achse nicht snappen (wuerde den Constraint brechen);
+           auf der Diagonalen gar nicht. */
+        if (_tdy === 0 && _tdx !== 0) { _sgAllowY = false; }
+        else if (_tdx === 0 && _tdy !== 0) { _sgAllowX = false; }
+        else { _sgAllowX = false; _sgAllowY = false; }
+      }
+      var _targX = window._mvBB0.x + _tdx, _targY = window._mvBB0.y + _tdy;
+      window._vtSmartGuides = null;
+      if (_sgAllowX || _sgAllowY) {
+        var _sg = _smartGuideSnap({x: _targX, y: _targY, w: window._mvBB0.w, h: window._mvBB0.h});
+        if (_sgAllowX && _sg.vx !== null) _targX += _sg.dx;
+        if (_sgAllowY && _sg.hy !== null) _targY += _sg.dy;
+        if ((_sgAllowX && _sg.vx !== null) || (_sgAllowY && _sg.hy !== null)) {
+          /* cx/cy = Zentrum der gezogenen Box - Ankerpunkt fuer den Shift-Hinweis an der Linie */
+          window._vtSmartGuides = {v: _sgAllowX ? _sg.vx : null, h: _sgAllowY ? _sg.hy : null,
+            cx: _targX + window._mvBB0.w / 2, cy: _targY + window._mvBB0.h / 2};
+        }
+      }
+      dx = _targX - _mvCur.x; dy = _targY - _mvCur.y;
+    } else {
+      dx = pt.x - selDragOffset.x; dy = pt.y - selDragOffset.y;
+    }
     /* Collect linked points on non-selected shapes that need to move too.
        Two strategies: (1) nodeLinks, (2) coordinate matching on shape boundaries */
     var linkedMoves = []; /* [{shapeId, nodeIdx}] */
@@ -13206,21 +13400,50 @@ function onSelectMove(e, pt) {
     else if (handleIdx === 1) { ny += ddy; nw += ddx; nh -= ddy; anchorX = ob.x; anchorY = ob.y + ob.h; }
     else if (handleIdx === 2) { nw += ddx; nh += ddy; anchorX = ob.x; anchorY = ob.y; }
     else if (handleIdx === 3) { nx += ddx; nw -= ddx; nh += ddy; anchorX = ob.x + ob.w; anchorY = ob.y; }
-    if (nw < 1) nw = 1; if (nh < 1) nh = 1;
+    /* [uikonv v1] Seiten-Handles: einachsig skalieren, Anker = Mitte der Gegenkante */
+    else if (handleIdx === 'n') { ny += ddy; nh -= ddy; anchorX = ob.x + ob.w/2; anchorY = ob.y + ob.h; }
+    else if (handleIdx === 's') { nh += ddy; anchorX = ob.x + ob.w/2; anchorY = ob.y; }
+    else if (handleIdx === 'e') { nw += ddx; anchorX = ob.x; anchorY = ob.y + ob.h/2; }
+    else if (handleIdx === 'w') { nx += ddx; nw -= ddx; anchorX = ob.x + ob.w; anchorY = ob.y + ob.h/2; }
+    /* [uikonv v3] Durchziehen ueber die Gegenkante SPIEGELT die Form (negatives
+       Mass erlaubt, Konvention aller Vektoreditoren) statt sie als 1px-Streifen
+       dem Cursor nachzuschieben. Nur exakt 0 vermeiden (Division/Degeneration). */
+    if (!nw) nw = 0.001; if (!nh) nh = 0.001;
     if (e.shiftKey) {
-      // Proportional scale: use diagonal distance for smooth continuous scaling
-      var diagOrig = Math.sqrt(ob.w * ob.w + ob.h * ob.h);
-      var diagNew = Math.sqrt(nw * nw + nh * nh);
-      var uniformScale = diagNew / (diagOrig || 1);
+      /* [uikonv v1] Shift = proportional; an Seiten-Handles treibt die gezogene
+         Achse den einheitlichen Faktor, an Ecken wie bisher die Diagonale. */
+      var uniformScale;
+      if (handleIdx === 'n' || handleIdx === 's') uniformScale = nh / (ob.h || 1);
+      else if (handleIdx === 'e' || handleIdx === 'w') uniformScale = nw / (ob.w || 1);
+      else {
+        // Proportional scale: use diagonal distance for smooth continuous scaling
+        var diagOrig = Math.sqrt(ob.w * ob.w + ob.h * ob.h);
+        var diagNew = Math.sqrt(nw * nw + nh * nh);
+        uniformScale = diagNew / (diagOrig || 1);
+      }
       nw = ob.w * uniformScale;
       nh = ob.h * uniformScale;
       if (nw < 1) { uniformScale = 1 / ob.w; nw = 1; nh = ob.h * uniformScale; }
       if (nh < 1) { uniformScale = 1 / ob.h; nh = 1; nw = ob.w * uniformScale; }
-      // Recalculate nx/ny to keep anchor corner fixed
+      // Recalculate nx/ny to keep anchor fixed
       if (handleIdx === 0) { nx = anchorX - nw; ny = anchorY - nh; }
       else if (handleIdx === 1) { ny = anchorY - nh; }
       else if (handleIdx === 3) { nx = anchorX - nw; }
+      else if (handleIdx === 'n') { nx = anchorX - nw/2; ny = anchorY - nh; }
+      else if (handleIdx === 's') { nx = anchorX - nw/2; ny = anchorY; }
+      else if (handleIdx === 'e') { nx = anchorX; ny = anchorY - nh/2; }
+      else if (handleIdx === 'w') { nx = anchorX - nw; ny = anchorY - nh/2; }
       // handleIdx 2: nx, ny stay at anchor (TL)
+    }
+    if (e.altKey) {
+      /* [uikonv v1] Alt = vom Zentrum aus skalieren (Konvention): Delta wirkt
+         symmetrisch auf beide Seiten, das BBox-Zentrum bleibt stehen.
+         [uikonv v3] negatives Mass zulassen -> Durchziehen spiegelt auch hier. */
+      var _cxA = ob.x + ob.w / 2, _cyA = ob.y + ob.h / 2;
+      nw = ob.w + 2 * (nw - ob.w); if (!nw) nw = 0.001;
+      nh = ob.h + 2 * (nh - ob.h); if (!nh) nh = 0.001;
+      nx = _cxA - nw / 2; ny = _cyA - nh / 2;
+      anchorX = _cxA; anchorY = _cyA;
     }
     var sx = nw / (ob.w || 1), sy = nh / (ob.h || 1);
     // Apply scale to all selected shapes
@@ -13235,6 +13458,10 @@ function onSelectMove(e, pt) {
         for (var pi = 0; pi < cur.points.length; pi++) {
           cur.points[pi].x = nx + (orig.points[pi].x - ob.x) * sx;
           cur.points[pi].y = ny + (orig.points[pi].y - ob.y) * sy;
+          /* [uikonv v3] relative Bezier-Handles mitskalieren - noetig fuers
+             Spiegeln (Vorzeichen), und Kurven skalieren damit auch formtreu */
+          if (orig.points[pi].h1x != null) { cur.points[pi].h1x = orig.points[pi].h1x * sx; cur.points[pi].h1y = orig.points[pi].h1y * sy; }
+          if (orig.points[pi].h2x != null) { cur.points[pi].h2x = orig.points[pi].h2x * sx; cur.points[pi].h2y = orig.points[pi].h2y * sy; }
         }
         // Update x,y,w,h from points bounding box
         if (cur.x !== undefined) {
@@ -13242,11 +13469,17 @@ function onSelectMove(e, pt) {
           cur.x = pbb.x; cur.y = pbb.y; cur.w = pbb.w; cur.h = pbb.h;
         }
       } else if (cur.x !== undefined && cur.w !== undefined) {
-        // Map shape's geoBBox position relative to combined geoBBox
-        cur.x = nx + (obb.x - ob.x) * sx + (orig.x - obb.x);
-        cur.y = ny + (obb.y - ob.y) * sy + (orig.y - obb.y);
-        cur.w = Math.max(1, orig.w * sx);
-        cur.h = Math.max(1, orig.h * sy);
+        /* [uikonv v3] negatives sx/sy = ueber die Gegenkante gezogen: Intervall
+           normalisieren (w/h bleiben positiv) und Inhalt per flipX/flipY spiegeln;
+           immer ab orig gerechnet, nicht kumulativ pro Move-Event. */
+        var _bx1 = nx + (obb.x - ob.x) * sx, _bx2 = _bx1 + obb.w * sx;
+        var _by1 = ny + (obb.y - ob.y) * sy, _by2 = _by1 + obb.h * sy;
+        cur.x = Math.min(_bx1, _bx2) + (orig.x - obb.x);
+        cur.y = Math.min(_by1, _by2) + (orig.y - obb.y);
+        cur.w = Math.max(1, Math.abs(orig.w * sx));
+        cur.h = Math.max(1, Math.abs(orig.h * sy));
+        cur.flipX = (sx < 0) ? !orig.flipX : !!orig.flipX;
+        cur.flipY = (sy < 0) ? !orig.flipY : !!orig.flipY;
         if (cur.type === 'text' && !cur.onPath) cur.wFixed = true;
       }
     });
@@ -13257,9 +13490,14 @@ function onSelectMove(e, pt) {
       var _cx0 = ob.x + ob.w / 2, _cy0 = ob.y + ob.h / 2;
       var _cx1 = nx + nw / 2, _cy1 = ny + nh / 2;
       var _ax1, _ay1;
-      if (handleIdx === 0) { _ax1 = nx + nw; _ay1 = ny + nh; }
+      if (e.altKey) { _ax1 = nx + nw / 2; _ay1 = ny + nh / 2; } /* [uikonv v1] Zentrum bleibt fix */
+      else if (handleIdx === 0) { _ax1 = nx + nw; _ay1 = ny + nh; }
       else if (handleIdx === 1) { _ax1 = nx; _ay1 = ny + nh; }
       else if (handleIdx === 2) { _ax1 = nx; _ay1 = ny; }
+      else if (handleIdx === 'n') { _ax1 = nx + nw / 2; _ay1 = ny + nh; } /* [uikonv v1] Seiten-Handles */
+      else if (handleIdx === 's') { _ax1 = nx + nw / 2; _ay1 = ny; }
+      else if (handleIdx === 'e') { _ax1 = nx; _ay1 = ny + nh / 2; }
+      else if (handleIdx === 'w') { _ax1 = nx + nw; _ay1 = ny + nh / 2; }
       else { _ax1 = nx + nw; _ay1 = ny; }
       var _dx0 = anchorX - _cx0, _dy0 = anchorY - _cy0;
       var _dx1 = _ax1 - _cx1, _dy1 = _ay1 - _cy1;
@@ -13392,7 +13630,7 @@ function onMarqueeMove(pt) {
 
 function onSelectUp(e, pt) {
   if (marqueeRect && marqueeRect.w > 2 && marqueeRect.h > 2) {
-    selIds.clear();
+    if (!window._marqueeAdditive) selIds.clear(); /* [uikonv v1] Shift+Aufziehen = zur Auswahl hinzufuegen */
     for (var i = 0; i < shapes.length; i++) {
       var bb = shapeBBox(shapes[i]);
       if (!bb) continue;
@@ -13406,6 +13644,7 @@ function onSelectUp(e, pt) {
     updateRightPanel();
   }
   marqueeStart = null; marqueeRect = null;
+  window._marqueeAdditive = false; /* [uikonv v1] */
   render();
 }
 
@@ -14423,6 +14662,43 @@ function _vtBlockingModalOpen() {
   return false;
 }
 
+/* [uikonv v1] Offene Overlays, die selbst per Escape schliessen (Popups, Seiten-
+   Panels, Kontextmenue). Solange eines offen ist, soll Escape NICHT zusaetzlich
+   die Auswahl aufheben - eine Ebene pro Tastendruck. */
+function _vtEscapeLayerOpen() {
+  var ids = ['shortcutsPopup', 'infoPopup', 'ctxMenu', 'palettePopup', 'undoHistoryPopup'];
+  for (var i = 0; i < ids.length; i++) {
+    var el = document.getElementById(ids[i]);
+    if (el && el.style.display && el.style.display !== 'none') return true;
+  }
+  var bc = document.body.classList;
+  return bc.contains('layer-panel-open') || bc.contains('box-panel-open') || bc.contains('gen3d-panel-open') || bc.contains('stitch-panel-open');
+}
+
+/* [uikonv v1] Z-Reihenfolge der Auswahl aendern - Logik wie im Kontextmenue
+   (dort inline), hier als Funktion fuer die Tastatur-Bindings. */
+function _zOrderSelection(action) {
+  if (!selId && !selIds.size) return;
+  var ids = new Set(selIds);
+  if (!ids.size && selId) ids.add(selId);
+  var mv = [], rest = [];
+  for (var i = 0; i < shapes.length; i++) { if (ids.has(shapes[i].id)) mv.push(shapes[i]); else rest.push(shapes[i]); }
+  if (!mv.length) return;
+  var res = null;
+  if (action === 'front') { if (rest.length) res = rest.concat(mv); }
+  else if (action === 'back') { if (rest.length) res = mv.concat(rest); }
+  else if (action === 'fwdstep') {
+    var maxI = -1; for (var f = 0; f < shapes.length; f++) { if (ids.has(shapes[f].id) && f > maxI) maxI = f; }
+    var swF = -1; for (var f2 = maxI + 1; f2 < shapes.length; f2++) { if (!ids.has(shapes[f2].id)) { swF = f2; break; } }
+    if (swF >= 0) { var swIdF = shapes[swF].id; var rpF = rest.findIndex(function(x) { return x.id === swIdF; }); if (rpF >= 0) res = rest.slice(0, rpF + 1).concat(mv).concat(rest.slice(rpF + 1)); }
+  } else if (action === 'backstep') {
+    var minI = shapes.length; for (var b = 0; b < shapes.length; b++) { if (ids.has(shapes[b].id) && b < minI) minI = b; }
+    var swB = -1; for (var b2 = minI - 1; b2 >= 0; b2--) { if (!ids.has(shapes[b2].id)) { swB = b2; break; } }
+    if (swB >= 0) { var swIdB = shapes[swB].id; var rpB = rest.findIndex(function(x) { return x.id === swIdB; }); if (rpB >= 0) res = rest.slice(0, rpB).concat(mv).concat(rest.slice(rpB)); }
+  }
+  if (res) { pu(); shapes = res; render(); updateRightPanel(); }
+}
+
 document.addEventListener('keydown', function(e) {
   var k = e.key.toLowerCase();
   var _ae = document.activeElement;
@@ -14548,6 +14824,21 @@ document.addEventListener('keydown', function(e) {
   }
   /* Eyedropper (Feature 1): ESC bricht ab */
   if (k === 'escape' && eyedropperActive) { cancelEyedropper(); e.preventDefault(); return; }
+
+  /* [uikonv v1] Escape ohne laufende Aktion hebt die Auswahl auf (Inkscape-
+     Konvention, universeller "Rausweg"). Im Punkte-Werkzeug stufig: erstes Esc
+     loest nur die Knoten-/Segmentauswahl, das zweite gibt die Form frei. */
+  if (k === 'escape' && !inInput && !_vtEscapeLayerOpen()) {
+    if (tool === 'node' && (selectedNodes.size > 0 || selectedSegment)) {
+      selectedNodes.clear(); selectedNodeIdx = -1; selectedSegment = null;
+      render(); e.preventDefault(); return;
+    }
+    if (selId || selIds.size) {
+      selId = null; selIds.clear();
+      selectedNodes.clear(); selectedNodeIdx = -1; selectedSegment = null;
+      render(); updateRightPanel(); e.preventDefault(); return;
+    }
+  }
 
   if ((k === 'delete' || k === 'backspace') && selId && !inInput) {
     if (tool === 'node') {
@@ -14690,6 +14981,31 @@ document.addEventListener('keydown', function(e) {
       else deleteSelected(); // Fallback: delete entire shape(s)
     } else { deleteSelected(); }
     e.preventDefault();
+  }
+
+  /* [uikonv v1] Z-Reihenfolge per Tastatur (Konvention: PageUp/PageDown = eine
+     Ebene vor/zurueck, Home/End = ganz nach vorne/hinten) - bisher nur im
+     Kontextmenue erreichbar. */
+  if (!inInput && (selId || selIds.size) && !e.ctrlKey && !e.metaKey &&
+      (e.key === 'PageUp' || e.key === 'PageDown' || e.key === 'Home' || e.key === 'End')) {
+    _zOrderSelection(e.key === 'PageUp' ? 'fwdstep' : e.key === 'PageDown' ? 'backstep' : e.key === 'Home' ? 'front' : 'back');
+    e.preventDefault(); return;
+  }
+
+  /* [uikonv v1] Tab/Shift+Tab schaltet im Auswahl-Werkzeug durch die Objekte
+     (Inkscape-Konvention; erreicht auch verdeckte/ueberlappte Formen ohne Maus). */
+  if (e.key === 'Tab' && !inInput && !e.ctrlKey && !e.metaKey && !e.altKey && tool === 'select' && shapes.length) {
+    var _tabVis = shapes.filter(function(s) { return s && !s.hidden && !s.locked; });
+    if (_tabVis.length) {
+      var _tabCur = -1;
+      for (var _tvi = 0; _tvi < _tabVis.length; _tvi++) { if (_tabVis[_tvi].id === selId) { _tabCur = _tvi; break; } }
+      var _tabNext = e.shiftKey ? (_tabCur <= 0 ? _tabVis.length - 1 : _tabCur - 1) : ((_tabCur + 1) % _tabVis.length);
+      var _tabS = _tabVis[_tabNext];
+      selIds.clear(); selId = _tabS.id;
+      getFullSelection(_tabS.id).forEach(function(fid) { selIds.add(fid); });
+      render(); updateRightPanel();
+    }
+    e.preventDefault(); return;
   }
 
   /* [uxfix v1] B01/B10: Im Eingabefeld gehören Ctrl-Kürzel dem Browser (Text-Undo,
@@ -18691,7 +19007,13 @@ function getShapeBounds(id) {
   return bb;
 }
 function alignShapes(mode) {
-  if (selIds.size < 2) return;
+  /* [uikonv v1] Bezug waehlbar: Auswahl (wie bisher) oder Seite. Bei nur einem
+     selektierten Objekt automatisch Seite (an sich selbst ausrichten ist sinnlos;
+     "aufs Blatt zentrieren" ist der haeufige Einsteiger-Fall, z. B. Stickrahmen). */
+  var toPage = !!window._alignToPage || selIds.size < 2;
+  if (!toPage && selIds.size < 2) return;
+  if (selIds.size < 1) return;
+  if (toPage) { _alignShapesToPage(mode); return; }
   pu();
   var bounds = [];
   selIds.forEach(function(id) {
@@ -18721,6 +19043,51 @@ function alignShapes(mode) {
     if (s.points) { for (var j = 0; j < s.points.length; j++) { s.points[j].x += dx; s.points[j].y += dy; } }
     if (s.x !== undefined) { s.x += dx; s.y += dy; }
   });
+  render();
+}
+/* [uikonv v1] Ausrichten relativ zur Seite (0..docW/docH). Gruppen (User-Gruppe,
+   Spiegel-Gruppe, Text-auf-Pfad) werden als EINE Einheit verschoben, sonst wuerde
+   "zentrieren" die Mitglieder uebereinanderstapeln. Einheiten via getFullSelection. */
+function _alignShapesToPage(mode) {
+  if (!selIds.size && selId) selIds.add(selId);
+  if (!selIds.size) return;
+  pu();
+  var seen = {}, units = [];
+  selIds.forEach(function(id) {
+    if (seen[id]) return;
+    var mem = [];
+    getFullSelection(id).forEach(function(m) { if (selIds.has(m)) mem.push(m); });
+    if (!mem.length) mem = [id];
+    var u = {ids: mem, x: Infinity, y: Infinity, r: -Infinity, b: -Infinity};
+    mem.forEach(function(mid) {
+      seen[mid] = true;
+      var bb = getShapeBounds(mid);
+      if (!bb) return;
+      u.x = Math.min(u.x, bb.x); u.y = Math.min(u.y, bb.y);
+      u.r = Math.max(u.r, bb.x + bb.w); u.b = Math.max(u.b, bb.y + bb.h);
+    });
+    if (u.x < Infinity) units.push(u);
+  });
+  var moved = false;
+  units.forEach(function(u) {
+    var uw = u.r - u.x, uh = u.b - u.y;
+    var dx = 0, dy = 0;
+    if (mode === 'left') dx = 0 - u.x;
+    else if (mode === 'centerH') dx = docW / 2 - (u.x + uw / 2);
+    else if (mode === 'right') dx = docW - u.r;
+    else if (mode === 'top') dy = 0 - u.y;
+    else if (mode === 'centerV') dy = docH / 2 - (u.y + uh / 2);
+    else if (mode === 'bottom') dy = docH - u.b;
+    if (!dx && !dy) return;
+    moved = true;
+    u.ids.forEach(function(id) {
+      var s = findShape(id);
+      if (!s) return;
+      if (s.points) { for (var j = 0; j < s.points.length; j++) { s.points[j].x += dx; s.points[j].y += dy; } }
+      if (s.x !== undefined) { s.x += dx; s.y += dy; }
+    });
+  });
+  if (!moved && undoStack.length) { undoStack.pop(); undoLabels.pop(); _updateUndoButtons(); } /* kein Muell-Undo bei No-Op */
   render();
 }
 function distributeShapes(axis) {
@@ -18777,8 +19144,19 @@ function _updateRsidebarActions() {
   var sep = '<div style="width:100%;height:1px;background:var(--border);margin:var(--space-1) 0"></div>';
   var html = '';
 
-  if (multiSel) {
+  {
+    /* [uikonv v1] Ausrichten schon ab EINEM Objekt sichtbar: Bezug ist waehlbar
+       (Auswahl|Seite); bei Einzelauswahl zaehlt automatisch die Seite - so ist
+       "aufs Blatt zentrieren" (z. B. Stickrahmen) direkt erreichbar. */
+    var _apPage = !!window._alignToPage || !multiSel;
+    var _chipBase = 'font-size:var(--fs-2xs);padding:2px 7px;border-radius:var(--radius-xs);cursor:pointer;border:1px solid ';
+    var _chipOff = _chipBase + 'var(--border);background:var(--white);color:var(--fg2)';
+    var _chipOn = _chipBase + 'var(--ac);background:var(--ac);color:#fff';
     html += '<div style="'+lbl+'">Ausrichten</div>';
+    html += '<div style="'+row+'">';
+    html += '<button style="'+(_apPage?_chipOff:_chipOn)+(multiSel?'':';opacity:0.45;cursor:default')+'" data-alignref="sel" title="Relativ zur Auswahl (ab 2 Objekten)">Auswahl</button>';
+    html += '<button style="'+(_apPage?_chipOn:_chipOff)+'" data-alignref="page" title="Relativ zur Seite">Seite</button>';
+    html += '</div>';
     html += '<div style="'+row+'">';
     html += '<button style="'+bs+'" data-align="left" title="Links"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="1" x2="2" y2="15"/><rect x="4" y="3" width="10" height="4" rx="1"/><rect x="4" y="9" width="6" height="4" rx="1"/></svg></button>';
     html += '<button style="'+bs+'" data-align="centerH" title="H-Mitte"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="1" x2="8" y2="15" stroke-dasharray="1.5 1.5"/><rect x="2" y="3" width="12" height="4" rx="1"/><rect x="4" y="9" width="8" height="4" rx="1"/></svg></button>';
@@ -18798,12 +19176,14 @@ function _updateRsidebarActions() {
       html += '</div>';
     }
     html += sep;
+    if (multiSel) { /* [uikonv v1] Gruppieren weiterhin nur bei Mehrfachauswahl */
     html += '<div style="'+lbl+'">Gruppieren</div>';
     html += '<div style="'+row+'">';
     html += '<button style="'+bs+'" data-rs="group" title="Gruppieren (Ctrl+G)"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="6" height="6" rx="1" stroke-dasharray="1.5 1"/><rect x="7" y="7" width="6" height="6" rx="1" stroke-dasharray="1.5 1"/><rect x="3" y="3" width="10" height="10" rx="1"/></svg></button>';
     html += '<button style="'+bs+'" data-rs="ungroup" title="Aufl\u00f6sen (Ctrl+Shift+G)"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg></button>';
     html += '</div>';
     html += sep;
+    }
   }
 
   html += '<div style="'+lbl+'">Ebene</div>';
@@ -18816,6 +19196,13 @@ function _updateRsidebarActions() {
   /* Bind events on the new buttons */
   container.querySelectorAll('[data-align]').forEach(function(btn) {
     btn.addEventListener('click', function() { alignShapes(this.getAttribute('data-align')); });
+  });
+  container.querySelectorAll('[data-alignref]').forEach(function(btn) { /* [uikonv v1] Bezug Auswahl|Seite */
+    btn.addEventListener('click', function() {
+      if (this.getAttribute('data-alignref') === 'sel' && selIds.size < 2) return;
+      window._alignToPage = this.getAttribute('data-alignref') === 'page';
+      _updateRsidebarActions();
+    });
   });
   container.querySelectorAll('[data-dist]').forEach(function(btn) { /* [uxfix v1] B(Verteilen) */
     btn.addEventListener('click', function() { distributeShapes(this.getAttribute('data-dist')); render(); updateRightPanel(); });
@@ -48009,6 +48396,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-07', t:'Neu: magnetische Ausrichtlinien beim Verschieben (Shift-Hinweis an der Linie, Shift schaltet das Einrasten aus, Ctrl verschiebt achsengerade); 8 Skaliergriffe statt 4 (Seitengriffe einachsig, Alt vom Zentrum, Durchziehen über die Gegenkante spiegelt); Alt+Klick wählt das Objekt darunter, Alt+Ziehen zieht eine Kopie; Tab schaltet durch die Objekte, Bild-auf/ab und Home/End ordnen die Ebenen, Escape hebt die Auswahl auf; Ausrichten wahlweise relativ zur Seite, schon ab einem Objekt', c:'uikonv'},
     {d:'2026-07-07', t:'Fehlerkorrektur: Ausblenden in der Stickreihenfolge (Auge pro Zeile und „Alle") funktioniert wieder', c:'stickui-klar'},
     {d:'2026-07-04', t:'Neu: numerische Eingabe von Position, Grösse (mm) und Winkel für ausgewählte Objekte; Objekte verteilen (horizontal/vertikal); DXF-Export (CAD/CNC); „Pfad glätten“ im Rechtsklick-Menü; Spiegeln an Ort und Stelle; Zoom-Einpassen-Knopf', c:'uxfix'},
     {d:'2026-07-04', t:'UX-Feinschliff: Tastenkürzel wirken nicht mehr in Eingabefelder hinein (Ctrl+X/C/Z), Kontextmenü Kopieren/Einfügen/Ausschneiden funktioniert, „Stil“-Knopf im Formen-Panel öffnet wieder das Linienstil-Menü, Doppelklick auf Text öffnet den Texteditor, gedrehte Formen skalieren korrekt, Escape schliesst alle Dialoge einheitlich, Stickerei-Einstellungen sind rückgängig-fähig, leerer Export wird gemeldet, Drag&Drop-Stickreihenfolge bleibt erhalten', c:'uxfix'},
