@@ -2128,7 +2128,7 @@ body.layer-panel-open #rsActions { display:none !important; }
     </div>
     <div class="gen3d-sec" id="gen3dSecRaster">
       <div class="gen3d-sec-t">Raster</div>
-      <div class="gen3d-row"><label>Anzahl<span id="gen3dNv">20</span></label><input type="range" id="gen3dN" min="2" max="30" value="20"></div>
+      <div class="gen3d-row" id="gen3dRowN"><label>Anzahl<span id="gen3dNv">20</span></label><input type="range" id="gen3dN" min="2" max="30" value="20"></div>
       <div class="gen3d-row" id="gen3dRowES"><label>Element<span id="gen3dEsv">100%</span></label><input type="range" id="gen3dEs" min="20" max="150" value="100" step="5"></div>
       <div class="gen3d-row" id="gen3dRowGap"><label>Abstand<span id="gen3dGapv">18%</span></label><input type="range" id="gen3dGap" min="0" max="60" value="18" step="2"></div>
       <div class="gen3d-row" id="gen3dRowAmp"><label>Amplitude<span id="gen3dAmpv">400%</span></label><input type="range" id="gen3dAmp" min="0" max="800" value="400" step="5"></div>
@@ -43542,23 +43542,23 @@ var PAT_PARAMS = {
   hexagons: {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   diamonds: {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   asanoha:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
-  miura:    {elSc:0, gap:1, amp:1, rotB:0, mirror:0},
-  yoshizawa:{elSc:0, gap:1, amp:1, rotB:0, mirror:0},
+  miura:    {elSc:1, gap:1, amp:1, rotB:0, mirror:0}, /* [muster-audit v1] elSc wirkt via _gapCell im Invert - Slider zeigen statt stale-leak */
+  yoshizawa:{elSc:1, gap:1, amp:1, rotB:0, mirror:0}, /* [muster-audit v1] dito */
   waterbomb:{elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   twist:    {elSc:1, gap:1, amp:1, rotB:0, mirror:0},
   auxetic:  {elSc:1, gap:1, amp:1, rotB:0, mirror:0},
-  penrose:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
+  penrose:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0, n:0}, /* [muster-audit v1] n steuert bei Penrose nichts (fix 10 Rauten) -> Anzahl-Slider ausblenden */
   voronoi:  {elSc:1, gap:1, amp:1, rotB:0, mirror:0},
   flasher:  {elSc:1, gap:1, amp:1, rotB:0, mirror:0}, /* [gen3d-fixes v1] */
   truchet:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   wave:     {elSc:0, gap:1, amp:1, rotB:0, mirror:0},
-  zigzag:   {elSc:0, gap:1, amp:1, rotB:0, mirror:0},
+  zigzag:   {elSc:1, gap:1, amp:1, rotB:0, mirror:0}, /* [muster-audit v1] elSc wirkt via _gapCell im Invert - Slider zeigen statt stale-leak */
   circles:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   scales:   {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   brick:    {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
   sashiko:  {elSc:1, gap:1, amp:0, rotB:0, mirror:0},
-  gradmesh: {elSc:0, gap:1, amp:1, rotB:0, mirror:0},
-  motifs:   {elSc:0, gap:1, amp:0, rotB:0, mirror:0}
+  gradmesh: {elSc:0, gap:1, amp:1, rotB:1, mirror:0}, /* [muster-audit v1] horizontales Linienset ist B:1 und dreht mit G.rB - Slider zeigen statt stale-leak */
+  motifs:   {elSc:0, gap:1, amp:0, rotB:0, mirror:0, n:0} /* [muster-audit v1] Anzahl läuft über mCnt */
 };
 
 /* [VT-ORIGAMI-INVERT v1] Patterns die im Invert-Modus als "Druck-Zellen"
@@ -43873,7 +43873,7 @@ window.genPaths = genPaths; /* [goldentests-expose v1] */
 function genPaths() {
   var n = G.n, es = G.elSc/100, P = [];
   var gp = Math.max(0, Math.min(0.6, (G.gap||0)/100));   /* Abstand 0..60 % */
-  var ap = Math.max(0, Math.min((G.pat === 'miura' ? 8 : 2), (G.amp||100)/100));   /* Amplitude 0..2; Miura bis 8 [gen3d-defaults v1] */
+  var ap = Math.max(0, Math.min((G.pat === 'miura' ? 8 : 2), (G.amp == null ? 100 : G.amp)/100));   /* Amplitude 0..2; Miura bis 8 [gen3d-defaults v1]; [muster-audit v1] Fallback nur für null/undefined - `||` frass die 0 (Slider 0% wirkte wie 100%) */
   /* [gap-uniform v1] Im druckbaren Invert kommt die Luecke ZENTRAL aus der
      Render-Ebene (eine einzige gleich breite, kantenparallele Luecke fuer alle
      Zellen). Darum hier KEIN gp-Schrumpf (sonst ungleich breite Luecken bei
@@ -43882,7 +43882,7 @@ function genPaths() {
   var pci = G.invert && isPrintableCellInvertPattern(G.pat);
   /* Cell-Skalierung: Gap verkleinert jede Zelle zusätzlich von ihrem
      Zentrum (Faktor 1.5 für deutlich sichtbaren Effekt). */
-  var cellEs = Math.max(0.05, es * (pci ? 1 : (1 - gp * 1.5)));
+  var cellEs = Math.max(0.05, (pci ? Math.min(1, es) : es * (1 - gp * 1.5))); /* [muster-audit v1] pci-Invert: Element auf 100% gedeckelt - >100% erzeugte überlappende/verschmolzene Tiles (3D-Druck fatal) */
   /* Universelles Area-Shrinking: Gap verringert auch die Gesamtfläche,
      damit Linien/Wellen/Miura/etc. sichtbar Abstand zum Rand bekommen.
      Halbe Stärke gegenüber Cell-Skalierung. */
@@ -44089,7 +44089,7 @@ function genPaths() {
       var c = n, r = Math.max(2, Math.round(n*he/we));
       var dy = he / r;
       var dxNat = we / c;
-      var offX = Math.min(dxNat * 2, dxNat * 0.25 * ap); /* [gen3d-defaults v1] Versatz-Kappe 4x (0.5 -> 2) */
+      var offX = Math.min(dxNat * 2, we * 0.6, dxNat * 0.25 * ap); /* [gen3d-defaults v1] Versatz-Kappe 4x (0.5 -> 2); [muster-audit v1] zusätzlich < we, sonst dx=0 bei n=2 + Amp 800% (Zellen kollabieren zu Nullflächen) */
       var dx = (we - offX) / c;
       var gx2 = function(ri, ci) {
         return -hwe + ci*dx + ((ri % 2 === 0) ? offX : 0);
@@ -44247,7 +44247,7 @@ function genPaths() {
         var cx=-hwe+(ci+.5)*dx, cy=-hhe+(ri+.5)*dy;
         var rad = Math.min(dx,dy)/2 * cellEs;
         var pts=[];
-        for (var a=0;a<=32;a++){var an=a/32*Math.PI*2; pts.push([cx+rad*Math.cos(an),cy+rad*Math.sin(an)]);}
+        for (var a=0;a<32;a++){var an=a/32*Math.PI*2; pts.push([cx+rad*Math.cos(an),cy+rad*Math.sin(an)]);} /* [muster-audit v1] a<32: geschlossene Polys OHNE Naht-Duplikat (Konvention), das Duplikat gab Null-Kanten im Zell-Inset */
         P.push({tp:'poly',pts:pts});
       }
       break;
@@ -44268,6 +44268,7 @@ function genPaths() {
       var scaleH = rad * 1.3;
       var dyS = scaleH;
       var numRows = Math.max(2, Math.floor(he / dyS));
+      if (numRows > 100) { numRows = 100; dyS = he / numRows; } /* [muster-audit v1] Freeze-Guard: kleines Element machte dyS winzig (~19'000 Bögen); Kappe + dyS nachziehen deckt weiter die volle Höhe */
       for (var ri = 0; ri < numRows; ri++) {
         var cy = -hhe + scaleH + ri * dyS;
         if (cy > hhe + 0.1) break;
@@ -44527,34 +44528,45 @@ function genPaths() {
       /* [gen3d-fixes v1] Flasher (NASA/JPL Starshade): verdrehte Polygon-
          Ringe um ein Zentral-Polygon - die Wickelfaltung entfaltbarer
          Satelliten-Strukturen (Zirbel/Trease/Lang). Anzahl = Ringe,
-         Amplitude = Verdrehung pro Ring. Invert: Ring-Facetten als Tiles;
-         Linien-Modus: Ring-Polygone + spiralige Arme. */
-      var mArm = 8;
-      var rings = Math.max(2, Math.min(16, n));
+         Amplitude = Verdrehung pro Ring.
+         [starshade v2] Wie das echte Faltmuster: jedes Ring-Trapez wird
+         DIAGONAL geteilt (die Berg/Tal-Falten des Wickelmusters), alle
+         Diagonalen gleichsinnig in Drehrichtung -> Wirbel-Look. Element
+         läuft über den kantenparallelen _gapCell-Inset (gleich breite
+         Stege wie bei Twist/Miura) statt Zentroid-Schrumpf, der bei den
+         gescherten Facetten ungleiche Splitter machte. Ringe nutzen den
+         vollen Anzahl-Slider (2..30). */
+      var mArm = 12; /* [starshade v2] 12 statt 8 Sektoren: kompaktere Dreiecke statt flacher Slats - das NASA-Original hat viele schmale Sektoren */
+      var rings = Math.max(2, Math.min(30, n));
       var rMax = Math.min(hwe, hhe) * 0.98;
-      var r0 = rMax / (rings + 1);
       var twistPer = (Math.PI/180) * 16 * Math.min(2, ap);
+      /* [starshade v2] Radien mit Potenz 0.8 statt linear: linear hatte 4.3x
+         Flächen-Gefälle innen->aussen (der Median-Inset der Render-Lücke frass
+         die inneren Facetten auf) und ein winziges Zentrum; 0.8 gleicht die
+         Facetten-Flächen an, ohne die Aussenringe zu flach zu machen. */
+      var FR = [];
+      for (var fk=0; fk<=rings; fk++) FR.push(rMax * Math.pow((fk+1)/(rings+1), 0.8));
       var FP = [];
-      for (var fk=0; fk<=rings; fk++) {
-        var frad = r0*(fk+1), frot = fk*twistPer, frow = [];
+      for (fk=0; fk<=rings; fk++) {
+        var frad = FR[fk], frot = fk*twistPer, frow = [];
         for (var fa=0; fa<mArm; fa++) {
           var fan = frot + fa*2*Math.PI/mArm;
           frow.push([frad*Math.cos(fan), frad*Math.sin(fan)]);
         }
         FP.push(frow);
       }
-      var flShr = function(pp){
-        var gx=0, gy=0, q;
-        for (q=0;q<pp.length;q++){ gx+=pp[q][0]; gy+=pp[q][1]; }
-        gx/=pp.length; gy/=pp.length;
-        var s = Math.max(0.3, es); /* [gap-uniform v1] nur Element; Ring-Luecke zentral via Render-Ebene */
-        return pp.map(function(t){ return [gx+(t[0]-gx)*s, gy+(t[1]-gy)*s]; });
-      };
       if (G.invert) {
-        P.push({tp:'poly', printCell:1, pts:flShr(FP[0].slice())});
+        P.push({tp:'poly', printCell:1, pts:_gapCell(FP[0].slice(), FR[0], FR[0])});
         for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
           var fb = (fa+1)%mArm;
-          P.push({tp:'poly', printCell:1, pts:flShr([FP[fk][fa], FP[fk][fb], FP[fk+1][fb], FP[fk+1][fa]])});
+          var fh = FR[fk+1] - FR[fk]; /* lokale Ringhöhe als Zellmass für den Element-Inset */
+          /* Trapez [innen fa, innen fb, aussen fb, aussen fa] diagonal in
+             zwei Dreiecke. Diagonale innen(fb) -> aussen(fa): sie läuft GEGEN
+             die Verdrehung und wird vom Twist verkürzt (Spannweite 45°-Twist).
+             Die gleichsinnige Diagonale würde 45°+Twist aufspannen -> lange
+             Nadel-Dreiecke quer übers Muster (so beim ersten Wurf gesehen). */
+          P.push({tp:'poly', printCell:1, pts:_gapCell([FP[fk][fa], FP[fk][fb], FP[fk+1][fa]], fh, fh)});
+          P.push({tp:'poly', printCell:1, pts:_gapCell([FP[fk][fb], FP[fk+1][fb], FP[fk+1][fa]], fh, fh)});
         }
       } else {
         P.push({tp:'poly', pts:FP[0].slice()});
@@ -44566,6 +44578,12 @@ function genPaths() {
           var farm = [];
           for (fk=0; fk<=rings; fk++) farm.push(FP[fk][fa]);
           P.push({tp:'pline', pts:farm});
+        }
+        /* [starshade v2] Diagonal-Falten als Linien - erst damit ist der
+           Linien-Modus das komplette, faltbare Flasher-Muster. Gleiche
+           Gegen-Twist-Diagonale wie im Invert: innen(fa+1) -> aussen(fa). */
+        for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
+          P.push({tp:'pline', pts:[FP[fk][(fa+1)%mArm], FP[fk+1][fa]]});
         }
       }
       break;
@@ -44618,8 +44636,12 @@ function genPaths() {
     }
   }
   if (G.border) {
-    /* Umrandung zeichnet den Rahmen der effektiven Fläche (inkl. 1,5 cm Rand). */
-    P.push({tp:'poly', border:1, pts:[[-hwe,-hhe],[hwe,-hhe],[hwe,hhe],[-hwe,hhe]]});
+    /* [muster-audit v1] Umrandung als geschlossener LINIENZUG (pline), nicht als
+       poly: ein poly wird beim Einfügen zum GEFÜLLTEN freehand-Rechteck und
+       deckte das ganze Muster als Platte zu; als pline wird der Rahmen über
+       _strokeToOutline zur schmalen Rahmen-Wand, die Vorschau bleibt eine
+       Rahmenlinie. */
+    P.push({tp:'pline', border:1, pts:[[-hwe,-hhe],[hwe,-hhe],[hwe,hhe],[-hwe,hhe],[-hwe,-hhe]]});
   }
   return P;
 }
@@ -44823,6 +44845,20 @@ function pathsToShapes(forReal) {
       }
       out[k] = { x: nx, y: ny };
     }
+    /* [muster-audit v1] Inversions-Guard analog _cellInset: kippt die Orientierung
+       oder bleiben <5% Fläche (uniformInset > Inradius kleiner Zellen, z.B. flache
+       Yoshizawa-Chevrons oder Voronoi-Splitter), wäre das Polygon umgestülpt und
+       ginge so in den 3D-Export. Dann alle Ecken über den gedeckelten Zentroid-
+       Fallback (max 42% zum Zentrum, stülpt nie um) schrumpfen. */
+    var aOrig = 0, aNew = 0;
+    for (var gi = 0; gi < n; gi++) {
+      var gj = (gi + 1) % n;
+      aOrig += pts[gi].x * pts[gj].y - pts[gj].x * pts[gi].y;
+      aNew  += out[gi].x * out[gj].y - out[gj].x * out[gi].y;
+    }
+    if (!(aNew * aOrig > 0) || Math.abs(aNew) < Math.abs(aOrig) * 0.05) {
+      for (var gk = 0; gk < n; gk++) out[gk] = shrinkToCenterFallback(gk);
+    }
     return out;
   }
   function makeFilledOutlineShape(linePts, fillColor, asHole) {
@@ -44985,10 +45021,11 @@ var patInfo = $$('gen3dPatInfo');
 function updateParamVisibility() {
   var params = PAT_PARAMS[G.pat] || {elSc:1, gap:1, amp:0, rotB:1, mirror:1};
   var cellInvert = !!(G.invert && isPrintableCellInvertPattern(G.pat));
+  $$('gen3dRowN').style.display = (params.n === 0) ? 'none' : 'flex'; /* [muster-audit v1] Anzahl ausblenden, wo n nichts steuert (penrose/motifs) */
   $$('gen3dRowES').style.display = params.elSc ? 'flex' : 'none';
   $$('gen3dRowGap').style.display = params.gap ? 'flex' : 'none';
   $$('gen3dRowAmp').style.display = params.amp ? 'flex' : 'none';
-  $$('gen3dRowRB').style.display = params.rotB ? 'flex' : 'none';
+  $$('gen3dRowRB').style.display = (params.rotB && (G.pat !== 'lines' || G.mirror)) ? 'flex' : 'none'; /* [muster-audit v1] bei Linien entstehen B-Pfade nur mit Spiegeln - sonst wäre Muster B° ein toter Slider */
   $$('gen3dRowMirr').style.display = params.mirror ? 'flex' : 'none';
   $$('gen3dRowFill').style.display = cellInvert ? 'none' : 'flex';
   $$('gen3dRowBord').style.display = cellInvert ? 'none' : 'flex';
@@ -48898,6 +48935,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-07', t:'Muster-Generator überarbeitet: Starshade zeigt jetzt das echte NASA-Wickelmuster (dreieckige Falt-Facetten, gleichmässige Faltschlitze, Faltlinien auch im Linien-Modus, Anzahl bis 30 Ringe); „Rand" fügt einen Rahmen statt einer deckenden Platte ein; Amplitude 0% ist wirklich flach; Element-Regler bei Miura/Yoshizawa/Zickzack sichtbar, bei Penrose ist der wirkungslose Anzahl-Regler ausgeblendet; Schutz gegen eingefrorene Vorschau bei extremen Schuppen-Werten', c:'muster-audit'},
     {d:'2026-07-07', t:'Stickerei-Ansicht klarer: einheitliche Begriffe (überall „Reihenabstand" und „Stichlänge", „Zugausgleich" statt Pull, „Stiche streuen" statt Versatz); Stickrahmen-Auswahl in der Statusleiste; Füllung und andersfarbiger Umriss pro Bereich separat ausblendbar (zwei Augen pro Zeile) mit Warnhinweis am Export; „Alles zurücksetzen" fragt nach und steht rechts; Vorschau meldet „Eigenes Design" statt „keine Datei"', c:'stickui-klar'},
     {d:'2026-07-07', t:'Neu im Box-Generator: Box mit runden Ecken (Living Hinge) - Deckel und Boden als gerundete Rechtecke, die Wand als biegsamer Wickelstreifen; 5 Schnittmuster (Gerade, Welle, Wabe, Raute, Kreuz), Schlitz-Parameter automatisch aus Materialstärke, Kerf und Eck-Radius berechnet (mit Warnung bei zu kleinem Radius), Test-Streifen zum Probebiegen', c:'livinghinge'},
     {d:'2026-07-07', t:'Neu: magnetische Ausrichtlinien beim Verschieben (Shift-Hinweis an der Linie, Shift schaltet das Einrasten aus, Ctrl verschiebt achsengerade); 8 Skaliergriffe statt 4 (Seitengriffe einachsig, Alt vom Zentrum, Durchziehen über die Gegenkante spiegelt); Alt+Klick wählt das Objekt darunter, Alt+Ziehen zieht eine Kopie; Tab schaltet durch die Objekte, Bild-auf/ab und Home/End ordnen die Ebenen, Escape hebt die Auswahl auf; Ausrichten wahlweise relativ zur Seite, schon ab einem Objekt', c:'uikonv'},
