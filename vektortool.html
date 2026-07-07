@@ -2174,6 +2174,30 @@ body.layer-panel-open #rsActions { display:none !important; }
       <div class="box-row"><label>Stärke<input type="number" class="box-num" id="boxTv" value="3.0" min="1" max="12" step="0.1"></label><input type="range" id="boxT" min="1" max="12" value="3" step="0.1"></div>
       <div class="box-row" title="Kerf = Schnittfugen-Breite: wie viel Material der Laser/Fräser beim Schneiden wegnimmt. Wird zur Passung kompensiert (Finger etwas breiter, Schlitze etwas schmaler). Laser typisch 0.1-0.2 mm, Fräser = Werkzeugdurchmesser (üblich 1-3 mm)."><label>Kerf<input type="number" class="box-num" id="boxKv" value="0.10" min="0" max="3" step="0.01"></label><input type="range" id="boxK" min="0" max="300" value="10" step="1" title="Schnittfugen-Breite in mm (Laser ~0.1-0.2, Fräser = Werkzeugdurchmesser)"></div><!-- [uxfix v1] Kerf-max 0.5->3 mm: Fräser-Fall (Werkzeugdurchmesser) wie im Tooltip beschrieben jetzt einstellbar; en-dashes -> Bindestriche -->
     </div>
+    <div class="box-sec" id="boxSecFlex"><!-- [livinghinge v1] Living-Hinge-Sektion (Reaktivierung nach box-cleanup v1 + Ausbau) -->
+      <div class="box-sec-t">Runde Ecken</div>
+      <label class="box-cbr" title="Deckel und Boden werden gerundete Rechtecke, die Wand ist EIN durchgehender Wickelstreifen mit Living-Hinge-Schlitzen und biegt sich um die runden Ecken."><input type="checkbox" id="boxORound"> Box mit runden Ecken (Living Hinge)</label>
+      <div class="box-row" id="boxRowRadius" style="display:none"><label>Eck-Radius<input type="number" class="box-num" id="boxRv" value="30" min="3" max="100" step="1"></label><input type="range" id="boxR" min="3" max="100" value="30" step="1"></div>
+      <div id="boxRowLidFit" style="display:none"><label class="box-cbr" title="Haken = Deckel/Boden sitzen als Kappe aussen auf (Wandhöhe = Höhe minus 2x Stärke). Ohne Haken = Deckel/Boden innen eingelegt (Wand volle Höhe)."><input type="checkbox" id="boxCapLid" checked> Deckel/Boden als Kappe (aussen)</label></div>
+      <div id="boxRowFlexCorners" style="display:none"><label class="box-cbr" title="Haken = Schlitze nur in den 4 Eck-Bogen-Zonen: die geraden Wände bleiben steif, die Box bleibt rechteckig mit runden Ecken. Ohne Haken = Schlitze über die ganze Wand, die Box wird oval bis zylindrisch."><input type="checkbox" id="boxFlexCorners" checked> Schlitze nur in den Eck-Zonen</label></div>
+      <div id="boxSecFlexBody" style="display:none">
+        <div class="box-row"><label>Muster</label><select id="boxFlexPattern">
+          <option value="straight" selected>Gerade (flexibelste bis 4 mm)</option>
+          <option value="wave">Welle (dekorativ)</option>
+          <option value="hex">Wabe (Sechseck-Schlitze)</option>
+          <option value="diamond">Raute (dekorativ)</option>
+          <option value="cross">Kreuz (ab 5 mm Material)</option>
+        </select></div>
+        <label class="box-cbr" id="boxRowFlexAuto" title="Berechnet Schlitz-Dichte und -Länge automatisch aus Materialstärke, Kerf und Biegeradius (Torsions-Modell nach DefProc: Steglänge max. 4x Stärke, Stegzahl aus Kerf-Spielraum)."><input type="checkbox" id="boxFlexAuto" checked> Parameter automatisch berechnen</label>
+        <div id="boxFlexManualRows">
+        <div class="box-row"><label>Schlitzlänge<input type="number" class="box-num" id="boxFlexSLv" value="12" min="3" max="48" step="1"></label><input type="range" id="boxFlexSL" min="3" max="48" value="12" step="1"></div>
+        <div class="box-row"><label>Dichte<input type="number" class="box-num" id="boxFlexDv" value="70" min="20" max="95" step="1"></label><input type="range" id="boxFlexD" min="20" max="95" value="70" step="1"></div>
+        </div>
+        <div class="box-info" id="boxFlexInfo">Straight: gerade Torsionsstege (DefProc), am flexibelsten in dünnem Material.</div>
+        <div class="box-stat" id="boxFlexStat" style="display:none"><span id="boxFlexStatTxt"></span></div>
+        <button id="boxFlexSwatchBtn" class="box-btn" style="width:100%;margin-top:8px" title="Fügt einen Probestreifen (100×30 mm) mit den aktuellen Living-Hinge-Parametern ein - vor dem Box-Schnitt am echten Material probebiegen (Materialstreuung ist nur empirisch abschätzbar).">Test-Streifen einfügen</button>
+      </div>
+    </div>
     <div class="box-sec" id="boxSecFinger">
       <div class="box-sec-t" style="display:flex;align-items:center;gap:var(--space-4);">Zinken<label class="box-cbr" style="margin:0;font-weight:400;text-transform:none;letter-spacing:0;" title="Haken = ohne Zinken, stumpf zum Verkleben. Ohne Haken = Finger-Joint (ineinandergreifende Zähne, ohne Kleber stabil)."><input type="checkbox" id="boxOButt"> ohne</label></div><!-- [box-ohne-zinken v1] "ohne" neben dem Zinken-Titel -->
       <div id="boxFingerRows"><!-- [box-ohne-zinken v1] Regler-Wrapper: bei "ohne" ausgeblendet, Titel+Checkbox bleiben -->
@@ -45094,9 +45118,14 @@ var B = {
   flex: false,              // flex aktivieren (mind. eine Wand wird flexibel)
   flexFace: 'front',        // 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'sides' | 'lr' | 'all'
   flexPattern: 'straight',  // 'straight' | 'wave' | 'diamond'
-  flexCornersOnly: false,   // true = Schlitze nur in den 4 Eck-Zonen; false = ganze Wand
-  flexSlitLen: 25,          // Länge eines Schlitzes mm
-  flexDensity: 70           // Dichte 20..95 (höher = engere Reihen, mehr Biegsamkeit)
+  flexCornersOnly: true,    // [livinghinge v1] Default AN: Rechteck mit runden Ecken (aus = ganze Wand -> oval)
+  flexSlitLen: 12,          // Länge eines Schlitzes mm ([livinghinge v1] Default 25->12: Generator clampt eh auf <=4t)
+  flexDensity: 70,          // Dichte 20..95 (höher = engere Reihen, mehr Biegsamkeit)
+  /* [livinghinge v1] fehlende Defaults ergänzt (UI-Reaktivierung nach box-cleanup v1) */
+  boxType: 'standard',      // 'standard' | 'flex' (runde Ecken + Wickelwand)
+  cornerRadius: 30,         // Eck-Radius der Flex-Box mm (30 = warnungsfrei bei t=3/kerf=0.1)
+  capLid: true,             // Deckel/Boden als Kappe (Wand H-2t) statt innen eingelegt
+  flexAuto: true            // Schlitz-Parameter automatisch aus Radius/Materialstärke/Kerf
 };
 var DEF = _vtDeepClone(B);
 var open = false;
@@ -45384,8 +45413,16 @@ function generateLivingHingeSlits(w, h, opts) {
   var df = (density - 20) / 75;                       /* 0..1 */
 
   /* Pitch der Steg-Spalten entlang der Biegerichtung (DefProc-Referenz ~ t). */
-  var colPitch = t * (2.0 - df * 1.1);                /* 2.0t @20% .. 0.9t @95% */
+  /* [muster v4] Auto-Pitch-Override NUR fuer Gerade: das DefProc-Torsionsmodell gilt fuer
+     gerade Stege. Deko-Muster (Welle/Wabe/Raute/Kreuz) brauchen ihren Dichte-Pitch, sonst
+     degenerieren sie (Raute wurde mit 0.9mm-Override zu senkrechten Mini-Strichen). */
+  var colPitch = (opts.colPitch > 0 && pattern === 'straight') ? opts.colPitch : t * (2.0 - df * 1.1);
   if (colPitch < 2 * kerf + 0.4) colPitch = 2 * kerf + 0.4;
+  if (pattern === 'hex') {
+    /* [muster v3] Waben sind ~2*hw breit: Mindest-Pitch sichert den Torsions-Steg dazwischen */
+    var hwF = Math.min(0.35 * t, 1.0);
+    if (colPitch < 2 * hwF + 0.8) colPitch = 2 * hwF + 0.8;
+  }
 
   /* Bruecke (ungeschnittener Steg) zwischen den Schlitz-Segmenten, kerf-bewusst. */
   var bridge = Math.max(2.5 * kerf, t * (0.55 - df * 0.2));
@@ -45399,6 +45436,72 @@ function generateLivingHingeSlits(w, h, opts) {
   var marginH = Math.max(bridge, 1);
   var aw = w - 2 * marginW, ah = h - 2 * marginH;
   if (aw <= colPitch || ah <= segLen * 0.6) return slits;
+
+  if (pattern === 'cross') {
+    /* [livinghinge v1] Obrary-Kreuzmuster als reine Linien-Schnitte: Mittellinie mit
+       V-Gabel an beiden Enden (Tips aussen, Joint innen). 2-Richtungs-Flex, im Benchtest
+       auf >=5mm Sperrholz flexibler als straight. Referenz-DXF (3mm) dickenrelativ
+       skaliert: Gesamtlaenge ~5.7t, Gabeltiefe ~1.3t, Gabeloeffnung +-0.73t,
+       Spaltenpitch ~7t (Dichte-skaliert), Spalten um halbe Periode versetzt. */
+    var totC = Math.min(3 * t, ah);    /* [muster v6] 3t: kleinere Kreuze -> dichtere Zeilen */
+    var forkC = Math.min(1.3 * t, totC * 0.3);
+    var pitchC = 7 * t * (1.35 - df * 0.7);
+    /* [muster v6] Dichter: mind. ~6 Spalten pro Zone (vorher 4), Untergrenze 2.5t */
+    if (pitchC > aw / 6) pitchC = Math.max(aw / 6, 2.5 * t);
+    var halfC = Math.min(0.73 * t, pitchC * 0.35);
+    if (pitchC < 2 * halfC + 2 * kerf + 0.6) pitchC = 2 * halfC + 2 * kerf + 0.6;
+    var brC = Math.max(bridge, 0.7 * t);
+    /* [muster v5] Zeilen an BEIDEN Raendern verankert: erstes Kreuz startet bei marginH,
+       letztes endet bei marginH+ah, Zwischenabstand gleichmaessig -> nur VOLLSTAENDIGE
+       Kreuze, oben und unten buendig (vorher blieb unten ein leeres Band). */
+    var nRowsC = Math.max(1, Math.floor((ah - totC) / (totC + brC)) + 1);
+    var perC = (nRowsC > 1) ? (ah - totC) / (nRowsC - 1) : 0;
+    var nColsC = Math.floor(aw / pitchC);
+    if (nColsC < 1) return slits;
+    var startC = marginW + (aw - nColsC * pitchC) / 2 + pitchC / 2;
+    for (var cC = 0; cC <= nColsC; cC++) {
+      var xCC = startC + cC * pitchC;
+      if (xCC > w - marginW + 0.01) break;
+      var offC = ((cC & 1) && nRowsC > 1) ? perC / 2 : 0;
+      var lastEndC = -1, firstStartC = -1;
+      for (var kC = 0; kC < nRowsC; kC++) {
+        var yC = (nRowsC === 1) ? marginH + (ah - totC) / 2 : marginH + offC + kC * perC;
+        if (yC + totC > marginH + ah + 0.01) break;
+        var yTopJ = yC + forkC, yBotJ = yC + totC - forkC;
+        slits.push({ poly: [ { x: xCC - halfC, y: yC }, { x: xCC, y: yTopJ }, { x: xCC + halfC, y: yC } ], smooth: false });
+        slits.push({ x1: xCC, y1: yTopJ, x2: xCC, y2: yBotJ });
+        slits.push({ poly: [ { x: xCC - halfC, y: yC + totC }, { x: xCC, y: yBotJ }, { x: xCC + halfC, y: yC + totC } ], smooth: false });
+        if (firstStartC < 0) firstStartC = yC;
+        lastEndC = yC + totC;
+      }
+      if (opts.edgeCut && offC) {
+        /* [muster v6] Rand = HALBES Kreuz statt blosser Linie: wie ein von der Kante
+           halbiertes Kreuz - Mittellinie ab Kante, innen abgeschlossen mit V-Gabel
+           (Tips aussen, Joint innen, exakt wie am Ende eines vollen Kreuzes). */
+        if (firstStartC > 0) {
+          var hcEnd = firstStartC - brC;
+          if (hcEnd > forkC + 0.8) {
+            var yJt = hcEnd - forkC;
+            slits.push({ x1: xCC, y1: 0, x2: xCC, y2: yJt });
+            slits.push({ poly: [ { x: xCC - halfC, y: hcEnd }, { x: xCC, y: yJt }, { x: xCC + halfC, y: hcEnd } ], smooth: false });
+          } else if (hcEnd > 0.5) {
+            slits.push({ x1: xCC, y1: 0, x2: xCC, y2: hcEnd });
+          }
+        }
+        if (lastEndC > 0) {
+          var hcStart = lastEndC + brC;
+          if (h - hcStart > forkC + 0.8) {
+            var yJb = hcStart + forkC;
+            slits.push({ poly: [ { x: xCC - halfC, y: hcStart }, { x: xCC, y: yJb }, { x: xCC + halfC, y: hcStart } ], smooth: false });
+            slits.push({ x1: xCC, y1: yJb, x2: xCC, y2: h });
+          } else if (h - hcStart > 0.5) {
+            slits.push({ x1: xCC, y1: hcStart, x2: xCC, y2: h });
+          }
+        }
+      }
+    }
+    return slits;
+  }
 
   if (pattern === 'diamond') {
     /* [flexbox-diamond-linien v1] Diagonales Linien-Lattice: kurze diagonale Schnitte
@@ -45414,14 +45517,46 @@ function generateLivingHingeSlits(w, h, opts) {
       var xCD = startWD + cD * colPitch;
       if (xCD > w - marginW + 0.01) break;
       var offD = (cD & 1) ? perD / 2 : 0;
+      var lastEndD = -1, dirLastD = 1, lastIdxD = -1;
+      if (opts.edgeCut && offD) {
+        /* [muster v5] Rand-Stub DIAGONAL im Zickzack-Winkel: Fortsetzung des (gedachten)
+           Segments oberhalb der Kante, Richtung alterniert zum ersten Innen-Segment. */
+        var eTopD = marginH + offD - bridge;
+        if (eTopD > 0.5) {
+          var dpD = -1; /* erstes Innen-Segment hat Richtung +1 */
+          var xTopD = xCD - dpD * dxD + dpD * 2 * dxD * ((segLen - eTopD) / segLen);
+          slits.push({ x1: xTopD, y1: 0, x2: xCD + dpD * dxD, y2: eTopD });
+        }
+      }
       var segIdxD = 0;
       for (var yD = marginH + offD; yD < marginH + ah - 0.01; yD += perD) {
         var yaD = yD, ybD = Math.min(yD + segLen, marginH + ah);
         if (ybD - yaD >= Math.min(2, segLen * 0.45)) {
           var dirD = (segIdxD & 1) ? -1 : 1;
-          slits.push({ x1: xCD - dirD * dxD, y1: yaD, x2: xCD + dirD * dxD, y2: ybD });
+          /* [muster v5] Auslenkung proportional zur Segmentlaenge -> KONSTANTER Winkel
+             auch bei geklemmten End-Segmenten (vorher wurden kurze Segmente steiler). */
+          var fracD = (ybD - yaD) / segLen;
+          slits.push({ x1: xCD - dirD * dxD, y1: yaD, x2: xCD - dirD * dxD + dirD * 2 * dxD * fracD, y2: ybD });
+          lastEndD = ybD; dirLastD = dirD; lastIdxD = slits.length - 1;
         }
         segIdxD++;
+      }
+      if (opts.edgeCut && offD && lastEndD > 0) {
+        if (lastEndD >= marginH + ah - 0.05 && lastIdxD >= 0) {
+          /* [muster v5] geklemmtes End-Segment im GLEICHEN Winkel bis durch die Kante ziehen */
+          var lsD = slits[lastIdxD];
+          var fracHD = (h - lsD.y1) / segLen;
+          lsD.x2 = xCD - dirLastD * dxD + dirLastD * 2 * dxD * fracHD;
+          lsD.y2 = h;
+        } else {
+          var eBotD = lastEndD + bridge;
+          if (h - eBotD > 0.5) {
+            /* Bottom-Stub diagonal, Richtung alterniert zum letzten Innen-Segment */
+            var dnD = -dirLastD;
+            var xEndD = xCD - dnD * dxD + dnD * 2 * dxD * ((h - eBotD) / segLen);
+            slits.push({ x1: xCD - dnD * dxD, y1: eBotD, x2: xEndD, y2: h });
+          }
+        }
       }
     }
     return slits;
@@ -45432,23 +45567,91 @@ function generateLivingHingeSlits(w, h, opts) {
   var usedW = nCols * colPitch;
   var startW = marginW + (aw - usedW) / 2 + colPitch * 0.5;
   var per = segLen + bridge;                          /* Periode entlang h */
+  var ampW = Math.min(colPitch * 0.28, 1.1);          /* [muster v4] Wellen-Amplitude, auch fuer Rand-Stubs */
 
   for (var col = 0; col <= nCols; col++) {
     var xC = startW + col * colPitch;
     if (xC > w - marginW + 0.01) break;
     var off = (col & 1) ? per / 2 : 0;                /* versetzte Spalten */
+    var lastEnd = -1; /* [rundeecken v2] Ende des letzten Segments fuer Kanten-Durchschnitt */
+    if (opts.edgeCut && off) {
+      /* [rundeecken v2] Versetzte Spalten schneiden durch BEIDE Kanten (klassisches
+         Lattice-Hinge, DefProc/Obrary): ohne Durchschnitt bleibt entlang beider Raender
+         ein durchgehender ungeschnittener Materialstreifen, der die Biegung blockiert. */
+      var eTop = marginH + off - bridge;
+      if (eTop > 0.5) {
+        if (pattern === 'wave') {
+          /* [muster v4] Rand-Stub gewellt wie die Segmente (gleiche Wellenlaenge, Phase 0 ab Kante) */
+          var ptsT = [], nT = Math.max(2, Math.round(eTop / segLen * 6));
+          for (var sT = 0; sT <= nT; sT++) {
+            var yT = eTop * sT / nT;
+            ptsT.push({ x: xC + Math.sin(yT / segLen * Math.PI * 2) * ampW, y: yT });
+          }
+          slits.push({ poly: ptsT });
+        } else {
+          slits.push({ x1: xC, y1: 0, x2: xC, y2: eTop });
+        }
+      }
+    }
     for (var y = marginH + off; y < marginH + ah - 0.01; y += per) {
       var ya = y, yb = Math.min(y + segLen, marginH + ah);
       if (yb - ya < Math.min(2, segLen * 0.45)) continue;   /* Reststueck zu klein */
+      lastEnd = yb;
       if (pattern === 'wave') {
-        var nSeg = 6, amp = Math.min(colPitch * 0.28, 1.1), pts = [];
+        var nSeg = 6, pts = [];
         for (var s = 0; s <= nSeg; s++) {
           var sf = s / nSeg;
-          pts.push({ x: xC + Math.sin(sf * Math.PI * 2) * amp, y: ya + sf * (yb - ya) });
+          pts.push({ x: xC + Math.sin(sf * Math.PI * 2) * ampW, y: ya + sf * (yb - ya) });
         }
         slits.push({ poly: pts });
+      } else if (pattern === 'hex') {
+        /* [muster v3] Wabe: flacher Sechseck-Schlitz (spitze Enden, flache Mitte) statt
+           Linie - gleiche Versatz-Spalten wie Gerade, wabenartige Optik. Eigene
+           parametrische Geometrie (dickenrelativ), kein fremdes Muster kopiert. */
+        var hwH = Math.min(0.35 * t, 1.0);
+        var tipH = Math.min(0.2 * (yb - ya), 1.8 * hwH);
+        slits.push({ closed: true, smooth: false, poly: [
+          { x: xC, y: ya }, { x: xC + hwH, y: ya + tipH }, { x: xC + hwH, y: yb - tipH },
+          { x: xC, y: yb }, { x: xC - hwH, y: yb - tipH }, { x: xC - hwH, y: ya + tipH }
+        ] });
       } else {
         slits.push({ x1: xC, y1: ya, x2: xC, y2: yb });
+      }
+    }
+    if (opts.edgeCut && off && lastEnd > 0) {
+      /* [rundeecken v2] Kanten-Durchschnitt unten: endet das letzte Segment geklemmt am
+         Zonenrand, wird ES bis durch die Kante verlaengert (sonst blieben unten genau
+         marginH ungeschnitten); sonst eigener Stub ab lastEnd+bridge. */
+      if (lastEnd >= marginH + ah - 0.05) {
+        var lastSlit = slits[slits.length - 1];
+        if (lastSlit.closed) { slits.push({ x1: xC, y1: lastEnd, x2: xC, y2: h }); } /* [muster v3] Wabe nicht deformieren: Stub ab Spitze */
+        else if (lastSlit.poly) {
+          if (pattern === 'wave') {
+            /* [muster v4] Wellen-Fortsetzung bis zur Kante statt gerader Verlaengerung */
+            var yA = lastSlit.poly[lastSlit.poly.length - 1].y;
+            for (var sE = 1; sE <= 3; sE++) {
+              var yE = yA + (h - yA) * sE / 3;
+              lastSlit.poly.push({ x: xC + Math.sin((yE - yA) / segLen * Math.PI * 2) * ampW, y: yE });
+            }
+          } else {
+            lastSlit.poly[lastSlit.poly.length - 1].y = h;
+          }
+        }
+        else lastSlit.y2 = h;
+      } else {
+        var eBot = lastEnd + bridge;
+        if (h - eBot > 0.5) {
+          if (pattern === 'wave') {
+            var ptsB = [], nB = Math.max(2, Math.round((h - eBot) / segLen * 6));
+            for (var sB = 0; sB <= nB; sB++) {
+              var yB2 = eBot + (h - eBot) * sB / nB;
+              ptsB.push({ x: xC + Math.sin((yB2 - eBot) / segLen * Math.PI * 2) * ampW, y: yB2 });
+            }
+            slits.push({ poly: ptsB });
+          } else {
+            slits.push({ x1: xC, y1: eBot, x2: xC, y2: h });
+          }
+        }
       }
     }
   }
@@ -45543,7 +45746,7 @@ function buildCrossFlexSlits() {
   for (var i=0;i<regions.length;i++) {
     var r = regions[i];
     var slits = generateLivingHingeSlits(r.w, r.h, {
-      pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t
+      pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t, kerf: B.kerf /* [livinghinge v1] */
     });
     out.push({ region: r, slits: slits });
   }
@@ -45623,7 +45826,11 @@ function buildRoundedRectWithTabs(W, D, R) {
 /* Wickelstreifen mit Slots oben+unten (passend zu Deckel/Boden-Tabs) +
    Living-Hinge-Schlitzen über die gesamte Streifenbreite. */
 function buildFlexStripFull(W, D, H, R) {
-  var arc = Math.PI * R / 2;
+  /* [livinghinge v1] boxes.py-Stretch: Flex-Zonen ~5% kuerzer planen, weil sich die
+     Schlitze beim Biegen oeffnen und den Streifen laengen - sonst steht die Wickelwand
+     an den Steckverbindungen ueber. Nur die Bogen-Zonen betroffen; die geraden Zonen
+     (mit den Slots fuer Deckel/Boden) bleiben exakt. */
+  var arc = (Math.PI * R / 2) / 1.05;
   var sTop = Math.max(0.1, W - 2*R);
   var sRight = Math.max(0.1, D - 2*R);
   var sBottom = Math.max(0.1, W - 2*R);
@@ -45670,15 +45877,24 @@ function buildFlexStripFull(W, D, H, R) {
      Eck-Zonen-Modus: nur in den 4 Bogenzonen, gerade Waende bleiben steif
      (echtes Rechteck mit runden Ecken). */
   var hingeOpts = { pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t, kerf: B.kerf };
+  /* [livinghinge v1] Auto-Parametrik: Pitch aus Stegzahl-Minimum (Kerf-Spielraum, DefProc),
+     Segmentlänge 3t (Generator clampt auf <=4t). Biegezone = Eck-Bogen bzw. ganzer Umfang. */
+  if (B.flexAuto) {
+    var _ap = _flexAutoPitch(B.flexCornersOnly ? arc : perim, B.flexCornersOnly ? Math.PI / 2 : 2 * Math.PI);
+    hingeOpts.colPitch = _ap.pitch;
+    hingeOpts.slitLen = 3 * B.t;
+  }
   var slits;
   if (B.flexCornersOnly) {
     slits = [];
-    var pad = Math.min(arc * 0.4, sTop * 0.25, sRight * 0.25);
-    if (pad < 0) pad = 0;
+    /* [rundeecken v2] Zone exakt = Viertelbogen (wie boxes.py, s. Parametrik-Recherche).
+       Das alte pad (bis 5 mm) ragte in die geraden Slot-Zonen (Schnitt-Kollisionen mit den
+       Steck-Slots) und beim letzten Eck ueber das Streifenende hinaus - Lukas' "Raender". */
+    hingeOpts.edgeCut = true;
     var cornerStarts = [ sTop, sTop + arc + sRight, sTop + 2*arc + sRight + sBottom, sTop + 3*arc + sRight + sBottom + sLeft ];
     for (var ci = 0; ci < 4; ci++) {
-      var cx0 = cornerStarts[ci] - pad;
-      var zoneSlits = generateLivingHingeSlits(arc + 2*pad, H, hingeOpts);
+      var cx0 = cornerStarts[ci];
+      var zoneSlits = generateLivingHingeSlits(arc, H, hingeOpts);
       for (var zi = 0; zi < zoneSlits.length; zi++) {
         var zs = zoneSlits[zi];
         if (zs.poly) { for (var pj = 0; pj < zs.poly.length; pj++) zs.poly[pj].x += cx0; }
@@ -45818,7 +46034,8 @@ function buildAllPanels() {
         pattern: B.flexPattern,
         slitLen: B.flexSlitLen,
         density: B.flexDensity,
-        t: B.t
+        t: B.t,
+        kerf: B.kerf /* [livinghinge v1] fehlte: Brücke war auf 0.15-Fallback statt echtem Kerf */
       });
     }
     out.push({ face: f, label: d.label, w: d.w, h: d.h, poly: poly });
@@ -46322,6 +46539,7 @@ function updateStat() {
   var secF = $$('boxSecFinger');
   if (secF) secF.style.display = '';
   if (typeof _boxFingerRowsVis === 'function') _boxFingerRowsVis();
+  if (typeof _flexStatUpdate === 'function') _flexStatUpdate(); /* [livinghinge v1] */
 }
 
 /* ══ Panel öffnen/schliessen ══ */
@@ -46459,6 +46677,13 @@ if (typeSel) typeSel.addEventListener('change', function(){
   refreshTypeUi();
   scheduleUpdate();
 });
+/* [rundeecken v2] Runde Ecken als einzige Living-Hinge-Option: Checkbox statt Box-Typ-Select */
+var roundCb = $$('boxORound');
+if (roundCb) roundCb.addEventListener('change', function(){
+  B.boxType = roundCb.checked ? 'flex' : 'standard';
+  refreshTypeUi();
+  scheduleUpdate();
+});
 bindSlider('boxR', 'boxRv', 'cornerRadius');
 
 function refreshTypeUi() {
@@ -46467,20 +46692,39 @@ function refreshTypeUi() {
   if (rowR) rowR.style.display = isFlex ? '' : 'none';
   var rowLid = $$('boxRowLidFit');
   if (rowLid) rowLid.style.display = isFlex ? '' : 'none';
+  /* [livinghinge v1] Eck-Zonen-Checkbox nur bei Flex-Box; Flexible-Wand-Zeile + Flächenwahl
+     nur bei Standard-Box (bei der Flex-Box ist die Wickelwand immer flexibel) */
+  var rowCorners = $$('boxRowFlexCorners');
+  if (rowCorners) rowCorners.style.display = isFlex ? '' : 'none';
+  var rowOF = $$('boxRowOFlex');
+  if (rowOF) rowOF.style.display = isFlex ? 'none' : '';
+  var rowFF = $$('boxRowFlexFace');
+  if (rowFF) rowFF.style.display = isFlex ? 'none' : '';
   var info = $$('boxTypeInfo');
   if (info) info.textContent = isFlex
-    ? 'Flex-Box: Deckel + Boden als gerundete Rechtecke, dazwischen ein Wickelstreifen mit Living-Hinge-Schlitzen in den 4 Eck-Zonen — beim Aufrollen ergibt sich die runde Form.'
-    : 'Standard: 6 flache Wände mit Finger-Joint im Cross-Unfold.';
-  /* Bei Flex-Box: Verbindung & Faces sind irrelevant — leicht abblenden */
-  var jointSec = panel.querySelector('.box-sec:nth-child(2)');  /* Verbindung */
-  if (jointSec) jointSec.style.opacity = isFlex ? 0.45 : 1;
-  /* Flex-Wand-Sektion automatisch aktivieren bei Flex-Box (Slit-Parameter werden für Streifen gebraucht) */
+    ? 'Flex-Box: Deckel + Boden als gerundete Rechtecke, dazwischen ein Wickelstreifen mit Living-Hinge-Schlitzen.'
+    : 'Standard: 6 flache Wände mit Finger-Joint.';
+  /* [livinghinge v1] Bei Flex-Box sind die Flächen-Checkboxen irrelevant -> abblenden.
+     (Vorher zeigte nth-child(2) nach box-cleanup auf die falsche Sektion.) */
+  var facesEl = panel.querySelector('.box-faces');
+  var facesSec = facesEl && facesEl.closest ? facesEl.closest('.box-sec') : null;
+  if (facesSec) facesSec.style.opacity = isFlex ? 0.45 : 1;
+  /* Flex-Wand automatisch aktivieren bei Flex-Box (Slit-Parameter werden für den Streifen gebraucht) */
   if (isFlex && !B.flex) {
     B.flex = true;
+    B._flexAutoForced = true; /* [livinghinge v1] merken: nicht vom Nutzer angehakt */
     var fcb = $$('boxOFlex');
     if (fcb) fcb.checked = true;
     refreshFlexBody();
+  } else if (!isFlex && B.flex && B._flexAutoForced) {
+    /* [livinghinge v1] nur automatisch erzwungenes Flex wieder zurücknehmen */
+    B.flex = false;
+    B._flexAutoForced = false;
+    var fcb2 = $$('boxOFlex');
+    if (fcb2) fcb2.checked = false;
+    refreshFlexBody();
   }
+  if (typeof _flexManualRowsVis === 'function') _flexManualRowsVis();
 }
 
 var flexFaceSel = $$('boxFlexFace');
@@ -46492,14 +46736,17 @@ if (flexPatSel) flexPatSel.addEventListener('change', function(){
   B.flexPattern = flexPatSel.value;
   var info = $$('boxFlexInfo');
   if (info) {
-    info.textContent = (B.flexPattern === 'wave') ? 'Wave: wellige Stege, weichere Biegung, dekorativ.'
-                     : (B.flexPattern === 'diamond') ? 'Diamond: Rauten-Stege, halten in dickem Holz besser.'
-                     : 'Straight: gerade Torsionsstege (DefProc), am flexibelsten in dünnem Material.';
+    info.textContent = (B.flexPattern === 'wave') ? 'Welle: wellige Schnitte, weichere Biegung, dekorativ.'
+                     : (B.flexPattern === 'hex') ? 'Wabe: flache Sechseck-Schlitze im Versatz-Raster - wabenartige Optik, mehr offene Fläche (die schmalen Ausschnitte fallen heraus).' /* [muster v3] */
+                     : (B.flexPattern === 'diamond') ? 'Raute: diagonales Zickzack-Gitter, dekorativ.'
+                     : (B.flexPattern === 'cross') ? 'Kreuz: Mittellinie mit V-Gabeln (Obrary) - auf dickem Material (ab ~5 mm) am flexibelsten, biegt in 2 Richtungen.' /* [livinghinge v1] */
+                     : 'Gerade: versetzte Torsionsstege (DefProc), am flexibelsten in dünnem Material.';
   }
   scheduleUpdate();
 });
 bindSlider('boxFlexSL', 'boxFlexSLv', 'flexSlitLen');
 bindSlider('boxFlexD',  'boxFlexDv',  'flexDensity');
+bindCbx('boxFlexAuto', 'flexAuto', function(){ _flexManualRowsVis(); }); /* [livinghinge v1] */
 var flexCornersCb = $$('boxFlexCorners');
 if (flexCornersCb) flexCornersCb.addEventListener('change', function(){ B.flexCornersOnly = flexCornersCb.checked; scheduleUpdate(); });
 
@@ -46519,6 +46766,88 @@ function refreshLayoutDisable() {
 function refreshFlexBody() {
   var body = $$('boxSecFlexBody');
   if (body) body.style.display = B.flex ? '' : 'none';
+}
+
+/* [livinghinge v1] Manuelle Regler nur zeigen, wenn Auto aus ist (Auto gilt nur für die
+   Flex-Box, wo der Biegeradius bekannt ist; bei der flexiblen Wand immer manuell). */
+function _flexManualRowsVis() {
+  var autoRow = $$('boxRowFlexAuto');
+  if (autoRow) autoRow.style.display = (B.boxType === 'flex') ? '' : 'none';
+  var rows = $$('boxFlexManualRows');
+  if (rows) rows.style.display = (B.boxType === 'flex' && B.flexAuto !== false) ? 'none' : '';
+}
+
+/* [livinghinge v1] DefProc-Torsionsmodell: kleinste Stegzahl n, bei welcher der Twist pro
+   Steg (theta/n) den Kerf-Spielraum nicht sprengt. Clearance-Formel (Quadratsteg):
+   k = t * (sqrt(2)*cos(pi/4 - theta/n) - 1) <= kerf.
+   Referenz: t=3, kerf=0.2, theta=90° -> n=23 (deckt sich mit DefProc-Beispiel). */
+function _hingeNMin(t, kerf, theta) {
+  var start = Math.max(1, Math.ceil(theta / (Math.PI / 4))); /* Twist pro Steg <= 45° (Formel-Domäne) */
+  for (var n = start; n <= 720; n++) {
+    var k = t * (Math.SQRT2 * Math.cos(Math.PI / 4 - theta / n) - 1);
+    if (k <= kerf) return n;
+  }
+  return 720;
+}
+
+/* [livinghinge v1] Auto-Pitch für eine Biegezone: Zonenbreite / n_min, nach unten durch
+   die Schneidbarkeit (2*kerf + 0.4) begrenzt, nach oben durch 2t (dichter = weniger Spannung). */
+function _flexAutoPitch(zoneW, theta) {
+  var kerf = Math.max(B.kerf || 0, 0.1);
+  var nMin = _hingeNMin(B.t, kerf, theta);
+  var floor = Math.max(2 * kerf + 0.4, 0.9);
+  /* [rundeecken v2] Generator laesst t/2 Randabstand je Zonenseite -> nutzbare Breite */
+  var usable = Math.max(1, zoneW - B.t);
+  var raw = usable / nMin;
+  return { nMin: nMin, floor: floor, usable: usable, pitch: Math.max(floor, Math.min(raw, B.t)), ok: raw >= floor - 1e-9 }; /* Cap bei t: dichter = weniger Spannung pro Steg */
+}
+
+/* [livinghinge v1] Kennzahlen + Warnungen unter den Living-Hinge-Reglern. */
+function _flexStatUpdate() {
+  var stat = $$('boxFlexStat'), txt = $$('boxFlexStatTxt');
+  if (!stat || !txt) return;
+  var isFlex = (B.boxType === 'flex');
+  if (!isFlex && !B.flex) { stat.style.display = 'none'; return; }
+  stat.style.display = '';
+  var msg = '', warn = '';
+  var kerf = Math.max(B.kerf || 0, 0.05);
+  if (isFlex) {
+    var W = B.inner ? B.W + 2 * B.t : B.W, D = B.inner ? B.D + 2 * B.t : B.D;
+    var R = Math.max(3, Math.min(B.cornerRadius || 30, Math.min(W, D) / 2 - 3));
+    var arc = (Math.PI * R / 2) / 1.05; /* wie buildFlexStripFull (boxes.py-Stretch) */
+    var perim = 2 * W + 2 * D - 8 * R + 4 * arc;
+    var theta = B.flexCornersOnly ? Math.PI / 2 : 2 * Math.PI;
+    var zoneW = B.flexCornersOnly ? arc : perim;
+    var a = _flexAutoPitch(zoneW, theta);
+    var pitchUsed;
+    if (B.flexAuto) { pitchUsed = a.pitch; }
+    else {
+      var df = (Math.min(95, Math.max(20, B.flexDensity)) - 20) / 75;
+      pitchUsed = Math.max(B.t * (2.0 - df * 1.1), 2 * kerf + 0.4);
+    }
+    var nCols = Math.floor(a.usable / pitchUsed) + 1; /* [rundeecken v2] wie Generator (Spalten 0..n inkl.) */
+    msg = (B.flexCornersOnly ? 'Eck-Bogen ' + arc.toFixed(1) + ' mm' : 'Wickelwand ' + zoneW.toFixed(0) + ' mm')
+        + ' · ' + nCols + ' Steg-Spalten (min. ' + a.nMin + ') · Pitch ' + pitchUsed.toFixed(2) + ' mm';
+    if (B.flexPattern !== 'straight') msg += ' · Kennzahlen gelten für «Gerade» - Deko-Muster mit Test-Streifen prüfen';
+    if (nCols < a.nMin) {
+      if (B.flexCornersOnly) {
+        /* [rundeecken v2] usable(R) = pi*R/2/1.05 - t >= nMin*Pitch-Boden aufgeloest nach R */
+        var rMin = (a.nMin * a.floor + B.t) * 2 * 1.05 / Math.PI;
+        warn = 'Zu wenige Stege für spannungsfreies Biegen - Eck-Radius auf min. ~' + Math.ceil(rMin) + ' mm erhöhen' + (B.flexAuto ? '' : ' oder Auto aktivieren') + '.';
+      } else {
+        warn = 'Zu wenige Stege für spannungsfreies Biegen - Dichte erhöhen' + (B.flexAuto ? '' : ' oder Auto aktivieren') + '.';
+      }
+    }
+  } else {
+    /* Flexible Wand (Standard-Box): kein definierter Biegeradius, nur Geometrie-Kennwerte */
+    var segLen = Math.min(B.flexSlitLen || 3 * B.t, 4 * B.t);
+    var df2 = (Math.min(95, Math.max(20, B.flexDensity)) - 20) / 75;
+    var pitch2 = Math.max(B.t * (2.0 - df2 * 1.1), 2 * kerf + 0.4);
+    msg = 'Segment ' + segLen.toFixed(1) + ' mm (max 4×t = ' + (4 * B.t).toFixed(1) + ') · Pitch ' + pitch2.toFixed(2) + ' mm';
+    if ((B.flexSlitLen || 0) > 4 * B.t) warn = 'Schlitzlänge wird auf 4× Materialstärke begrenzt (längere Stege brechen).';
+  }
+  if (warn) txt.innerHTML = msg + '<br><b style="color:var(--red)">⚠ ' + warn + '</b>';
+  else txt.textContent = msg;
 }
 
 /* Face-Checkbox-Optik (off-Klasse) */
@@ -46548,6 +46877,63 @@ $$('boxInsertBtn').addEventListener('click', function(){
   setOpen(false);
 });
 
+/* [livinghinge v1] Test-Streifen: 100×30-mm-Probestreifen mit den aktuellen Hinge-Parametern
+   (inkl. Auto-Pitch der Flex-Box) zum Probebiegen vor dem Box-Schnitt (wie boxes.py FlexTest). */
+var swatchBtn = $$('boxFlexSwatchBtn');
+if (swatchBtn) swatchBtn.addEventListener('click', function(){
+  var wS = 100, hS = 30;
+  var hingeOpts = { pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t, kerf: B.kerf };
+  if (B.boxType === 'flex' && B.flexAuto) {
+    var Wf = B.inner ? B.W + 2 * B.t : B.W, Df = B.inner ? B.D + 2 * B.t : B.D;
+    var Rf = Math.max(3, Math.min(B.cornerRadius || 30, Math.min(Wf, Df) / 2 - 3));
+    var arcF = (Math.PI * Rf / 2) / 1.05;
+    var perF = 2 * Wf + 2 * Df - 8 * Rf + 4 * arcF;
+    var apF = _flexAutoPitch(B.flexCornersOnly ? arcF : perF, B.flexCornersOnly ? Math.PI / 2 : 2 * Math.PI);
+    hingeOpts.colPitch = apF.pitch;
+    hingeOpts.slitLen = 3 * B.t;
+  }
+  hingeOpts.edgeCut = true; /* [rundeecken v2] Teststreifen wie die Eck-Zonen: durch die Kanten schneiden */
+  var slits = generateLivingHingeSlits(wS, hS, hingeOpts);
+  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
+  var sx = ((window.docW || 297 * MM) / MM - wS) / 2, sy = ((window.docH || 210 * MM) / MM - hS) / 2;
+  var out = [{
+    type: 'freehand', closed: true, smooth: false,
+    points: [{x:sx,y:sy},{x:sx+wS,y:sy},{x:sx+wS,y:sy+hS},{x:sx,y:sy+hS}].map(function(p){ return { x: p.x*MM, y: p.y*MM }; }),
+    stroke: inkCol, strokeWidth: strokeW, fill: 'none', fillEnabled: false,
+    lineStyle: 0, effectStrength: 1, rotation: 0,
+    x: sx*MM, y: sy*MM, w: wS*MM, h: hS*MM
+  }];
+  for (var i = 0; i < slits.length; i++) {
+    var sl = slits[i];
+    if (sl.poly && sl.poly.length >= 2) {
+      var pts = [], mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+      for (var j = 0; j < sl.poly.length; j++) {
+        var px = (sl.poly[j].x + sx) * MM, py = (sl.poly[j].y + sy) * MM;
+        pts.push({ x: px, y: py });
+        if (px < mnx) mnx = px; if (py < mny) mny = py; if (px > mxx) mxx = px; if (py > mxy) mxy = py;
+      }
+      out.push({ type: 'freehand', points: pts, closed: !!sl.closed, smooth: (sl.smooth !== false),
+        stroke: inkCol, strokeWidth: strokeW, fill: 'none', fillEnabled: false,
+        lineStyle: 0, effectStrength: 1, rotation: 0, x: mnx, y: mny, w: mxx - mnx, h: mxy - mny });
+    } else if (sl.x1 != null) {
+      var x1 = (sl.x1 + sx) * MM, y1 = (sl.y1 + sy) * MM, x2 = (sl.x2 + sx) * MM, y2 = (sl.y2 + sy) * MM;
+      out.push({ type: 'line', points: [{x:x1,y:y1},{x:x2,y:y2}], closed: false, smooth: false,
+        stroke: inkCol, strokeWidth: strokeW, fill: 'none', fillEnabled: false,
+        lineStyle: 0, effectStrength: 1, rotation: 0,
+        x: Math.min(x1,x2), y: Math.min(y1,y2), w: Math.abs(x2-x1), h: Math.abs(y2-y1) });
+    }
+  }
+  if (window.previewShapes) { window.previewShapes = null; }
+  if (typeof window.pu === 'function') window.pu('Living-Hinge-Teststreifen');
+  if (typeof window.addShapeWithMirror === 'function') {
+    for (var k = 0; k < out.length; k++) window.addShapeWithMirror(out[k]);
+  } else if (window.shapes) {
+    for (var k2 = 0; k2 < out.length; k2++) window.shapes.push(out[k2]);
+  }
+  if (typeof window.render === 'function') window.render();
+});
+
 $$('boxResetBtn').addEventListener('click', function(){
   Object.assign(B, _vtDeepClone(DEF));
   $$('boxW').value = B.W;   $$('boxWv').value = B.W; /* [box-inputs v1] number-Inputs */
@@ -46566,8 +46952,21 @@ $$('boxResetBtn').addEventListener('click', function(){
   if ($$('boxOSpaced')) $$('boxOSpaced').checked = !!B.spaced;
   if ($$('boxCapLid'))  $$('boxCapLid').checked = (B.capLid !== false);
   if ($$('boxType'))    $$('boxType').value = B.boxType;
+  if ($$('boxORound'))  $$('boxORound').checked = (B.boxType === 'flex'); /* [rundeecken v2] */
   if (layoutSel) layoutSel.value = B.layout;
   if ($$('boxOButt'))   $$('boxOButt').checked = (B.joint === 'butt');
+  /* [livinghinge v1] Flex-UI beim Reset synchronisieren */
+  if ($$('boxOFlex'))       $$('boxOFlex').checked = !!B.flex;
+  if ($$('boxFlexFace'))    $$('boxFlexFace').value = B.flexFace;
+  if ($$('boxFlexPattern')) $$('boxFlexPattern').value = B.flexPattern;
+  if ($$('boxFlexAuto'))    $$('boxFlexAuto').checked = (B.flexAuto !== false);
+  if ($$('boxFlexSL'))      $$('boxFlexSL').value = B.flexSlitLen;
+  if ($$('boxFlexSLv'))     $$('boxFlexSLv').value = B.flexSlitLen;
+  if ($$('boxFlexD'))       $$('boxFlexD').value = B.flexDensity;
+  if ($$('boxFlexDv'))      $$('boxFlexDv').value = B.flexDensity;
+  if ($$('boxFlexCorners')) $$('boxFlexCorners').checked = !!B.flexCornersOnly;
+  if ($$('boxR'))           $$('boxR').value = B.cornerRadius;
+  if ($$('boxRv'))          $$('boxRv').value = B.cornerRadius;
   if (typeof _boxFingerRowsVis === 'function') _boxFingerRowsVis(); /* [box-ohne-zinken v1] Regler-Sichtbarkeit beim Reset nachziehen */
   if (jgrid) jgrid.querySelectorAll('.box-pbtn').forEach(function(x){ x.classList.toggle('active', x.dataset.j===B.joint); });
   refreshFaceLabels();
@@ -48396,6 +48795,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-07', t:'Neu im Box-Generator: Box mit runden Ecken (Living Hinge) - Deckel und Boden als gerundete Rechtecke, die Wand als biegsamer Wickelstreifen; 5 Schnittmuster (Gerade, Welle, Wabe, Raute, Kreuz), Schlitz-Parameter automatisch aus Materialstärke, Kerf und Eck-Radius berechnet (mit Warnung bei zu kleinem Radius), Test-Streifen zum Probebiegen', c:'livinghinge'},
     {d:'2026-07-07', t:'Neu: magnetische Ausrichtlinien beim Verschieben (Shift-Hinweis an der Linie, Shift schaltet das Einrasten aus, Ctrl verschiebt achsengerade); 8 Skaliergriffe statt 4 (Seitengriffe einachsig, Alt vom Zentrum, Durchziehen über die Gegenkante spiegelt); Alt+Klick wählt das Objekt darunter, Alt+Ziehen zieht eine Kopie; Tab schaltet durch die Objekte, Bild-auf/ab und Home/End ordnen die Ebenen, Escape hebt die Auswahl auf; Ausrichten wahlweise relativ zur Seite, schon ab einem Objekt', c:'uikonv'},
     {d:'2026-07-07', t:'Fehlerkorrektur: Ausblenden in der Stickreihenfolge (Auge pro Zeile und „Alle") funktioniert wieder', c:'stickui-klar'},
     {d:'2026-07-04', t:'Neu: numerische Eingabe von Position, Grösse (mm) und Winkel für ausgewählte Objekte; Objekte verteilen (horizontal/vertikal); DXF-Export (CAD/CNC); „Pfad glätten“ im Rechtsklick-Menü; Spiegeln an Ort und Stelle; Zoom-Einpassen-Knopf', c:'uxfix'},
