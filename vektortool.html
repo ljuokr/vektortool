@@ -13181,6 +13181,21 @@ function onSelectDown(e, pt) {
       hit = _stk[(_stkRef + 1) % _stk.length];
     }
   }
+  /* [lock-fix v1] Sperre aus dem Ebenen-Panel galt bisher nur fuer Panel-Zeilenklick,
+     Tab-Zyklus und Ausrichten/Verteilen - Canvas-Klick/-Drag konnte gesperrte Formen
+     weiterhin anwaehlen und verschieben. Gesperrte Treffer fallen jetzt auf die
+     naechste ungesperrte Form im Stapel durch (Klick-durch), sonst Leerklick/Marquee. */
+  if (hit) {
+    var _lkHit = findShape(hit);
+    if (_lkHit && _lkHit.locked) {
+      var _lkStack = hitTestStack(pt.x, pt.y);
+      hit = null;
+      for (var _lk = 0; _lk < _lkStack.length; _lk++) {
+        var _lkS = findShape(_lkStack[_lk]);
+        if (_lkS && !_lkS.locked) { hit = _lkStack[_lk]; break; }
+      }
+    }
+  }
   if (hit) {
     if (e.shiftKey) {
       /* [uxfix v1] Shift+Klick togglet jetzt: bereits selektierte Form wieder abwaehlen
@@ -13650,6 +13665,7 @@ function onSelectUp(e, pt) {
   if (marqueeRect && marqueeRect.w > 2 && marqueeRect.h > 2) {
     if (!window._marqueeAdditive) selIds.clear(); /* [uikonv v1] Shift+Aufziehen = zur Auswahl hinzufuegen */
     for (var i = 0; i < shapes.length; i++) {
+      if (shapes[i].hidden || shapes[i].locked) continue; /* [lock-fix v1] gesperrte/versteckte Formen nicht per Marquee einsammeln */
       var bb = shapeBBox(shapes[i]);
       if (!bb) continue;
       // Select if bounding boxes overlap (intersect), not just fully contained
@@ -15191,8 +15207,9 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     setTool('select');
     selIds.clear();
-    shapes.forEach(function(s){ selIds.add(s.id); });
-    if (shapes.length > 0) selId = shapes[shapes.length - 1].id;
+    shapes.forEach(function(s){ if (!s.hidden && !s.locked) selIds.add(s.id); }); /* [lock-fix v1] */
+    selId = null;
+    for (var _ai = shapes.length - 1; _ai >= 0; _ai--) { if (selIds.has(shapes[_ai].id)) { selId = shapes[_ai].id; break; } }
     render(); updateRightPanel();
   }
 });
@@ -28239,11 +28256,21 @@ function _makeRow(entry, depth) {
   lock.addEventListener('click', function(e) {
     e.stopPropagation();
     _puL('Sperren');
-    if (entry.kind === 'shape') entry.shape.locked = !entry.shape.locked;
+    var _lkChanged = [];
+    if (entry.kind === 'shape') { entry.shape.locked = !entry.shape.locked; _lkChanged.push(entry.shape); }
     else {
       var anyLock = entry.members.some(function(m){ return m.locked; });
-      entry.members.forEach(function(m){ m.locked = !anyLock; });
+      entry.members.forEach(function(m){ m.locked = !anyLock; _lkChanged.push(m); });
     }
+    /* [lock-fix v1] frisch gesperrte Formen aus der Auswahl nehmen - sonst bleiben
+       Anfasser aktiv und die "gesperrte" Form waere weiter verschieb-/skalierbar
+       (gleiches Muster wie beim Ausblenden-Auge weiter oben). */
+    _lkChanged.forEach(function(sh){
+      if (sh.locked && window.selIds && window.selIds.delete) {
+        window.selIds.delete(sh.id);
+        if (String(window.selId) === String(sh.id)) window.selId = window.selIds.size ? window.selIds.values().next().value : null;
+      }
+    });
     if (typeof window.render === 'function') window.render();
     renderLayerList();
   });
@@ -48675,6 +48702,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-10', t:'Muster-Generator: beschnittene Ecken behoben - der Falt-Schlitz kappt spitze Zellen-Ecken jetzt sauber flach statt sie trichterförmig zurückzuziehen (wirkt bei allen Mustern mit Zell-Ansicht); Starshade folgt jetzt dem echten NASA-Faltmuster: sechs gerade Wickelarme ab dem Zentral-Sechseck, gleichmässige Ringe, Vierecks-Felder - die Amplitude steuert den Anstellwinkel der Arme (0% = radiales Rad)', c:'starshade-v3'},
+    {d:'2026-07-10', t:'Fehlerkorrektur: die Sperre im Ebenen-Panel wirkt jetzt wirklich - gesperrte Objekte lassen sich auf der Zeichenfläche nicht mehr anwählen oder verschieben (Klick fällt auf das Objekt darunter durch), Aufziehrahmen und „Alles auswählen" überspringen sie, und beim Sperren wird eine aktive Auswahl aufgehoben', c:'lock-fix'},
     {d:'2026-07-10', t:'Zwischenablage-Austausch mit anderen Programmen verbessert: Kopieren legt das SVG jetzt auch als Klartext ab (damit klappt Einfügen in Figma, Sketch, Affinity Designer und Illustrator); Einfügen über das Rechtsklick-Menü liest jetzt auch SVG und Bilder aus anderen Programmen; kopierte Objekte lassen sich in einem zweiten Browser-Tab einfügen; wenn die Zwischenablage nichts Einfügbares enthält, erscheint ein Hinweis statt Stille', c:'clipboard-interop'},
     {d:'2026-07-07', t:'Muster-Generator schneller: Voronoi-Vorschau reagiert auch bei hoher Anzahl flüssig (Nachbarschafts-Berechnung statt Alle-gegen-alle, ~11x schneller); Anzahl-Regler bei Asanoha, Waterbomb und Twist gedeckelt, damit das Dokument nach dem Einfügen nicht träge wird; neue Warnung, wenn die Zellen kleiner als 3 mm werden und beim 3D-Druck verschmelzen würden', c:'muster-perf'},
     {d:'2026-07-07', t:'Muster-Generator überarbeitet: Starshade zeigt jetzt das echte NASA-Wickelmuster (dreieckige Falt-Facetten, gleichmässige Faltschlitze, Faltlinien auch im Linien-Modus, Anzahl bis 30 Ringe); „Rand" fügt einen Rahmen statt einer deckenden Platte ein; Amplitude 0% ist wirklich flach; Element-Regler bei Miura/Yoshizawa/Zickzack sichtbar, bei Penrose ist der wirkungslose Anzahl-Regler ausgeblendet; Schutz gegen eingefrorene Vorschau bei extremen Schuppen-Werten', c:'muster-audit'},
