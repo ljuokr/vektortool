@@ -44554,7 +44554,12 @@ function pathsToShapes(forReal) {
       var t0 = Math.min(amountPx / l0, 0.42);
       return { x: p.x + dx0 * t0, y: p.y + dy0 * t0 };
     }
-    var MITER_LIMIT = 2; /* max. Ecken-Rückzug in Vielfachen von amountPx */
+    var MITER_LIMIT = 3; /* max. Ecken-Rückzug in Vielfachen von amountPx.
+       3 statt 2 (PrusaSlicer-Default): der Deckel bricht die Kanten-
+       Parallelität der angrenzenden Segmente (Fugen werden keilförmig,
+       "da ist was schräg" bei Miura 44°/2.66d) - bei 3 bleiben moderate
+       Spitzen (Miura, Starshade v3) exakt parallel, gebremst werden nur
+       echte Sliver unter ~39° Innenwinkel. */
     /* Fläche des Originals (Guard unten braucht sie ebenfalls) */
     var aOrig = 0;
     for (var gi = 0; gi < n; gi++) {
