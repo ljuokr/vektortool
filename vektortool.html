@@ -12822,7 +12822,7 @@ canvasEl.addEventListener('contextmenu', function(e){
          die Systemzwischenablage wird per Async-API mitgeschrieben (Klick = User-Geste). */
       if (action==='copy') _ctxCopySelection();
       else if (action==='cut') { if (_ctxCopySelection()) deleteSelected(); }
-      else if (action==='paste') { if (clipboard) pasteClipboard(); }
+      else if (action==='paste') { _pasteViaAsyncClipboard(null, true); } /* [clipboard-interop v1] liest jetzt auch externe SVG/Bilder, vorher nur interner Clipboard */
       else if (action==='dup') document.dispatchEvent(new KeyboardEvent('keydown',{key:'d',ctrlKey:true,bubbles:true}));
       else if (action==='delete') deleteSelected();
       else if (action==='front') { if(selId){pu();var idsF=new Set(selIds);var mF=[],sF=[];for(var iF=0;iF<shapes.length;iF++){if(idsF.has(shapes[iF].id))mF.push(shapes[iF]);else sF.push(shapes[iF]);}shapes=sF.concat(mF);render();updateRightPanel();} }
@@ -17116,15 +17116,13 @@ function buildSvgForShapes(shapeList) {
 }
 
 /* Write SVG to the clipboard in the widest-compatible way without a helper.
-   Inkscape on macOS reads NSPasteboard via GTK; Chrome maps image/svg+xml to
-   the public.svg-image UTI. The challenges:
-     • Many Inkscape builds don't recognise public.svg-image (shown as "leeres
-       clipboard"); some do.
-     • If text/plain contains <svg> markup, Inkscape may paste as literal text
-       ("text can only create text element").
-     • text/html with an embedded <svg> works on some Inkscape versions where
-       the HTML parser extracts SVG fragments.
-   We try the most-compatible bundle first, then degrade. */
+   Chrome maps image/svg+xml auf die UTI public.svg-image - die liest auf macOS
+   aber nachweislich kein Desktop-Programm. Der Träger, den Figma, Sketch,
+   Affinity Designer 2 und Illustrator beim Einfügen tatsächlich parsen, ist
+   SVG-Markup als text/plain ([clipboard-interop v1], Audit 2026-07-10).
+   Safari kennt kein image/svg+xml in ClipboardItem -> zweites Bundle ohne.
+   Inkscape auf macOS liest gar keine Browser-Flavors (GitLab #4392),
+   dafür gibt es Cmd+Shift+C (.svg-Datei). */
 async function _writeClipboardSvg(svgStr) {
   if (!navigator.clipboard || typeof navigator.clipboard.write !== 'function' || typeof ClipboardItem === 'undefined') {
     console.info('[Vektortool copy] Async Clipboard API not available.');
@@ -17142,19 +17140,23 @@ async function _writeClipboardSvg(svgStr) {
   var htmlWrapped = svgStr;
   var attempts = [
     {
-      label: 'image/svg+xml + text/html',
+      label: 'image/svg+xml + text/html + text/plain',
       item: {
         'image/svg+xml': new Blob([cleanSvg], { type: 'image/svg+xml' }),
-        'text/html':     new Blob([htmlWrapped], { type: 'text/html' })
+        'text/html':     new Blob([htmlWrapped], { type: 'text/html' }),
+        'text/plain':    new Blob([cleanSvg], { type: 'text/plain' })
       }
     },
     {
-      label: 'image/svg+xml only',
-      item: { 'image/svg+xml': new Blob([cleanSvg], { type: 'image/svg+xml' }) }
+      label: 'text/html + text/plain (Safari: kein image/svg+xml)',
+      item: {
+        'text/html':  new Blob([htmlWrapped], { type: 'text/html' }),
+        'text/plain': new Blob([cleanSvg], { type: 'text/plain' })
+      }
     },
     {
-      label: 'text/html with SVG fragment only',
-      item: { 'text/html': new Blob([htmlWrapped], { type: 'text/html' }) }
+      label: 'text/plain only',
+      item: { 'text/plain': new Blob([cleanSvg], { type: 'text/plain' }) }
     }
   ];
   for (var i = 0; i < attempts.length; i++) {
@@ -17170,12 +17172,12 @@ async function _writeClipboardSvg(svgStr) {
   console.warn('[Vektortool copy] Async-Write komplett fehlgeschlagen.');
 }
 
-/* NOTE: we deliberately DO NOT write text/plain synchronously. If we did,
-   and the async navigator.clipboard.write() below ever fails, the pasteboard
-   would be left with a plain-text entry containing raw SVG markup — and
-   Inkscape on macOS would paste that as a literal text element ("text can
-   only create text element"). text/html is safer: Inkscape either recognises
-   the SVG fragment or ignores it, but won't misinterpret as text. */
+/* [clipboard-interop v1] text/plain wird jetzt bewusst MITgeschrieben (sync und async):
+   Figma, Sketch, Affinity Designer 2 und Illustrator parsen beim Einfügen genau diesen
+   SVG-Klartext, Chromes image/svg+xml liest auf macOS dagegen kein Desktop-Programm.
+   Das alte Gegenargument (Inkscape fügt Klartext als Textobjekt ein) trifft kaum noch:
+   Inkscape auf macOS liest gar keine Browser-Flavors, und auf Linux/Windows gewinnt
+   der parallel geschriebene image/svg+xml-Flavor gegen den Text. */
 /* [uxfix v1] B01: copy/cut im Eingabefeld gehören dem Browser. Ohne Guard konnte ein
    hängengebliebenes _pendingSvgCopy den Text-Kopiervorgang kapern (SVG statt Text in
    der Zwischenablage) bzw. deleteSelected() die Form löschen. */
@@ -17188,6 +17190,7 @@ document.addEventListener('copy', function(e) {
   if (_pendingSvgCopy && !_pendingCut) {
     var svgStr = buildSvgForShapes(_pendingSvgCopy);
     e.clipboardData.setData('text/html', svgStr);
+    e.clipboardData.setData('text/plain', svgStr); /* [clipboard-interop v1] */
     e.preventDefault();
     _writeClipboardSvg(svgStr);
     _pendingSvgCopy = null;
@@ -17199,6 +17202,7 @@ document.addEventListener('cut', function(e) {
   if (_pendingSvgCopy && _pendingCut) {
     var svgStr = buildSvgForShapes(_pendingSvgCopy);
     e.clipboardData.setData('text/html', svgStr);
+    e.clipboardData.setData('text/plain', svgStr); /* [clipboard-interop v1] */
     e.preventDefault();
     _writeClipboardSvg(svgStr);
     _pendingSvgCopy = null;
@@ -17246,6 +17250,50 @@ function _importImageFile(imageFile) {
   reader.readAsDataURL(imageFile);
 }
 
+/* [clipboard-interop v1] Async-Zwischenablage lesen und einfügen. Gemeinsamer Kern für
+   den Cmd+V-Fallback und Kontextmenü-"Einfügen" (dort ist der Klick die nötige User-Geste).
+   syncImageFile: schon synchron gefundenes Rasterbild (hat Vorrang vor async Gefundenem).
+   allowInternal: bei unlesbarer Systemzwischenablage auf den internen Clipboard
+   zurückfallen (Kontextmenü ja; Cmd+V nein, dort hat der Marker-Check schon entschieden). */
+async function _pasteViaAsyncClipboard(syncImageFile, allowInternal) {
+  var svgText = null, imgBlob = null, sawLinea = false;
+  if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
+    try {
+      var clipItems = await navigator.clipboard.read();
+      for (var ci = 0; ci < clipItems.length && !svgText; ci++) {
+        var itm = clipItems[ci], tps = itm.types || [];
+        /* SVG-Text kann je nach Quelle unter verschiedenen Typen liegen */
+        var order = ['image/svg+xml', 'text/xml', 'text/html', 'text/plain'];
+        for (var oi = 0; oi < order.length && !svgText; oi++) {
+          if (tps.indexOf(order[oi]) < 0) continue;
+          try {
+            var blob = await itm.getType(order[oi]);
+            var txt = await blob.text();
+            if ((txt || '').indexOf('<!-- LINEA-COPY -->') >= 0) sawLinea = true;
+            var m = (txt || '').match(/<svg[\s\S]*<\/svg>/i);
+            if (m) svgText = m[0];
+          } catch(ex){console.warn('[vt:swallowed]',ex)}
+        }
+        if (!imgBlob) {
+          for (var pi = 0; pi < tps.length; pi++) {
+            if (tps[pi].indexOf('image/') === 0 && tps[pi] !== 'image/svg+xml') {
+              try { imgBlob = await itm.getType(tps[pi]); } catch(ex){console.warn('[vt:swallowed]',ex)}
+              break;
+            }
+          }
+        }
+      }
+    } catch(readErr) { /* Berechtigung verweigert oder API fehlt -> Fallbacks unten */ }
+  }
+  if (sawLinea && clipboard) { pasteClipboard(); return; }
+  if (svgText) { _importSvgText(svgText); return; }
+  if (syncImageFile) { _importImageFile(syncImageFile); return; }
+  if (imgBlob) { _importImageFile(imgBlob); return; }
+  if (allowInternal && clipboard) { pasteClipboard(); return; }
+  /* vorher stiller No-Op, z. B. bei Illustrator-Standard-Copy (nur PDF/AICB, für
+     Browser unsichtbar; "SVG-Code einschliessen" ist seit AI 29.7.1 nicht mehr Default) */
+  if (window._vtToast) window._vtToast(window.t('Die Zwischenablage enthält nichts Einfügbares. Tipp: in Illustrator „SVG-Code einschliessen“ aktivieren, in Figma „Als SVG kopieren“.'));
+}
 
 // --- Paste from external apps (Inkscape, Illustrator, etc.) ---
 document.addEventListener('paste', function(e) {
@@ -17268,7 +17316,11 @@ document.addEventListener('paste', function(e) {
 
   if (_isLineaCopy) {
     // Vektortool's own SVG on clipboard → use internal clipboard if available
-    if (clipboard) { pasteClipboard(); e.preventDefault(); }
+    if (clipboard) { pasteClipboard(); e.preventDefault(); return; }
+    /* [clipboard-interop v1] Marker da, aber interner Clipboard leer (zweiter Tab oder
+       neue Session): vorher stiller No-Op, jetzt Import über den SVG-Text selbst. */
+    var lineaSvg = _scanForSvg(_clipHtml) || _scanForSvg(_clipPlain);
+    if (lineaSvg) { e.preventDefault(); _importSvgText(lineaSvg); }
     return;
   }
   // External content (from Illustrator, Inkscape, etc.) → import below
@@ -17328,46 +17380,12 @@ document.addEventListener('paste', function(e) {
     }
   }
 
-  // If no SVG found via sync clipboardData, try the async clipboard API
-  // and — as a last resort — the local helper server. Runs async; don't
-  // preventDefault here or other handlers still work.
+  // If no SVG found via sync clipboardData, try the async clipboard API.
+  // [clipboard-interop v1] gemeinsamer Kern mit dem Kontextmenü; meldet
+  // Unlesbares jetzt per Toast statt still nichts zu tun.
   if (!svgText) {
     e.preventDefault();
-    (async function tryAsyncClipboard() {
-      /* navigator.clipboard.read() can surface MIME types that sync access
-         doesn't. Works without any helper on browsers that support it. */
-      if (navigator.clipboard && typeof navigator.clipboard.read === 'function') {
-        try {
-          var clipItems = await navigator.clipboard.read();
-          for (var ci = 0; ci < clipItems.length; ci++) {
-            var itm = clipItems[ci];
-            var svgMime = null;
-            if (itm.types.indexOf('image/svg+xml') >= 0) svgMime = 'image/svg+xml';
-            else if (itm.types.indexOf('text/xml') >= 0) svgMime = 'text/xml';
-            if (svgMime) {
-              var blob = await itm.getType(svgMime);
-              var txt = await blob.text();
-              if (txt.indexOf('<svg') >= 0 && txt.indexOf('<!-- LINEA-COPY -->') < 0) {
-                _importSvgText(txt);
-                return;
-              }
-            }
-            /* Also look inside text/html as some Inkscape builds put SVG there */
-            if (itm.types.indexOf('text/html') >= 0) {
-              var hBlob = await itm.getType('text/html');
-              var hTxt = await hBlob.text();
-              var hSvg = (hTxt || '').match(/<svg[\s\S]*?<\/svg>/i);
-              if (hSvg && hSvg[0].indexOf('<!-- LINEA-COPY -->') < 0) {
-                _importSvgText(hSvg[0]);
-                return;
-              }
-            }
-          }
-        } catch(asyncErr) { /* user denied clipboard permission or API unavailable — fall through */ }
-      }
-      /* Nothing worked for SVG — fall back to any raster image on the clipboard. */
-      if (imageFile) _importImageFile(imageFile);
-    })();
+    _pasteViaAsyncClipboard(imageFile, false);
     return;
   }
 
@@ -48657,6 +48675,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-07-10', t:'Zwischenablage-Austausch mit anderen Programmen verbessert: Kopieren legt das SVG jetzt auch als Klartext ab (damit klappt Einfügen in Figma, Sketch, Affinity Designer und Illustrator); Einfügen über das Rechtsklick-Menü liest jetzt auch SVG und Bilder aus anderen Programmen; kopierte Objekte lassen sich in einem zweiten Browser-Tab einfügen; wenn die Zwischenablage nichts Einfügbares enthält, erscheint ein Hinweis statt Stille', c:'clipboard-interop'},
     {d:'2026-07-07', t:'Muster-Generator schneller: Voronoi-Vorschau reagiert auch bei hoher Anzahl flüssig (Nachbarschafts-Berechnung statt Alle-gegen-alle, ~11x schneller); Anzahl-Regler bei Asanoha, Waterbomb und Twist gedeckelt, damit das Dokument nach dem Einfügen nicht träge wird; neue Warnung, wenn die Zellen kleiner als 3 mm werden und beim 3D-Druck verschmelzen würden', c:'muster-perf'},
     {d:'2026-07-07', t:'Muster-Generator überarbeitet: Starshade zeigt jetzt das echte NASA-Wickelmuster (dreieckige Falt-Facetten, gleichmässige Faltschlitze, Faltlinien auch im Linien-Modus, Anzahl bis 30 Ringe); „Rand" fügt einen Rahmen statt einer deckenden Platte ein; Amplitude 0% ist wirklich flach; Element-Regler bei Miura/Yoshizawa/Zickzack sichtbar, bei Penrose ist der wirkungslose Anzahl-Regler ausgeblendet; Schutz gegen eingefrorene Vorschau bei extremen Schuppen-Werten', c:'muster-audit'},
     {d:'2026-07-07', t:'Stickerei-Ansicht klarer: einheitliche Begriffe (überall „Reihenabstand" und „Stichlänge", „Zugausgleich" statt Pull, „Stiche streuen" statt Versatz); Stickrahmen-Auswahl in der Statusleiste; Füllung und andersfarbiger Umriss pro Bereich separat ausblendbar (zwei Augen pro Zeile) mit Warnhinweis am Export; „Alles zurücksetzen" fragt nach und steht rechts; Vorschau meldet „Eigenes Design" statt „keine Datei"', c:'stickui-klar'},
