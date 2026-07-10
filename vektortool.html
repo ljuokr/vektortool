@@ -44316,48 +44316,46 @@ function genPaths() {
       break;
     }
     case 'flasher': {
-      /* [gen3d-fixes v1] Flasher (NASA/JPL Starshade): verdrehte Polygon-
-         Ringe um ein Zentral-Polygon - die Wickelfaltung entfaltbarer
-         Satelliten-Strukturen (Zirbel/Trease/Lang). Anzahl = Ringe,
-         Amplitude = Verdrehung pro Ring.
-         [starshade v2] Wie das echte Faltmuster: jedes Ring-Trapez wird
-         DIAGONAL geteilt (die Berg/Tal-Falten des Wickelmusters), alle
-         Diagonalen gleichsinnig in Drehrichtung -> Wirbel-Look. Element
-         läuft über den kantenparallelen _gapCell-Inset (gleich breite
-         Stege wie bei Twist/Miura) statt Zentroid-Schrumpf, der bei den
-         gescherten Facetten ungleiche Splitter machte. Ringe nutzen den
-         vollen Anzahl-Slider (2..30). */
-      var mArm = 12; /* [starshade v2] 12 statt 8 Sektoren: kompaktere Dreiecke statt flacher Slats - das NASA-Original hat viele schmale Sektoren */
+      /* [starshade v3] Original-Geometrie nach Lang/Magleby (JMR 2016),
+         Zirbel/Trease (JMD 2013) und dem BYU-Solar-Array-Creasepattern:
+         m=6 GERADE Wickel-Arme starten an den Ecken des Zentral-Sechsecks,
+         gegen die Radiale angestellt (Tangenten an einen Offset-Kreis um
+         den Hub). Der Spiral-Look kommt allein aus diesem Anstellwinkel -
+         NICHT aus einem Ring-Twist (den das echte Creasepattern nicht hat;
+         die Wickelung entsteht erst beim Falten in 3D). Ringabstände
+         LINEAR, erste Reihe ab Hub 1,6x breiter (BYU-Muster). Facetten
+         sind VIERECKE wie im Original (keine Panel-Diagonalen).
+         Anzahl = Ringe, Amplitude = Anstellwinkel der Arme
+         (100% = original ~60° gegen die Radiale, 0% = radiales Rad). */
+      var mArm = 6;
       var rings = Math.max(2, Math.min(30, n));
       var rMax = Math.min(hwe, hhe) * 0.98;
-      var twistPer = (Math.PI/180) * 16 * Math.min(2, ap);
-      /* [starshade v2] Radien mit Potenz 0.8 statt linear: linear hatte 4.3x
-         Flächen-Gefälle innen->aussen (der Median-Inset der Render-Lücke frass
-         die inneren Facetten auf) und ein winziges Zentrum; 0.8 gleicht die
-         Facetten-Flächen an, ohne die Aussenringe zu flach zu machen. */
-      var FR = [];
-      for (var fk=0; fk<=rings; fk++) FR.push(rMax * Math.pow((fk+1)/(rings+1), 0.8));
+      var rHub = rMax * 0.18;
+      var kip = Math.min(80, 60 * ap) * Math.PI / 180;
+      /* Armlänge bis rMax: |Hub-Ecke + u*L| = rMax, Hub·u = rHub*cos(kip) */
+      var Lmax = -rHub * Math.cos(kip) +
+        Math.sqrt(Math.max(0, rMax*rMax - rHub*rHub * Math.sin(kip)*Math.sin(kip)));
+      var fStep = Lmax / (rings - 1 + 1.6); /* erste Reihe = 1.6*fStep */
       var FP = [];
-      for (fk=0; fk<=rings; fk++) {
-        var frad = FR[fk], frot = fk*twistPer, frow = [];
+      for (var fk=0; fk<=rings; fk++) {
+        var fL = fk === 0 ? 0 : fStep * (fk - 1 + 1.6);
+        var frow = [];
         for (var fa=0; fa<mArm; fa++) {
-          var fan = frot + fa*2*Math.PI/mArm;
-          frow.push([frad*Math.cos(fan), frad*Math.sin(fan)]);
+          var fphi = fa * 2*Math.PI/mArm;
+          frow.push([
+            rHub*Math.cos(fphi) + Math.cos(fphi + kip) * fL,
+            rHub*Math.sin(fphi) + Math.sin(fphi + kip) * fL
+          ]);
         }
         FP.push(frow);
       }
       if (G.invert) {
-        P.push({tp:'poly', printCell:1, pts:_gapCell(FP[0].slice(), FR[0], FR[0])});
+        P.push({tp:'poly', printCell:1, pts:_gapCell(FP[0].slice(), rHub, rHub)});
         for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
           var fb = (fa+1)%mArm;
-          var fh = FR[fk+1] - FR[fk]; /* lokale Ringhöhe als Zellmass für den Element-Inset */
-          /* Trapez [innen fa, innen fb, aussen fb, aussen fa] diagonal in
-             zwei Dreiecke. Diagonale innen(fb) -> aussen(fa): sie läuft GEGEN
-             die Verdrehung und wird vom Twist verkürzt (Spannweite 45°-Twist).
-             Die gleichsinnige Diagonale würde 45°+Twist aufspannen -> lange
-             Nadel-Dreiecke quer übers Muster (so beim ersten Wurf gesehen). */
-          P.push({tp:'poly', printCell:1, pts:_gapCell([FP[fk][fa], FP[fk][fb], FP[fk+1][fa]], fh, fh)});
-          P.push({tp:'poly', printCell:1, pts:_gapCell([FP[fk][fb], FP[fk+1][fb], FP[fk+1][fa]], fh, fh)});
+          var fh = fk === 0 ? fStep * 1.6 : fStep; /* lokale Ringhöhe als Zellmass für den Element-Inset */
+          P.push({tp:'poly', printCell:1,
+            pts:_gapCell([FP[fk][fa], FP[fk][fb], FP[fk+1][fb], FP[fk+1][fa]], fh, fh)});
         }
       } else {
         P.push({tp:'poly', pts:FP[0].slice()});
@@ -44365,16 +44363,9 @@ function genPaths() {
           var fring = FP[fk].slice(); fring.push([FP[fk][0][0], FP[fk][0][1]]);
           P.push({tp:'pline', pts:fring});
         }
+        /* Arme sind GERADE: 2 Punkte reichen (Hub-Ecke -> Aussenende) */
         for (fa=0; fa<mArm; fa++) {
-          var farm = [];
-          for (fk=0; fk<=rings; fk++) farm.push(FP[fk][fa]);
-          P.push({tp:'pline', pts:farm});
-        }
-        /* [starshade v2] Diagonal-Falten als Linien - erst damit ist der
-           Linien-Modus das komplette, faltbare Flasher-Muster. Gleiche
-           Gegen-Twist-Diagonale wie im Invert: innen(fa+1) -> aussen(fa). */
-        for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
-          P.push({tp:'pline', pts:[FP[fk][(fa+1)%mArm], FP[fk+1][fa]]});
+          P.push({tp:'pline', pts:[FP[0][fa], FP[rings][fa]]});
         }
       }
       break;
@@ -44524,20 +44515,24 @@ function pathsToShapes(forReal) {
     return sh;
   }
   function shrinkPolyToCenter(pts, amountPx) {
-    /* Paralleler Kanten-Offset: jede Polygon-Kante wird um amountPx
-       parallel nach innen verschoben, neue Ecken sind die Schnitt-
-       punkte aufeinanderfolgender Offset-Kanten. Dadurch bleiben Kanten-
-       winkel exakt erhalten – zwei aneinandergrenzende Zellen ergeben
-       eine gleichmässig breite (2·amountPx) Lücke entlang der gemein-
-       samen Kante (keine schiefen Spickel bei Parallelogrammen oder
-       Rauten). */
+    /* Paralleler Kanten-Offset nach innen, mit MITER-LIMIT + SQUARE-KAPPUNG
+       (Clipper2-Logik). Jede Kante wird um amountPx eingerückt; die neue Ecke
+       ist der Offset-Schnittpunkt (Miter, Winkel bleiben exakt erhalten),
+       SOLANGE er nicht weiter als MITER_LIMIT*amountPx von der Original-Ecke
+       wegrückt. Spitzere Ecken werden mit ZWEI Punkten exakt bei Abstand
+       amountPx flach gekappt (Square-Join: Kapplinie senkrecht zur Winkel-
+       halbierenden). [starshade v3] Der reine Miter zog spitze Ecken um
+       amountPx/sin(theta/2) zurück (Starshade-Sliver 16,7°: 12,5 mm) - an
+       Knoten öffneten sich trichterförmige Löcher ("beschnittene Ecken").
+       Ersetzt auch die alte Radial-Klemmung, die beim Überschiessen des
+       Miter-Punkts über den Zentroid AUFGEBLASENE Polygone lieferte. */
     if (!pts || pts.length < 3 || !(amountPx > 0)) return pts;
     var n = pts.length;
     /* Zentroid für die "innen"-Richtungs-Bestimmung */
     var cx = 0, cy = 0;
     for (var spi = 0; spi < n; spi++) { cx += pts[spi].x; cy += pts[spi].y; }
     cx /= n; cy /= n;
-    /* Schritt 1: pro Kante einen Offset-Linien-Stützpunkt + Richtung. */
+    /* Schritt 1: pro Kante Einheitsrichtung + Innen-Normale. */
     var lines = [];
     for (var i = 0; i < n; i++) {
       var a = pts[i], b = pts[(i+1) % n];
@@ -44548,15 +44543,11 @@ function pathsToShapes(forReal) {
       var midX = (a.x + b.x) * 0.5, midY = (a.y + b.y) * 0.5;
       var dot = (cx - midX) * nxC + (cy - midY) * nyC;
       if (dot < 0) { nxC = -nxC; nyC = -nyC; }      /* nach innen umdrehen */
-      lines.push({
-        ox: a.x + nxC * amountPx,
-        oy: a.y + nyC * amountPx,
-        dx: ex / len,
-        dy: ey / len
-      });
+      lines.push({ dx: ex/len, dy: ey/len, nx: nxC, ny: nyC });
     }
-    /* Schritt 2: aufeinanderfolgende Offset-Linien schneiden = neue Ecke */
-    var out = new Array(n);
+    /* Schritt 2: pro Original-Ecke Miter-Punkt ODER zwei Square-Kapp-Punkte.
+       Ergebnis kann also MEHR Punkte haben als das Original. */
+    var out = [];
     function shrinkToCenterFallback(idx) {
       var p = pts[idx];
       var dx0 = cx - p.x, dy0 = cy - p.y;
@@ -44565,44 +44556,54 @@ function pathsToShapes(forReal) {
       var t0 = Math.min(amountPx / l0, 0.42);
       return { x: p.x + dx0 * t0, y: p.y + dy0 * t0 };
     }
+    var MITER_LIMIT = 2; /* Clipper2-Default: kappen, sobald der Miter-Punkt weiter als 2*amountPx wegrückt (Innenwinkel < 60°) */
+    var cosCut = 2 / (MITER_LIMIT * MITER_LIMIT) - 1;
     for (var k = 0; k < n; k++) {
       var prev = lines[(k - 1 + n) % n];
       var cur  = lines[k];
-      if (!prev || !cur) { out[k] = shrinkToCenterFallback(k); continue; }
-      var denom = prev.dx * cur.dy - prev.dy * cur.dx;
-      if (Math.abs(denom) < 1e-9) {
-        /* fast kollineare Kanten – mittlerer Offset-Punkt als Notlösung */
-        out[k] = { x: (prev.ox + cur.ox) * 0.5, y: (prev.oy + cur.oy) * 0.5 };
-        continue;
+      if (!prev || !cur) { out.push(shrinkToCenterFallback(k)); continue; }
+      var V = pts[k];
+      var cosA = prev.nx * cur.nx + prev.ny * cur.ny;
+      if (cosA > cosCut) {
+        /* Miter: M = V + d*(n1+n2)/(1+cosA) (Schnitt der Offset-Kanten) */
+        var f = amountPx / (1 + cosA);
+        out.push({ x: V.x + (prev.nx + cur.nx) * f, y: V.y + (prev.ny + cur.ny) * f });
+      } else {
+        /* Square: Kapplinie durch Q = V + d*b (b = Winkelhalbierende der
+           Normalen) senkrecht zu b; Kapp-Punkte = Schnitt mit den beiden
+           Offset-Kantengeraden -> Rückzug an der Spitze exakt d. */
+        var bx = prev.nx + cur.nx, by = prev.ny + cur.ny;
+        var bl = Math.sqrt(bx*bx + by*by);
+        if (!(bl > 1e-9)) { out.push(shrinkToCenterFallback(k)); continue; } /* 180°-Kehre */
+        bx /= bl; by /= bl;
+        var qx = V.x + amountPx * bx, qy = V.y + amountPx * by;
+        var caps = [prev, cur];
+        for (var ci = 0; ci < 2; ci++) {
+          var L = caps[ci];
+          var ax2 = V.x + amountPx * L.nx, ay2 = V.y + amountPx * L.ny;
+          var tb = L.dx * bx + L.dy * by;
+          if (Math.abs(tb) < 1e-9) { out.push({ x: qx, y: qy }); continue; }
+          var s = ((qx - ax2) * bx + (qy - ay2) * by) / tb;
+          out.push({ x: ax2 + L.dx * s, y: ay2 + L.dy * s });
+        }
       }
-      var t = ((cur.ox - prev.ox) * cur.dy - (cur.oy - prev.oy) * cur.dx) / denom;
-      var nx = prev.ox + t * prev.dx;
-      var ny = prev.oy + t * prev.dy;
-      /* Schutz vor "Spike" bei sehr spitzen Winkeln: neue Ecke darf nicht
-         weiter vom Zentroid weg sein als die Originalecke. */
-      var origP = pts[k];
-      var origR = Math.sqrt((origP.x-cx)*(origP.x-cx) + (origP.y-cy)*(origP.y-cy));
-      var newR  = Math.sqrt((nx-cx)*(nx-cx) + (ny-cy)*(ny-cy));
-      if (newR > origR && origR > 1e-9) {
-        var s = origR / newR;
-        nx = cx + (nx - cx) * s;
-        ny = cy + (ny - cy) * s;
-      }
-      out[k] = { x: nx, y: ny };
     }
-    /* [muster-audit v1] Inversions-Guard analog _cellInset: kippt die Orientierung
-       oder bleiben <5% Fläche (uniformInset > Inradius kleiner Zellen, z.B. flache
-       Yoshizawa-Chevrons oder Voronoi-Splitter), wäre das Polygon umgestülpt und
-       ginge so in den 3D-Export. Dann alle Ecken über den gedeckelten Zentroid-
-       Fallback (max 42% zum Zentrum, stülpt nie um) schrumpfen. */
-    var aOrig = 0, aNew = 0;
+    /* [muster-audit v1] Degenerations-Guard: kippt die Orientierung, bleiben
+       <5% Fläche ODER wächst die Fläche (darf beim Inset nie passieren -
+       Selbstschnitt-/Overlap-Indiz), alle Original-Ecken über den gedeckelten
+       Zentroid-Fallback (max 42% zum Zentrum, stülpt nie um) schrumpfen. */
+    var aOrig = 0, aNew = 0, m2 = out.length;
     for (var gi = 0; gi < n; gi++) {
       var gj = (gi + 1) % n;
       aOrig += pts[gi].x * pts[gj].y - pts[gj].x * pts[gi].y;
-      aNew  += out[gi].x * out[gj].y - out[gj].x * out[gi].y;
     }
-    if (!(aNew * aOrig > 0) || Math.abs(aNew) < Math.abs(aOrig) * 0.05) {
-      for (var gk = 0; gk < n; gk++) out[gk] = shrinkToCenterFallback(gk);
+    for (var hi = 0; hi < m2; hi++) {
+      var hj = (hi + 1) % m2;
+      aNew += out[hi].x * out[hj].y - out[hj].x * out[hi].y;
+    }
+    if (!(aNew * aOrig > 0) || Math.abs(aNew) < Math.abs(aOrig) * 0.05 || Math.abs(aNew) > Math.abs(aOrig)) {
+      out = [];
+      for (var gk = 0; gk < n; gk++) out.push(shrinkToCenterFallback(gk));
     }
     return out;
   }
