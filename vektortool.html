@@ -44316,46 +44316,40 @@ function genPaths() {
       break;
     }
     case 'flasher': {
-      /* [starshade v3] Original-Geometrie nach Lang/Magleby (JMR 2016),
-         Zirbel/Trease (JMD 2013) und dem BYU-Solar-Array-Creasepattern:
-         m=6 GERADE Wickel-Arme starten an den Ecken des Zentral-Sechsecks,
-         gegen die Radiale angestellt (Tangenten an einen Offset-Kreis um
-         den Hub). Der Spiral-Look kommt allein aus diesem Anstellwinkel -
-         NICHT aus einem Ring-Twist (den das echte Creasepattern nicht hat;
-         die Wickelung entsteht erst beim Falten in 3D). Ringabstände
-         LINEAR, erste Reihe ab Hub 1,6x breiter (BYU-Muster). Facetten
-         sind VIERECKE wie im Original (keine Panel-Diagonalen).
-         Anzahl = Ringe, Amplitude = Anstellwinkel der Arme
-         (100% = original ~60° gegen die Radiale, 0% = radiales Rad). */
-      var mArm = 6;
+      /* [starshade v4] Zurück zur WIRBEL-Optik der ursprünglichen Version
+         (Lukas-Entscheid 2026-07-10): verdrehte Polygon-Ringe um ein
+         Zentral-Polygon, Amplitude = Verdrehung pro Ring. Die streng
+         originalgetreue v3-Variante (6 gerade Arme nach Lang/Zirbel/BYU,
+         Vierecks-Panels, kein Ring-Twist) wirkte statisch - siehe Commit
+         905454f, bei Bedarf dort wiederherstellbar. Strukturell bleiben
+         die v2-Fixes: Ring-Trapeze DIAGONAL in zwei Dreiecke geteilt
+         (können nie selbstüberschneiden - der alte Quad-Bowtie-Bug ab n=14
+         ist damit weg), Diagonale GEGEN die Drehrichtung (die gleichsinnige
+         spannt 45°+Twist auf -> Nadel-Dreiecke), Element über den kanten-
+         parallelen _gapCell-Inset, Radien mit Potenz 0.8 (gleicht die
+         Facetten-Flächen für den Median-Inset an), voller Slider 2..30. */
+      var mArm = 12;
       var rings = Math.max(2, Math.min(30, n));
       var rMax = Math.min(hwe, hhe) * 0.98;
-      var rHub = rMax * 0.18;
-      var kip = Math.min(80, 60 * ap) * Math.PI / 180;
-      /* Armlänge bis rMax: |Hub-Ecke + u*L| = rMax, Hub·u = rHub*cos(kip) */
-      var Lmax = -rHub * Math.cos(kip) +
-        Math.sqrt(Math.max(0, rMax*rMax - rHub*rHub * Math.sin(kip)*Math.sin(kip)));
-      var fStep = Lmax / (rings - 1 + 1.6); /* erste Reihe = 1.6*fStep */
+      var twistPer = (Math.PI/180) * 16 * Math.min(2, ap);
+      var FR = [];
+      for (var fk=0; fk<=rings; fk++) FR.push(rMax * Math.pow((fk+1)/(rings+1), 0.8));
       var FP = [];
-      for (var fk=0; fk<=rings; fk++) {
-        var fL = fk === 0 ? 0 : fStep * (fk - 1 + 1.6);
-        var frow = [];
+      for (fk=0; fk<=rings; fk++) {
+        var frad = FR[fk], frot = fk*twistPer, frow = [];
         for (var fa=0; fa<mArm; fa++) {
-          var fphi = fa * 2*Math.PI/mArm;
-          frow.push([
-            rHub*Math.cos(fphi) + Math.cos(fphi + kip) * fL,
-            rHub*Math.sin(fphi) + Math.sin(fphi + kip) * fL
-          ]);
+          var fan = frot + fa*2*Math.PI/mArm;
+          frow.push([frad*Math.cos(fan), frad*Math.sin(fan)]);
         }
         FP.push(frow);
       }
       if (G.invert) {
-        P.push({tp:'poly', printCell:1, pts:_gapCell(FP[0].slice(), rHub, rHub)});
+        P.push({tp:'poly', printCell:1, pts:_gapCell(FP[0].slice(), FR[0], FR[0])});
         for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
           var fb = (fa+1)%mArm;
-          var fh = fk === 0 ? fStep * 1.6 : fStep; /* lokale Ringhöhe als Zellmass für den Element-Inset */
-          P.push({tp:'poly', printCell:1,
-            pts:_gapCell([FP[fk][fa], FP[fk][fb], FP[fk+1][fb], FP[fk+1][fa]], fh, fh)});
+          var fh = FR[fk+1] - FR[fk]; /* lokale Ringhöhe als Zellmass für den Element-Inset */
+          P.push({tp:'poly', printCell:1, pts:_gapCell([FP[fk][fa], FP[fk][fb], FP[fk+1][fa]], fh, fh)});
+          P.push({tp:'poly', printCell:1, pts:_gapCell([FP[fk][fb], FP[fk+1][fb], FP[fk+1][fa]], fh, fh)});
         }
       } else {
         P.push({tp:'poly', pts:FP[0].slice()});
@@ -44363,9 +44357,15 @@ function genPaths() {
           var fring = FP[fk].slice(); fring.push([FP[fk][0][0], FP[fk][0][1]]);
           P.push({tp:'pline', pts:fring});
         }
-        /* Arme sind GERADE: 2 Punkte reichen (Hub-Ecke -> Aussenende) */
         for (fa=0; fa<mArm; fa++) {
-          P.push({tp:'pline', pts:[FP[0][fa], FP[rings][fa]]});
+          var farm = [];
+          for (fk=0; fk<=rings; fk++) farm.push(FP[fk][fa]);
+          P.push({tp:'pline', pts:farm});
+        }
+        /* Diagonal-Falten als Linien (komplettes faltbares Muster),
+           gleiche Gegen-Twist-Diagonale wie im Invert. */
+        for (fk=0; fk<rings; fk++) for (fa=0; fa<mArm; fa++) {
+          P.push({tp:'pline', pts:[FP[fk][(fa+1)%mArm], FP[fk+1][fa]]});
         }
       }
       break;
@@ -44541,7 +44541,7 @@ function pathsToShapes(forReal) {
       var midX = (a.x + b.x) * 0.5, midY = (a.y + b.y) * 0.5;
       var dot = (cx - midX) * nxC + (cy - midY) * nyC;
       if (dot < 0) { nxC = -nxC; nyC = -nyC; }      /* nach innen umdrehen */
-      lines.push({ dx: ex/len, dy: ey/len, nx: nxC, ny: nyC });
+      lines.push({ dx: ex/len, dy: ey/len, nx: nxC, ny: nyC, len: len });
     }
     /* Schritt 2: pro Original-Ecke Miter-Punkt ODER zwei Square-Kapp-Punkte.
        Ergebnis kann also MEHR Punkte haben als das Original. */
@@ -44589,7 +44589,20 @@ function pathsToShapes(forReal) {
       if (!isFinite(f) || !(f > 0)) { out.push(shrinkToCenterFallback(k)); continue; } /* 180°-Kehre */
       var mvx = (prev.nx + cur.nx) * f, mvy = (prev.ny + cur.ny) * f;
       var mlen = Math.sqrt(mvx*mvx + mvy*mvy), mcap = amountPx * MITER_LIMIT;
-      if (mlen > mcap) { mvx *= mcap/mlen; mvy *= mcap/mlen; }
+      if (mlen > mcap) {
+        /* [starshade v4] Deckel-Punkt auf die Offset-Gerade der LÄNGEREN
+           Kante legen (Abstand LIMIT*d von der Ecke), nicht auf die
+           Winkelhalbierende: so bleibt die dominante Kante exakt kanten-
+           parallel (keine keilförmigen Fugen-Fluchten mehr, "da ist was
+           schräg" bei Miura mit Amplitude >400%), nur die kurze Gegen-
+           kante kippt. Am Grenzwinkel ist der Punkt identisch mit dem
+           Miter-Punkt -> stetiger Übergang. */
+        var Lg = (prev.len >= cur.len) ? prev : cur;
+        var sgn = (Lg === prev) ? -1 : 1; /* prev zeigt ZUR Ecke -> rückwärts ins Polygon; cur zeigt weg */
+        var sCap = amountPx * Math.sqrt(MITER_LIMIT * MITER_LIMIT - 1);
+        mvx = Lg.nx * amountPx + sgn * Lg.dx * sCap;
+        mvy = Lg.ny * amountPx + sgn * Lg.dy * sCap;
+      }
       out.push({ x: V.x + mvx, y: V.y + mvy });
     }
     /* [starshade v3 fix] Edge-Collapse: KURZE Kanten verschwinden beim Inset -
