@@ -44515,17 +44515,15 @@ function pathsToShapes(forReal) {
     return sh;
   }
   function shrinkPolyToCenter(pts, amountPx) {
-    /* Paralleler Kanten-Offset nach innen, mit MITER-LIMIT + SQUARE-KAPPUNG
-       (Clipper2-Logik). Jede Kante wird um amountPx eingerückt; die neue Ecke
-       ist der Offset-Schnittpunkt (Miter, Winkel bleiben exakt erhalten),
-       SOLANGE er nicht weiter als MITER_LIMIT*amountPx von der Original-Ecke
-       wegrückt. Spitzere Ecken werden mit ZWEI Punkten exakt bei Abstand
-       amountPx flach gekappt (Square-Join: Kapplinie senkrecht zur Winkel-
-       halbierenden). [starshade v3] Der reine Miter zog spitze Ecken um
-       amountPx/sin(theta/2) zurück (Starshade-Sliver 16,7°: 12,5 mm) - an
-       Knoten öffneten sich trichterförmige Löcher ("beschnittene Ecken").
-       Ersetzt auch die alte Radial-Klemmung, die beim Überschiessen des
-       Miter-Punkts über den Zentroid AUFGEBLASENE Polygone lieferte. */
+    /* Paralleler Kanten-Offset nach innen mit GEDECKELTEM MITER. Jede Kante
+       wird um amountPx eingerückt, die neue Ecke ist der Offset-Schnittpunkt
+       (Miter); dessen Rückzug entlang der Winkelhalbierenden ist auf
+       MITER_LIMIT*amountPx gedeckelt. [starshade v3] Der ungedeckelte Miter
+       zog spitze Ecken um amountPx/sin(theta/2) zurück - trichterförmige
+       Löcher an den Knoten ("beschnittene Ecken"). Ersetzt auch die alte
+       Radial-Klemmung, die beim Überschiessen des Miter-Punkts über den
+       Zentroid AUFGEBLASENE Polygone lieferte. Details zum Deckel und warum
+       eine Zwei-Punkt-Square-Kappe beim Inset NICHT geht: Kommentar unten. */
     if (!pts || pts.length < 3 || !(amountPx > 0)) return pts;
     var n = pts.length;
     /* Zentroid für die "innen"-Richtungs-Bestimmung */
@@ -44556,52 +44554,82 @@ function pathsToShapes(forReal) {
       var t0 = Math.min(amountPx / l0, 0.42);
       return { x: p.x + dx0 * t0, y: p.y + dy0 * t0 };
     }
-    var MITER_LIMIT = 2; /* Clipper2-Default: kappen, sobald der Miter-Punkt weiter als 2*amountPx wegrückt (Innenwinkel < 60°) */
-    var cosCut = 2 / (MITER_LIMIT * MITER_LIMIT) - 1;
+    var MITER_LIMIT = 2; /* max. Ecken-Rückzug in Vielfachen von amountPx */
+    /* Fläche des Originals (Guard unten braucht sie ebenfalls) */
+    var aOrig = 0;
+    for (var gi = 0; gi < n; gi++) {
+      var gj = (gi + 1) % n;
+      aOrig += pts[gi].x * pts[gj].y - pts[gj].x * pts[gi].y;
+    }
+    /* [starshade v3 fix] Pro Ecke: Miter-Punkt (Schnitt der Offset-Kanten),
+       dessen Distanz zur Original-Ecke ENTLANG DER WINKELHALBIERENDEN auf
+       MITER_LIMIT*amountPx gedeckelt wird. KEINE Zwei-Punkt-Kappe: beim
+       INSET liegt zwischen den d-Fusspunkten und dem Miter-Punkt nichts im
+       zulässigen Bereich (Halbebenen-Schnitt) - jede gerade Kappe landet im
+       Fugenband der Gegenkante und das Folgesegment kreuzt die Offset-Kante
+       (die "Banner-Kerben" an Miura-Spitzen, 280/280 selbstschneidend).
+       Der gedeckelte Miter bleibt auf der Winkelhalbierenden im freien Keil
+       zwischen Offset-Ecke und Original-Ecke -> kein Selbstschnitt; die
+       Spitze bleibt spitz, ragt nur maximal LIMIT*d zurück statt d/sin(θ/2);
+       am 60°-Grenzfall (miterLen = 2d) ist der Übergang stetig. Die Fuge
+       wird dadurch NUR an sehr spitzen Ecken lokal schmaler als 2d - der
+       gewollte Kompromiss gegen die Trichter-Löcher an den Knoten. */
     for (var k = 0; k < n; k++) {
       var prev = lines[(k - 1 + n) % n];
       var cur  = lines[k];
       if (!prev || !cur) { out.push(shrinkToCenterFallback(k)); continue; }
       var V = pts[k];
       var cosA = prev.nx * cur.nx + prev.ny * cur.ny;
-      if (cosA > cosCut) {
-        /* Miter: M = V + d*(n1+n2)/(1+cosA) (Schnitt der Offset-Kanten) */
-        var f = amountPx / (1 + cosA);
-        out.push({ x: V.x + (prev.nx + cur.nx) * f, y: V.y + (prev.ny + cur.ny) * f });
-      } else {
-        /* Square: Kapplinie durch Q = V + d*b (b = Winkelhalbierende der
-           Normalen) senkrecht zu b; Kapp-Punkte = Schnitt mit den beiden
-           Offset-Kantengeraden -> Rückzug an der Spitze exakt d. */
-        var bx = prev.nx + cur.nx, by = prev.ny + cur.ny;
-        var bl = Math.sqrt(bx*bx + by*by);
-        if (!(bl > 1e-9)) { out.push(shrinkToCenterFallback(k)); continue; } /* 180°-Kehre */
-        bx /= bl; by /= bl;
-        var qx = V.x + amountPx * bx, qy = V.y + amountPx * by;
-        var caps = [prev, cur];
-        for (var ci = 0; ci < 2; ci++) {
-          var L = caps[ci];
-          var ax2 = V.x + amountPx * L.nx, ay2 = V.y + amountPx * L.ny;
-          var tb = L.dx * bx + L.dy * by;
-          if (Math.abs(tb) < 1e-9) { out.push({ x: qx, y: qy }); continue; }
-          var s = ((qx - ax2) * bx + (qy - ay2) * by) / tb;
-          out.push({ x: ax2 + L.dx * s, y: ay2 + L.dy * s });
+      var f = amountPx / (1 + cosA);
+      if (!isFinite(f) || !(f > 0)) { out.push(shrinkToCenterFallback(k)); continue; } /* 180°-Kehre */
+      var mvx = (prev.nx + cur.nx) * f, mvy = (prev.ny + cur.ny) * f;
+      var mlen = Math.sqrt(mvx*mvx + mvy*mvy), mcap = amountPx * MITER_LIMIT;
+      if (mlen > mcap) { mvx *= mcap/mlen; mvy *= mcap/mlen; }
+      out.push({ x: V.x + mvx, y: V.y + mvy });
+    }
+    /* [starshade v3 fix] Edge-Collapse: KURZE Kanten verschwinden beim Inset -
+       ihr Offset-Segment kehrt die Richtung um und der Rand macht eine lokale
+       Schleife (Voronoi-Zellen mit kurzen Kanten: bis 135/280 selbstschneidend).
+       Umgekehrte Segmente auf ihren Mittelpunkt verschmelzen; kaskadiert, bis
+       nichts mehr umkehrt (out hat hier 1:1 die Original-Ecken). */
+    var collapsed = true, cIter = 0;
+    while (collapsed && cIter++ < n) {
+      collapsed = false;
+      for (var ck = 0; ck < n; ck++) {
+        var cl = (ck + 1) % n;
+        var otx = pts[cl].x - pts[ck].x, oty = pts[cl].y - pts[ck].y;
+        var ntx = out[cl].x - out[ck].x, nty = out[cl].y - out[ck].y;
+        if (otx*ntx + oty*nty < 0) {
+          var mxC = (out[ck].x + out[cl].x) / 2, myC = (out[ck].y + out[cl].y) / 2;
+          out[ck] = { x: mxC, y: myC };
+          out[cl] = { x: mxC, y: myC };
+          collapsed = true;
         }
       }
     }
     /* [muster-audit v1] Degenerations-Guard: kippt die Orientierung, bleiben
-       <5% Fläche ODER wächst die Fläche (darf beim Inset nie passieren -
-       Selbstschnitt-/Overlap-Indiz), alle Original-Ecken über den gedeckelten
-       Zentroid-Fallback (max 42% zum Zentrum, stülpt nie um) schrumpfen. */
-    var aOrig = 0, aNew = 0, m2 = out.length;
-    for (var gi = 0; gi < n; gi++) {
-      var gj = (gi + 1) % n;
-      aOrig += pts[gi].x * pts[gj].y - pts[gj].x * pts[gi].y;
+       <5% Fläche, wächst die Fläche (darf beim Inset nie passieren) ODER
+       schneidet sich der Rand selbst (Rest-Fälle mehrfach kollabierender
+       Voronoi-Zellen), alle Original-Ecken über den gedeckelten Zentroid-
+       Fallback (max 42% zum Zentrum, stülpt nie um, immer einfach) schrumpfen. */
+    function _spcSelfX(p2) {
+      var m3 = p2.length;
+      if (m3 > 20) return false; /* grosse Ringe (Kreise) sind regelmässig-konvex, Test sparen */
+      function ccw(pA,qA,rA){ return (rA.y-pA.y)*(qA.x-pA.x) - (qA.y-pA.y)*(rA.x-pA.x); }
+      for (var si = 0; si < m3; si++) for (var sj = si+2; sj < m3; sj++) {
+        if (si === 0 && sj === m3-1) continue;
+        var a1=p2[si], b1=p2[(si+1)%m3], c1=p2[sj], d1=p2[(sj+1)%m3];
+        var e1=ccw(c1,d1,a1), e2=ccw(c1,d1,b1), e3=ccw(a1,b1,c1), e4=ccw(a1,b1,d1);
+        if (((e1>0&&e2<0)||(e1<0&&e2>0)) && ((e3>0&&e4<0)||(e3<0&&e4>0))) return true;
+      }
+      return false;
     }
+    var aNew = 0, m2 = out.length;
     for (var hi = 0; hi < m2; hi++) {
       var hj = (hi + 1) % m2;
       aNew += out[hi].x * out[hj].y - out[hj].x * out[hi].y;
     }
-    if (!(aNew * aOrig > 0) || Math.abs(aNew) < Math.abs(aOrig) * 0.05 || Math.abs(aNew) > Math.abs(aOrig)) {
+    if (!(aNew * aOrig > 0) || Math.abs(aNew) < Math.abs(aOrig) * 0.05 || Math.abs(aNew) > Math.abs(aOrig) || _spcSelfX(out)) {
       out = [];
       for (var gk = 0; gk < n; gk++) out.push(shrinkToCenterFallback(gk));
     }
