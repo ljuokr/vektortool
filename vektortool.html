@@ -2213,7 +2213,6 @@ body.layer-panel-open #rsActions { display:none !important; }
     <div class="box-sec">
       <div class="box-sec-t">Layout</div>
       <div class="box-row"><label>Abstand<span id="boxGapv">2</span></label><input type="range" id="boxGap" min="0" max="40" value="2" step="1"></div>
-      <label class="box-cbr"><input type="checkbox" id="boxOLabel"> Beschriftung (Deckel/Boden/…)</label>
       <div class="box-stat" id="boxStat"><span>Innen: <b id="boxStatIn">114&times;74&times;57 mm</b></span></div>
     </div>
     <div class="box-actions">
@@ -45094,7 +45093,6 @@ var B = {
   layout: 'grid',           // [box-platten v1] Default = dicht gepackte getrennte Platten, zeilenweise umbrechend bis A4 quer passt
   gap: 2,                   // [box-platten v1] mm zwischen den aeussersten Zinken benachbarter Platten (Lukas: ~2mm)
   spaced: false,            // [flexbox-abstand v1] Teile getrennt mit Abstand auslegen (verzahnt aus)
-  label: false,             // Beschriftung der Bleche (default aus)
   inner: false,             // W/D/H als Innenmasse interpretieren
   /* Living-Hinge / Schlangenlinie (analog MakerCase / Boxes.py) */
   flex: false,              // flex aktivieren (mind. eine Wand wird flexibel)
@@ -45898,7 +45896,10 @@ function buildRoundedFlexShapes() {
   var minDim = Math.min(W, D);
   R = Math.max(3, Math.min(R, minDim/2 - 3));
 
-  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
+     Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
+     benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
+  var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
   var dWmm = (window.docW || (297*MM)) / MM;
   var dHmm = (window.docH || (210*MM)) / MM;
@@ -45981,15 +45982,6 @@ function buildRoundedFlexShapes() {
             x:Math.min(x1,x2), y:Math.min(y1,y2), w:Math.abs(x2-x1), h:Math.abs(y2-y1) });
         }
       }
-    }
-    if (B.label) {
-      var fs = 8;
-      shapes.push({
-        type:'text', text: it.label,
-        x: (it.cx + shiftX) * MM - fs*1.6, y: (it.cy + shiftY) * MM - fs*0.5,
-        w: fs*3.2, h: fs, fontSize: fs, fontFamily:'Arial', fontWeight:400,
-        fill:'#888', stroke:'none', strokeWidth:0, fillEnabled:true, rotation:0
-      });
     }
   }
   return shapes;
@@ -46205,7 +46197,10 @@ function layoutPanels(panels) {
 /* ══ Konvertierung Pfade → Vektortool-Shapes (px) ══
    Liefert Array, weil ein Blech mehrere Pfade haben kann (z.B. Back ohne N+S → 2 Pfade). */
 function panelToShapes(p) {
-  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
+     Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
+     benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
+  var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
   var ox = (p.tx || 0), oy = (p.ty || 0);
   var paths = (p.poly && p.poly.paths) || [];
@@ -46236,7 +46231,10 @@ function panelToShapes(p) {
 
 function holesToShapes(p) {
   if (!p.poly.holes || !p.poly.holes.length) return [];
-  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
+     Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
+     benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
+  var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
   var ox = (p.tx || 0), oy = (p.ty || 0);
   var out = [];
@@ -46259,7 +46257,10 @@ function holesToShapes(p) {
 
 function slitsToShapes(p) {
   if (!p.poly.slits || !p.poly.slits.length) return [];
-  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
+     Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
+     benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
+  var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
   var ox = (p.tx || 0), oy = (p.ty || 0);
   var out = [];
@@ -46298,21 +46299,6 @@ function slitsToShapes(p) {
   return out;
 }
 
-function labelToShape(p) {
-  var ox = (p.tx || 0), oy = (p.ty || 0);
-  var cxMM = ox + p.w/2;
-  var cyMM = oy + p.h/2;
-  var fontSizePx = Math.max(10, Math.min(30, p.w*MM*0.08));
-  return {
-    type:'text', text: p.label,
-    x: cxMM*MM - fontSizePx*1.5, y: cyMM*MM - fontSizePx*0.5,
-    w: fontSizePx*3, h: fontSizePx,
-    fontSize: fontSizePx, fontFamily:'Arial', fontWeight:400,
-    fill: '#888', stroke:'none', strokeWidth:0, fillEnabled:true,
-    rotation:0
-  };
-}
-
 /* ══ Alle Shapes erzeugen, mit globaler Zentrierung ══ */
 function buildAllShapes(forReal) {
   /* Flex-Box (gerundete Box mit Wickelstreifen) — komplett eigene Geometrie. */
@@ -46323,7 +46309,10 @@ function buildAllShapes(forReal) {
      Voraussetzungen: nested aktiv, alle 6 Flächen, joint != butt. */
   var fullNested = B.nested && B.fTop && B.fBottom && B.fFront && B.fBack && B.fLeft && B.fRight && B.joint !== 'butt';
 
-  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
+     Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
+     benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
+  var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
   var dWmm = (window.docW || (297*MM)) / MM;
   var dHmm = (window.docH || (210*MM)) / MM;
@@ -46387,29 +46376,6 @@ function buildAllShapes(forReal) {
         }
       }
     }
-    /* Optional: Beschriftung pro Fläche */
-    if (B.label) {
-      var W = panelDims('top').w, D = panelDims('top').h, H = panelDims('front').h;
-      var labels = [
-        { face:'top',    cx: W/2,        cy: D + H + D/2 },
-        { face:'bottom', cx: W/2,        cy: D/2 },
-        { face:'front',  cx: W/2,        cy: -H/2 },
-        { face:'back',   cx: W/2,        cy: D + H/2 },
-        { face:'left',   cx: -H/2,       cy: D/2 },
-        { face:'right',  cx: W + H/2,    cy: D/2 }
-      ];
-      var dimsLbl = { top:'Deckel', bottom:'Boden', front:'Vorne', back:'Hinten', left:'Links', right:'Rechts' };
-      var fs = Math.max(10, Math.min(22, W * MM * 0.06));
-      for (var li=0;li<labels.length;li++) {
-        var lab = labels[li];
-        shapes.push({
-          type:'text', text: dimsLbl[lab.face],
-          x: (lab.cx + shiftX) * MM - fs*1.2, y: (lab.cy + shiftY) * MM - fs*0.5,
-          w: fs*2.4, h: fs, fontSize: fs, fontFamily:'Arial', fontWeight:400,
-          fill: '#888', stroke:'none', strokeWidth:0, fillEnabled:true, rotation:0
-        });
-      }
-    }
     return shapes;
   }
 
@@ -46445,7 +46411,6 @@ function buildAllShapes(forReal) {
     for (var hi=0;hi<hs.length;hi++) shapes2.push(hs[hi]);
     var sl = slitsToShapes(panels[n]);
     for (var si=0;si<sl.length;si++) shapes2.push(sl[si]);
-    if (B.label) shapes2.push(labelToShape(panels[n]));
   }
   return shapes2;
 }
@@ -46618,7 +46583,6 @@ bindCbx('boxFFront',  'fFront');
 bindCbx('boxFBack',   'fBack');
 bindCbx('boxFLeft',   'fLeft');
 bindCbx('boxFRight',  'fRight');
-bindCbx('boxOLabel',  'label');
 bindCbx('boxOInner',  'inner');
 bindCbx('boxONested', 'nested', function(){
   if (B.nested) { B.spaced = false; var _sc = $$('boxOSpaced'); if (_sc) _sc.checked = false; }
@@ -46876,7 +46840,10 @@ if (swatchBtn) swatchBtn.addEventListener('click', function(){
   }
   hingeOpts.edgeCut = true; /* [rundeecken v2] Teststreifen wie die Eck-Zonen: durch die Kanten schneiden */
   var slits = generateLivingHingeSlits(wS, hS, hingeOpts);
-  var inkCol = (window.state && window.state.defaults && window.state.defaults.stroke) || '#2b2b2b';
+  /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
+     Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
+     benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
+  var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
   var sx = ((window.docW || 297 * MM) / MM - wS) / 2, sy = ((window.docH || 210 * MM) / MM - hS) / 2;
   var out = [{
@@ -46929,7 +46896,6 @@ $$('boxResetBtn').addEventListener('click', function(){
   $$('boxFTop').checked = B.fTop;       $$('boxFBottom').checked = B.fBottom;
   $$('boxFFront').checked = B.fFront;   $$('boxFBack').checked = B.fBack;
   $$('boxFLeft').checked = B.fLeft;     $$('boxFRight').checked = B.fRight;
-  $$('boxOLabel').checked = B.label;
   if ($$('boxOInner'))  $$('boxOInner').checked = B.inner;            /* [box-cleanup v1] entfernte Box-UI guarden */
   if ($$('boxOSpaced')) $$('boxOSpaced').checked = !!B.spaced;
   if ($$('boxCapLid'))  $$('boxCapLid').checked = (B.capLid !== false);
