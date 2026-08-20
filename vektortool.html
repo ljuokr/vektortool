@@ -45171,6 +45171,13 @@ function buildPanelOutline(w, h, edges, opts, includeEdges, insets) {
       if ((i & 1) === 0) {
         var ePos = eFrac;
         if (mode === 'slot' && i < segCount - 1) ePos = eFrac - c;
+        /* [box-kerf-parallel v1] Talende vor einem Tab um kerf/2 mitversetzen, wie beim Slot.
+           Vorher lief die Zinkenflanke schraeg vom unversetzten Tal zum kerf-versetzten
+           Fingerfuss (z. B. dx=0.05 auf dy=3, Steigung 1:60). Solche Mikro-Mischsegmente
+           brachten Lukas' GCC-X380-Anbindung zum wilden Springen (verifiziert 2026-08-20:
+           Kerf 0 -> sauber). Jetzt sind alle Kanten achsenparallel, der Finger ist ein
+           echtes Rechteck der Breite segLen+kerf statt minimal konisch. */
+        if (mode === 'tab' && i < segCount - 1) ePos = eFrac - kerf/2;
         pts.push({ x: sx + dx*ePos, y: sy + dy*ePos });
       } else {
         var sPos = sFrac, ePos2 = eFrac;
@@ -45657,12 +45664,14 @@ function _crossMakeStrip(sx, sy, dx, dy, len, mode, nx, ny, kerf) {
   for (var i=0;i<segCount;i++) {
     var sFrac = i*segLen, eFrac = (i+1)*segLen;
     if ((i & 1) === 0) {
-      pts.push({ x: sx + dx*eFrac, y: sy + dy*eFrac });
+      /* [box-kerf-parallel v1] Talende vor einem Tab um kerf/2 mitversetzen (siehe makeStrip) */
+      var _ke = (mode === 'tab' && i < segCount - 1) ? kerf/2 : 0;
+      pts.push({ x: sx + dx*(eFrac - _ke), y: sy + dy*(eFrac - _ke) });
     } else {
       var _kf = (mode === 'tab') ? kerf/2 : 0; /* [box-kerf-cross v1] Finger um kerf/2 pro Seite verbreitern (nur tab) */
       pts.push({ x: sx + dx*(sFrac - _kf) + nx*sign*t, y: sy + dy*(sFrac - _kf) + ny*sign*t });
       pts.push({ x: sx + dx*(eFrac + _kf) + nx*sign*t, y: sy + dy*(eFrac + _kf) + ny*sign*t });
-      pts.push({ x: sx + dx*eFrac, y: sy + dy*eFrac });
+      pts.push({ x: sx + dx*(eFrac + _kf), y: sy + dy*(eFrac + _kf) }); /* [box-kerf-parallel v1] Rueckflanke senkrecht */
     }
   }
   return pts;
