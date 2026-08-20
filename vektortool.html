@@ -45319,11 +45319,20 @@ function panelDims(faceName) {
   if (B.inner) { Wo += 2*t; Do += 2*t; Ho += 2*t; }
   var insD = (B.fFront ? t : 0) + (B.fBack ? t : 0);   /* Vorne/Hinten begrenzen die D-Ausdehnung von Links/Rechts */
   var insH = (B.fTop ? t : 0) + (B.fBottom ? t : 0);   /* Deckel/Boden begrenzen die H-Ausdehnung von Links/Rechts */
+  /* [box-aussenmass v2] Tab-Zinken ragen in makeStrip um t UEBER die Grundflaeche hinaus.
+     Bisher waren die Grundflaechen der Tab-Platten selbst schon auf Aussenmass -> ueber alles
+     wurden Deckel/Boden (W+2t)x(D+2t) und Vorne/Hinten (W+2t)xH: die Box baute 2t groesser
+     als deklariert, der Deckel konnte nie beide Enden einrasten und Links/Rechts wirkten
+     "zu klein" (Lukas' Befund 2026-08-20, real gesteckt). Jetzt wird das Grundmass pro
+     VORHANDENER Zinken-Nachbarwand um t gekuerzt, damit Grund+Zinken exakt das Aussenmass
+     ergeben. Mate-Kantenlaengen bleiben paarweise identisch (Raster deckungsgleich),
+     auch bei offener Box, weil pro Seite einzeln gekuerzt wird. */
+  var insW = (B.fLeft ? t : 0) + (B.fRight ? t : 0);   /* Links/Rechts begrenzen die W-Ausdehnung der Tab-Platten */
   switch (faceName) {
-    case 'top':    return { w: Wo, h: Do, label: 'Deckel'  };
-    case 'bottom': return { w: Wo, h: Do, label: 'Boden'   };
-    case 'front':  return { w: Wo, h: Ho, label: 'Vorne'   };
-    case 'back':   return { w: Wo, h: Ho, label: 'Hinten'  };
+    case 'top':    return { w: Math.max(1, Wo - insW), h: Math.max(1, Do - insD), label: 'Deckel'  };
+    case 'bottom': return { w: Math.max(1, Wo - insW), h: Math.max(1, Do - insD), label: 'Boden'   };
+    case 'front':  return { w: Math.max(1, Wo - insW), h: Ho, label: 'Vorne'   };
+    case 'back':   return { w: Math.max(1, Wo - insW), h: Ho, label: 'Hinten'  };
     case 'left':   return { w: Math.max(1, Do - insD), h: Math.max(1, Ho - insH), label: 'Links'   };
     case 'right':  return { w: Math.max(1, Do - insD), h: Math.max(1, Ho - insH), label: 'Rechts'  };
   }
@@ -45354,14 +45363,12 @@ function panelInsets(faceName) {
       return { N:{s:0,e:0}, S:{s:0,e:0},
         W:{ s:T(B.fTop),    e:T(B.fBottom) },
         E:{ s:T(B.fBottom), e:T(B.fTop)    } };
-    case 'top':     /* N=Hinten, S=Vorne; W laeuft vorne->hinten, E hinten->vorne */
-      return { N:{s:0,e:0}, S:{s:0,e:0},
-        W:{ s:T(B.fFront), e:T(B.fBack)  },
-        E:{ s:T(B.fBack),  e:T(B.fFront) } };
-    case 'bottom':  /* N=Vorne, S=Hinten */
-      return { N:{s:0,e:0}, S:{s:0,e:0},
-        W:{ s:T(B.fBack),  e:T(B.fFront) },
-        E:{ s:T(B.fFront), e:T(B.fBack)  } };
+    case 'top':     /* [box-aussenmass v2] Kanten sind durch panelDims bereits pro Capper
+      gekuerzt - zusaetzliche Eck-Insets wuerden die Finger-Region doppelt schrumpfen
+      und das Raster gegen die Mate-Kante (Links/Rechts N/S bzw. Vorne/Hinten) verschieben. */
+      return { N:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0}, E:{s:0,e:0} };
+    case 'bottom':
+      return { N:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0}, E:{s:0,e:0} };
   }
   return z;
 }
