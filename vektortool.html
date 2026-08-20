@@ -8964,7 +8964,13 @@ function render() {
     html += '<text x="'+(-7/zoom)+'" y="'+(ly + 2/zoom)+'" text-anchor="middle" font-size="'+tickFs+'" fill="#999" opacity="0.75" font-family="Nunito" transform="rotate(-90,'+(-7/zoom)+','+(ly + 2/zoom)+')">'+mmY+'</text>';
   }
 
-  for (var si = 0; si < shapes.length; si++) html += renderShape(shapes[si]);
+  /* [VT-HIDDEN-RENDER v1] Das Auge im Ebenen-Panel setzt s.hidden, wurde hier aber nie
+     ausgewertet - ausgeblendete Objekte blieben sichtbar. Damit fiel auch nicht auf, dass
+     eine "ausgeblendete" Trace-Vorlage noch im Dokument liegt und mitexportiert wird. */
+  for (var si = 0; si < shapes.length; si++) {
+    if (shapes[si] && shapes[si].hidden) continue;
+    html += renderShape(shapes[si]);
+  }
   } /* Ende statischer Aufbau [VT-PREVIEW-LAYER v1] */
   var dyn = '';
   if (previewShape) dyn += renderShape(previewShape);
@@ -18101,7 +18107,14 @@ function buildExportSVG() {
     svgContent += '</defs>\n';
   }
   /* No background rect - export with transparent background */
-  for (var j = 0; j < shapes.length; j++) svgContent += renderShapeExport(shapes[j]) + '\n';
+  /* [VT-EXPORT-HIDDEN v1] Ausgeblendetes gehoert nicht in den Export - der Export lief bisher
+     ueber ALLE Shapes ohne Filter. Eine ausgeblendete Bild-Vorlage landete so als Base64-Bitmap
+     im SVG; LightBurn prueft dann dessen DPI gegen die feste Geraeteliste (GCC X380:
+     125/250/380/500/760/1000/1500) und verweigert den Job. DXF filtert laengst so. */
+  for (var j = 0; j < shapes.length; j++) {
+    if (shapes[j] && shapes[j].hidden) continue;
+    svgContent += renderShapeExport(shapes[j]) + '\n';
+  }
   svgContent += '</svg>';
   return svgContent;
 }
@@ -18295,8 +18308,24 @@ function buildExportSVGShaper() {
 
 
 // SVG Export
+/* [VT-EXPORT-BITMAP-WARN v1] Sichtbare Bild-Objekte werden als Base64-Pixeldaten ins SVG
+   eingebettet. Fuer Web und Druck ist das gewollt, fuer Laser oder Schneideplotter fast nie -
+   dort scheitert der Job an der DPI-Pruefung. Darum vorher fragen statt still einbetten,
+   analog zur Warnung im DXF-Export. */
+function _countVisibleImageShapes() {
+  var n = 0;
+  for (var i = 0; i < shapes.length; i++) {
+    if (shapes[i] && !shapes[i].hidden && shapes[i].type === 'image') n++;
+  }
+  return n;
+}
 $('exportSvgBtn').addEventListener('click', function() {
   if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }  /* [uxfix v1] G1: leerer Canvas erzeugte ein Metadata-only-SVG ohne Hinweis */
+  var _nImg = _countVisibleImageShapes();
+  if (_nImg && !confirm(
+        _nImg + ' ' + window.t('Bild-Objekt(e) werden als Pixeldaten ins SVG eingebettet.') + '\n\n' +
+        window.t('F\u00fcr Web und Druck ist das richtig. F\u00fcr Laser oder Schneideplotter die Bilder besser vorher l\u00f6schen, sonst meldet z. B. LightBurn einen ung\u00fcltigen DPI-Wert.') + '\n\n' +
+        window.t('Trotzdem exportieren?'))) return;
   downloadBlob(new Blob([buildExportSVG()], {type:'image/svg+xml'}), ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.svg'); /* [uxfix v1] Dokumentname im Dateinamen */
 });
 /* [uxfix v1] G8: DXF-Export verdrahtet (buildExportDXF war fertig, aber tot). Warnt vor
