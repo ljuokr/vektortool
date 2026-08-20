@@ -45333,8 +45333,14 @@ function panelDims(faceName) {
     case 'bottom': return { w: Math.max(1, Wo - insW), h: Math.max(1, Do - insD), label: 'Boden'   };
     case 'front':  return { w: Math.max(1, Wo - insW), h: Ho, label: 'Vorne'   };
     case 'back':   return { w: Math.max(1, Wo - insW), h: Ho, label: 'Hinten'  };
-    case 'left':   return { w: Math.max(1, Do - insD), h: Math.max(1, Ho - insH), label: 'Links'   };
-    case 'right':  return { w: Math.max(1, Do - insD), h: Math.max(1, Ho - insH), label: 'Rechts'  };
+    /* [box-aussenmass v2b] Links/Rechts sind Slot-Waende: ihre Einbuchtungen nehmen die
+       Zinken der Nachbarn auf. Dafuer muessen sie bis zu den Aussenflaechen DURCHLAUFEN
+       (volle D x H) - das Material zwischen den Slots schliesst buendig mit Deckel/Boden
+       bzw. Vorne/Hinten ab (sichtbares Stirnholz an den Kanten, klassisches Finger-Bild).
+       Die fruehere Kuerzung auf (D-2t)x(H-2t) liess der Wand nichts, worin die Nachbar-
+       Zinken greifen konnten: real fehlten 2t in Hoehe und Breite (Lukas, gesteckt). */
+    case 'left':   return { w: Do, h: Ho, label: 'Links'   };
+    case 'right':  return { w: Do, h: Ho, label: 'Rechts'  };
   }
   return { w: 50, h: 50, label: '?' };
 }
@@ -45350,7 +45356,9 @@ function panelInsets(faceName) {
      Luecken (segLen = L/segCount, proportional). Jetzt pro Ende konsistent.
      s = Start-Eck, e = End-Eck in Walk-Richtung (N:L->R, E:T->B, S:R->L, W:B->T).
      Fehlt die Seitenwand selbst, ist die Kante 'flat' und das Inset wird ignoriert.
-     Links/Rechts = die gekuerzten Waende selbst -> nie Inset. */
+     [box-aussenmass v2b] Links/Rechts laufen jetzt voll durch (D x H): ihre Kanten
+     brauchen an jedem Ende ein glattes t, wo der jeweilige Capper steht, damit die
+     Slot-Region deckungsgleich mit der (gekuerzten) Zinken-Region der Gegenkante ist. */
   var t = B.t, T = function(c){ return c ? t : 0; };
   var z = { N:{s:0,e:0}, E:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0} };
   if (B.joint === 'butt') return z;
@@ -45369,6 +45377,14 @@ function panelInsets(faceName) {
       return { N:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0}, E:{s:0,e:0} };
     case 'bottom':
       return { N:{s:0,e:0}, S:{s:0,e:0}, W:{s:0,e:0}, E:{s:0,e:0} };
+    case 'left': case 'right':
+      /* [box-aussenmass v2b] Walk: N L->R (vorne->hinten), E oben->unten, S R->L, W unten->oben.
+         W-Kante = Front-Mate, E = Back-Mate, N = Deckel, S = Boden (siehe edges-Tabelle). */
+      return {
+        N:{ s:T(B.fFront),  e:T(B.fBack)   },
+        S:{ s:T(B.fBack),   e:T(B.fFront)  },
+        E:{ s:T(B.fTop),    e:T(B.fBottom) },
+        W:{ s:T(B.fBottom), e:T(B.fTop)    } };
   }
   return z;
 }
