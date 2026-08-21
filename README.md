@@ -1,7 +1,8 @@
 # Vektortool
 
-**From vector to object.** A free vector graphics editor that runs entirely in
-your browser - no install, no login, no server. A single HTML file.
+**From vector to object.** Draw. Embroider. Laser-cut. 3D-print.
+Free. No install, no account, works offline. A vector graphics editor that runs
+entirely in your browser - a single HTML file, no server.
 
 ➡ **[vektortool.app](https://vektortool.app)**
 

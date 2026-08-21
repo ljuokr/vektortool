@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="de-CH"><head><meta charset="utf-8">
+<title>Vektortool Vorschaubild (Quelle)</title>
+<!--
+  Quelle fuer preview.png (1200 x 630, Open-Graph-Bild).
+  Rendern: Chrome headless
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
+      --window-size=1200,630 --virtual-time-budget=5000 --screenshot=preview.png preview-source.html
+  Karten von links: Zeichnen (geknickte Linie + Pfeil), Sticken (Stern mit Satinstich),
+  Lasern (Fingerbox), 3D-Druck (Muster-Generator).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f6f4ef}
+  body{width:1200px;height:630px;overflow:hidden}
+  svg{display:block}
+  .card{fill:#fff;stroke:#d9d5cd;stroke-width:1.5}
+  .ln{fill:none;stroke:#3f7191;stroke-width:5;stroke-linejoin:round;stroke-linecap:round}
+  .nd{fill:#fff;stroke:#3f7191;stroke-width:3}
+  .cur{fill:#2b2b2b;stroke:#fff;stroke-width:3;stroke-linejoin:round}
+  .satin{stroke:#e8734a;stroke-width:3;stroke-linecap:butt}
+  .staroutline{fill:none;stroke:#1d1d1d;stroke-width:3;stroke-dasharray:9 7;stroke-linejoin:round}
+  .wood{stroke:#6b4a2a;stroke-width:2;stroke-linejoin:round}
+  .hline{stroke:#8a8a8a;stroke-width:2}
+  .zig{fill:none;stroke:#3f7191;stroke-width:2.5;stroke-dasharray:7 5;stroke-linejoin:round}
+  .wm{font-family:'Nunito',system-ui,sans-serif;font-weight:800;font-size:72px;letter-spacing:-1px}
+</style></head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.07"/>
+    </filter>
+    <clipPath id="starclip">
+      <polygon points="464,145 489,214 561,214 503,257 525,326 464,283 403,326 425,257 367,214 439,214"/>
+    </clipPath>
+  </defs>
+
+  <!-- Karten -->
+  <g filter="url(#sh)">
+    <rect class="card" x="65"  y="70" width="248" height="360" rx="14"/>
+    <rect class="card" x="340" y="70" width="248" height="360" rx="14"/>
+    <rect class="card" x="615" y="70" width="248" height="360" rx="14"/>
+    <rect class="card" x="890" y="70" width="248" height="360" rx="14"/>
+  </g>
+
+  <!-- 1 Zeichnen: geknickte Linie, Knoten, Mauspfeil (Variante B) -->
+  <g transform="translate(89,120)">
+    <polyline class="ln" points="30,210 70,120 105,175 145,70 170,110"/>
+    <rect class="nd" x="23"  y="203" width="14" height="14"/>
+    <rect class="nd" x="63"  y="113" width="14" height="14"/>
+    <rect class="nd" x="98"  y="168" width="14" height="14"/>
+    <rect class="nd" x="138" y="63"  width="14" height="14"/>
+    <path class="cur" transform="translate(170,110)" d="M0,0 L0,34 L9,25 L16,41 L23,38 L16,22 L28,22 Z"/>
+  </g>
+
+  <!-- 2 Sticken: Stern mit Satinstich -->
+  <g>
+    <polygon points="464,145 489,214 561,214 503,257 525,326 464,283 403,326 425,257 367,214 439,214" fill="#fff"/>
+    <g clip-path="url(#starclip)">
+      <g class="satin">
+        <line x1="372" y1="140" x2="352" y2="340"/><line x1="380" y1="140" x2="360" y2="340"/>
+        <line x1="388" y1="140" x2="368" y2="340"/><line x1="396" y1="140" x2="376" y2="340"/>
+        <line x1="404" y1="140" x2="384" y2="340"/><line x1="412" y1="140" x2="392" y2="340"/>
+        <line x1="420" y1="140" x2="400" y2="340"/><line x1="428" y1="140" x2="408" y2="340"/>
+        <line x1="436" y1="140" x2="416" y2="340"/><line x1="444" y1="140" x2="424" y2="340"/>
+        <line x1="452" y1="140" x2="432" y2="340"/><line x1="460" y1="140" x2="440" y2="340"/>
+        <line x1="468" y1="140" x2="448" y2="340"/><line x1="476" y1="140" x2="456" y2="340"/>
+        <line x1="484" y1="140" x2="464" y2="340"/><line x1="492" y1="140" x2="472" y2="340"/>
+        <line x1="500" y1="140" x2="480" y2="340"/><line x1="508" y1="140" x2="488" y2="340"/>
+        <line x1="516" y1="140" x2="496" y2="340"/><line x1="524" y1="140" x2="504" y2="340"/>
+        <line x1="532" y1="140" x2="512" y2="340"/><line x1="540" y1="140" x2="520" y2="340"/>
+        <line x1="548" y1="140" x2="528" y2="340"/><line x1="556" y1="140" x2="536" y2="340"/>
+        <line x1="564" y1="140" x2="544" y2="340"/><line x1="572" y1="140" x2="552" y2="340"/>
+      </g>
+    </g>
+    <polygon class="staroutline" points="464,145 489,214 561,214 503,257 525,326 464,283 403,326 425,257 367,214 439,214"/>
+  </g>
+
+  <!-- 3 Lasern: Fingerbox isometrisch -->
+  <g class="wood">
+    <polygon points="739,150 822,197 739,244 656,197" fill="#ecdcc2"/>
+    <polygon points="656,197 739,244 739,354 656,307" fill="#c59a68"/>
+    <polygon points="739,244 822,197 822,307 739,354" fill="#a87850"/>
+    <!-- Zinken entlang der senkrechten Kante (linke Wand greift in rechte) -->
+    <rect x="739" y="244" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
+    <rect x="739" y="272" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
+    <rect x="739" y="300" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
+    <rect x="739" y="328" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
+    <!-- Zinken Deckel -> linke Wand -->
+    <polygon points="664,201.5 676,208.3 676,224 664,217" fill="#ecdcc2"/>
+    <polygon points="688,215.1 700,221.9 700,238 688,231" fill="#ecdcc2"/>
+    <polygon points="712,228.7 724,235.5 724,252 712,245" fill="#ecdcc2"/>
+    <!-- Zinken Deckel -> rechte Wand -->
+    <polygon points="814,201.5 802,208.3 802,224 814,217" fill="#ecdcc2"/>
+    <polygon points="790,215.1 778,221.9 778,238 790,231" fill="#ecdcc2"/>
+    <polygon points="766,228.7 754,235.5 754,252 766,245" fill="#ecdcc2"/>
+    <!-- Zinken an den Aussenkanten (Vorder- und Seitenwand unten) -->
+    <polygon points="664,262 676,268.8 676,282 664,275" fill="#a87850"/>
+    <polygon points="700,282 712,288.8 712,302 700,295" fill="#a87850"/>
+    <polygon points="814,262 802,268.8 802,282 814,275" fill="#c59a68"/>
+    <polygon points="778,282 766,288.8 766,302 778,295" fill="#c59a68"/>
+  </g>
+
+  <!-- 4 3D-Druck: Faltmuster -->
+  <g>
+    <line class="hline" x1="938" y1="105" x2="1090" y2="105"/>
+    <line class="hline" x1="938" y1="164" x2="1090" y2="164"/>
+    <line class="hline" x1="938" y1="223" x2="1090" y2="223"/>
+    <line class="hline" x1="938" y1="282" x2="1090" y2="282"/>
+    <line class="hline" x1="938" y1="341" x2="1090" y2="341"/>
+    <line class="hline" x1="938" y1="400" x2="1090" y2="400"/>
+    <g class="zig">
+      <polyline points="938,105 976,164 1014,105 1052,164 1090,105"/>
+      <polyline points="938,164 976,105 1014,164 1052,105 1090,164"/>
+      <polyline points="938,164 976,223 1014,164 1052,223 1090,164"/>
+      <polyline points="938,223 976,164 1014,223 1052,164 1090,223"/>
+      <polyline points="938,223 976,282 1014,223 1052,282 1090,223"/>
+      <polyline points="938,282 976,223 1014,282 1052,223 1090,282"/>
+      <polyline points="938,282 976,341 1014,282 1052,341 1090,282"/>
+      <polyline points="938,341 976,282 1014,341 1052,282 1090,341"/>
+      <polyline points="938,341 976,400 1014,341 1052,400 1090,341"/>
+      <polyline points="938,400 976,341 1014,400 1052,341 1090,400"/>
+    </g>
+  </g>
+
+  <!-- Wortmarke -->
+  <text class="wm" x="600" y="560" text-anchor="middle"><tspan fill="#2b2b2b">vektortool</tspan><tspan fill="#3f7191">.app</tspan></text>
+</svg>
+</body></html>
