@@ -78,29 +78,56 @@
     <polygon class="staroutline" points="464,145 489,214 561,214 503,257 525,326 464,283 403,326 425,257 367,214 439,214"/>
   </g>
 
-  <!-- 3 Lasern: Fingerbox isometrisch -->
-  <g class="wood">
-    <polygon points="739,150 822,197 739,244 656,197" fill="#ecdcc2"/>
-    <polygon points="656,197 739,244 739,354 656,307" fill="#c59a68"/>
-    <polygon points="739,244 822,197 822,307 739,354" fill="#a87850"/>
-    <!-- Zinken entlang der senkrechten Kante (linke Wand greift in rechte) -->
-    <rect x="739" y="244" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
-    <rect x="739" y="272" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
-    <rect x="739" y="300" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
-    <rect x="739" y="328" width="15" height="14" fill="#c59a68" transform="skewY(-29.5) translate(0,419)"/>
-    <!-- Zinken Deckel -> linke Wand -->
-    <polygon points="664,201.5 676,208.3 676,224 664,217" fill="#ecdcc2"/>
-    <polygon points="688,215.1 700,221.9 700,238 688,231" fill="#ecdcc2"/>
-    <polygon points="712,228.7 724,235.5 724,252 712,245" fill="#ecdcc2"/>
-    <!-- Zinken Deckel -> rechte Wand -->
-    <polygon points="814,201.5 802,208.3 802,224 814,217" fill="#ecdcc2"/>
-    <polygon points="790,215.1 778,221.9 778,238 790,231" fill="#ecdcc2"/>
-    <polygon points="766,228.7 754,235.5 754,252 766,245" fill="#ecdcc2"/>
-    <!-- Zinken an den Aussenkanten (Vorder- und Seitenwand unten) -->
-    <polygon points="664,262 676,268.8 676,282 664,275" fill="#a87850"/>
-    <polygon points="700,282 712,288.8 712,302 700,295" fill="#a87850"/>
-    <polygon points="814,262 802,268.8 802,282 814,275" fill="#c59a68"/>
-    <polygon points="778,282 766,288.8 766,302 778,295" fill="#c59a68"/>
+  <!-- 3 Lasern: Fingerbox isometrisch, Zinken an allen sichtbaren Kanten (generiert, siehe Kopf) -->
+  <g stroke="#7a5a3a" stroke-width="1.5" stroke-linejoin="round">
+    <polygon points="641.5,196.0 762.7,266.0 836.4,223.5 715.1,153.5" fill="#eee3cf"/>
+    <polygon points="641.5,276.0 762.7,346.0 762.7,266.0 641.5,196.0" fill="#dccaa8"/>
+    <polygon points="762.7,346.0 836.4,303.5 836.4,223.5 762.7,266.0" fill="#e6d7b8"/>
+  </g>
+  <g fill="#4e2f16" stroke="#3a2210" stroke-width="0.8" stroke-linejoin="round">
+    <polygon points="641.5,196.0 653.6,203.0 659.7,199.5 647.6,192.5"/>
+    <polygon points="653.6,203.0 665.7,210.0 665.7,217.0 653.6,210.0"/>
+    <polygon points="665.7,210.0 677.9,217.0 683.9,213.5 671.8,206.5"/>
+    <polygon points="677.9,217.0 690.0,224.0 690.0,231.0 677.9,224.0"/>
+    <polygon points="690.0,224.0 702.1,231.0 708.2,227.5 696.1,220.5"/>
+    <polygon points="702.1,231.0 714.2,238.0 714.2,245.0 702.1,238.0"/>
+    <polygon points="714.2,238.0 726.4,245.0 732.4,241.5 720.3,234.5"/>
+    <polygon points="726.4,245.0 738.5,252.0 738.5,259.0 726.4,252.0"/>
+    <polygon points="738.5,252.0 750.6,259.0 756.7,255.5 744.6,248.5"/>
+    <polygon points="750.6,259.0 762.7,266.0 762.7,273.0 750.6,266.0"/>
+    <polygon points="762.7,266.0 775.0,258.9 769.0,255.4 756.7,262.5"/>
+    <polygon points="775.0,258.9 787.3,251.8 787.3,258.8 775.0,265.9"/>
+    <polygon points="787.3,251.8 799.5,244.8 793.5,241.2 781.2,248.3"/>
+    <polygon points="799.5,244.8 811.8,237.7 811.8,244.7 799.5,251.8"/>
+    <polygon points="811.8,237.7 824.1,230.6 818.0,227.1 805.8,234.2"/>
+    <polygon points="824.1,230.6 836.4,223.5 836.4,230.5 824.1,237.6"/>
+    <polygon points="762.7,266.0 762.7,282.0 756.7,278.5 756.7,262.5"/>
+    <polygon points="762.7,282.0 762.7,298.0 768.8,294.5 768.8,278.5"/>
+    <polygon points="762.7,298.0 762.7,314.0 756.7,310.5 756.7,294.5"/>
+    <polygon points="762.7,314.0 762.7,330.0 768.8,326.5 768.8,310.5"/>
+    <polygon points="762.7,330.0 762.7,346.0 756.7,342.5 756.7,326.5"/>
+    <polygon points="715.1,153.5 727.2,160.5 721.2,164.0 709.0,157.0"/>
+    <polygon points="739.4,167.5 751.5,174.5 745.4,178.0 733.3,171.0"/>
+    <polygon points="763.6,181.5 775.7,188.5 769.7,192.0 757.5,185.0"/>
+    <polygon points="787.9,195.5 800.0,202.5 793.9,206.0 781.8,199.0"/>
+    <polygon points="812.1,209.5 824.2,216.5 818.2,220.0 806.0,213.0"/>
+    <polygon points="641.5,196.0 653.8,188.9 659.8,192.4 647.6,199.5"/>
+    <polygon points="666.0,181.8 678.3,174.8 684.4,178.2 672.1,185.3"/>
+    <polygon points="690.6,167.7 702.8,160.6 708.9,164.1 696.6,171.2"/>
+    <polygon points="641.5,196.0 641.5,212.0 647.6,215.5 647.6,199.5"/>
+    <polygon points="641.5,228.0 641.5,244.0 647.6,247.5 647.6,231.5"/>
+    <polygon points="641.5,260.0 641.5,276.0 647.6,279.5 647.6,263.5"/>
+    <polygon points="641.5,276.0 653.6,283.0 653.6,276.0 641.5,269.0"/>
+    <polygon points="665.7,290.0 677.9,297.0 677.9,290.0 665.7,283.0"/>
+    <polygon points="690.0,304.0 702.1,311.0 702.1,304.0 690.0,297.0"/>
+    <polygon points="714.2,318.0 726.4,325.0 726.4,318.0 714.2,311.0"/>
+    <polygon points="738.5,332.0 750.6,339.0 750.6,332.0 738.5,325.0"/>
+    <polygon points="762.7,346.0 775.0,338.9 775.0,331.9 762.7,339.0"/>
+    <polygon points="787.3,331.8 799.5,324.8 799.5,317.8 787.3,324.8"/>
+    <polygon points="811.8,317.7 824.1,310.6 824.1,303.6 811.8,310.7"/>
+    <polygon points="836.4,223.5 836.4,239.5 830.3,243.0 830.3,227.0"/>
+    <polygon points="836.4,255.5 836.4,271.5 830.3,275.0 830.3,259.0"/>
+    <polygon points="836.4,287.5 836.4,303.5 830.3,307.0 830.3,291.0"/>
   </g>
 
   <!-- 4 3D-Druck: Faltmuster -->
