@@ -5100,6 +5100,7 @@ function normalizeShapesList(list) {
 function canonicalShapeCopy(shape) {
   var clone = _vtDeepClone(normalizeShapeSchema(shape));
   delete clone._editing; /* [uxfix v1] B19: Laufzeit-Flag nie in Autosave/Projektdatei */
+  delete clone._textPathKey; delete clone._textPathD; delete clone._vtTextFillLines;
   delete clone.ellipsePointed;
   delete clone.ellipseSharpness;
   delete clone.ellipseCenterLine;
@@ -10906,6 +10907,72 @@ window._vtTextOnPathLayout = function(s) {
   return out.length ? out : null;
 };
 
+/* Shared text-box layout: real font metrics, preserved newlines and grapheme-safe
+   wrapping. Editor and embroidery use the same baselines and rotation centre. */
+window._vtTextGraphemes = function(text) {
+  text = String(text || '').normalize('NFC');
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    return Array.from(new Intl.Segmenter(undefined, {granularity:'grapheme'}).segment(text), function(s){return s.segment;});
+  }
+  return Array.from(text);
+};
+window._vtTextLayout = function(s) {
+  var fs = Number(s.fontSize) || 24, ff = s.fontFamily || 'Nunito';
+  var font = (s.italic?'italic ':'')+(s.bold?'bold ':'')+fs+'px "'+ff.replace(/["\\]/g,'')+'"';
+  var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+  ctx.font = font; ctx.fontKerning = 'normal';
+  var width = function(t){return ctx.measureText(t).width;};
+  var text = String(s.text || '').replace(/\r\n?/g,'\n').normalize('NFC');
+  var fixed = !!s.wFixed && Number(s.w)>0, limit = Number(s.w), lines = [];
+  text.split('\n').forEach(function(paragraph){
+    if (!fixed || width(paragraph)<=limit) { lines.push(paragraph); return; }
+    var chars = window._vtTextGraphemes(paragraph), line = '', lastBreak = -1;
+    for (var i=0;i<chars.length;i++) {
+      var candidate = line+chars[i];
+      if (line && width(candidate)>limit) {
+        if (lastBreak>0) {
+          lines.push(line.slice(0,lastBreak).replace(/\s+$/,''));
+          line=line.slice(lastBreak).replace(/^\s+/,'');
+          lastBreak=-1;
+          i--; continue;
+        }
+        lines.push(line); line=''; lastBreak=-1;
+        if (/^\s+$/.test(chars[i])) continue;
+      }
+      line+=chars[i];
+      if (/^\s+$/.test(chars[i])) lastBreak=line.length;
+    }
+    lines.push(line);
+  });
+  var maxWidth=0;
+  lines.forEach(function(line){maxWidth=Math.max(maxWidth,width(line));});
+  var lh=fs*1.2, w=fixed?limit:Math.max(10,maxWidth+4), h=Math.max(lh,lines.length*lh);
+  if (!fixed) s.w=w;
+  s.h=h;
+  return {x:Number(s.x)||0,y:Number(s.y)||0,fontSize:fs,fontFamily:ff,font:font,lineHeight:lh,width:w,height:h,lines:lines};
+};
+window._vtTextGlyphLayout = function(s, layout) {
+  var l=layout||window._vtTextLayout(s), ctx=document.createElement('canvas').getContext('2d');
+  ctx.font=l.font; ctx.fontKerning='normal';
+  var glyphs=[];
+  l.lines.forEach(function(line, row){
+    var prefix='';
+    window._vtTextGraphemes(line).forEach(function(ch){
+      prefix+=ch;
+      // Prefix measurement includes the pair adjustment preceding this grapheme.
+      var x=ctx.measureText(prefix).width-ctx.measureText(ch).width;
+      if (ch.trim()) glyphs.push({ch:ch,x:l.x+x,y:l.y+l.fontSize+row*l.lineHeight});
+    });
+  });
+  return glyphs;
+};
+window._vtRotateTextStitches = function(out, s) {
+  if (!s || !s.rotation || (s.onPath && s.pathId)) return out;
+  var cx=(Number(s.x)||0)+(s.w||0)/2, cy=(Number(s.y)||0)+(s.h||0)/2;
+  var a=s.rotation*Math.PI/180, co=Math.cos(a), si=Math.sin(a);
+  out.forEach(function(p){var x=p.x-cx,y=p.y-cy;p.x=cx+x*co-y*si;p.y=cy+x*si+y*co;});
+  return out;
+};
 function _renderText(s, sc, sw, fc, rot) {
   if (s._editing) return '';
   var html = '';
@@ -10931,60 +10998,14 @@ function _renderText(s, sc, sw, fc, rot) {
     }
   } else {
     var tfc = s.textColor || (s.fill && s.fill !== 'none' ? s.fill : null) || sc;
-    var _charW = fs * 0.55;
-    var _lh = fs * 1.2;
-    /* s.y is now TOP of text box (like rect). Baseline = s.y + fontSize */
-    var _by = s.y + fs; /* baseline y */
-    if (s.wFixed && s.w > 0) {
-      /* Fixed width: word-wrap with character-level fallback + explicit newlines */
-      var _maxChars = Math.max(1, Math.floor(s.w / _charW));
-      var _paragraphs = (s.text || '').split('\n');
-      var _lines = [];
-      for (var _pi2 = 0; _pi2 < _paragraphs.length; _pi2++) {
-        var _words = _paragraphs[_pi2].split(/\s+/);
-        var _curLine = '';
-        for (var _wi = 0; _wi < _words.length; _wi++) {
-          var _word = _words[_wi];
-          while (_word.length > _maxChars) {
-            if (_curLine) { _lines.push(_curLine); _curLine = ''; }
-            _lines.push(_word.substring(0, _maxChars));
-            _word = _word.substring(_maxChars);
-          }
-          var _test = _curLine ? _curLine + ' ' + _word : _word;
-          if (_test.length > _maxChars && _curLine) {
-            _lines.push(_curLine);
-            _curLine = _word;
-          } else {
-            _curLine = _test;
-          }
-        }
-        _lines.push(_curLine || '');
-      }
-      s.h = Math.max(_lh, _lines.length * _lh);
-      html += '<text font-family="\''+ff+'\'" font-size="'+fs+'" fill="'+tfc+'"'+rot+'>';
-      for (var _li = 0; _li < _lines.length; _li++) {
-        html += '<tspan x="'+s.x+'" y="'+(_by + _lh * _li)+'">'+escHtml(_lines[_li])+'</tspan>';
-      }
-      html += '</text>';
-    } else {
-      /* Auto width: grows with text, supports explicit line breaks */
-      var _rawLines = (s.text || 'T').split('\n');
-      var _maxLineLen = 0;
-      for (var _rli = 0; _rli < _rawLines.length; _rli++) {
-        if (_rawLines[_rli].length > _maxLineLen) _maxLineLen = _rawLines[_rli].length;
-      }
-      s.w = Math.max(10, _maxLineLen * _charW + 4);
-      s.h = Math.max(_lh, _rawLines.length * _lh);
-      if (_rawLines.length > 1) {
-        html += '<text font-family="\''+ff+'\'" font-size="'+fs+'" fill="'+tfc+'"'+rot+'>';
-        for (var _ali = 0; _ali < _rawLines.length; _ali++) {
-          html += '<tspan x="'+s.x+'" y="'+(_by + _lh * _ali)+'">'+escHtml(_rawLines[_ali] || ' ')+'</tspan>';
-        }
-        html += '</text>';
-      } else {
-        html += '<text x="'+s.x+'" y="'+_by+'" font-family="\''+ff+'\'" font-size="'+fs+'" fill="'+tfc+'"'+rot+'>'+escHtml(s.text||'')+'</text>';
-      }
+    var layout=window._vtTextLayout(s);
+    // Dimensions have just been updated: never use a rotation centre from the old box.
+    rot=s.rotation?' transform="rotate('+s.rotation+','+(layout.x+s.w/2)+','+(layout.y+s.h/2)+')"':'';
+    html += '<text xml:space="preserve" style="white-space:pre;font-kerning:normal" font-family="\''+ff+'\'" font-size="'+fs+'" font-weight="'+(s.bold?'bold':'normal')+'" font-style="'+(s.italic?'italic':'normal')+'" fill="'+tfc+'"'+rot+'>';
+    for (var li=0;li<layout.lines.length;li++) {
+      html+='<tspan x="'+layout.x+'" y="'+(layout.y+layout.fontSize+li*layout.lineHeight)+'">'+escHtml(layout.lines[li])+'</tspan>';
     }
+    html+='</text>';
   }
   return html;
 }
@@ -11067,6 +11088,13 @@ var _shapeRenderers = {
 
 /* ---- Auto-save to localStorage ---- */
 var _autoSaveKey = 'linea14_autosave';
+/* Die Font-UI wird erst nach _autoLoad initialisiert. Bis dahin Dateidaten
+   aufbewahren; die Stickberechnung wartet auf dieses Bereitschafts-Promise. */
+var _vtPendingCustomFonts = [];
+var _vtResolveFontBoot;
+window._vtFontRevision = 0;
+window._vtFontErrors = Object.create(null);
+window._vtFontsReady = new Promise(function(resolve) { _vtResolveFontBoot = resolve; });
 function _autoSave() {
   try {
     saveCurrentTabState();
@@ -11074,6 +11102,9 @@ function _autoSave() {
       version: 2, activeCanvasIdx: activeTabIdx,
       defaults: _vtDeepClone(state.defaults),
       mirror: _vtDeepClone(state.mirror),
+      customFonts: (typeof userFonts !== 'undefined' ? userFonts : _vtPendingCustomFonts).map(function(f) {
+        return { name: f.name, dataUrl: f.dataUrl };
+      }),
       canvases: canvasTabs.filter(function(_c){ return !_c.isGuide && !_c.isDemo; }).map(function(canvas) {
         return {
           id: canvas.id, name: canvas.name,
@@ -11110,6 +11141,7 @@ function _autoLoad() {
     if (!raw) return false;
     var data = JSON.parse(raw);
     if (!data || !data.canvases || !data.canvases.length) return false;
+    _vtPendingCustomFonts = Array.isArray(data.customFonts) ? data.customFonts : [];
     canvasTabs.length = 0;
     for (var ci = 0; ci < data.canvases.length; ci++) {
       var cd = data.canvases[ci];
@@ -11131,7 +11163,7 @@ function _autoLoad() {
              unangetastet (laeuft fachlich quer zum Fill). */
           if (ts.stitch.type === 'fill' && ts.stitch.params) ts.stitch.params.angle = 0;
         }
-        if (ts) ts._stitchFillGeomCache = null;
+        if (ts) { ts._stitchFillGeomCache = null; delete ts._textPathKey; delete ts._textPathD; delete ts._vtTextFillLines; }
       }
       t.docW = cd.docW; t.docH = cd.docH; t.docName = cd.docName;
       t.zoom = cd.zoom; t.panX = cd.panX; t.panY = cd.panY;
@@ -12585,29 +12617,11 @@ function _startInlineTextEdit(shapeId) {
   inp.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = this.scrollHeight + 'px';
-    this.style.width = Math.max(60, this.scrollWidth + 8) + 'px';
+    if (!_isFixed) this.style.width = Math.max(60, this.scrollWidth + 8) + 'px';
     var _ls = findShape(shapeId);
     if (_ls) {
       _ls.text = this.value;
-      /* Update w/h so selection handles reflect current text size */
-      var _cw2 = (_ls.fontSize || 24) * 0.55;
-      var _lh2 = (_ls.fontSize || 24) * 1.2;
-      var _txtLines = (_ls.text || 'T').split('\n');
-      if (!_ls.wFixed) {
-        var _maxLen = 0;
-        for (var _tli = 0; _tli < _txtLines.length; _tli++) {
-          if (_txtLines[_tli].length > _maxLen) _maxLen = _txtLines[_tli].length;
-        }
-        _ls.w = Math.max(10, _maxLen * _cw2 + 4);
-        _ls.h = Math.max(_lh2, _txtLines.length * _lh2);
-      } else {
-        var _mc = Math.max(1, Math.floor(_ls.w / _cw2));
-        var _totalLines = 0;
-        for (var _tli2 = 0; _tli2 < _txtLines.length; _tli2++) {
-          _totalLines += Math.max(1, Math.ceil(Math.max(1, _txtLines[_tli2].length) / _mc));
-        }
-        _ls.h = Math.max(_lh2, _totalLines * _lh2);
-      }
+      window._vtTextLayout(_ls);
       render();
     }
   });
@@ -18924,16 +18938,6 @@ $('importFile').addEventListener('change', function(e){
         reader.onload = function(ev){
           try {
             var data = JSON.parse(ev.target.result);
-            /* [VT-TEXT-SATIN v1] Eingebettete hochgeladene Schriften wiederherstellen:
-               vor dem Rendern via FontFace registrieren; bei Ladeende neu zeichnen,
-               damit Text in der Upload-Schrift erscheint statt der Ersatzschrift. */
-            if (data.customFonts && data.customFonts.length) {
-              data.customFonts.forEach(function(cf) {
-                if (cf && cf.name && cf.dataUrl && _allFonts.indexOf(cf.name) === -1) {
-                  try { _vtRegisterFont(cf.name, _vtDataUrlToBuffer(cf.dataUrl), cf.dataUrl).then(function(){ try { render(); } catch (e) {} }); } catch (e) { console.warn('[vt:font-restore]', e && e.message); }
-                }
-              });
-            }
             if (data.canvases && data.canvases.length) {
               /* [uxfix v1] B17: Das Mehr-Canvas-Format ersetzt ALLE Tabs samt Undo-Stacks -
                  das pu() darunter landet im weggeworfenen alten Tab und ist wirkungslos,
@@ -18941,6 +18945,7 @@ $('importFile').addEventListener('change', function(e){
                  wenn aktuell echte Inhalte da sind (Galerie/Anleitung zählen nicht). */
               var _hatInhalt = canvasTabs.some(function(t){ return !t.isGuide && !t.isDemo && t.shapes && t.shapes.length; }) || (shapes && shapes.length);
               if (_hatInhalt && !confirm(window.t('Aktuelles Projekt ersetzen? Alle offenen Zeichenflächen werden durch die geladene Datei ersetzt (kein Rückgängig).'))) return;
+              _vtRestoreFonts(data.customFonts);
               pu();
               canvasTabs = data.canvases.map(function(canvas, index) {
                 var next = {
@@ -18982,6 +18987,7 @@ $('importFile').addEventListener('change', function(e){
               selId = null; selIds.clear(); selectedNodes.clear();
               render(); updateRightPanel();
             } else if (data.shapes) {
+              _vtRestoreFonts(data.customFonts);
               pu();
               shapes = normalizeShapesList(data.shapes);
               shapes.forEach(migrateEllipseVariant);
@@ -19410,7 +19416,10 @@ function _applyGeom(s, field, valMm) {
     else if (s.points) { for (var i=0;i<s.points.length;i++){ var p=s.points[i]; p.x+=dx;p.y+=dy; if(p.h1x!=null){p.h1x+=dx;p.h1y+=dy;} if(p.h2x!=null){p.h2x+=dx;p.h2y+=dy;} } }
   } else if (field === 'w' || field === 'h') {
     var np = mm2px(valMm); if (np < 1) np = 1;
-    if (g.box) { if (field==='w') s.w = np; else s.h = np; }
+    if (g.box) {
+      if (field==='w') { s.w=np; if(s.type==='text'&&!s.onPath)s.wFixed=true; }
+      else s.h=np;
+    }
     else if (s.points) {
       var sx = field==='w' ? np/(g.w||1) : 1, sy = field==='h' ? np/(g.h||1) : 1;
       for (var j=0;j<s.points.length;j++){ var q=s.points[j];
@@ -20012,13 +20021,110 @@ function _getAllFonts() { return _allFonts; }
    document.fonts.add(face) nach face.load(), KEIN zusaetzliches CSS-@font-face (sonst
    doppelter "unloaded"-Eintrag -> document.fonts.check() faelschlich false). === */
 var userFonts = []; // [{name, dataUrl}] hochgeladene Schriften (fuer .linea-Persistenz)
+var _vtBuiltInFonts = _allFonts.slice();
+var _vtLoadedFontFaces = Object.create(null);
+var _vtLoadedFontData = Object.create(null);
+var _vtFontJobsByName = Object.create(null);
+var _vtFontReservedNames = Object.create(null);
 function _vtFontBaseName(fn){ return fn.replace(/\.[^.]+$/,'').replace(/[^\wÀ-ɏ \-]/g,'').trim() || 'Schrift'; }
-function _vtFontUniqueName(name){ if (_allFonts.indexOf(name) === -1) return name; var i=2; while (_allFonts.indexOf(name+'-'+i) !== -1) i++; return name+'-'+i; }
-function _vtDataUrlToBuffer(dataUrl){ var b64=dataUrl.split(',')[1], bin=atob(b64), buf=new Uint8Array(bin.length); for (var i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i); return buf.buffer; }
+function _vtFontUniqueName(name){ var candidate=name, i=2; while ((_allFonts.indexOf(candidate) !== -1 && !(window._vtFontErrors[candidate] && _vtBuiltInFonts.indexOf(candidate)===-1)) || _vtFontReservedNames[candidate]) candidate=name+'-'+i++; return candidate; }
+function _vtDataUrlToBuffer(dataUrl){
+  if (typeof dataUrl !== 'string' || !/^data:[^,]*;base64,[A-Za-z0-9+/\s]*={0,2}$/.test(dataUrl)) throw new Error('Ungültige eingebettete Schriftdatei.');
+  var bin=atob(dataUrl.slice(dataUrl.indexOf(',')+1)), buf=new Uint8Array(bin.length);
+  for (var i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  return buf.buffer;
+}
 function _vtReadArrayBuffer(file){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){res(r.result);}; r.onerror=rej; r.readAsArrayBuffer(file); }); }
 function _vtReadDataUrl(file){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){res(r.result);}; r.onerror=rej; r.readAsDataURL(file); }); }
-function _vtRegisterFont(name, buffer, dataUrl){ var face=new FontFace(name, buffer); return face.load().then(function(loaded){ document.fonts.add(loaded); if (_allFonts.indexOf(name) === -1) _allFonts.push(name); if (dataUrl && !userFonts.some(function(f){return f.name===name;})) userFonts.push({name:name, dataUrl:dataUrl}); return name; }); }
-function _vtImportFontFile(file){ var ext=(file.name.split('.').pop()||'').toLowerCase(); if (['ttf','otf','woff','woff2'].indexOf(ext)===-1) return Promise.resolve(null); var name=_vtFontUniqueName(_vtFontBaseName(file.name)); return Promise.all([_vtReadArrayBuffer(file), _vtReadDataUrl(file)]).then(function(arr){ return _vtRegisterFont(name, arr[0], arr[1]); }); }
+function _vtTrackFontLoad(job) {
+  var settled=Promise.resolve(job).then(function(){}, function(){});
+  window._vtFontsReady=Promise.all([window._vtFontsReady || Promise.resolve(), settled]).then(function(){});
+  return job;
+}
+function _vtRememberFont(name, dataUrl) {
+  var record=userFonts.find(function(f){ return f.name===name; });
+  if (record) record.dataUrl=dataUrl; else userFonts.push({name:name,dataUrl:dataUrl});
+}
+function _vtFontFailure(name, error) {
+  /* Ein abgelehnter Projektfont mit Standardnamen ersetzt den eingebetteten
+     Font nicht und darf dessen intakte Stickausgabe deshalb nicht sperren. */
+  if (_vtBuiltInFonts.indexOf(name)===-1) window._vtFontErrors[name]=(error && error.message) || 'Schrift konnte nicht geladen werden.';
+  console.warn('[vt:font-load]', name, error);
+}
+function _vtFontWarning(names) {
+  if (!names.length) return;
+  var message='Eigene Schrift konnte nicht geladen werden: '+names.join(', ')+'. Bitte die Schriftdatei erneut hochladen. Betroffene eigene Schriften können erst nach erfolgreichem Laden gestickt werden. Eingebettete Standardschriften bleiben unverändert.';
+  if (window._vtToast) window._vtToast(message, 'error'); else window.alert(message);
+}
+function _vtRegisterFont(name, buffer, dataUrl){
+  var pending=_vtFontJobsByName[name];
+  if (pending && pending.dataUrl===dataUrl) return pending.promise;
+  var previous=pending ? pending.promise.catch(function(){}) : Promise.resolve();
+  var job=previous.then(function(){
+    if (_vtLoadedFontFaces[name] && _vtLoadedFontData[name]===dataUrl && !window._vtFontErrors[name]) return name;
+    if (_vtBuiltInFonts.indexOf(name)!==-1) throw new Error('Eine eingebettete Standardschrift darf nicht ersetzt werden.');
+    var face=new FontFace(name,buffer);
+    return face.load().then(function(loaded){
+      document.fonts.add(loaded);
+      if (_vtLoadedFontFaces[name]) document.fonts.delete(_vtLoadedFontFaces[name]);
+      _vtLoadedFontFaces[name]=loaded;
+      _vtLoadedFontData[name]=dataUrl;
+      if (_allFonts.indexOf(name)===-1) _allFonts.push(name);
+      if (dataUrl && _vtFontJobsByName[name] && _vtFontJobsByName[name].promise===job) _vtRememberFont(name,dataUrl);
+      delete window._vtFontErrors[name];
+      window._vtFontRevision++;
+      return name;
+    });
+  }).catch(function(error){ _vtFontFailure(name,error); throw error; });
+  _vtFontJobsByName[name]={dataUrl:dataUrl,promise:job};
+  job.then(function(){ if (_vtFontJobsByName[name] && _vtFontJobsByName[name].promise===job) delete _vtFontJobsByName[name]; },function(){ if (_vtFontJobsByName[name] && _vtFontJobsByName[name].promise===job) delete _vtFontJobsByName[name]; });
+  return _vtTrackFontLoad(job);
+}
+function _vtRestoreFonts(records) {
+  var failures=[];
+  var jobs=(Array.isArray(records) ? records : []).map(function(cf){
+    var name=cf && cf.name;
+    if (typeof name!=='string' || !name.trim() || name.length>200 || /[\u0000-\u001f<>"'\\]/.test(name) || !cf || typeof cf.dataUrl!=='string') {
+      failures.push('ungültiger Schrifteintrag');
+      return Promise.resolve();
+    }
+    try {
+      var buffer=_vtDataUrlToBuffer(cf.dataUrl);
+      if (_vtBuiltInFonts.indexOf(name)!==-1) throw new Error('Name kollidiert mit einer Standardschrift.');
+      var job=_vtRegisterFont(name,buffer,cf.dataUrl);
+      /* Auch bei langsamer/fehlgeschlagener Wiederherstellung die Originaldatei
+         beim naechsten Autosave behalten, statt sie unwiederbringlich zu verlieren. */
+      _vtRememberFont(name,cf.dataUrl);
+      return job.catch(function(){ failures.push(name); });
+    } catch(error) {
+      _vtFontFailure(name,error); failures.push(name);
+      return Promise.resolve();
+    }
+  });
+  var finished=Promise.all(jobs).then(function(){
+    _vtFontWarning(failures);
+    if (records && records.length) {
+      if (typeof render==='function') render();
+      if (typeof updateRightPanel==='function') updateRightPanel();
+    }
+  });
+  return _vtTrackFontLoad(finished);
+}
+function _vtImportFontFile(file){
+  var ext=(file.name.split('.').pop()||'').toLowerCase();
+  if (['ttf','otf','woff','woff2'].indexOf(ext)===-1) return Promise.resolve(null);
+  var name=_vtFontUniqueName(_vtFontBaseName(file.name));
+  _vtFontReservedNames[name]=true;
+  var job=Promise.all([_vtReadArrayBuffer(file),_vtReadDataUrl(file)]).then(function(arr){
+    return _vtRegisterFont(name,arr[0],arr[1]);
+  }).then(function(registered){ delete _vtFontReservedNames[name]; return registered; },function(error){
+    delete _vtFontReservedNames[name]; _vtFontFailure(name,error); _vtFontWarning([name]); throw error;
+  });
+  return _vtTrackFontLoad(job);
+}
+_vtRestoreFonts(_vtPendingCustomFonts);
+_vtPendingCustomFonts=[];
+_vtResolveFontBoot();
 function _vtFontLoadBtnHtml(){ return '<button class="rp-font-load" style="width:100%;margin:2px 0 3px;padding:var(--space-2) var(--space-3);border:1px dashed var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--fg);cursor:pointer;font-size:var(--fs-sm)">＋ Eigene Schrift laden…</button><div style="font-size:var(--fs-xs);color:var(--fg2);margin:0 0 4px">Du bist für die Lizenz hochgeladener Schriften verantwortlich.</div>'; }
 
 function makeTextSettings(s) {
@@ -20850,9 +20956,9 @@ function _bindEditorEvents(container) {
     btn.addEventListener('click', function() {
       var inp = $('fontImportFile'); if (!inp) return;
       inp.onchange = function(e) {
-        var files = e.target.files; e.target.value = '';
+        var files = Array.prototype.slice.call(e.target.files || []); e.target.value = '';
         if (!files || !files.length) return;
-        Promise.all([].map.call(files, function(f){ return _vtImportFontFile(f); })).then(function(regs) {
+        Promise.all(files.map(function(f){ return _vtImportFontFile(f).catch(function(){ return null; }); })).then(function(regs) {
           var last = (regs || []).filter(Boolean).pop();
           if (last) {
             textFont = last;
@@ -30156,8 +30262,36 @@ function _stitchRecalcAll() {
    sind near-zero-cost (verifiziert durch _stitchRecalc → _stitchCacheKey),
    d.h. wenn _stitchExportDstBody anschliessend nochmal _stitchRecalcAll
    aufruft, kostet das nur die Cache-Checks. */
+window._vtAssertTextFonts = function(ss) {
+  (ss||[]).forEach(function(s){
+    if(s.type!=='text'||!s.stitch||s.stitch.type==='none'||s.stitch.hidden)return;
+    var error=(window._vtFontErrors||{})[s.fontFamily];
+    if(error) throw new Error('Schrift „'+s.fontFamily+'“ ist nicht verfügbar. Bitte erneut laden, bevor dieser Text gestickt wird.');
+  });
+};
+window._vtEnsureTextFonts = async function(ss) {
+  var ready;
+  do { ready=window._vtFontsReady; if(ready)await ready; } while(ready!==window._vtFontsReady);
+  window._vtAssertTextFonts(ss);
+  if(!document.fonts || !document.fonts.load)return;
+  var jobs=[];
+  (ss||[]).forEach(function(s){
+    if(s.type!=='text'||!s.stitch||s.stitch.type==='none'||s.stitch.hidden||!s.text)return;
+    var font=(s.italic?'italic ':'')+(s.bold?'bold ':'')+(Number(s.fontSize)||24)+'px "'+(s.fontFamily||'Nunito').replace(/["\\]/g,'')+'"';
+    var wasReady=document.fonts.check(font,String(s.text));
+    jobs.push(document.fonts.load(font,String(s.text)).then(function(faces){
+      if(faces.some(function(face){return face.status!=='loaded';}))throw new Error('Schrift konnte nicht geladen werden: '+s.fontFamily);
+      if(!wasReady)window._vtFontRevision=(window._vtFontRevision||0)+1;
+    }));
+  });
+  await Promise.all(jobs);
+  // A file upload can have started while embedded fonts were loading.
+  if(ready!==window._vtFontsReady)return window._vtEnsureTextFonts(ss);
+  window._vtAssertTextFonts(ss);
+};
 window._stitchRecalcAllChunkedAsync = async function(progressCb) {
   var ss = window.shapes || [];
+  await window._vtEnsureTextFonts(ss);
   var stitchShapes = [];
   for (var i = 0; i < ss.length; i++) {
     if (ss[i].stitch && ss[i].stitch.type !== 'none' && !ss[i].stitch.hidden) stitchShapes.push(ss[i]); /* [uxfix v1] ausgeblendete Formen (Auge) raus - so decken sich Fortschritts-/Erfolgszahl mit dem Export (der hidden ebenfalls filtert); Wiedereinblenden loest einen frischen Recalc aus */
@@ -30215,7 +30349,7 @@ function _stitchCacheKey(shape, st) {
       'off:' + Math.round(offsetAmtKey * 100) + ':' + (offsetAmtKey > 0 ? offsetSeedKey : 0),
       /* [VT-TEXT-SATIN v1] Text-Stichart (Satin/Tatami/Laengs) in den Cache-Key,
          sonst greift ein Wechsel nicht (gleicher Key -> _stitchRecalc returnt frueh). */
-      (shape.type === 'text' ? ('ts:' + (shape.textStitch || 'tatami')) : '')
+      (shape.type === 'text' ? ('text-stitches-v5|ts:' + (shape.textStitch || 'tatami')) : '')
     ].join('|');
   } else if (st.type === 'running') {
     paramKey = [params.stitchLength || 3, params.adjustLastStitch === false ? 0 : 1].join('|');
@@ -31417,7 +31551,7 @@ function _fillPathLocalToWorld(px, py) {
    Modul-Cache je (Zeichen|Font) - mehrere Shapes/Refreshs teilen die Loops. */
 var _vtCharLoopCache = {};
 function _stitchCharLocalLoops(ch, fontStr, fontSize, scale, pad) {
-  var key = ch + '|' + fontStr;
+  var key = ch + '|' + fontStr + '|' + (window._vtFontRevision || 0);
   if (_vtCharLoopCache[key]) return _vtCharLoopCache[key];
   if (Object.keys(_vtCharLoopCache).length > 200) _vtCharLoopCache = {};
   var meas = document.createElement('canvas');
@@ -31465,8 +31599,8 @@ function _stitchTextOnPathToD(shape) {
   if (!lay || !lay.length) return '';
   var fontSize = Number(shape.fontSize) || 24;
   var fontFamily = shape.fontFamily || 'sans-serif';
-  var key = ['onpath', shape.text, fontSize, fontFamily, shape.bold ? 1 : 0, shape.italic ? 1 : 0,
-    lay.map(function(c){ return c.ch + c.x.toFixed(1) + ',' + c.y.toFixed(1) + ',' + c.rot.toFixed(1); }).join(';')].join('|');
+  var key = ['onpath-v2', shape.text, fontSize, fontFamily, shape.bold ? 1 : 0, shape.italic ? 1 : 0, window._vtFontRevision || 0,
+    lay.map(function(c){ return c.ch + ':' + c.x + ',' + c.y + ',' + c.rot; }).join(';')].join('|');
   if (shape._textPathKey === key && shape._textPathD) return shape._textPathD;
   var scale = 4;
   var pad = Math.ceil(fontSize * 0.4);
@@ -31495,71 +31629,33 @@ function _stitchTextOnPathToD(shape) {
 
 function _stitchTextToPathD(shape) {
   if (!shape || shape.type !== 'text' || !shape.text) return '';
-  /* VT-TEXTPFAD-STICH v2: Text auf Pfad liefert den gebogenen Glyphenpfad
-     (vorher: waagrecht an x/y -> versetzt + ungebogen). */
-  if (shape.onPath && shape.pathId) {
-    var dOnPath = _stitchTextOnPathToD(shape);
-    if (dOnPath) return dOnPath;
-  }
-  var fontSize = Number(shape.fontSize) || 24;
-  var fontFamily = shape.fontFamily || 'sans-serif';
-  var text = String(shape.text);
-  var key = [text, fontSize, fontFamily, shape.bold ? 1 : 0, shape.italic ? 1 : 0].join('|');
-  if (shape._textPathKey === key && shape._textPathD) return shape._textPathD;
-  /* Render Text auf hidden Canvas, hochauflösend für saubere Outline. */
-  var scale = 4; /* 4× Auflösung relativ zu Punktgröße */
-  var pad = Math.ceil(fontSize * 0.4);
-  var meas = document.createElement('canvas');
-  meas.width = 1; meas.height = 1;
-  var mctx = meas.getContext('2d');
-  var fontStr = (shape.italic ? 'italic ' : '') + (shape.bold ? 'bold ' : '') + (fontSize * scale) + 'px ' + fontFamily;
-  mctx.font = fontStr;
-  var tm = mctx.measureText(text);
-  var tw = Math.ceil(tm.width) + 2 * pad * scale;
-  var th = Math.ceil(fontSize * scale * 1.4) + 2 * pad * scale;
-  var canvas = document.createElement('canvas');
-  canvas.width = tw; canvas.height = th;
-  var ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, tw, th);
-  ctx.fillStyle = '#000';
-  ctx.font = fontStr;
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText(text, pad * scale, fontSize * scale * 1.05 + pad * scale);
-  /* Binary mask aus Image-Daten: black = inside (1), white = outside (0). */
-  var img = ctx.getImageData(0, 0, tw, th).data;
-  var W = tw, H = th;
-  var mask = new Uint8Array(W * H);
-  for (var p = 0, idx = 0; p < img.length; p += 4, idx++) {
-    /* Threshold: pixel ist "inside" wenn dunkler als 0.5 */
-    var lum = (img[p] + img[p+1] + img[p+2]) / 3;
-    mask[idx] = lum < 128 ? 1 : 0;
-  }
-  /* Marching-Squares Outline-Trace: für jeden Pixel finde alle
-     Übergänge zwischen 0 und 1, baue Polygon-Loops daraus. */
-  var loops = _marchingSquaresContours(mask, W, H);
-  if (!loops.length) return '';
-  /* Skaliere Polygone von Canvas-Pixel-Koordinaten in Vektortool-Welt-Koords:
-     - Skalierungsfaktor 1/scale (kompensiert die 4× Auflösung)
-     - Verschiebe um shape.x, shape.y (Position des Text-Shapes) */
-  var sx = shape.x || 0;
-  var sy = shape.y || 0;
-  /* Y-Korrektur: Text wird mit baseline an y=fontSize*1.05 gerendert,
-     Vektortool-Text hat Anchor oben links. Verschiebe so dass Text-Top bei
-     shape.y liegt. */
-  var d = '';
-  for (var li = 0; li < loops.length; li++) {
-    var loop = loops[li];
-    if (loop.length < 3) continue;
-    for (var pi = 0; pi < loop.length; pi++) {
-      var px = sx + (loop[pi][0] - pad * scale) / scale;
-      var py = sy + (loop[pi][1] - pad * scale) / scale;
-      d += (pi === 0 ? 'M' : 'L') + px.toFixed(2) + ',' + py.toFixed(2);
-    }
-    d += 'Z';
-  }
-  shape._textPathKey = key;
-  shape._textPathD = d;
+  if (shape.onPath && shape.pathId) return _stitchTextOnPathToD(shape);
+  var l=window._vtTextLayout(shape);
+  var key=JSON.stringify(['text-layout-v2',l.lines,l.font,l.x,l.y,!!shape.wFixed,l.width,l.height,window._vtFontRevision||0]);
+  if (shape._textPathKey===key && typeof shape._textPathD==='string') return shape._textPathD;
+  var scale=4, pad=Math.ceil(l.fontSize*0.4);
+  var meas=document.createElement('canvas'), mctx=meas.getContext('2d');
+  var scaledFont=(shape.italic?'italic ':'')+(shape.bold?'bold ':'')+(l.fontSize*scale)+'px "'+l.fontFamily.replace(/["\\\\]/g,'')+'"';
+  mctx.font=scaledFont; mctx.fontKerning='normal';
+  var inkW=0;
+  l.lines.forEach(function(line){var m=mctx.measureText(line);inkW=Math.max(inkW,m.width,m.actualBoundingBoxRight||0);});
+  var tw=Math.max(1,Math.ceil(inkW)+2*pad*scale), th=Math.max(1,Math.ceil(l.height*scale)+2*pad*scale);
+  // Refuse oversized temporary rasters instead of silently returning a truncated motif.
+  if (tw*th>16000000 || tw>32760 || th>32760) throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+  var cv=document.createElement('canvas');cv.width=tw;cv.height=th;
+  var ctx=cv.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,tw,th);
+  ctx.fillStyle='#000';ctx.font=scaledFont;ctx.fontKerning='normal';ctx.textBaseline='alphabetic';
+  l.lines.forEach(function(line,i){ctx.fillText(line,pad*scale,(l.fontSize+i*l.lineHeight+pad)*scale);});
+  var img=ctx.getImageData(0,0,tw,th).data,mask=new Uint8Array(tw*th);
+  for(var p=0,idx=0;p<img.length;p+=4,idx++)mask[idx]=(img[p]+img[p+1]+img[p+2])/3<128?1:0;
+  var loops=_marchingSquaresContours(mask,tw,th),d='';
+  loops.forEach(function(loop){
+    if(loop.length<3)return;
+    loop.forEach(function(pt,i){d+=(i?'L':'M')+(l.x+(pt[0]-pad*scale)/scale).toFixed(3)+','+(l.y+(pt[1]-pad*scale)/scale).toFixed(3);});
+    d+='Z';
+  });
+  shape._textPathKey=key;shape._textPathD=d;
   return d;
 }
 
@@ -31865,6 +31961,7 @@ function _stitchBuildShapePathD(shape) {
 
 function _stitchGeometryCacheKey(shape) {
   if (!shape) return '';
+  if (shape.type==='text' && !(shape.onPath&&shape.pathId)) window._vtTextLayout(shape);
   var geomKey = shape.type + '|' + (shape.closed ? 1 : 0) + '|' + (shape.rotation || 0) + '|' +
     [shape.x || 0, shape.y || 0, shape.w || 0, shape.h || 0].join('|') + '|';
   if (shape.type === 'svgpath') {
@@ -31873,7 +31970,11 @@ function _stitchGeometryCacheKey(shape) {
     /* Text-Geometrie hängt am String/Font/Grösse, NICHT an points; x/y/w/h
        allein reichen nicht (Editieren in-place ändert die bbox nicht). Sonst
        bliebe der Stich bei Textänderung stale. */
-    geomKey += 'T|' + (shape.text || '') + '|' + (shape.fontSize || 0) + '|' + (shape.fontFamily || '') + '|' + (shape.bold ? 1 : 0) + '|' + (shape.italic ? 1 : 0);
+    geomKey += 'text-layout-v2|' + (shape.text || '') + '|' + (shape.fontSize || 0) + '|' + (shape.fontFamily || '') + '|' + (shape.bold ? 1 : 0) + '|' + (shape.italic ? 1 : 0) + '|' + !!shape.wFixed + '|' + (window._vtFontRevision || 0);
+    if(shape.onPath&&shape.pathId){
+      var ref=typeof window.findShape==='function'?window.findShape(shape.pathId):null;
+      geomKey+='|path:'+JSON.stringify([shape.pathId,shape.pathOffset,shape.pathDist,shape.pathLetterSpacing,shape.pathFlip,shape.pathClosed,ref&&ref.type!=='text'?_stitchGeometryCacheKey(ref):null]);
+    }
   } else if (shape.points && shape.points.length) {
     geomKey += JSON.stringify(shape.points);
   }
@@ -34800,6 +34901,26 @@ function _calcTextFillStitch(shape, opts) {
     var opOut = _stitchTextOnPathFill(shape, opts);
     if (opOut && opOut.length) return opOut;
   }
+  if(shape && !(shape.onPath&&shape.pathId)){
+    var l=window._vtTextLayout(shape);
+    if(l.lines.length>1){
+      var key=JSON.stringify([l.lines,l.font,l.x,l.y,l.width,window._vtFontRevision||0]);
+      if(!shape._vtTextFillLines||shape._vtTextFillLines.key!==key){
+        var paths=l.lines.map(function(line,i){
+          var lineShape=Object.assign({},shape,{text:line,x:l.x,y:l.y+i*l.lineHeight,wFixed:false,rotation:0,_textPathKey:null,_textPathD:null});
+          return _stitchTextToPathD(lineShape);
+        });
+        shape._vtTextFillLines={key:key,paths:paths};
+      }
+      var out=[],unrotated=Object.assign({},shape,{rotation:0});
+      shape._vtTextFillLines.paths.forEach(function(path){
+        var pts=_stitchScanFillD(path,unrotated,opts);
+        if(pts.length&&out.length)pts[0].jump=true;
+        out=out.concat(pts);
+      });
+      return window._vtRotateTextStitches(out,shape);
+    }
+  }
   var d = _stitchTextToPathD(shape);
   return _stitchScanFillD(d, shape, opts);
 }
@@ -34815,7 +34936,10 @@ function _stitchScanFillD(d, shape, opts) {
   path.setAttribute('d', d); path.setAttribute('fill-rule', 'evenodd');
   svg.appendChild(path); document.body.appendChild(svg);
   var spt = svg.createSVGPoint();
-  function inside(x, y) { spt.x = x; spt.y = y; return path.isPointInFill(spt); }
+  /* Textkontur bleibt unveraendert; nur das Scan-Koordinatensystem wird gedreht.
+     Lokaler Ursprung verhindert, dass Verschieben die Reihen-/Staggerphase aendert. */
+  var ca = 1, sa = 0, originX = 0, originY = 0;
+  function inside(x, y) { spt.x = originX + x * ca - y * sa; spt.y = originY + x * sa + y * ca; return path.isPointInFill(spt); }
   var out = [];
   try {
     var params = (shape.stitch && shape.stitch.params) || {};
@@ -34823,25 +34947,88 @@ function _stitchScanFillD(d, shape, opts) {
     if (!(rowSp > _mm2px(0.15))) rowSp = _mm2px(0.15); /* [uxfix v1] war 0.4 - selber invertierender Sprung wie im Kontur-Fill; dichteste Stellung darf nicht lockerer werden */
     var stLen = _mm2px((opts && isFinite(opts.stitchLength)) ? opts.stitchLength : (isFinite(params.stitchLength) ? params.stitchLength : 2.5));
     if (!(stLen > _mm2px(0.8))) stLen = _mm2px(2.5);
+    var angleDeg = (opts && isFinite(opts.angle)) ? Number(opts.angle) : (isFinite(params.angle) ? Number(params.angle) : 0);
+    ca = Math.cos(angleDeg * Math.PI / 180); sa = Math.sin(angleDeg * Math.PI / 180);
     var nums = (d.match(/-?\d+\.?\d*/g) || []).map(Number);
     var minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     for (var i = 0; i + 1 < nums.length; i += 2) { var vX = nums[i], vY = nums[i + 1]; if (vX < minX) minX = vX; if (vX > maxX) maxX = vX; if (vY < minY) minY = vY; if (vY > maxY) maxY = vY; }
     if (!(maxX > minX) || !(maxY > minY)) return [];
-    var fineX = Math.max(_mm2px(0.07), Math.min(_mm2px(0.18), rowSp * 0.3));
-    var minSpan = _mm2px(0.1);
-    function refineEdge(xo, xi, y, inOut) { for (var b = 0; b < 14; b++) { var xm = (xo + xi) / 2; if (inside(xm, y) === inOut) xo = xm; else xi = xm; } return (xo + xi) / 2; }
-    /* 1) Spans je Scanline. */
-    var spanRows = [], rowI = 0;
-    for (var y = minY + rowSp * 0.5; y <= maxY - 1e-6; y += rowSp) {
-      var spans = [], inS = false, sX = 0, pX = minX - fineX;
-      for (var x = minX - fineX; x <= maxX + fineX; x += fineX) {
-        var ins = inside(x, y);
-        if (ins && !inS) { inS = true; sX = refineEdge(pX, x, y, false); }
-        else if (!ins && inS) { inS = false; var ex = refineEdge(pX, x, y, true); if (ex - sX >= minSpan) spans.push({ x0: sX, x1: ex, row: rowI, y: y }); }
-        pX = x;
+    originX = minX; originY = minY;
+    minX = minY = Infinity; maxX = maxY = -Infinity;
+    /* Beide Aufrufer liefern geschlossene M/L/Z-Polygone aus der Textmaske.
+       Exakte Kantenschnitte erfassen auch schmale Glyphen-Spans, die ein
+       horizontales Suchraster zwischen zwei Proben vollstaendig ueberspringt. */
+    var loops = [], lp = [], command, commandRE = /([MLZ])([^MLZ]*)/g;
+    while ((command = commandRE.exec(d))) {
+      if (command[1] === 'M' && lp.length) { loops.push(lp); lp = []; }
+      if (command[1] === 'Z') { if (lp.length) loops.push(lp); lp = []; continue; }
+      var xy = (command[2].match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/gi) || []).map(Number);
+      for (var vi = 0; vi + 1 < xy.length; vi += 2) {
+        var dx = xy[vi] - originX, dy = xy[vi + 1] - originY;
+        var pp = { x: dx * ca + dy * sa, y: -dx * sa + dy * ca };
+        lp.push(pp); minX = Math.min(minX, pp.x); maxX = Math.max(maxX, pp.x); minY = Math.min(minY, pp.y); maxY = Math.max(maxY, pp.y);
       }
-      if (inS && (maxX - sX) >= minSpan) spans.push({ x0: sX, x1: maxX, row: rowI, y: y });
-      spanRows.push(spans); rowI++;
+    }
+    if (lp.length) loops.push(lp);
+    if (!loops.length || !(maxY > minY)) return [];
+    function connectorInside(a, b) {
+      /* Jede durch eine Konturkante getrennte Teilstrecke pruefen: auch eine
+         schmale Punze darf nicht zwischen festen Pruefpunkten verschwinden. */
+      var dx = b.x - a.x, dy = b.y - a.y, cuts = [0, 1];
+      if (Math.hypot(dx, dy) < 1e-8) return true;
+      for (var li = 0; li < loops.length; li++) {
+        var ring = loops[li];
+        for (var ei = 0; ei < ring.length; ei++) {
+          var q = ring[ei], r = ring[(ei + 1) % ring.length], ex = r.x - q.x, ey = r.y - q.y;
+          var den = dx * ey - dy * ex;
+          if (Math.abs(den) < 1e-10) continue;
+          var qx = q.x - a.x, qy = q.y - a.y, t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+          if (t > 0 && t < 1 && u >= -1e-8 && u <= 1 + 1e-8) cuts.push(t);
+        }
+      }
+      cuts.sort(function(a, b) { return a - b; });
+      for (var ci = 1; ci < cuts.length; ci++) {
+        if (cuts[ci] - cuts[ci - 1] < 1e-9) continue;
+        var f = (cuts[ci] + cuts[ci - 1]) / 2;
+        if (!inside(a.x + dx * f, a.y + dy * f)) return false;
+      }
+      return true;
+    }
+    function shortRowTurn(a, b, towardInk) {
+      /* Nur benachbarte Reihen DESSELBEN Streifens: ein leicht ins Ink
+         eingerueckter Wendepunkt ersetzt den unsicheren Rand-Akkord.
+         Beide Teilstrecken bleiben exakt in der Kontur; keine Loch-Toleranz
+         und keine Kontur-Kette mit zahllosen winzigen Nadeleinstichen. */
+      var maxRoute = Math.min(_mm2px(1.2), rowSp * 4), minStep = _mm2px(0.12);
+      if (Math.hypot(b.x - a.x, b.y - a.y) > maxRoute) return null;
+      var maxInset = Math.min(_mm2px(0.3), rowSp), offsets = [0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3];
+      for (var oi = 0; oi < offsets.length; oi++) {
+        var off = _mm2px(offsets[oi]); if (off > maxInset + 1e-8) break;
+        var p = { x: (a.x + b.x) / 2 + towardInk * off, y: (a.y + b.y) / 2, travel: true };
+        var l0 = Math.hypot(p.x - a.x, p.y - a.y), l1 = Math.hypot(b.x - p.x, b.y - p.y);
+        if (l0 < minStep || l1 < minStep || l0 + l1 > maxRoute) continue;
+        if (inside(p.x, p.y) && connectorInside(a, p) && connectorInside(p, b)) return p;
+      }
+      return null;
+    }
+    /* 1) Spans je Scanline. Reihen symmetrisch in der Hoehe verteilen:
+       beide Randabstaende <= halber Sollabstand, auch bei Resthoehen. */
+    var spanRows = [], rowCount = Math.max(1, Math.ceil((maxY - minY) / rowSp - 1e-9));
+    var actualRowSp = (maxY - minY) / rowCount;
+    for (var rowI = 0; rowI < rowCount; rowI++) {
+      var y = minY + (rowI + 0.5) * actualRowSp, intersections = [], spans = [];
+      for (var li = 0; li < loops.length; li++) {
+        var ring = loops[li];
+        for (var ei = 0; ei < ring.length; ei++) {
+          var a = ring[ei], b = ring[(ei + 1) % ring.length];
+          if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) intersections.push(a.x + (b.x - a.x) * (y - a.y) / (b.y - a.y));
+        }
+      }
+      intersections.sort(function(a, b) { return a - b; });
+      for (var xi = 0; xi + 1 < intersections.length; xi += 2) {
+        if (intersections[xi + 1] - intersections[xi] > 1e-7) spans.push({ x0: intersections[xi], x1: intersections[xi + 1], row: rowI, y: y });
+      }
+      spanRows.push(spans);
     }
     /* 2) Streifen-Zerlegung (vertikaler Sweep): jede Buchstaben-Gliedmasse wird
           ein durchgehender Streifen. Ein aktiver Streifen wächst nur, wenn er in
@@ -34881,39 +35068,40 @@ function _stitchScanFillD(d, shape, opts) {
         var span = spans[i];
         var p0 = dir > 0 ? { x: span.x0, y: span.y } : { x: span.x1, y: span.y };
         var p1 = dir > 0 ? { x: span.x1, y: span.y } : { x: span.x0, y: span.y };
-        if (i === 0 && prev) {
+        if (prev) {
           var dd = Math.hypot(p0.x - prev.x, p0.y - prev.y);
-          /* Verbinder nur dann als durchgehenden (unsichtbaren) Stich behalten,
-             wenn die GANZE Strecke innen liegt (mehrere Stützpunkte prüfen, nicht
-             nur die Mitte). Sonst Sprung - im 2D-View nicht gezeichnet, kein
-             sichtbarer Diagonal-Stich über offene Buchstaben-Flächen. */
-          var allIn = true;
-          if (dd > _mm2px(0.5)) { var nch = Math.max(3, Math.ceil(dd / _mm2px(0.4))); for (var sm = 1; sm < nch; sm++) { var tt2 = sm / nch; if (!inside(prev.x + (p0.x - prev.x) * tt2, prev.y + (p0.y - prev.y) * tt2)) { allIn = false; break; } } }
-          if (!allIn || dd > jumpFar) out.push({ x: p0.x, y: p0.y, jump: true });
+          /* Auch Wendestiche INNERHALB eines Streifens koennen eine konkave
+             Kante schneiden. Sprung gilt nur fuer den Weg AUF diesen Punkt. */
+          if (!connectorInside(prev, p0) || dd > jumpFar) {
+            var turn = i > 0 ? shortRowTurn(prev, p0, dir > 0 ? 1 : -1) : null;
+            if (turn) { out.push(turn); p0.travel = true; }
+            else p0.jump = true;
+          }
         }
-        out.push({ x: p0.x, y: p0.y });
+        out.push(p0);
         var segLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-        if (segLen > stLen) { var nSt = Math.ceil(segLen / stLen); for (var q = 1; q < nSt; q++) { var tt = q / nSt; out.push({ x: p0.x + (p1.x - p0.x) * tt, y: p0.y + (p1.y - p0.y) * tt }); } }
+        if (segLen > stLen) {
+          /* Vier Reihenphasen, am lokalen Text verankert; Randpunkte bleiben
+             exakt. Endnahe innere Einstiche werden nach innen gerueckt, ohne
+             die maximale Stichlaenge zu vergroessern. */
+          var phase = (span.row % 4) / 4 * stLen, pen = [], edgeGap = Math.min(_mm2px(0.15), stLen * 0.1);
+          for (var gx = Math.floor((span.x0 - minX - phase) / stLen + 1) * stLen + minX + phase; gx < span.x1 - 1e-7; gx += stLen) {
+            var px = Math.max(span.x0 + edgeGap, Math.min(span.x1 - edgeGap, gx));
+            if (!pen.length || px - pen[pen.length - 1] > 1e-7) pen.push(px);
+          }
+          if (dir < 0) pen.reverse();
+          for (var q = 0; q < pen.length; q++) out.push({ x: pen[q], y: span.y });
+        }
         out.push({ x: p1.x, y: p1.y });
         prev = p1; dir = -dir;
       }
     }
   } finally { try { svg.remove(); } catch(e){console.warn('[vt:swallowed]',e)} }
-  /* [stitchtest v3] Gestickter Text folgt jetzt shape.rotation. _calcTextFillStitch
-     scannt die Glyphen waagrecht (rotationsfrei) -> ohne dies wuerde ein gedrehtes
-     Label (z.B. der vertikale Y-Achsentitel der Test-Karte) waagrecht und an
-     falscher Stelle gestickt. Die fertigen Nadelpunkte um EXAKT das Render-
-     Rotationszentrum drehen (s.x+(s.w||0)/2, s.y+(s.h||0)/2 - gleich der SVG-
-     rotate-Transform). No-op bei rotation==0 -> keine Regression. */
-  if (shape && shape.rotation && !(shape.onPath && shape.pathId)) { /* VT-TEXTPFAD-STICH v2: Rotation steckt bei Pfad-Text schon im Layout */
-    var _rcx = (shape.x || 0) + (shape.w || 0) / 2, _rcy = (shape.y || 0) + (shape.h || 0) / 2;
-    var _rr = shape.rotation * Math.PI / 180, _rc = Math.cos(_rr), _rs = Math.sin(_rr);
-    for (var _ri = 0; _ri < out.length; _ri++) {
-      var _dx = out[_ri].x - _rcx, _dy = out[_ri].y - _rcy;
-      out[_ri].x = _rcx + _dx * _rc - _dy * _rs;
-      out[_ri].y = _rcy + _dx * _rs + _dy * _rc;
-    }
+  for (var pi = 0; pi < out.length; pi++) {
+    var ux = out[pi].x, uy = out[pi].y;
+    out[pi].x = originX + ux * ca - uy * sa; out[pi].y = originY + ux * sa + uy * ca;
   }
+  window._vtRotateTextStitches(out,shape);
   return out;
 }
 
@@ -35503,34 +35691,19 @@ function _calcTextSatinOnPath(shape, opts, bowlFill) {
    eigenen Ursprung -> Ergebnis per bbox-Translation an die Lage des Fuell-Pfads
    (gleiche Position wie die Tatami-Fuellung) angeglichen. */
 function _calcTextSatinStitch(shape, opts, bowlFill) {
-  if (typeof window === 'undefined' || !window.VTSatinEngine || !shape || !shape.text || !String(shape.text).trim()) return [];
-  bowlFill = bowlFill || 'satin';
-  /* Text auf Pfad: pro Glyph entlang der Kurve setzen (sonst loest sich das Wort vom Pfad). */
+  if (!window.VTSatinEngine || !shape || !String(shape.text||'').trim()) return [];
   if (shape.onPath && shape.pathId) {
-    var _op = _calcTextSatinOnPath(shape, opts, bowlFill);
-    if (_op && _op.length) return _op;
-    return _calcTextFillStitch(shape, opts);
+    var onPath=_calcTextSatinOnPath(shape,opts,bowlFill||'satin');
+    return onPath&&onPath.length?onPath:_calcTextFillStitch(shape,opts);
   }
-  var raw;
-  try {
-    var _p = (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing
-      : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.rowSpacing)) ? shape.stitch.params.rowSpacing : 0.30);
-    raw = window.VTSatinEngine.textToStitches({
-      text: shape.text, fontFamily: shape.fontFamily || 'Nunito',
-      fontSizePx: shape.fontSize || 24, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p, densityMM: _p, bowlFill: bowlFill
-    });
-  } catch (e) { try { console.warn('[vt:text-satin]', e && e.message); } catch (_e) {} return []; }
-  if (!raw || !raw.length) return [];
-  var d = _stitchTextToPathD(shape);
-  var tnums = (d && d.match(/-?\d+\.?\d*/g)) || []; var tMinX = 1e9, tMinY = 1e9, i;
-  for (i = 0; i + 1 < tnums.length; i += 2) { var tx = +tnums[i], ty = +tnums[i + 1]; if (tx < tMinX) tMinX = tx; if (ty < tMinY) tMinY = ty; }
-  var sMinX = 1e9, sMinY = 1e9, k;
-  for (k = 0; k < raw.length; k++) { if (raw[k].jump) continue; if (raw[k].x < sMinX) sMinX = raw[k].x; if (raw[k].y < sMinY) sMinY = raw[k].y; }
-  var dx = (isFinite(tMinX) && isFinite(sMinX)) ? (tMinX - sMinX) : 0;
-  var dy = (isFinite(tMinY) && isFinite(sMinY)) ? (tMinY - sMinY) : 0;
-  var out = [];
-  for (k = 0; k < raw.length; k++) out.push({ x: raw[k].x + dx, y: raw[k].y + dy, jump: !!raw[k].jump });
-  return out;
+  var l=window._vtTextLayout(shape);
+  var pitch=opts&&isFinite(opts.rowSpacing)?opts.rowSpacing:
+    (shape.stitch&&shape.stitch.params&&isFinite(shape.stitch.params.rowSpacing)?shape.stitch.params.rowSpacing:0.30);
+  var pts=window.VTSatinEngine.textToStitches({
+    text:shape.text,fontFamily:l.fontFamily,fontSizePx:l.fontSize,bold:!!shape.bold,italic:!!shape.italic,
+    glyphLayout:window._vtTextGlyphLayout(shape,l),pitchMM:pitch,densityMM:pitch,bowlFill:bowlFill||'satin'
+  });
+  return window._vtRotateTextStitches(pts||[],shape);
 }
 /* [seam-merge v1] Dichte, nahezu KOLLINEARE Kurzstich-Laeufe (die Scanline-"Treppe"
    an flach/steil angeschnittenen Kanten) auf Stichlaenge resampeln: gleicher Pfad,
@@ -36479,6 +36652,12 @@ function _withFillOutline(shape, mainPts) {
 function _stitchRecalc(shape) {
   var st = _stitchMaybeUpgradeLegacyParams(shape);
   if (st && st.disabled) { st.needlePoints = []; st._needleCacheKey = ''; return; }
+  if(st && shape.type==='text'){
+    var font=(shape.italic?'italic ':'')+(shape.bold?'bold ':'')+(Number(shape.fontSize)||24)+'px "'+(shape.fontFamily||'Nunito').replace(/["\\]/g,'')+'"';
+    if((window._vtFontErrors||{})[shape.fontFamily] || (document.fonts && !document.fonts.check(font,String(shape.text||'')))){
+      st.needlePoints=[];st._needleCacheKey='';return;
+    }
+  }
   /* [satin-width-live v1] Auto-Satin-Linienband (_strokeBand): Bandbreite IMMER an
      die aktuelle gezeichnete Strichbreite koppeln (Lukas: "wie im canvas"). Bisher
      wurde zigzagWidth nur beim ERSTEN Zuweisen gesetzt -> spaeteres Verbreitern/
@@ -38576,7 +38755,7 @@ function _dstPointToSegDist(pt, a, b) {
   return Math.hypot(pt.x - px, pt.y - py);
 }
 
-function _dstCleanupQuantizedRun(qRun) {
+function _dstCleanupQuantizedRun(qRun, preserveGeometry) {
   if (!qRun || qRun.length < 3) return qRun ? qRun.slice() : [];
   var out = [qRun[0]];
   for (var i = 1; i < qRun.length - 1; i++) {
@@ -38586,7 +38765,9 @@ function _dstCleanupQuantizedRun(qRun) {
     var dPrev = Math.hypot(cur.x - prev.x, cur.y - prev.y);
     var dNext = Math.hypot(next.x - cur.x, next.y - cur.y);
     var dDirect = Math.hypot(next.x - prev.x, next.y - prev.y);
-    var nearLine = _dstPointToSegDist(cur, prev, next) <= 0.75;
+    /* Text already supplies curve/cap/row-turn anchors. Quantization must
+       not straighten them into a diagonal across a narrow letter stroke. */
+    var nearLine = _dstPointToSegDist(cur, prev, next) <= (preserveGeometry ? 1e-8 : 0.75);
     var minU = (window._stitchGlobal && window._stitchGlobal.minStitchLenUnits) || 3;
     var isMicro = dPrev > 0 && dPrev < minU || dNext > 0 && dNext < minU;
     /* [VT-UIFIX v1 R15] Mikro-Punkt nur entfernen, wenn das Weglassen KEINE lange
@@ -38602,7 +38783,7 @@ function _dstCleanupQuantizedRun(qRun) {
        Ersetzt den frueheren cosTurn-Knick-Pfad, der die Ecke je nach Run-Reihenfolge im
        Export faelschlich als sanften Knick (cosTurn > 0.5) ausduennte. Round-13-Schutz
        bleibt: Reihen-Ende-Ecken (perp >= Reihen-Schritt > 0.75, langer Arm) bleiben. */
-    if (isMicro && dDirect <= 35 && (nearLine || dDirect <= minU * 2)) {
+    if (isMicro && dDirect <= 35 && (nearLine || (!preserveGeometry && dDirect <= minU * 2))) {
       continue;
     }
     out.push(cur);
@@ -38775,14 +38956,15 @@ window._setLoadingOverlayProgress = function(pct) {
    der Overlay sichtbar wird bevor fn den UI-Thread blockiert. */
 window._runWithOverlay = function(msg, fn) {
   window._showLoadingOverlay(msg);
-  requestAnimationFrame(function() { requestAnimationFrame(function() {
-    try { fn(); }
+  requestAnimationFrame(function() { requestAnimationFrame(async function() {
+    try { await fn(); }
+    catch(e) { console.error('[vt:operation]',e); if(window._vtToast)window._vtToast(e.message||'Berechnung fehlgeschlagen.','error'); else alert(e.message); }
     finally { window._hideLoadingOverlay(); }
   }); });
 };
 
 (document.getElementById('stitchExportDst')||{addEventListener:function(){}}).addEventListener('click', function() {
-  window._runWithOverlay('DST-Export wird berechnet…', _stitchExportDstBody);
+  window._runWithOverlay('DST-Export wird berechnet…', async function(){await window._vtEnsureTextFonts(window.shapes);_stitchExportDstBody();});
 });
 /* v44: Permanenter Footer-Export-Button. [export-dropdown v1] Das Format kommt aus
    dem Dropdown #stitchExportFormat (Standard DST); der fruehere PES-Footer-Button
@@ -38792,17 +38974,12 @@ var _stitchExportFooterBtn = document.getElementById('stitchExportFooterDst');
 if (_stitchExportFooterBtn) {
   _stitchExportFooterBtn.addEventListener('click', function() {
     var fmt = ((document.getElementById('stitchExportFormat')||{}).value || 'dst');
-    if (fmt === 'dst') {
-      window._runWithOverlay('DST-Export wird berechnet…', _stitchExportDstBody);
-      return;
-    }
-    try {
+    window._runWithOverlay('Stick-Export wird berechnet…', async function(){
+      await window._vtEnsureTextFonts(window.shapes);
+      if(fmt==='dst') { _stitchExportDstBody(); return; }
       if (fmt === 'exp') window._stitchExportExpBody();
       else window._stitchExportPesBody(fmt);   /* 'pes' und 'pec' */
-    } catch (e) {
-      console.error('[' + fmt.toUpperCase() + ']', e);
-      alert(window.t('PES-Export fehlgeschlagen:').replace('PES', fmt.toUpperCase()) + ' ' + e.message);
-    }
+    });
   });
 }
 
@@ -38826,10 +39003,14 @@ function _dstLockInset(pts, fromStart) {
    die im Stoff verschwindet und netto bei anchor endet, sodass die nachfolgende
    Stitch-Sequenz unveraendert weiterlaeuft. Der Troubleshoot-Check
    (runHasLockAtStart/End) erkennt sie als Lock (Distanz < 1 mm). */
-function _dstMakeLockStitches(anchorX, anchorY, dirX, dirY) {
+function _dstMakeLockStitches(anchorX, anchorY, dirX, dirY, limitToSegment) {
   var len = Math.hypot(dirX, dirY);
+  /* Tiny lettering: lock only on the existing sewn segment, never extend
+     past its edge or invent a horizontal direction for a zero-length vector. */
+  if(limitToSegment && len<1e-6) return [];
   var ux = len > 1e-6 ? dirX / len : 1, uy = len > 1e-6 ? dirY / len : 0;
   var d = 8; /* [VT-UIFIX v1 R18] DST-Units = 0.8 mm: 0.4mm lag unter der Analyzer-Schwelle (EMDIGITIZER "Missing Tie-Ins/Offs"); 0.8mm bleibt <1mm fuer den internen Lock-Check + innerhalb (1.5mm-Inset) */
+  if(limitToSegment) d=Math.min(d,len);
   var bx = Math.round(anchorX + ux * d), by = Math.round(anchorY + uy * d);
   if (bx === anchorX && by === anchorY) return [];
   return [
@@ -38843,6 +39024,7 @@ window._stitchExportDstBody = _stitchExportDstBody;
    DST-Download und kein Viewer-Auto-Open. Wird vom PES-Export genutzt, damit
    nur das gewaehlte Format heruntergeladen wird. */
 function _stitchExportDstBody(skipDownload) {
+  if(window._vtAssertTextFonts)window._vtAssertTextFonts(window.shapes);
   /* Reset Jump-Report — wird vom DST-Encoding-Loop befüllt pro Inter-Run/
      Inter-Shape Jump. Im DST-Viewer-Sidebar als Liste sichtbar. */
   window._dstLastJumpReport = [];
@@ -38979,6 +39161,9 @@ function _stitchExportDstBody(skipDownload) {
      bricht und Viewer verwirrt).
      ────────────────────────────────────────────────────────────────────── */
   var dstPts = [];
+  /* Byte-level locks need the command's source type. Keep this separate
+     from dstPts so PES/EXP and their shared command data stay unchanged. */
+  var dstTextSources = [];
   var lastColor = null;
   var havePos = false;
   var curDstX = 0, curDstY = 0;
@@ -39152,6 +39337,7 @@ function _stitchExportDstBody(skipDownload) {
   for (var esi = 0; esi < exportShapes.length; esi++) {
     var es = exportShapes[esi];
     if (!es.runs || !es.runs.length) continue;
+    var _esDstStartIndex = dstPts.length;
     /* Forward-/Reverse-Wahl: minimiere Distanz von letzter Position zum
        Start der neuen Shape — UNABHÄNGIG von Color (auch bei Color-Change!).
        Standard-Optimierung: Start/End jeder Shape so anordnen dass
@@ -39181,7 +39367,9 @@ function _stitchExportDstBody(skipDownload) {
     for (var ri = 0; ri < es.runs.length; ri++) {
       var run = es.runs[ri];
       if (!run || !run.length) continue;
-      var qRun = _dstReinsertShallowRowCorners(_dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY))); /* [VT-UIFIX v1 R15] flache Reihen-Diagonalen begradigen */
+      var isTextRun=es.shape && es.shape.type==='text';
+      var qRun=_dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY),isTextRun);
+      if(!isTextRun) qRun=_dstReinsertShallowRowCorners(qRun);
       if (!qRun.length) continue;
       var firstQ = qRun[0];
       var firstPx = run[0];
@@ -39255,7 +39443,7 @@ function _stitchExportDstBody(skipDownload) {
       var _lsIdx = (_lkOn && ri === 0 && _lkCmd.lockStart) ? _dstLockInset(qRun, true) : -1;
       var _leIdx = (_lkOn && ri === es.runs.length - 1 && _lkCmd.lockEnd) ? _dstLockInset(qRun, false) : -1;
       var _emitLock = function (ax, ay, dxL, dyL) {
-        var lk = _dstMakeLockStitches(ax, ay, dxL, dyL);
+        var lk = _dstMakeLockStitches(ax, ay, dxL, dyL, es.shape && es.shape.type==='text');
         for (var li = 0; li < lk.length; li++) { dstPts.push(lk[li]); curDstX = lk[li].x; curDstY = lk[li].y; }
       };
       for (var qi = 1; qi < qRun.length; qi++) {
@@ -39263,13 +39451,20 @@ function _stitchExportDstBody(skipDownload) {
         if (sameDstCoord(curDstX, curDstY, qp.x, qp.y)) continue;
         dstPts.push({ x: qp.x, y: qp.y });
         curDstX = qp.x; curDstY = qp.y;
-        if (qi === _lsIdx) { var _nL = qRun[Math.min(qi + 1, qRun.length - 1)]; _emitLock(curDstX, curDstY, _nL.x - qp.x, _nL.y - qp.y); } /* Start-Lock: Richtung weiter rein */
+        if (qi === _lsIdx) {
+          var _nL = qRun[Math.min(qi + 1, qRun.length - 1)];
+          if(es.shape && es.shape.type==='text' && _nL.x===qp.x && _nL.y===qp.y) _nL=qRun[Math.max(qi-1,0)];
+          _emitLock(curDstX, curDstY, _nL.x - qp.x, _nL.y - qp.y);
+        } /* Start-Lock: vorhandenen Stich vorwaerts oder am Run-Ende rueckwaerts nutzen */
         if (qi === _leIdx) { var _pL = qRun[Math.max(qi - 1, 0)]; _emitLock(curDstX, curDstY, _pL.x - qp.x, _pL.y - qp.y); }     /* End-Lock: Richtung zurueck (rein) */
       }
       /* Letzte Stitch-Position in Pixeln tracken für Coverage-Test des
          nächsten Inter-Run/Inter-Shape Übergangs */
       var lastP = run[run.length - 1];
       if (lastP) { lastStitchPxX = lastP.x; lastStitchPxY = lastP.y; }
+    }
+    for (var _dstSourceI = _esDstStartIndex; _dstSourceI < dstPts.length; _dstSourceI++) {
+      dstTextSources[_dstSourceI] = !!(es.shape && es.shape.type === 'text');
     }
     lastColor = es.color;
   }
@@ -39303,6 +39498,7 @@ function _stitchExportDstBody(skipDownload) {
   var stitchCount = 0;
   var _dstTieInDone = false; /* [dst-quality v1] */
   var _lastRealDx = 1, _lastRealDy = 0; /* [VT-UIFIX v1 R15] Richtung des letzten echten Stichs (fuer Tie-Off nach innen) */
+  var _lastRealIsText = false, _lastRealX = 0, _lastRealY = 0;
 
   for (var si = 0; si < dstPts.length; si++) {
     var dx = dstPts[si].x - lastDstX;
@@ -39325,13 +39521,18 @@ function _stitchExportDstBody(skipDownload) {
          Mikro-Stiche +u,-u,+u,-u (netto 0, Position bleibt fuer den echten Stich), die auf
          dem Start->Erststich-Segment liegen = innerhalb der Form. */
       var _til = Math.hypot(_odx, _ody) || 1;
-      var _tix = Math.round(_odx / _til * 8), _tiy = Math.round(_ody / _til * 8); /* [VT-UIFIX v1 R18] 0.8mm = Analyzer-erkannte Lock-Amplitude (war 0.4mm, zu klein) */
-      if (_tix === 0 && _tiy === 0) { _tix = 8; _tiy = 0; }
+      /* Text can start with a 0.1 mm cap. Retrace only that existing
+         segment instead of extending a fixed 0.8 mm beyond the letter. */
+      var _tiD = dstTextSources[si] ? Math.min(8, Math.hypot(_odx, _ody)) : 8;
+      var _tix = Math.round(_odx / _til * _tiD), _tiy = Math.round(_ody / _til * _tiD);
+      if (_tix === 0 && _tiy === 0 && !dstTextSources[si]) { _tix = 8; _tiy = 0; }
+      if (_tix !== 0 || _tiy !== 0) {
       var ti1 = _dstEncodeStitch(_tix, _tiy, false, false); stitchBytes.push(ti1[0], ti1[1], ti1[2]);
       var ti2 = _dstEncodeStitch(-_tix, -_tiy, false, false); stitchBytes.push(ti2[0], ti2[1], ti2[2]);
       var ti3 = _dstEncodeStitch(_tix, _tiy, false, false); stitchBytes.push(ti3[0], ti3[1], ti3[2]);
       var ti4 = _dstEncodeStitch(-_tix, -_tiy, false, false); stitchBytes.push(ti4[0], ti4[1], ti4[2]);
       stitchCount += 4;
+      }
     }
 
     /* Break large movements into multiple pieces. For positioning JUMPs:
@@ -39359,7 +39560,10 @@ function _stitchExportDstBody(skipDownload) {
     stitchBytes.push(enc2[0], enc2[1], enc2[2]);
     lastDstX += dx; lastDstY += dy;
     stitchCount++;
-    if (!isJump && !isCC && (_odx !== 0 || _ody !== 0)) { _lastRealDx = _odx; _lastRealDy = _ody; } /* [VT-UIFIX v1 R15] Richtung fuer Tie-Off merken */
+    if (!isJump && !isCC && (_odx !== 0 || _ody !== 0)) {
+      _lastRealDx = _odx; _lastRealDy = _ody;
+      _lastRealIsText = !!dstTextSources[si]; _lastRealX = lastDstX; _lastRealY = lastDstY;
+    } /* Richtung und Ort des letzten echten Stichs fuer Tie-Off merken */
   }
   /* [dst-quality v1] fertige Stitch-Bytes fuer Diagnose exponieren
      (Memory-Lehre: bei DST-Fragen immer die .dst dekodieren) */
@@ -39369,18 +39573,25 @@ function _stitchExportDstBody(skipDownload) {
      Hin-Her-Zickzack-Bewegung, damit der Faden nicht aufribbeln kann. Klassisches
      Pattern (-2, +4, -2 DST-Units = ±0.4 mm). Sitzt direkt VOR dem EOF-Marker und
      ergibt netto-0 Position, sodass die letzte Stitch-Position erhalten bleibt. */
-  if (stitchCount > 0) {
+  var _dstEndIsText = !!dstTextSources[dstPts.length - 1];
+  /* A trailing text positioning jump has no sewn segment to retrace.
+     Do not invent a lock there, nor reuse another shape's direction. */
+  if (stitchCount > 0 && (!_dstEndIsText ||
+      (_lastRealIsText && lastDstX === _lastRealX && lastDstY === _lastRealY))) {
     /* [VT-UIFIX v1 R15] Tie-Off NACH INNEN: entlang der RUECKwaerts-Richtung des letzten
        echten Stichs (zeigt vom Rand-Endpunkt zurueck ins Innere) statt fix -4/+8/-4 horizontal.
        4 Mikro-Stiche netto 0, bleiben innerhalb der Form (retrace des letzten Stichs). */
     var _tol = Math.hypot(_lastRealDx, _lastRealDy) || 1;
-    var _tox = Math.round(-_lastRealDx / _tol * 8), _toy = Math.round(-_lastRealDy / _tol * 8); /* [VT-UIFIX v1 R18] 0.8mm Lock-Amplitude */
-    if (_tox === 0 && _toy === 0) { _tox = -8; _toy = 0; }
+    var _toD = _dstEndIsText ? Math.min(8, Math.hypot(_lastRealDx, _lastRealDy)) : 8;
+    var _tox = Math.round(-_lastRealDx / _tol * _toD), _toy = Math.round(-_lastRealDy / _tol * _toD);
+    if (_tox === 0 && _toy === 0 && !_dstEndIsText) { _tox = -8; _toy = 0; }
+    if (_tox !== 0 || _toy !== 0) {
     var to1 = _dstEncodeStitch(_tox, _toy, false, false); stitchBytes.push(to1[0], to1[1], to1[2]);
     var to2 = _dstEncodeStitch(-_tox, -_toy, false, false); stitchBytes.push(to2[0], to2[1], to2[2]);
     var to3 = _dstEncodeStitch(_tox, _toy, false, false); stitchBytes.push(to3[0], to3[1], to3[2]);
     var to4 = _dstEncodeStitch(-_tox, -_toy, false, false); stitchBytes.push(to4[0], to4[1], to4[2]);
     stitchCount += 4;
+    }
   }
   /* End-of-file marker */
   stitchBytes.push(0x00, 0x00, 0xF3);
@@ -41045,6 +41256,11 @@ window.__LINEA_DEBUG__ = {
           <label for="dgpTextDensity" title="Abstand der Stichreihen nur für Text. Kleiner = dichter." style="font-weight:600;">Reihenabstand</label>
           <input id="dgpTextDensity" type="range" min="0.15" max="0.80" value="0.30" step="0.05" style="accent-color:var(--fg);">
           <span id="dgpTextDensityVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0.30 mm</span>
+          <div id="dgpTextAngleRow" style="display:none">
+            <label for="dgpTextAngle" title="Richtung der Tatami-Reihen im Text. 0° waagrecht, 90° senkrecht." style="font-weight:600;">Winkel (Tatami)</label>
+            <input id="dgpTextAngle" type="range" min="0" max="180" value="0" step="5" style="accent-color:var(--fg);">
+            <span id="dgpTextAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0°</span>
+          </div>
           </div>
         </div>
       </div>
@@ -41594,7 +41810,12 @@ window.__LINEA_DEBUG__ = {
       for (var _rbi = 0; _rbi < limit; _rbi++) {
         var _rbr = recs[_rbi];
         if (_rbr.type === 'end') break;
-        if (_rbr.type === 'color_change') { _rbFlush(); _rbCol = _dstvColor(_rbr.colorIndex); continue; }
+        if (_rbr.type === 'color_change') {
+          _rbFlush(); _rbCol = _dstvColor(_rbr.colorIndex);
+          /* Ein Farbwechsel bewegt die Nadel nicht: der naechste Stich beginnt hier. */
+          _rbPts.push({ x: _rbr.x, y: _rbr.y, jump: true });
+          continue;
+        }
         if (_rbr.type === 'jump') { _rbPts.push({ x: _rbr.x, y: _rbr.y, jump: true }); continue; }
         _rbPts.push({ x: _rbr.x, y: _rbr.y });
       }
@@ -41651,7 +41872,8 @@ window.__LINEA_DEBUG__ = {
               _dstvCtx.lineTo(mx + ppx * thread3d * 0.14 + ux * len * 0.30, my + ppy * thread3d * 0.14 + uy * len * 0.30);
               _dstvCtx.stroke();
             }
-          } else {
+          } else if (!mode3d) {
+            /* Realbild hat die Stiche bereits gezeichnet; kein 2D-Draht darueber. */
             _dstvCtx.strokeStyle = col;
             _dstvCtx.lineWidth = lw2;
             _dstvCtx.setLineDash([]);
@@ -42853,6 +43075,14 @@ window.__LINEA_DEBUG__ = {
           var _trs = _tShape ? _tShape.stitch.params.rowSpacing : (window._catStitchParams && window._catStitchParams.text && window._catStitchParams.text.rowSpacing);
           if (isFinite(_trs)) { _td.value = _trs; _tdv.textContent = Number(_trs).toFixed(2) + ' mm'; }
         }
+        var angleRow=document.getElementById('dgpTextAngleRow'), angleInput=document.getElementById('dgpTextAngle'), angleValue=document.getElementById('dgpTextAngleVal');
+        var tatamiTexts=(window.shapes||[]).filter(function(s){return s&&s.type==='text'&&(s.textStitch||'tatami')==='tatami';});
+        if(angleRow) angleRow.style.display=tatamiTexts.length?'contents':'none';
+        if(angleInput&&angleValue&&tatamiTexts.length){
+          var tp=tatamiTexts[0].stitch&&tatamiTexts[0].stitch.params, av=tp&&isFinite(tp.angle)?Number(tp.angle):0;
+          var shownAngle=av>=0&&av<=180?av:((av%180)+180)%180;
+          angleInput.value=shownAngle; angleValue.textContent=shownAngle+'°';
+        }
       };
       (function () {
         var tsBtns = document.querySelectorAll('.dgp-ts');
@@ -42879,6 +43109,16 @@ window.__LINEA_DEBUG__ = {
           if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
         });
       })();
+
+      /* Text has its own angle: the area slider intentionally excludes text. */
+      var textAngle=document.getElementById('dgpTextAngle'), textAngleValue=document.getElementById('dgpTextAngleVal');
+      if(textAngle) textAngle.addEventListener('input',function(){
+        var angle=Number(this.value); if(!isFinite(angle)) return;
+        if(textAngleValue) textAngleValue.textContent=angle+'°';
+        if(window._catStitchParams&&window._catStitchParams.text) window._catStitchParams.text.angle=angle;
+        if(typeof window._v44BulkSetParamCat==='function') window._v44BulkSetParamCat('text','angle',angle);
+        if(typeof window._dstvScheduleAutoRecalc==='function') window._dstvScheduleAutoRecalc();
+      });
 
       /* Progress-UI: 3 Phasen.
          - pending:   gestrichelter 20% Balken, "Warte auf Eingabe…"
@@ -49614,7 +49854,97 @@ function _walkContourArc(loop, kA,tA, kB,tB){
 /* TUCK-UNDER: einen Verbinder a->b, der quer ueber Fabric springen wuerde, ENTLANG der Kontur (Kante)
    routen -> der Faden liegt unter der Satin-Kante (nicht sichtbar) statt lose quer ueber den Buchstaben.
    Liefert Travel-Punkte oder null (wenn Umweg zu lang -> lieber Sprung). [Lukas „pack den weg dass er nicht sichtbar ist"] */
-function _contourUnderpath(a, b, loops){
+/* Laengs-Travel: auch schmale Punzen zwischen Rasterproben erkennen. Die
+   Konturschnitte teilen die Sehne in Intervalle; jedes muss im Ink liegen. */
+function _flowTravelInside(a,b,loops,inInk){
+  if(!a||!b||!isFinite(a.x)||!isFinite(a.y)||!isFinite(b.x)||!isFinite(b.y)||!inInk) return false;
+  if(!inInk(a.x,a.y)||!inInk(b.x,b.y)) return false;
+  var dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),cuts=[0,1],i,j;
+  if(len<1e-8) return true;
+  for(i=0;i<(loops||[]).length;i++) for(j=0;j<loops[i].length;j++){
+    var p=loops[i][j],q=loops[i][(j+1)%loops[i].length],ex=q.x-p.x,ey=q.y-p.y,den=dx*ey-dy*ex;
+    if(Math.abs(den)<1e-12) continue;
+    var rx=p.x-a.x,ry=p.y-a.y,t=(rx*ey-ry*ex)/den,u=(rx*dy-ry*dx)/den;
+    if(t>1e-9&&t<1-1e-9&&u>=-1e-9&&u<=1+1e-9) cuts.push(t);
+  }
+  cuts.sort(function(x,y){return x-y;});
+  for(i=1;i<cuts.length;i++) if(cuts[i]-cuts[i-1]>1e-9){
+    var m=(cuts[i]+cuts[i-1])/2;if(!inInk(a.x+dx*m,a.y+dy*m)) return false;
+  }
+  var n=Math.max(1,Math.ceil(len/_mm2px(0.04)));
+  for(i=1;i<n;i++){var f=i/n;if(!inInk(a.x+dx*f,a.y+dy*f)) return false;}
+  return true;
+}
+function _flowContourUnderpath(a,b,loops,inInk){
+  if(!loops||!loops.length||!a||!b||!isFinite(a.x)||!isFinite(a.y)||!isFinite(b.x)||!isFinite(b.y)) return null;
+  if(!inInk(a.x,a.y)||!inInk(b.x,b.y)) return null;
+  var pa=_projContourEdge(a.x,a.y,loops,_mm2px(2.5)),pb=_projContourEdge(b.x,b.y,loops,_mm2px(2.5));
+  if(!pa||!pb||pa.loop!==pb.loop) return null;
+  var direct=Math.hypot(b.x-a.x,b.y-a.y),limit=Math.min(_mm2px(20),direct*3.5);
+  if(!(direct>1e-8)) return [];
+  var walk=_walkContourArc(loops[pa.loop],pa.k,pa.t,pb.k,pb.t);
+  if(walk.len>limit||walk.poly.length<2) return null;
+  var poly=walk.poly,maxLen=_mm2px(1.1),tol=_mm2px(0.04);
+  /* Beide Projektionen bleiben Teil der Routing-Polyline. Das kleine
+     Einruecken vermeidet Raster-Aussenkanten; erst danach sicher vereinfachen.
+     Kein Nadelpunkt pro Konturpixel und kein blindes 1.5-mm-Sehnen-Sampling. */
+  for(var pass=0;pass<3;pass++){
+    var inset=_mm2px([0.06,0.035,0.015][pass]),raw=[{x:a.x,y:a.y}],valid=true;
+    for(var i=0;i<poly.length;i++){
+      var p=poly[i],left=Math.max(0,i-1),right=Math.min(poly.length-1,i+1);
+      while(left>0&&Math.hypot(p.x-poly[left].x,p.y-poly[left].y)<_mm2px(0.12)) left--;
+      while(right<poly.length-1&&Math.hypot(p.x-poly[right].x,p.y-poly[right].y)<_mm2px(0.12)) right++;
+      var tx=poly[right].x-poly[left].x,ty=poly[right].y-poly[left].y,tl=Math.hypot(tx,ty)||1;
+      var nx=-ty/tl,ny=tx/tl,chosen=null;
+      /* Gleiche Kandidaten-Reihenfolge bei umgekehrtem Kontur-Walk. */
+      if(nx<0||(nx===0&&ny<0)){nx=-nx;ny=-ny;}
+      for(var side=1;side>=-1;side-=2){var c={x:p.x+nx*inset*side,y:p.y+ny*inset*side};if(inInk(c.x,c.y)){chosen=c;break;}}
+      /* An einer konkaven Raster-Ecke kann die gemittelte Normale genau
+         in beide Aussenquadranten zeigen. Ein lokaler Richtungsfaecher
+         sucht dann nur innerhalb desselben kleinen Randkorridors. */
+      if(!chosen) for(var turn=1;turn<16;turn++){
+        var ang=turn*Math.PI/8,ca=Math.cos(ang),sa=Math.sin(ang),c={x:p.x+(nx*ca-ny*sa)*inset,y:p.y+(nx*sa+ny*ca)*inset};
+        if(inInk(c.x,c.y)){chosen=c;break;}
+      }
+      if(!chosen){valid=false;break;}raw.push(chosen);
+    }
+    if(!valid) continue;
+    raw.push({x:b.x,y:b.y});
+    /* Entry/Exit und jede kurze Ausgangssehne pruefen, nicht nur die
+       vereinfachten Innenpunkte. Bei unpassender Route bleibt es ein Sprung. */
+    for(i=1;i<raw.length;i++) if(!_flowTravelInside(raw[i-1],raw[i],loops,inInk)){valid=false;break;}
+    if(!valid) continue;
+    var route=[raw[0]],start=0;
+    while(start<raw.length-1){
+      var end=start+1;
+      for(var k=start+2;k<raw.length;k++){
+        var x=raw[start],y=raw[k],dx=y.x-x.x,dy=y.y-x.y,L=Math.hypot(dx,dy);
+        if(L>maxLen) break;
+        var fits=true;
+        for(var h=start+1;h<k;h++){
+          var f=L>1e-9?Math.max(0,Math.min(1,((raw[h].x-x.x)*dx+(raw[h].y-x.y)*dy)/(L*L))):0;
+          if(Math.hypot(raw[h].x-x.x-dx*f,raw[h].y-x.y-dy*f)>tol){fits=false;break;}
+        }
+        if(!fits) break;
+        if(_flowTravelInside(x,y,loops,inInk)) end=k;
+      }
+      route.push(raw[end]);start=end;
+    }
+    var finalRoute=[route[0]],length=0;
+    for(i=1;i<route.length;i++){
+      var aa=route[i-1],bb=route[i],d=Math.hypot(bb.x-aa.x,bb.y-aa.y),steps=Math.max(1,Math.ceil(d/maxLen));
+      for(var s=1;s<=steps;s++) finalRoute.push({x:aa.x+(bb.x-aa.x)*s/steps,y:aa.y+(bb.y-aa.y)*s/steps});
+      length+=d;
+    }
+    if(length>limit) continue;
+    for(i=1;i<finalRoute.length;i++) if(!_flowTravelInside(finalRoute[i-1],finalRoute[i],loops,inInk)){valid=false;break;}
+    if(!valid) continue;
+    return finalRoute.slice(1,-1).map(function(p){return {x:p.x,y:p.y,travel:true,textAnchor:true};});
+  }
+  return null;
+}
+function _contourUnderpath(a, b, loops, inkTest){
+  if(inkTest) return _flowContourUnderpath(a,b,loops,inkTest);
   if(!loops||!loops.length) return null;
   var pa=_projContourEdge(a.x,a.y,loops,_mm2px(2.5)), pb=_projContourEdge(b.x,b.y,loops,_mm2px(2.5));
   if(!pa||!pb||pa.loop!==pb.loop) return null;   /* beide Enden auf DEMSELBEN Loop */
@@ -49632,10 +49962,15 @@ function _contourUnderpath(a, b, loops){
    ALT:  function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx){
    NEU (erste Zeile ersetzen):                                            */
 function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx, loops){
-  /* CRASH-SCHUTZ: _ext (im Caller) dehnt rail1/rail2 UNABHAENGIG -> ungleiche Laenge.
-     Auf gemeinsame Laenge klammern, sonst cumX[n-1]=undefined / rail2[i+1]=undefined. */
-  var n=Math.min(rail1.length, rail2.length); if(n<2) return {stitches:rail1.slice(0,n), rungs:[]};
-  rail1=rail1.slice(0,n); rail2=rail2.slice(0,n);
+  if(rail1.length<2 || rail2.length<2) return {stitches:[], rungs:[]};
+  /* Unequal cap extensions must retain BOTH complete rails. Match arclength
+     stations only when needed; equal station pairs keep their local alignment. */
+  var n=Math.max(rail1.length, rail2.length);
+  if(rail1.length!==rail2.length){
+    var rc1=_arcCum(rail1), rc2=_arcCum(rail2), rr1=[], rr2=[];
+    for(var ri=0;ri<n;ri++){ rr1.push(_interpCum(rail1,rc1,ri/(n-1))); rr2.push(_interpCum(rail2,rc2,ri/(n-1))); }
+    rail1=rr1; rail2=rr2;
+  }
   var cum1=_arcCum(rail1), cum2=_arcCum(rail2);
   var L1=cum1[n-1], L2=cum2[n-1];
   var longCum=(L1>=L2)?cum1:cum2, Llong=longCum[n-1]||1;
@@ -49661,8 +49996,8 @@ function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx, loops){
     var i0=anchors[s], i1=anchors[s+1]; if(i1<=i0) continue;
     var sub1=rail1.slice(i0,i1+1), sub2=rail2.slice(i0,i1+1);
     var sc1=_arcCum(sub1), sc2=_arcCum(sub2), sl1=sc1[sc1.length-1], sl2=sc2[sc2.length-1];
-    /* GLEICHMAESSIGE feine Rung-Dichte (0.22mm) auf der laengeren Rail - deckt ohne Luecke. */
-    var nRung=Math.max(1, Math.round(Math.max(sl1,sl2,1)/_mm2px(0.22)));
+    /* Requested spacing is an upper bound on the longer rail, including curves. */
+    var nRung=Math.max(1, Math.ceil(Math.max(sl1,sl2)/Math.max(_mm2px(0.15),pitchPx)-1e-9));
     var startJ=(s===0)?0:1, j;
     for(j=startJ;j<=nRung;j++){ var u=j/nRung;
       var p1=_interpCum(sub1,sc1,u), p2=_interpCum(sub2,sc2,u);
@@ -49680,13 +50015,13 @@ function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx, loops){
       rungs.push([a,b]); rungPar++;
     }
   }
-  /* Voll-Subdivision auf 0.3mm (deckt Abschnitts-Luecken, beide Rails interpoliert -> gedeckt). */
+  /* Close section joins at the requested spacing, not a hidden fixed density. */
   if(rungs.length>=2){
-    var _sp=_mm2px(0.3), allR=[[rungs[0][0], rungs[0][1]]];
+    var _sp=Math.max(_mm2px(0.15),pitchPx), allR=[[rungs[0][0], rungs[0][1]]];
     for(var r2=0; r2<rungs.length-1; r2++){
       var g0=Math.hypot(rungs[r2+1][0].x-rungs[r2][0].x, rungs[r2+1][0].y-rungs[r2][0].y);
       var g1=Math.hypot(rungs[r2+1][1].x-rungs[r2][1].x, rungs[r2+1][1].y-rungs[r2][1].y);
-      var nSub=Math.ceil(Math.max(g0,g1)/_sp)-1; if(nSub<0) nSub=0; if(nSub>40) nSub=40;
+      var nSub=Math.ceil(Math.max(g0,g1)/_sp-1e-8)-1; if(nSub<0) nSub=0; if(nSub>40) nSub=40;
       for(var jf=1; jf<=nSub; jf++){ var u2=jf/(nSub+1);
         allR.push([{x:rungs[r2][0].x+(rungs[r2+1][0].x-rungs[r2][0].x)*u2, y:rungs[r2][0].y+(rungs[r2+1][0].y-rungs[r2][0].y)*u2},
                    {x:rungs[r2][1].x+(rungs[r2+1][1].x-rungs[r2][1].x)*u2, y:rungs[r2][1].y+(rungs[r2+1][1].y-rungs[r2][1].y)*u2}]);
@@ -49719,11 +50054,9 @@ function _median(arr){ if(!arr||!arr.length) return 0; var a=arr.slice().sort(fu
    Artefakte. Koexistiert mit dem 0.2mm-Mikrofilter (konsekutive Punkte = gegenueberliegende
    Rails = Stichlaenge ~Strichbreite, nie gecullt -> keine Dichte-Halbierung). */
 function _pairTurningSatinContinuous(rail1, rail2, peakSpacingPx, opts){
-  var n=Math.min(rail1.length, rail2.length);
-  if(n<2) return {stitches:rail1.slice(0,n), rungs:[]};
-  rail1=rail1.slice(0,n); rail2=rail2.slice(0,n);
+  if(rail1.length<2 || rail2.length<2) return {stitches:[], rungs:[]};
   var cum1=_arcCum(rail1), cum2=_arcCum(rail2);
-  var L1=cum1[n-1], L2=cum2[n-1], Llong=Math.max(L1,L2)||1;
+  var L1=cum1[cum1.length-1], L2=cum2[cum2.length-1], Llong=Math.max(L1,L2)||1;
   var halfStep=Math.max(_mm2px(0.10), peakSpacingPx*0.5);   /* Stationsschritt = halbe Peak-Spacing */
   var N=Math.max(3, Math.round(Llong/halfStep));
   var pts=[], rungs=[], k;
@@ -49836,12 +50169,136 @@ function _classifyRibbon(center, hw, rail1, rail2){
    dicht"): FESTER physischer Reihenabstand von der Mittellinie (nicht feste Anteile der lokalen
    Breite, die bei breitem Strich auseinanderlaufen). Reihen, die lokal aus dem (schmaleren) Strich
    fallen, werden geklemmt -> Reihen tauchen auf/verschwinden mit der Breite, Abstand bleibt konstant. */
+function _simplifyFlowRun(run, maxLen, segmentInside){
+  if(run.length<3) return run;
+  var out=[run[0]], start=0, tol=_mm2px(0.035);
+  while(start<run.length-1){
+    var end=start+1;
+    for(var j=start+2;j<run.length;j++){
+      var a=run[start], b=run[j], dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+      if(len>maxLen) break;
+      var ok=true;
+      for(var k=start+1;k<j;k++){
+        var t=len>0?Math.max(0,Math.min(1,((run[k].x-a.x)*dx+(run[k].y-a.y)*dy)/(len*len))):0;
+        if(Math.hypot(run[k].x-a.x-t*dx,run[k].y-a.y-t*dy)>tol){ok=false;break;}
+      }
+      if(!ok) break;
+      if(segmentInside&&!segmentInside(a,b)) continue;
+      end=j;
+    }
+    /* Leave room for the final cap stitch rather than a tiny leftover after
+       one maximum-length stitch. Earlier stations already satisfy tolerance. */
+    while(end>start+1 && end<run.length-1 && Math.hypot(run[end].x-run[run.length-1].x,run[end].y-run[run.length-1].y)<_mm2px(0.2)){
+      if(segmentInside&&!segmentInside(run[start],run[end-1])) break;
+      end--;
+    }
+    out.push(run[end]); start=end;
+  }
+  return out;
+}
+/* Raycast-Paare gehoeren zur SELBEN Mittelachsenstation. Die getrennten
+   Bogenlaengen einer Innen-/Aussenrail sind dafuer keine Ersatz-Koordinate:
+   nach unterschiedlich langen Boegen wuerden falsche Querschnitte entstehen. */
+function _flowSharedStations(rail1, rail2){
+  if(!rail1 || !rail2 || rail1.length!==rail2.length || rail1.length<2) return null;
+  var mid=[],i;
+  for(i=0;i<rail1.length;i++){
+    var a=rail1[i],b=rail2[i];
+    if(!a||!b||!isFinite(a.x)||!isFinite(a.y)||!isFinite(b.x)||!isFinite(b.y)) return null;
+    mid.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  }
+  var cum=_arcCum(mid);
+  if(!(cum[cum.length-1]>1e-8)) return null;
+  return {rail1:rail1,rail2:rail2,centerArc:cum};
+}
+/* Laengs-Reihen, Fallbacks und kleine Punktsegmente gegen die echte
+   Glyphenmaske begrenzen. Sampling erzeugt keine Nadelpunkte; emittiert
+   werden allein Ein-/Austritte und die vorhandenen Stich-Enden. */
+function _flowClipToInk(pts, inInk, markClipBreaks){
+  if(!pts||pts.length<2) return [];
+  if(!inInk) return pts;
+  var out=[],pen=null,sourceBreak=true;
+  function mix(a,b,t){return {x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t};}
+  function edge(a,b,aInside){
+    var lo=0,hi=1;
+    for(var j=0;j<16;j++){var m=(lo+hi)/2,p=mix(a,b,m);if(!!inInk(p.x,p.y)===aInside)lo=m;else hi=m;}
+    return mix(a,b,aInside?lo:hi);
+  }
+  function emit(a,b,meta){
+    if(Math.hypot(b.x-a.x,b.y-a.y)<1e-8) return;
+    var last=out[out.length-1];
+    if(!pen||!last||Math.hypot(last.x-a.x,last.y-a.y)>1e-7){
+      var start={x:a.x,y:a.y,jump:out.length>0,textAnchor:true};
+      if(markClipBreaks&&start.jump&&!sourceBreak) start.flowClipBreak=true;
+      out.push(start);
+    }
+    out.push({x:b.x,y:b.y,travel:!!meta.travel,textAnchor:true});pen=b;sourceBreak=false;
+  }
+  for(var i=1;i<pts.length;i++){
+    var a=pts[i-1],b=pts[i];
+    if(b.jump){pen=null;sourceBreak=true;continue;}
+    if(!isFinite(a.x)||!isFinite(a.y)||!isFinite(b.x)||!isFinite(b.y)){pen=null;sourceBreak=true;continue;}
+    var length=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(length/_mm2px(0.04)));
+    var prev=a,was=!!inInk(a.x,a.y),start=was?a:null;
+    for(var k=1;k<=n;k++){
+      var p=mix(a,b,k/n),on=!!inInk(p.x,p.y);
+      if(was&&!on){emit(start,edge(prev,p,true),b);start=null;pen=null;}
+      else if(!was&&on) start=edge(prev,p,false);
+      prev=p;was=on;
+    }
+    if(start&&was) emit(start,b,b);
+  }
+  return out;
+}
+/* Rejoin only tiny breaks introduced by normal-row clipping, not planned
+   jumps between strokes/rows. Preserve both existing needle endpoints;
+   one small inward corner is enough for a raster stair, never a long detour. */
+function _flowReconnectClipped(pts,loops,inInk){
+  if(!pts||pts.length<2||!loops||!loops.length||!inInk) return pts||[];
+  var out=[],maxGap=_mm2px(0.20),offsets=[0.10,0.15,0.06,0.03];
+  for(var i=0;i<pts.length;i++){
+    var p=pts[i],a=out[out.length-1],corner=null,rejoin=false;
+    if(p&&p.jump&&p.flowClipBreak&&a&&!a.jump&&isFinite(a.x)&&isFinite(a.y)&&isFinite(p.x)&&isFinite(p.y)){
+      var dx=p.x-a.x,dy=p.y-a.y,gap=Math.hypot(dx,dy);
+      if(gap<=maxGap+1e-8){
+        rejoin=_flowTravelInside(a,p,loops,inInk);
+        if(!rejoin&&gap>1e-8){
+          var mx=(a.x+p.x)/2,my=(a.y+p.y)/2,nx=-dy/gap,ny=dx/gap;
+          /* Canonical normal makes the choice stable under reversed runs. */
+          if(nx<0||(nx===0&&ny<0)){nx=-nx;ny=-ny;}
+          for(var oi=0;oi<offsets.length&&!rejoin;oi++) for(var side=1;side>=-1;side-=2){
+            var d=_mm2px(offsets[oi]),c={x:mx+nx*d*side,y:my+ny*d*side,travel:true,textAnchor:true};
+            /* A new detour needle must have two usable legs. If only a
+               sub-0.1 mm pixel jog fits, retain the original positioning jump. */
+            if(Math.hypot(c.x-a.x,c.y-a.y)>=_mm2px(0.10)-1e-8&&Math.hypot(p.x-c.x,p.y-c.y)>=_mm2px(0.10)-1e-8&&
+               _flowTravelInside(a,c,loops,inInk)&&_flowTravelInside(c,p,loops,inInk)){
+              corner=c;rejoin=true;break;
+            }
+          }
+        }
+      }
+    }
+    if(rejoin){
+      if(corner) out.push(corner);
+      var joined=Object.assign({},p);delete joined.jump;delete joined.flowClipBreak;
+      joined.travel=true;joined.textAnchor=true;out.push(joined);
+    }else out.push(p);
+  }
+  return out;
+}
 function _pairContourFlowFill(rail1, rail2, opts){
-  var n=Math.min(rail1.length, rail2.length); if(n<2) return {stitches:[], rungs:[]};
-  rail1=rail1.slice(0,n); rail2=rail2.slice(0,n);
-  var cum1=_arcCum(rail1), cum2=_arcCum(rail2), L=Math.max(cum1[n-1],cum2[n-1])||1;
+  if(rail1.length<2 || rail2.length<2) return {stitches:[], rungs:[]};
+  opts=opts||{};
+  var cum1=_arcCum(rail1), cum2=_arcCum(rail2), L=Math.max(cum1[cum1.length-1],cum2[cum2.length-1])||1;
+  /* Opt-in nur fuer Laengs mit echten gemeinsamen Raycast-Stationen.
+     Alte/ungleiche Rails ohne Korrespondenz behalten ihren bisherigen Pfad;
+     Satin-/Tatami-Aufrufer bekommen damit bitgleiche Geometrie. */
+  var shared=opts.pairedStations?_flowSharedStations(rail1,rail2):null;
+  if(shared){cum1=shared.centerArc;cum2=shared.centerArc;}
   var rowSpacing=opts.rowSpacingPx||_mm2px(0.22), stitchLen=opts.stitchLenPx||_mm2px(1.1);
-  var steps=Math.max(4, Math.round(L/stitchLen)), k;
+  /* Geometry resolution is independent of needle spacing. Keep small curves,
+     then merge nearly straight pieces to avoid unnecessary short stitches. */
+  var steps=Math.max(4, Math.ceil(L/Math.min(stitchLen,_mm2px(0.15)))), k;
   /* Querschnitte einmal sampeln */
   var cs=[]; for(k=0;k<=steps;k++){ var u=k/steps, a=_interpCum(rail1,cum1,u), b=_interpCum(rail2,cum2,u);
     cs.push({a:a, b:b, w:Math.hypot(b.x-a.x, b.y-a.y)}); }
@@ -49865,7 +50322,8 @@ function _pairContourFlowFill(rail1, rail2, opts){
     var _hx=Math.sin((rowIdx + _stagSeed*0.001) * 12.9898 + 78.233) * 43758.5453;
     var ph=_hx - Math.floor(_hx);   /* 0..1 pseudo-zufaellig je Reihe (kein Sawtooth -> keine Diagonale) */
     for(oi=0; oi<=steps; oi++){
-      var fk=dir>0?(oi+ph):(steps-oi-ph); if(fk<0)fk=0; else if(fk>steps)fk=steps;
+      var station=oi===0?0:(oi===steps?steps:oi+ph);
+      var fk=dir>0?station:steps-station;
       var i0=Math.floor(fk), i1=(i0<steps?i0+1:steps), tt=fk-i0;
       var c0=cs[i0], c1=cs[i1];
       var ax=c0.a.x+(c1.a.x-c0.a.x)*tt, ay=c0.a.y+(c1.a.y-c0.a.y)*tt;
@@ -49874,7 +50332,19 @@ function _pairContourFlowFill(rail1, rail2, opts){
       if(cw>2*inset){
         var off2=Math.max(-(half-inset), Math.min(half-inset, offset));   /* an die KANTE klemmen (Reihe bleibt durchgehend) */
         var v=0.5 + off2/cw;
-        run.push({x:ax+(bx-ax)*v, y:ay+(by-ay)*v});
+        var rp={x:ax+(bx-ax)*v, y:ay+(by-ay)*v};
+        if(opts.inInk&&!opts.inInk(rp.x,rp.y)){
+          /* A raster-border stair must not split one writing stroke into
+             many tiny runs. Pull only the offending edge sample inward,
+             at most 0.15 mm; real holes still terminate the run. */
+          var center={x:(ax+bx)/2,y:(ay+by)/2},dl=Math.hypot(center.x-rp.x,center.y-rp.y),found=null;
+          for(var ni=1;ni<=6&&dl>1e-8;ni++){
+            var nf=Math.min(1,_mm2px(0.025)*ni/dl),np={x:rp.x+(center.x-rp.x)*nf,y:rp.y+(center.y-rp.y)*nf};
+            if(opts.inInk(np.x,np.y)){found=np;break;}
+          }
+          if(found)rp=found;else{if(run.length){runs.push(run);run=[];}continue;}
+        }
+        run.push(rp);
       } else if(run.length){ runs.push(run); run=[]; }
     }
     if(run.length){ runs.push(run); run=[]; }
@@ -49884,9 +50354,10 @@ function _pairContourFlowFill(rail1, rail2, opts){
      Fuellung; LANGER Verbinder (Reihen-Bruch / Auge-Querung) wird SPRUNG (nicht gezeichnet) -> die
      Verbinder-Faeden verdecken die Stiche nicht mehr (Lukas „travels verdecken stiche"). */
   var pts=[], ri, gapTravel=_mm2px(0.9), gapJump=_mm2px(3.5);
-  for(ri=0; ri<runs.length; ri++){ var rn=runs[ri];
+  for(ri=0; ri<runs.length; ri++){ var rn=_simplifyFlowRun(runs[ri],stitchLen,opts.segmentInside);
+    rn[0].textAnchor=true; rn[rn.length-1].textAnchor=true;
     if(pts.length){ var prev=pts[pts.length-1], gap=Math.hypot(rn[0].x-prev.x, rn[0].y-prev.y);
-      if(gap>gapJump){ rn[0]={x:rn[0].x, y:rn[0].y, jump:true}; }   /* echt lang -> Sprung */
+      if(gap>gapJump){ rn[0]={x:rn[0].x, y:rn[0].y, jump:true, textAnchor:true}; }   /* echt lang -> Sprung */
       else if(gap>gapTravel){ /* mittel (Reihen-Bruch an Strich-Verengung, bleibt im Ink) -> LAUFSTICH statt
            Sprung: real Naht statt Trim, weniger rotes Sprung-Wirrwarr in der Stiche-Ansicht. */
         var nt=Math.max(1, Math.round(gap/_mm2px(1.5))), tt;
@@ -49903,10 +50374,10 @@ function _pairContourFlowFill(rail1, rail2, opts){
    reihenweisem STAGGER (Nadelloecher fallen nicht in eine Spalte = kein Moire). Boustrophedon, Sprung
    nur bei echter Luecke. Gleichmaessige Fuelltextur statt Satin-Sheen - per UI-Toggle waehlbar. */
 function _pairTatamiFill(rail1, rail2, opts){
-  var n=Math.min(rail1.length, rail2.length); if(n<2) return {stitches:[], rungs:[]};
+  if(rail1.length<2 || rail2.length<2) return {stitches:[], rungs:[]};
   var angle=(opts&&opts.angleRad!=null)?opts.angleRad:(Math.PI*0.25);
   var rowSp=(opts&&opts.rowSpacingPx)||_mm2px(0.42), stLen=(opts&&opts.stitchLenPx)||_mm2px(2.4), stag=(opts&&opts.staggers)||4;
-  var poly=rail1.slice(0,n).concat(rail2.slice(0,n).reverse());
+  var poly=rail1.slice().concat(rail2.slice().reverse());
   var ca=Math.cos(angle), sa=Math.sin(angle);
   var rp=poly.map(function(p){ return {x:p.x*ca + p.y*sa, y:-p.x*sa + p.y*ca}; });   /* in Scanline-Frame drehen (-angle) */
   var minY=1e18,maxY=-1e18,pi; for(pi=0;pi<rp.length;pi++){ if(rp[pi].y<minY)minY=rp[pi].y; if(rp[pi].y>maxY)maxY=rp[pi].y; }
@@ -49970,8 +50441,143 @@ function _tatamiContourFill(loops, opts){
    Rails ueberschlagen sich bei Halbbreite>Kruemmungsradius, echte Raender nie).
    Funktioniert mit demselben Code auch fuer Schlaufen (o/a-Bowl: aeusserer +
    innerer Rand sind die zwei naechsten Schnittpunkte). [VT-FONTBUILDER xsec v1] */
+/* Laengs braucht weder die 0.45-mm-Mindestbreite fuer Quer-Satin noch eine
+   durchgehende Rail ueber verworfene Raycasts. Gueltige Stationsfolgen werden
+   getrennt verarbeitet; die endgueltigen Nadelstrecken bleiben in der Maske. */
+/* Ein verworfener Querschnitt ist keine verworfene Schreibachse. Nur die
+   fehlenden Stationsintervalle nachziehen, entlang der ORIGINALEN cen-Knoten.
+   Akzeptierte mehrpunktige Gruppen bleiben vollstaendig unangetastet. */
+function _longitudinalMissingAxis(stations,cen,nSteps,inInk,loops){
+  if(!(nSteps>0)||!isFinite(nSteps)||!stations||!stations.length||!cen||cen.length<2||!inInk) return [];
+  var cum=_arcCum(cen),total=cum[cum.length-1],used=[],gaps=[],i,start=0;
+  if(!(total>1e-8)||!isFinite(total)) return [];
+  for(i=0;i<stations.length;i++){
+    if(!isFinite(stations[i])||stations[i]<0||stations[i]>nSteps||(i&&stations[i]<=stations[i-1])) return [];
+    if(i===stations.length-1||stations[i+1]!==stations[i]+1){
+      if(i>start)used.push([stations[start],stations[i]]);start=i+1;
+    }
+  }
+  var last=0;
+  for(i=0;i<used.length;i++){if(used[i][0]>last)gaps.push([last,used[i][0]]);last=used[i][1];}
+  if(last<nSteps)gaps.push([last,nSteps]);
+  function safe(a,b){return _flowTravelInside(a,b,loops,inInk);}
+  var answer=[],maxLen=_mm2px(1.1),sample=_mm2px(0.04);
+  for(var gi=0;gi<gaps.length;gi++){
+    var lo=gaps[gi][0]/nSteps*total,hi=gaps[gi][1]/nSteps*total;
+    if(hi-lo<1e-8)continue;
+    var raw=[_interpCum(cen,cum,lo/total)];
+    for(i=1;i<cen.length-1;i++)if(cum[i]>lo+1e-8&&cum[i]<hi-1e-8)raw.push({x:cen[i].x,y:cen[i].y});
+    raw.push(_interpCum(cen,cum,hi/total));
+    /* Dichte Punkte nur fuer Begrenzung/Pruefung, nicht als Nadelpunkte.
+       Auch ein importierter sparsamer Achsenabschnitt behaelt max. 1.1 mm. */
+    var fine=[raw[0]];
+    for(i=1;i<raw.length;i++){
+      var a=raw[i-1],b=raw[i],n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/sample));
+      for(var j=1;j<=n;j++)fine.push({x:a.x+(b.x-a.x)*j/n,y:a.y+(b.y-a.y)*j/n});
+    }
+    var clipped=_flowClipToInk(fine,inInk),runs=[],run=[];
+    for(i=0;i<clipped.length;i++){
+      if(i&&(clipped[i].jump||!safe(clipped[i-1],clipped[i]))){if(run.length>1)runs.push(run);run=[];}
+      run.push({x:clipped[i].x,y:clipped[i].y});
+    }
+    if(run.length>1)runs.push(run);
+    var points=[];
+    for(var ri=0;ri<runs.length;ri++){
+      var simple=_simplifyFlowRun(runs[ri],maxLen,safe);
+      for(i=0;i<simple.length;i++)points.push({x:simple[i].x,y:simple[i].y,jump:i===0&&points.length>0,textAnchor:true});
+    }
+    if(points.length)answer.push({startStation:gaps[gi][0],endStation:gaps[gi][1],stitches:points});
+  }
+  return answer;
+}
+function _longitudinalCrossSections(pairs, stations, cen, maxHw, inInk, loops, nSteps){
+  var density=_mm2px((isFinite(state.textDensityMM)&&state.textDensityMM>0)?state.textDensityMM:0.30);
+  var widths=pairs.map(function(p){return p.dP+p.dN;}).sort(function(a,b){return a-b;});
+  var cap=1.9*(widths[widths.length>>1]||1), groups=[], group=[];
+  for(var i=0;i<pairs.length;i++){
+    if(i&&stations[i]!==stations[i-1]+1){if(group.length) groups.push(group);group=[];}
+    group.push(pairs[i]);
+  }
+  if(group.length) groups.push(group);
+  function safe(a,b){
+    var n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/_mm2px(0.04)));
+    for(var j=0;j<=n;j++) if(!inInk(a.x+(b.x-a.x)*j/n,a.y+(b.y-a.y)*j/n)) return false;
+    return true;
+  }
+  var closed=Math.hypot(cen[0].x-cen[cen.length-1].x,cen[0].y-cen[cen.length-1].y)<maxHw*1.5;
+  function extend(a,b,atStart){
+    var idx=atStart?0:a.length-1, near=atStart?1:a.length-2;
+    function direction(r){var dx=r[idx].x-r[near].x,dy=r[idx].y-r[near].y,l=Math.hypot(dx,dy)||1;return{x:dx/l,y:dy/l};}
+    var da=direction(a),db=direction(b),stopA=false,stopB=false,step=_mm2px(0.18),limit=Math.max(_mm2px(0.4),maxHw*1.2);
+    for(var d=0;d<limit;d+=step){
+      var pa=a[atStart?0:a.length-1],pb=b[atStart?0:b.length-1];
+      var qa={x:pa.x+da.x*step,y:pa.y+da.y*step},qb={x:pb.x+db.x*step,y:pb.y+db.y*step};
+      if(stopA||!safe(pa,qa)){stopA=true;qa={x:pa.x,y:pa.y};}
+      if(stopB||!safe(pb,qb)){stopB=true;qb={x:pb.x,y:pb.y};}
+      if((stopA&&stopB)||!safe(qa,qb)) break;
+      if(atStart){a.unshift(qa);b.unshift(qb);}else{a.push(qa);b.push(qb);}
+    }
+  }
+  var result=[],railsA=[],railsB=[],sections=[];
+  var axisGaps=_longitudinalMissingAxis(stations,cen,nSteps,inInk,loops),nextAxisGap=0;
+  function append(points,viaAxis){
+    if(!points.length)return;
+    if(result.length){
+      var a=result[result.length-1],b=points[0],gap=Math.hypot(b.x-a.x,b.y-a.y);
+      var connect=viaAxis&&gap<=Math.max(_mm2px(1.2),density*4)&&_flowTravelInside(a,b,loops,inInk);
+      if(connect&&gap<1e-8)points=points.slice(1);
+      else points=[Object.assign({},b,connect?{jump:false,travel:true,textAnchor:true}:{jump:true})].concat(points.slice(1));
+    }
+    for(var pi=0;pi<points.length;pi++)result.push(points[pi]);
+  }
+  function appendAxisBefore(station){
+    var inserted=false;
+    while(nextAxisGap<axisGaps.length&&axisGaps[nextAxisGap].endStation<=station){
+      append(axisGaps[nextAxisGap].stitches,true);nextAxisGap++;inserted=true;
+    }
+    return inserted;
+  }
+  for(var gi=0;gi<groups.length;gi++){
+    var ps=groups[gi];if(ps.length<2) continue;
+    var viaAxis=appendAxisBefore(stations[pairs.indexOf(ps[0])]);
+    var a=[],b=[],middle=[],maxWidth=0;
+    ps.forEach(function(p){
+      var width=p.dP+p.dN,s=width>cap?cap/width:1,dp=p.dP*s,dn=p.dN*s;
+      /* Small inward margin prevents a boundary pixel from becoming an
+         exterior rail. Narrow strokes retain their centre, not a satin tip. */
+      var inset=Math.min(_mm2px(0.04),Math.min(dp,dn)*0.2);
+      a.push({x:p.mx+p.nx*(dp-inset),y:p.my+p.ny*(dp-inset)});
+      b.push({x:p.mx-p.nx*(dn-inset),y:p.my-p.ny*(dn-inset)});
+      middle.push({x:p.mx,y:p.my});maxWidth=Math.max(maxWidth,dp+dn);
+    });
+    var smA=_astSmooth(a,2),smB=_astSmooth(b,2);
+    for(var si=1;si<a.length-1;si++){
+      /* No smoothing across a rejected station or outside a concave join. */
+      if(safe(smA[si],smB[si])&&safe(a[si-1],smA[si])&&safe(smA[si],a[si+1])&&safe(b[si-1],smB[si])&&safe(smB[si],b[si+1])){
+        a[si]=smA[si];b[si]=smB[si];
+      }
+    }
+    if(!closed){if(gi===0)extend(a,b,true);if(gi===groups.length-1)extend(a,b,false);}
+    var points;
+    if(maxWidth<=density*1.15){
+      /* A single longitudinal needle row fits a fine stem. Preserve the
+         complete accepted axis instead of trimming it down to three rungs. */
+      points=_simplifyFlowRun(middle,_mm2px(1.1),safe);
+    }else{
+      points=_pairContourFlowFill(a,b,{rowSpacingPx:density,stitchLenPx:_mm2px(1.1),pairedStations:true,inInk:inInk,segmentInside:safe}).stitches;
+    }
+    var reconnectRows=maxWidth>density*1.15;
+    points=_flowClipToInk(points,inInk,reconnectRows);
+    if(reconnectRows) points=_flowReconnectClipped(points,loops,inInk);
+    append(points,viaAxis);
+    sections.push({rail1:a,rail2:b});railsA=railsA.concat(a);railsB=railsB.concat(b);
+  }
+  appendAxisBefore(nSteps);
+  return {stitches:result,rail1:railsA,rail2:railsB,railSections:sections,rungs:[],ribbonMode:'contourFlow',acceptedStations:pairs.length};
+}
 function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
   var _inInk=inkTest||function(x,y){ return _pointInLoops(x,y,loops); };
+  var _flowMode=(typeof window!=='undefined'&&window._bowlFill==='laengs');
   var n=cen.length; if(n<2||!loops||!loops.length) return null;
   var cum=[0],i; for(i=1;i<n;i++) cum[i]=cum[i-1]+Math.hypot(cen[i].x-cen[i-1].x,cen[i].y-cen[i-1].y);
   var total=cum[n-1]; if(!(total>1e-6)) return null;
@@ -49986,7 +50592,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
   var loopsF=loops.filter(function(lp){ var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,j; for(j=0;j<lp.length;j++){ var p=lp[j]; if(p.x<x0)x0=p.x; if(p.y<y0)y0=p.y; if(p.x>x1)x1=p.x; if(p.y>y1)y1=p.y; } return !(x1<sbX0||x0>sbX1||y1<sbY0||y0>sbY1); });
   if(!loopsF.length) loopsF=loops;
   function at(L){ if(L<=0) return {x:cen[0].x,y:cen[0].y,h:hw[0]}; if(L>=total) return {x:cen[n-1].x,y:cen[n-1].y,h:hw[n-1]}; var s=1; while(s<n&&cum[s]<L)s++; var a=s-1,b=Math.min(s,n-1),f=(L-cum[a])/((cum[b]-cum[a])||1); return {x:cen[a].x+(cen[b].x-cen[a].x)*f, y:cen[a].y+(cen[b].y-cen[a].y)*f, h:hw[a]+(hw[b]-hw[a])*f}; }
-  var nSteps=Math.max(2,Math.round(total/pitchPx)), pairs=[],k;
+  var nSteps=Math.max(2,Math.round(total/pitchPx)), pairs=[],pairStations=[],k;
   for(k=0;k<=nSteps;k++){ var L=(k/nSteps)*total, M=at(L), Ma=at(L-cw), Mb=at(L+cw);
     var tx=Mb.x-Ma.x, ty=Mb.y-Ma.y, tl=Math.hypot(tx,ty)||1, nx=-ty/tl, ny=tx/tl;
     var hP=_rayHit(M.x,M.y, nx,ny, loopsF, maxT), hN=_rayHit(M.x,M.y,-nx,-ny, loopsF, maxT);
@@ -50003,11 +50609,12 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
            ausserhalb -> Rung verwerfen statt einen Faden quer durchs Loch zu sticken. Normale
            (auch konkave) Striche: alle Innenpunkte drin -> behalten. */
         var rOut=0,rs; for(rs=1;rs<=4;rs++){ var rt=rs/5, rxx=hP.x+(hN.x-hP.x)*rt, ryy=hP.y+(hN.y-hP.y)*rt; if(!_inInk(rxx,ryy)) rOut++; }
-        if(rOut<2) pairs.push({mx:M.x,my:M.y,nx:nx,ny:ny,dP:dP,dN:dN});
+        if(rOut<2){pairs.push({mx:M.x,my:M.y,nx:nx,ny:ny,dP:dP,dN:dN});pairStations.push(k);}
       }
     }
   }
   if(pairs.length<2) return null;
+  if(_flowMode) return _longitudinalCrossSections(pairs,pairStations,cen,maxHw,_inInk,loopsF,nSteps);
   /* SPITZ-ZULAUFENDE FREIE ENDEN TRIMMEN (2026-06-20, Lukas "k hat noch diese spitze"): wo der
      Querschnitt an einem ENDE unter ~Fadenbreite (0.45mm) schrumpft, konvergieren die Satin-Rungs
      zu einem Punkt = Faecher/Spitze (Lobster-k-Schwanz, Times-y-Schwanz; generelles Taper-Problem,
@@ -50057,7 +50664,26 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
           done+=step;
         }
       }
-      grow(rail1); grow(rail2);
+      if(_flowMode){
+        /* Gemeinsame Endstationen: stoppt eine Rail an ihrer Kappe frueher,
+           bleibt ihr Punkt stehen, waehrend die andere weiterlaufen darf.
+           Niemals ungleiche Punktzahlen / verschobene Stationspaarung. */
+        function dir(r){var i0=atStart?0:r.length-1,i1=atStart?1:r.length-2;
+          var dx=r[i0].x-r[i1].x,dy=r[i0].y-r[i1].y,l=Math.hypot(dx,dy)||1;return {x:dx/l,y:dy/l};}
+        var da=dir(rail1),db=dir(rail2),stopA=false,stopB=false,done=0;
+        while(done<maxExt){
+          var a=rail1[atStart?0:rail1.length-1],b=rail2[atStart?0:rail2.length-1];
+          var na={x:a.x+da.x*step,y:a.y+da.y*step},nb={x:b.x+db.x*step,y:b.y+db.y*step};
+          if(stopA||!_inInk(na.x,na.y)){stopA=true;na={x:a.x,y:a.y};}
+          if(stopB||!_inInk(nb.x,nb.y)){stopB=true;nb={x:b.x,y:b.y};}
+          if(stopA&&stopB) break;
+          var pairOk=true;
+          for(var qi=1;qi<4;qi++) if(!_inInk(na.x+(nb.x-na.x)*qi/4,na.y+(nb.y-na.y)*qi/4)){pairOk=false;break;}
+          if(!pairOk) break;
+          if(atStart){rail1.unshift(na);rail2.unshift(nb);}else{rail1.push(na);rail2.push(nb);}
+          done+=step;
+        }
+      } else {grow(rail1); grow(rail2);}
     }
     _ext(true); _ext(false);
   }
@@ -50075,7 +50701,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest){
     /* [VT-LAENGS-ALL v1] "Laengs" gilt fuer JEDEN Strich (auch gerade): contourFlow laeuft
        ENTLANG der eigenen Skelett-Achse des Strichs. Ohne das blieben gerade Striche (z.B.
        die H-Balken) im turning/forceTatami-Zweig quer = "Laufrichtung falsch erkannt" (Lukas). */
-    zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
+    zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1), pairedStations:true });
     cls.mode='contourFlow';
   } else if(cls.mode==='forceTatami'){
     /* dickes Faecher-Segment (Lobster-k-Loop): IMMER per-Segment-Tatami, egal welcher Bowl-Toggle
@@ -50437,39 +51063,167 @@ function _resolveMode(ext){
    Aenderungen (Pitch, Stichart) die Vorschau schnell neu rendern. */
 var _segCache={};
 function extractSegmentsCached(ch, fontSizePx){
-  var key=state.font+'|'+ch+'|'+fontSizePx;
+  var key=state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0);
   if(_segCache[key]) return _segCache[key];
-  var r=extractSegments(ch, state.font, fontSizePx, false, false);
+  if(Object.keys(_segCache).length>200) _segCache={};
+  var r=extractSegments(ch, state.font, fontSizePx, !!state.bold, !!state.italic);
   _segCache[key]=r; return r;
 }
 
-/* COVERAGE-BACKSTOP (2026-06-20, Lukas "optimiere pacifico"): nach dem Satin-Sticken die unbedeckte
+/* COVERAGE-BACKSTOP: Laengs ergaenzt echte Luecken entlang der rekonstruierten
+   Strichachse (_flowGapFill); Satin behaelt seine bisherige waagrechte Ergaenzung.
+   Nach dem Satin-Sticken die unbedeckte
    INNENFLAECHE der Glyphe finden und mit waagrechten Fuell-Stichen schliessen. Script-Glyphen
    (Pacifico p/u/a-Loops + Verzweigungen) lassen Satin-Luecken bis ~1.1mm, weil EIN langer Satin-Strich
    die Loop-/Cap-Features nicht erreicht. Sicherheitsnetz: nur INNERHALB der Kontur (inInk -> kein
    Stray), nur ECHTE Luecken (Zelle >~0.3mm vom naechsten Stich), nur Runs >=0.6mm (keine Mikro-Stiche).
    Boustrophedon + Sprung nur bei echtem Versatz. */
-function _coverageBackstop(stitches, loops, inInk){
+function _flowGapFill(cov, grid, flowSegments, inInk){
+  var guides=[];
+  flowSegments.forEach(function(s){
+    if(!s.center||s.center.length<2) return;
+    var cc=_simplifyFlowRun(s.center,_mm2px(0.5));
+    for(var i=1;i<cc.length;i++){
+      var a=cc[i-1], b=cc[i], dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy);
+      if(len>1e-7) guides.push({x:a.x,y:a.y,dx:dx,dy:dy,len:len});
+    }
+  });
+  if(!guides.length) return [];
+  var cell=grid.cell, ox=grid.x, oy=grid.y, W=grid.w, H=grid.h, radius=grid.radius;
+  function direction(p){
+    var best=Infinity, result=null;
+    for(var i=0;i<guides.length;i++){
+      var g=guides[i], t=Math.max(0,Math.min(1,((p.x-g.x)*g.dx+(p.y-g.y)*g.dy)/(g.len*g.len)));
+      var dx=p.x-g.x-t*g.dx, dy=p.y-g.y-t*g.dy, d=dx*dx+dy*dy;
+      if(d<best){best=d;result={x:g.dx/g.len,y:g.dy/g.len};}
+    }
+    return result;
+  }
+  function covered(p){
+    /* Stop only inside a covered cell neighbourhood. Nearest-cell rounding
+       alternated covered/uncovered along diagonal channels and broke one
+       continuous stroke into many tiny fragments. */
+    var x=Math.floor((p.x-ox)/cell), y=Math.floor((p.y-oy)/cell);
+    return x<0||y<0||x+1>=W||y+1>=H||!!(cov[y*W+x]&&cov[y*W+x+1]&&cov[(y+1)*W+x]&&cov[(y+1)*W+x+1]);
+  }
+  function safe(a,b){
+    var count=Math.max(2,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/(cell*0.4)));
+    for(var j=1;j<=count;j++) if(!inInk(a.x+(b.x-a.x)*j/count,a.y+(b.y-a.y)*j/count)) return false;
+    return true;
+  }
+  function trace(seed,sign){
+    var d=direction(seed), p=seed, out=[], step=cell*0.8;
+    if(!d) return out;
+    d={x:d.x*sign,y:d.y*sign};
+    for(var i=0;i<Math.ceil(_mm2px(2.2)/step);i++){
+      var nextDir=direction({x:p.x+d.x*step*0.5,y:p.y+d.y*step*0.5});
+      if(!nextDir) break;
+      var dot=nextDir.x*d.x+nextDir.y*d.y;
+      if(dot<0){nextDir.x=-nextDir.x;nextDir.y=-nextDir.y;dot=-dot;}
+      if(dot<0.7) break; /* ambiguous junction: do not turn into a different stroke */
+      var q={x:p.x+nextDir.x*step,y:p.y+nextDir.y*step};
+      if(!safe(p,q)) break;
+      out.push(q); p=q; d=nextDir;
+      if(covered(q)) break;
+    }
+    return out;
+  }
+  function mark(a,b){
+    var dx=b.x-a.x,dy=b.y-a.y,L2=dx*dx+dy*dy;
+    var x0=Math.max(0,Math.floor((Math.min(a.x,b.x)-radius-ox)/cell)), x1=Math.min(W-1,Math.ceil((Math.max(a.x,b.x)+radius-ox)/cell));
+    var y0=Math.max(0,Math.floor((Math.min(a.y,b.y)-radius-oy)/cell)), y1=Math.min(H-1,Math.ceil((Math.max(a.y,b.y)+radius-oy)/cell));
+    for(var y=y0;y<=y1;y++) for(var x=x0;x<=x1;x++){
+      var px=ox+x*cell-a.x, py=oy+y*cell-a.y, t=L2?Math.max(0,Math.min(1,(px*dx+py*dy)/L2)):0;
+      if((px-t*dx)*(px-t*dx)+(py-t*dy)*(py-t*dy)<=radius*radius) cov[y*W+x]=1;
+    }
+  }
+  var fillRuns=[];
+  for(var y=1;y<H-1;y++) for(var x=1;x<W-1;x++){
+    if(cov[y*W+x]) continue;
+    var seed={x:ox+x*cell,y:oy+y*cell}; if(!inInk(seed.x,seed.y)) continue;
+    var fine=trace(seed,-1).reverse().concat([seed],trace(seed,1));
+    if(fine.length<3) continue;
+    var run=_simplifyFlowRun(fine,_mm2px(1.1)), length=0;
+    for(var i=1;i<run.length;i++) length+=Math.hypot(run[i].x-run[i-1].x,run[i].y-run[i-1].y);
+    if(length<_mm2px(0.15)) continue;
+    /* Simplifying a bend must not create a chord through a counter. */
+    var valid=true;
+    for(var i=1;i<run.length;i++) if(!safe(run[i-1],run[i])){valid=false;break;}
+    if(!valid) continue;
+    for(var i=1;i<run.length;i++) mark(run[i-1],run[i]);
+    fillRuns.push(run);
+  }
+  /* Die Fuellelaeufe werden oben unveraendert erzeugt/markiert. Erst DANACH
+     Wegreihenfolge waehlen: ein erreichbares nahes Ende vor einem Sprung;
+     sonst der kuerzeste Sprung. Der erste Lauf bleibt deterministisch gleich. */
+  var add=[],remaining=fillRuns.slice();
+  function emitRun(raw,reverse){
+    var ordered=(reverse?raw.slice().reverse():raw).map(function(p){return {x:p.x,y:p.y};});
+    var first=ordered[0],last=add[add.length-1];
+    first.textAnchor=true;ordered[ordered.length-1].textAnchor=true;
+    if(last){
+      if(Math.hypot(first.x-last.x,first.y-last.y)>grid.spacing*1.6||!safe(last,first)) first.jump=true;
+      else first.travel=true;
+    }
+    for(var k=0;k<ordered.length;k++) add.push(ordered[k]);
+  }
+  if(remaining.length) emitRun(remaining.shift(),false);
+  while(remaining.length){
+    var last=add[add.length-1],best=-1,bestReverse=false,bestSafe=false,bestDistance=Infinity;
+    for(var ri=0;ri<remaining.length;ri++){
+      var candidate=remaining[ri];
+      for(var rev=0;rev<2;rev++){
+        var end=candidate[rev?candidate.length-1:0],distance=Math.hypot(end.x-last.x,end.y-last.y);
+        var connectable=distance<=grid.spacing*1.6&&safe(last,end);
+        if((connectable&&!bestSafe)||(connectable===bestSafe&&distance<bestDistance-1e-9)){
+          best=ri;bestReverse=!!rev;bestSafe=connectable;bestDistance=distance;
+        }
+      }
+    }
+    emitRun(remaining.splice(best,1)[0],bestReverse);
+  }
+  return add;
+}
+function _coverageBackstop(stitches, loops, inInk, flowSegments){
   if(!loops||!loops.length||!stitches.length) return [];
-  var segs=[],i; for(i=1;i<stitches.length;i++){ var a=stitches[i-1],b=stitches[i]; if(a.jump||b.jump||a.travel||b.travel) continue; segs.push([a.x,a.y,b.x,b.y]); }
-  if(segs.length<2) return [];
+  var segs=[],i; for(i=1;i<stitches.length;i++){ var a=stitches[i-1],b=stitches[i]; if(b.jump||b.travel) continue; segs.push([a.x,a.y,b.x,b.y]); }
+  if(!segs.length) return [];
   var xs=[],ys=[]; loops.forEach(function(lp){ lp.forEach(function(p){ xs.push(p.x); ys.push(p.y); }); });
   var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
-  var cell=_mm2px(0.25), gw=Math.ceil((maxX-minX)/cell)+2, gh=Math.ceil((maxY-minY)/cell)+2;
+  var spacing=_mm2px(Math.max(0.15,state.textDensityMM||0.3));
+  var cell=Math.min(_mm2px(0.1),spacing/3), gw=Math.ceil((maxX-minX)/cell)+2, gh=Math.ceil((maxY-minY)/cell)+2;
   if(gw*gh>200000) return [];   /* Schutz gegen Riesen-Glyphen */
   var cov=new Uint8Array(gw*gh);
-  for(i=0;i<segs.length;i++){ var s=segs[i], dx=s[2]-s[0], dy=s[3]-s[1], L=Math.hypot(dx,dy), n=Math.max(1,Math.ceil(L/(cell*0.6))), k;
+  /* Exact distance to the stitch, not a square dilation which hid 0.6mm
+     channels. A normal row gap at the chosen spacing is already covered. */
+  var radius=Math.max(_mm2px(0.16),spacing*0.55), rad2=radius*radius, reach=Math.ceil(radius/cell)+1;
+  for(i=0;i<segs.length;i++){ var s=segs[i], dx=s[2]-s[0], dy=s[3]-s[1], L=Math.hypot(dx,dy), n=Math.max(1,Math.ceil(L/cell)), k;
     for(k=0;k<=n;k++){ var t=k/n, gx=Math.round((s[0]+dx*t-minX)/cell), gy=Math.round((s[1]+dy*t-minY)/cell), ax,ay;
-      for(ay=-1;ay<=1;ay++) for(ax=-1;ax<=1;ax++){ var ix=gx+ax,iy=gy+ay; if(ix>=0&&ix<gw&&iy>=0&&iy<gh) cov[iy*gw+ix]=1; } } }
-  var add=[], dir=1, lastP=null, step=_mm2px(2.0), gapJ=_mm2px(1.6), gy2;
-  for(gy2=1;gy2<gh-1;gy2++){ var wy=minY+gy2*cell, runs=[], inRun=false, rs=0, gx2;
+      for(ay=-reach;ay<=reach;ay++) for(ax=-reach;ax<=reach;ax++){ var ix=gx+ax,iy=gy+ay;
+        if(ix<0||ix>=gw||iy<0||iy>=gh||cov[iy*gw+ix]) continue;
+        var qx=minX+ix*cell-s[0], qy=minY+iy*cell-s[1];
+        var u=L>0?Math.max(0,Math.min(1,(qx*dx+qy*dy)/(L*L))):0;
+        if((qx-u*dx)*(qx-u*dx)+(qy-u*dy)*(qy-u*dy)<=rad2) cov[iy*gw+ix]=1;
+      } } }
+  if(flowSegments&&flowSegments.length) return _flowGapFill(cov,{x:minX,y:minY,w:gw,h:gh,cell:cell,radius:radius,spacing:spacing},flowSegments,inInk);
+  var add=[], dir=1, lastP=null, step=_mm2px(2.0), gapJ=_mm2px(1.6), gy2, rowStep=Math.max(1,Math.round(spacing/cell));
+  for(gy2=rowStep;gy2<gh-1;gy2+=rowStep){ var wy=minY+gy2*cell, runs=[], inRun=false, rs=0, gx2;
     for(gx2=0;gx2<gw;gx2++){ var wx=minX+gx2*cell, unc=inInk(wx,wy) && !cov[gy2*gw+gx2];
       if(unc&&!inRun){ inRun=true; rs=gx2; } else if(!unc&&inRun){ inRun=false; if(gx2-1-rs>=1) runs.push([rs,gx2-1]); } }
     if(inRun && gw-1-rs>=1) runs.push([rs,gw-1]);
     if(dir<0) runs.reverse();
     for(var ri=0;ri<runs.length;ri++){ var x0=minX+runs[ri][0]*cell, x1=minX+runs[ri][1]*cell, lo=dir>0?x0:x1, hi=dir>0?x1:x0;
       var d=Math.abs(x1-x0), nst=Math.max(1,Math.round(d/step)), si;
-      for(si=0;si<=nst;si++){ var u=si/nst, P={x:lo+(hi-lo)*u, y:wy}; if(si===0 && lastP && Math.hypot(P.x-lastP.x,P.y-lastP.y)>gapJ) P.jump=true; add.push(P); lastP=P; } }
+      for(si=0;si<=nst;si++){ var u=si/nst, P={x:lo+(hi-lo)*u, y:wy};
+        if(si===0 && lastP){
+          var gd=Math.hypot(P.x-lastP.x,P.y-lastP.y), safe=gd<=gapJ;
+          for(var ck=1, count=Math.max(2,Math.ceil(gd/cell));safe&&ck<count;ck++){
+            if(!inInk(lastP.x+(P.x-lastP.x)*ck/count,lastP.y+(P.y-lastP.y)*ck/count)) safe=false;
+          }
+          if(!safe) P.jump=true;
+        }
+        add.push(P); lastP=P;
+      } }
     dir=-dir;
   }
   return add;
@@ -50479,6 +51233,7 @@ function _coverageBackstop(stitches, loops, inInk){
 function segsToStitches(segs, pitchMM, contour, inInk, startPos){
   if(!segs||!segs.length) return [];
   var _ink=inInk||function(x,y){ return _pointInLoops(x,y,contour); };
+  var _flowMode=(typeof window!=='undefined'&&window._bowlFill==='laengs');
   function segEnds(s){ if(s.kind==='dot') return [{x:s.cx,y:s.cy},{x:s.cx,y:s.cy}]; var a=s.center; return [{x:a[0].x,y:a[0].y},{x:a[a.length-1].x,y:a[a.length-1].y}]; }
   function segLen(s){ if(s.kind==='dot') return 0; var a=s.center,t=0,i; for(i=1;i<a.length;i++) t+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y); return t; }
   /* Greedy Nearest-Endpoint-Kette statt reinem minX-Sort: minimiert die Connector-Wege. Kurze
@@ -50501,8 +51256,15 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
   }
   var out=[],prevEnd=null,oi, runLen=_mm2px(2.0), scLen=Math.max(0.1, pitchMM/2), scInset=0.15;
   for(oi=0;oi<order.length;oi++){ var sg=order[oi].seg, rev=order[oi].rev, segPts=[];
-    if(sg.kind==='dot'){ var r=sg.r; segPts=_astSatinFromRail([{x:sg.cx-r,y:sg.cy},{x:sg.cx+r,y:sg.cy}],[r,r],_mm2px(scLen),0.1); }
-    else if(sg.kind==='run'){ var cc=rev?sg.center.slice().reverse():sg.center,ctot=0,ci; for(ci=1;ci<cc.length;ci++) ctot+=Math.hypot(cc[ci].x-cc[ci-1].x,cc[ci].y-cc[ci-1].y); var nrun=Math.max(1,Math.round(ctot/runLen)); for(ci=0;ci<=nrun;ci++) segPts.push(_satinPointAt(cc,ci/nrun)); }
+    if(sg.kind==='dot'){
+      var r=sg.r;segPts=_astSatinFromRail([{x:sg.cx-r,y:sg.cy},{x:sg.cx+r,y:sg.cy}],[r,r],_mm2px(scLen),0.1);
+      /* Tiny serifs can collapse to a dot in the skeleton. Its estimated
+         radius is not the glyph boundary; clip it like every Längs run. */
+      if(_flowMode)segPts=_flowClipToInk(segPts,_ink);
+    }
+    else if(sg.kind==='run'){ var cc=rev?sg.center.slice().reverse():sg.center,ctot=0,ci;
+      if(_flowMode) segPts=_flowClipToInk(_simplifyFlowRun(cc,_mm2px(1.1)),_ink);
+      else {for(ci=1;ci<cc.length;ci++) ctot+=Math.hypot(cc[ci].x-cc[ci-1].x,cc[ci].y-cc[ci-1].y); var nrun=Math.max(1,Math.round(ctot/runLen)); for(ci=0;ci<=nrun;ci++) segPts.push(_satinPointAt(cc,ci/nrun));} }
     else { var cc2=rev?sg.center.slice().reverse():sg.center.slice(), hh2=rev?sg.hw.slice().reverse():sg.hw.slice(), eK0=rev?sg.endK1:sg.endK0, eK1=rev?sg.endK0:sg.endK1;
       /* Satin aus echter Kontur (kein Faecher); Fallback aufs Mittellinien-Offset nur wenn keine Kontur.
          endKinds [Anfang,Ende] passend zur (evtl. gedrehten) cc2 durchreichen -> Junction-Hebel-Drosselung. */
@@ -50510,7 +51272,15 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
       /* Kein separater Edge-Walk noetig: der Boustrophedon-Satin (_pairSatinSectioned) fuehrt
          seine Verbinder schon ENTLANG der Rails (Laufstich je ~0.8mm/Seite) = definiert die
          Kante UND vermeidet die diagonalen Querstiche des Standard-Satins. */
-      segPts=(cs&&cs.stitches.length)?cs.stitches:_astSatinFromRail(cc2,hh2,_mm2px(scLen),scInset); }
+      if(cs&&cs.stitches.length) segPts=cs.stitches;
+      else if(_flowMode){
+        /* Fehlende Kontur-Querschnitte sind KEIN Grund, im Laengsmodus
+           ploetzlich Quer-Satin zu sticken. Erst korrespondierende Offset-
+           Rails versuchen, sonst die vorhandene Strichachse beibehalten. */
+        var fr=_astRailsFromCenter(cc2,hh2),fd=_mm2px(state.textDensityMM||0.3);
+        segPts=fr?_flowClipToInk(_pairContourFlowFill(fr.rail1,fr.rail2,{rowSpacingPx:fd,stitchLenPx:_mm2px(1.1),pairedStations:true}).stitches,_ink):[];
+        if(!segPts.length) segPts=_flowClipToInk(_simplifyFlowRun(cc2,_mm2px(1.1)),_ink);
+      } else segPts=_astSatinFromRail(cc2,hh2,_mm2px(scLen),scInset); }
     if(!segPts||!segPts.length) continue;
     if(out.length && prevEnd){
       /* [Travel-Routing] zwischen Saeulen: kurzer Weg, der IM Ink bleibt -> Laufstich-
@@ -50525,22 +51295,29 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
       /* Connector nur als Laufstich wenn er IM Ink bleibt. Ausnahme nur fuer winzige <0.2mm
          (koinzidente Junction-Punkte, queren nichts); ALLES darueber wird auf Loch-Querung
          geprueft (feine 0.35mm-Abtastung) - sonst kleine Travels quer durchs e-Auge/Punze. */
-      var connect = gd<_mm2px(9) && (gd<_mm2px(0.2) || (contour && inkWalk));
-      if(connect){ var nt=Math.max(1,Math.round(gd/_mm2px(1.8))), tt; for(tt=1;tt<nt;tt++) out.push({x:prevEnd.x+gx*tt/nt, y:prevEnd.y+gy*tt/nt, travel:true}); }
+      var connect = gd<_mm2px(9) && (_flowMode?_flowTravelInside(prevEnd,segPts[0],contour,_ink):(gd<_mm2px(0.2) || (contour && inkWalk)));
+      if(connect){
+        var nt=_flowMode?Math.max(1,Math.ceil(gd/_mm2px(1.1))):Math.max(1,Math.round(gd/_mm2px(1.8))), tt;
+        for(tt=1;tt<nt;tt++){var tp={x:prevEnd.x+gx*tt/nt,y:prevEnd.y+gy*tt/nt,travel:true};if(_flowMode)tp.textAnchor=true;out.push(tp);}
+        if(_flowMode) segPts[0]=Object.assign({},segPts[0],{travel:true,textAnchor:true});
+      }
       else { /* wuerde quer springen -> TUCK-UNDER entlang der Kontur versuchen (Faden unter der Kante, unsichtbar).
                 Gate 20mm statt 9mm (2026-06-20, Lukas "abkuerzung unten beim t"): laengere Verbinder wie der
                 t-Boden->Querbalken (~15mm) werden so unter der Stamm-Kante versteckt statt als sichtbarer Sprung.
                 _contourUnderpath hat eigene Schutz-Limits (gleicher Loop, Bogen <20mm UND <3.5x Luftlinie, Enden
                 <2.5mm von der Kante) -> tuckt nur sinnvoll, sonst weiterhin Sprung. KEIN Risiko fuer Punzen-Querung. */
-        var up = (contour && gd<_mm2px(20)) ? _contourUnderpath(prevEnd, segPts[0], contour) : null;
-        if(up && up.length){ for(var up_i=0; up_i<up.length; up_i++) out.push(up[up_i]); }
+        var up = (contour && gd<_mm2px(20)) ? _contourUnderpath(prevEnd, segPts[0], contour, _flowMode?_ink:null) : null;
+        if(up && (up.length||_flowMode)){
+          for(var up_i=0; up_i<up.length; up_i++) out.push(up[up_i]);
+          if(_flowMode) segPts[0]=Object.assign({},segPts[0],{travel:true,textAnchor:true});
+        }
         else segPts[0]={x:segPts[0].x,y:segPts[0].y,jump:true};
       }
     }
     for(var kk=0;kk<segPts.length;kk++) out.push(segPts[kk]);
     prevEnd=segPts[segPts.length-1]; }
   /* COVERAGE-BACKSTOP: unbedeckte Innenflaeche (Script-Loop-/Cap-Luecken) mit Fuell-Stichen schliessen. */
-  if(contour){ var _bs=_coverageBackstop(out, contour, _ink); if(_bs.length){ if(out.length) _bs[0]={x:_bs[0].x,y:_bs[0].y,jump:true}; for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
+  if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null); if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
   return out;
 }
 
@@ -50643,7 +51420,7 @@ function buildCharset(){
 /* =====================================================================
    Metriken: Vorschub + Kerning (measureText, kein opentype.js)
    ===================================================================== */
-function makeMeasureCtx(emPx){ var c=document.createElement('canvas'); c.width=1; c.height=1; var x=c.getContext('2d'); x.font=fontStr(emPx,1,false,false,state.font); x.fontKerning='normal'; return x; }
+function makeMeasureCtx(emPx){ var c=document.createElement('canvas'); c.width=1; c.height=1; var x=c.getContext('2d'); x.font=fontStr(emPx,1,!!state.bold,!!state.italic,state.font); x.fontKerning='normal'; return x; }
 
 /* =====================================================================
    VERSION A: Inkstitch-Font-Paket (font.json + Varianten-SVG + ZIP)
@@ -50804,11 +51581,19 @@ function wordStitches(){
      So mischt ein Wort sauber (Pacifico-Bowls gefuellt, Staemme satiniert) statt
      dass eine einzige gekruemmte Bowl das ganze Wort auf Fuellung zieht. */
   var mctx=makeMeasureCtx(fontSizePx);
-  var penX=0, all=[], allG=[], ci, k;
-  for(ci=0; ci<text.length; ci++){
-    var ch=text[ci];
-    if(ch===' '){ penX+=mctx.measureText(' ').width; continue; }
+  var glyphs=state.glyphLayout;
+  if(!glyphs){
+    glyphs=[];
+    String(text).replace(/\r\n?/g,'\n').split('\n').forEach(function(line,row){
+      var prefix='';
+      window._vtTextGraphemes(line).forEach(function(ch){prefix+=ch;if(ch.trim())glyphs.push({ch:ch,x:mctx.measureText(prefix).width-mctx.measureText(ch).width,y:row*fontSizePx*1.2});});
+    });
+  }
+  var penX=0, penY=0, all=[], allG=[], ci, k;
+  for(ci=0; ci<glyphs.length; ci++){
+    var ch=glyphs[ci].ch;
     var ext=extractSegmentsCached(ch, fontSizePx), sp=Math.max(0.35,state.pitch);
+    penX=glyphs[ci].x;penY=glyphs[ci].y-(state.glyphLayout?ext.baseLocalY:0);
     var pts = state.stitch==='pen' ? _angledFill(ext, sp, state.penAngle)
             : state.stitch==='pencross' ? (function(){ var f1=_angledFill(ext,sp,state.penAngle), f2=_angledFill(ext,sp,state.penAngle+90); if(f2[0]) f2[0].jump=true; return f1.concat(f2); })()
             : (_resolveMode(ext)==='fill' ? _tatamiContourFill(ext.contour, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 }) : segsToStitches(ext.segs, state.pitch, ext.contour, ext.inInk));   /* Fuell-Reihen ~0.26mm = Dichte ~4.7 matcht den Boustrophedon-Satin. */
@@ -50822,9 +51607,8 @@ function wordStitches(){
        minimal (Boustrophedon-Satin deckt selbst). */
     if(state.underlay){ var ud=_contourWalk(ext, 1.5);
       if(ud.length){ ud[0]=Object.assign({},ud[0],{jump:true}); if(pts.length) pts[0]=Object.assign({},pts[0],{jump:true}); pts=ud.concat(pts); } }
-    for(k=0;k<pts.length;k++) all.push({ x:pts[k].x+penX, y:pts[k].y, jump:(k===0)||!!pts[k].jump, travel:!!pts[k].travel });   /* travel-Flag BEHALTEN -> Verbinder/Tuck-under bleiben Laufstiche (im Realbild ungezeichnet=unsichtbar, im DST als Naht da) */
-    if(ext.contour){ var _gp=penX, _gl=ext.contour.map(function(lp){ return lp.map(function(p){ return {x:p.x+_gp, y:p.y}; }); }), _b=[1e9,1e9,-1e9,-1e9]; _gl.forEach(function(lp){ lp.forEach(function(p){ if(p.x<_b[0])_b[0]=p.x; if(p.y<_b[1])_b[1]=p.y; if(p.x>_b[2])_b[2]=p.x; if(p.y>_b[3])_b[3]=p.y; }); }); allG.push({bb:_b, loops:_gl}); }
-    penX += mctx.measureText(ch).width;
+    for(k=0;k<pts.length;k++) all.push({ x:pts[k].x+penX, y:pts[k].y+penY, jump:(k===0)||!!pts[k].jump, travel:!!pts[k].travel, textAnchor:!!pts[k].textAnchor });
+    if(ext.contour){ var _gp=penX, _gy=penY, _gl=ext.contour.map(function(lp){ return lp.map(function(p){ return {x:p.x+_gp, y:p.y+_gy}; }); }), _b=[1e9,1e9,-1e9,-1e9]; _gl.forEach(function(lp){ lp.forEach(function(p){ if(p.x<_b[0])_b[0]=p.x; if(p.y<_b[1])_b[1]=p.y; if(p.x>_b[2])_b[2]=p.x; if(p.y>_b[3])_b[3]=p.y; }); }); allG.push({bb:_b, loops:_gl}); }
   }
   /* MIKRO-STICH-FILTER: nur ECHT-degenerierte Punkte <0.2mm vom vorigen BEHALTENEN zusammenfassen.
      Schwelle bewusst 0.2 (nicht 0.3): bei 0.3 frass der Filter die LEGITIMEN Boustrophedon-Satin-
@@ -50837,7 +51621,7 @@ function wordStitches(){
      behalten (Trim/Jump). [[satin-lettering-professional]] Stichabstand 0.3-0.45 kommerziell. */
   var minD=_mm2px(0.2), filtered=[], lastK=null, fi;
   for(fi=0;fi<all.length;fi++){ var fp=all[fi];
-    if(fp.jump || !lastK || Math.hypot(fp.x-lastK.x,fp.y-lastK.y)>=minD){ filtered.push(fp); lastK=fp; } }
+    if(fp.jump || fp.textAnchor || !lastK || Math.hypot(fp.x-lastK.x,fp.y-lastK.y)>=minD){ filtered.push(fp); lastK=fp; } }
   /* AUSSTANZ-FIX (Lukas „rote elemente wegiterieren", 2026-06-16): kein Faden >0.27mm ueber die Kontur,
      OHNE die schoene Geometrie umzubauen. Pro Glyph-Kontur (allG, bbox-vorgefiltert): (1) jeder Punkt
      >0.27mm aussen (Overshoot/Kamm-Spitze) -> auf die naechste Kontur-Innenseite snappen = Stich bleibt,
@@ -50853,7 +51637,7 @@ function wordStitches(){
        Spitzen buendig an die Kante = glatter Rand, KEINE Luecke. [Lukas „nur noch ganz wenig kamm"] */
     var _q; for(_q=0;_q<filtered.length;_q++){ var P=filtered[_q]; if(P.jump) continue; var pr=_proj(P.x,P.y); if(pr.d>_tolSnap){ var dx=pr.qx-P.x, dy=pr.qy-P.y, dl=Math.hypot(dx,dy)||1; P.x=pr.qx+dx/dl*_ins; P.y=pr.qy+dy/dl*_ins; } }
     /* (2) Stich-MITTE noch >0.27mm aussen (Loch/Konkavitaet-Querung, z.B. e-Auge) -> Sprung. */
-    for(_q=1;_q<filtered.length;_q++){ var A=filtered[_q-1], B=filtered[_q]; if(A.jump||B.jump) continue; var _bad=false,_s2; for(_s2=0;_s2<=6;_s2++){ var _f=_s2/6; if(_proj(A.x+(B.x-A.x)*_f,A.y+(B.y-A.y)*_f).d>_tolO){ _bad=true; break; } } if(_bad) B.jump=true; }
+    for(_q=1;_q<filtered.length;_q++){ var A=filtered[_q-1], B=filtered[_q]; if(B.jump) continue; var _bad=false,_s2; for(_s2=0;_s2<=6;_s2++){ var _f=_s2/6; if(_proj(A.x+(B.x-A.x)*_f,A.y+(B.y-A.y)*_f).d>_tolO){ _bad=true; break; } } if(_bad) B.jump=true; }
   }
   return filtered;
 }
@@ -50880,9 +51664,10 @@ function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
   function cs(off, base){ g.addColorStop(Math.max(0,Math.min(1,off)), 'rgb('+R(base[0])+','+R(base[1])+','+R(base[2])+')'); }
   cs(0.00, _rtScale(C,0.85));
   cs(ridge-0.34, C);
-  cs(ridge-0.12, _rtMixW(C,0.42));
-  cs(ridge,      _rtMixW(C,0.72));
-  cs(ridge+0.14, _rtMixW(C,0.16));
+  /* Matter Garn-Glanz: besonders Schwarz soll nicht wie Chrom aussehen. */
+  cs(ridge-0.12, _rtMixW(C,0.20));
+  cs(ridge,      _rtMixW(C,0.36));
+  cs(ridge+0.14, _rtMixW(C,0.10));
   cs(ridge+0.38, _rtScale(C,0.92));
   cs(1.00, _rtScale(C,0.76));
   o.fillStyle=g; o.fillRect(0, cy-hw, W, tw);
@@ -50900,7 +51685,7 @@ function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
   o.restore();
   o.globalCompositeOperation='source-over';
   var ry=cy-hw+ridge*tw;
-  o.strokeStyle='rgba(255,250,240,'+(0.26+0.14*Math.max(0,ndl)).toFixed(2)+')'; o.lineWidth=Math.max(0.8, tw*0.18);
+  o.strokeStyle='rgba(255,250,240,'+(0.10+0.06*Math.max(0,ndl)).toFixed(2)+')'; o.lineWidth=Math.max(0.8, tw*0.18);
   o.beginPath(); o.moveTo(0, ry-tw*0.04); o.lineTo(W, ry-tw*0.04); o.stroke();
   o.strokeStyle='rgba(8,5,2,0.13)'; o.lineWidth=Math.max(0.6, tw*0.10);
   var gy=cy-hw+Math.min(0.92, ridge+0.40)*tw;
@@ -50926,16 +51711,24 @@ function drawReal(ctx, pts, fit, opts){
   ctx.lineCap='butt'; ctx.lineJoin='miter'; ctx.miterLimit=2;
   ctx.strokeStyle='rgb('+_rtClamp(C[0]*0.92)+','+_rtClamp(C[1]*0.92)+','+_rtClamp(C[2]*0.92)+')'; ctx.lineWidth=tw; ctx.lineCap='round'; prev=null;
   ctx.beginPath();
-  for(i=0;i<pts.length;i++){ p=pts[i]; if(p.jump){prev=null;continue;} x=fit.X(p.x); y=fit.Y(p.y); if(prev&&!p.travel){ctx.moveTo(prev.x,prev.y);ctx.lineTo(x,y);} prev={x:x,y:y}; }
+  /* jump bezeichnet nur die ANKOMMENDE Bewegung ohne Stich; ihr Ziel ist
+     Startpunkt des naechsten echten Stichs und darf nicht verworfen werden. */
+  for(i=0;i<pts.length;i++){ p=pts[i]; x=fit.X(p.x); y=fit.Y(p.y); if(prev&&!p.jump&&!p.travel){ctx.moveTo(prev.x,prev.y);ctx.lineTo(x,y);} prev={x:x,y:y}; }
   ctx.stroke(); ctx.lineCap='butt';
   prev=null; var savedT=ctx.getTransform?ctx.getTransform():null, uOff=0;
   ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
-  for(i=0;i<pts.length;i++){ p=pts[i]; if(p.jump){prev=null;continue;} x=fit.X(p.x); y=fit.Y(p.y);
-    if(prev&&!p.travel){ var dx=x-prev.x,dy=y-prev.y,len=Math.hypot(dx,dy);
+  for(i=0;i<pts.length;i++){ p=pts[i]; x=fit.X(p.x); y=fit.Y(p.y);
+    if(prev&&!p.jump&&!p.travel){ var dx=x-prev.x,dy=y-prev.y,len=Math.hypot(dx,dy);
       if(len>0.25){ var ang=Math.atan2(dy,dx), bk=((Math.round(ang/6.283185*NA)%NA)+NA)%NA, spr=sp[bk], H=spr.h, srcW=len*srcPerCanvasPx, u0=uOff%spW; if(u0<0)u0+=spW;
         ctx.translate(prev.x,prev.y); ctx.rotate(ang);
-        if(u0+srcW<=spW){ ctx.drawImage(spr.cv,u0,0,srcW,H,0,-H/2,len,H); }
-        else { var firstSrc=spW-u0, firstDst=len*(firstSrc/srcW); ctx.drawImage(spr.cv,u0,0,firstSrc,H,0,-H/2,firstDst,H); var remSrc=srcW-firstSrc, remDst=len-firstDst; ctx.drawImage(spr.cv,0,0,remSrc,H,firstDst,-H/2,remDst,H); }
+        /* Auch lange importierte Stiche duerfen beliebig viele Kacheln nutzen.
+           Kein Quellrechteck darf ueber den Sprite-Rand hinausreichen. */
+        var remainingSrc=srcW, sourceX=u0, destX=0;
+        while(remainingSrc>1e-7){
+          var takeSrc=Math.min(remainingSrc,spW-sourceX), takeDst=takeSrc/srcPerCanvasPx;
+          ctx.drawImage(spr.cv,sourceX,0,takeSrc,H,destX,-H/2,takeDst,H);
+          remainingSrc-=takeSrc; destX+=takeDst; sourceX=0;
+        }
         if(savedT) ctx.setTransform(savedT); else { ctx.rotate(-ang); ctx.translate(-prev.x,-prev.y); }
         uOff+=srcW;
       }
@@ -50956,6 +51749,7 @@ function textToStitches(opts){
   state.font=opts.fontFamily||'Nunito'; state.text=String(opts.text||'');
   state.sizeMM=_px2mm(opts.fontSizePx||_mm2px(20));
   state.bold=!!opts.bold; state.italic=!!opts.italic;
+  state.glyphLayout=Array.isArray(opts.glyphLayout)?opts.glyphLayout:null;
   state.pitch=isFinite(opts.pitchMM)?opts.pitchMM:0.3; state.stitch='satin'; state.underlay=false;
   /* [VT-TEXT-DENSITY v1] Schrift-Dichte (Quer-/Reihenabstand in mm) vom "Abstand zwischen Reihen"-
      Slider; steuert Satin/Tatami/Laengs-Dichte in _satinByCrossSection. Default 0.30 mm. */
@@ -50965,7 +51759,6 @@ function textToStitches(opts){
      temporaer setzen + zuruecksetzen, damit es nichts anderes beeinflusst. */
   var _prevBowl=(typeof window!=='undefined')?window._bowlFill:undefined;
   if(typeof window!=='undefined') window._bowlFill=opts.bowlFill||'satin';
-  try{ if(typeof _segCache!=='undefined'){ for(var k in _segCache) delete _segCache[k]; } }catch(e){}
   var r;
   try{ r=wordStitches(); } finally { if(typeof window!=='undefined') window._bowlFill=_prevBowl; }
   return r||[];
