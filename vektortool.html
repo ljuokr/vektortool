@@ -11100,6 +11100,7 @@ function _autoSave() {
     saveCurrentTabState();
     var data = {
       version: 2, activeCanvasIdx: activeTabIdx,
+      stitchSettings: typeof window._vtStitchProjectSettings === 'function' ? window._vtStitchProjectSettings() : (window._vtPendingStitchSettings || null),
       defaults: _vtDeepClone(state.defaults),
       mirror: _vtDeepClone(state.mirror),
       customFonts: (typeof userFonts !== 'undefined' ? userFonts : _vtPendingCustomFonts).map(function(f) {
@@ -11142,6 +11143,8 @@ function _autoLoad() {
     var data = JSON.parse(raw);
     if (!data || !data.canvases || !data.canvases.length) return false;
     _vtPendingCustomFonts = Array.isArray(data.customFonts) ? data.customFonts : [];
+    /* Stitch module boots later than the editor/autosave loader. */
+    window._vtPendingStitchSettings = data.stitchSettings || null;
     canvasTabs.length = 0;
     for (var ci = 0; ci < data.canvases.length; ci++) {
       var cd = data.canvases[ci];
@@ -11158,10 +11161,9 @@ function _autoLoad() {
         var ts = t.shapes[ti];
         if (ts && ts.stitch) {
           ts.stitch._needleCacheKey = ''; ts.stitch.needlePoints = [];
-          /* v50: Fill-Winkel beim Neuladen IMMER auf 0 zuruecksetzen
-             (User-Wunsch: Standard-Winkel 0°). Underlay-Winkel bleibt
-             unangetastet (laeuft fachlich quer zum Fill). */
-          if (ts.stitch.type === 'fill' && ts.stitch.params) ts.stitch.params.angle = 0;
+          /* Legacy-Autosaves behalten die frühere Winkelmigration. Versionierte
+             Projekte speichern bewusst gewählte Winkel unverändert. */
+          if (!(data.stitchSettings && data.stitchSettings.version === 1) && ts.stitch.type === 'fill' && ts.stitch.params) ts.stitch.params.angle = 0;
         }
         if (ts) { ts._stitchFillGeomCache = null; delete ts._textPathKey; delete ts._textPathD; delete ts._vtTextFillLines; }
       }
@@ -11221,6 +11223,10 @@ renderTabs();
 
 // Auto-save debounced: after each render, save with 2s delay
 var _autoSaveTimer = null;
+window._vtScheduleProjectSave = function() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(_autoSave, 2000);
+};
 var _origRender = render;
 render = function() {
   _origRender();
@@ -14821,6 +14827,25 @@ function _zOrderSelection(action) {
   if (res) { pu(); shapes = res; render(); updateRightPanel(); }
 }
 
+/* Only history shortcuts belong to the stitch workspace. Drawing tools and
+   destructive background shortcuts remain blocked while its dialog is open. */
+function _vtStitchHistoryShortcut(e, inInput) {
+  var modal = document.getElementById('dstvModal');
+  var range = document.activeElement && document.activeElement.type === 'range';
+  if (!modal || !modal.classList.contains('open') || (inInput && !range) ||
+      !(e.ctrlKey || e.metaKey) || e.altKey) return false;
+  var key = e.key.toLowerCase(), isRedo = key === 'y' || (key === 'z' && e.shiftKey);
+  if (key !== 'z' && key !== 'y') return false;
+  e.preventDefault(); e.stopPropagation();
+  if (isRedo ? !redoStack.length : !undoStack.length) return true;
+  if (window._dstvCancelPendingPreview) window._dstvCancelPendingPreview('history');
+  if (typeof _stitchGearClose === 'function') _stitchGearClose();
+  if (isRedo) redo(); else undo();
+  if (window._dgpSyncTextStitch) window._dgpSyncTextStitch();
+  if (window._stitchUpdateOrder) window._stitchUpdateOrder();
+  if (window._dstvScheduleAutoRecalc) window._dstvScheduleAutoRecalc();
+  return true;
+}
 document.addEventListener('keydown', function(e) {
   var k = e.key.toLowerCase();
   var _ae = document.activeElement;
@@ -14832,7 +14857,7 @@ document.addEventListener('keydown', function(e) {
   /* [uxfix v1] B07: Bei offenem Modal (Stick-Viewer, Tracer, Test-Karte, Import-Wahl) keine
      globalen Editor-Shortcuts im Hintergrund - Werkzeugtasten wechselten sonst unbemerkt
      das Werkzeug, Delete löschte unsichtbar die Auswahl. Escape regeln die Modale selbst. */
-  if (_vtBlockingModalOpen()) return;
+  if (_vtBlockingModalOpen()) { _vtStitchHistoryShortcut(e, inInput); return; }
 
   /* [uxfix v1] Leertaste = Pan-Modifikator (in Popup/Onboarding/i18n dokumentiert).
      Nur ausserhalb von Eingabefeldern und ohne Ctrl/Cmd/Alt; Seiten-Scroll unterbinden. */
@@ -18946,6 +18971,8 @@ $('importFile').addEventListener('change', function(e){
               var _hatInhalt = canvasTabs.some(function(t){ return !t.isGuide && !t.isDemo && t.shapes && t.shapes.length; }) || (shapes && shapes.length);
               if (_hatInhalt && !confirm(window.t('Aktuelles Projekt ersetzen? Alle offenen Zeichenflächen werden durch die geladene Datei ersetzt (kein Rückgängig).'))) return;
               _vtRestoreFonts(data.customFonts);
+              if (typeof window._dstvCancelPendingPreview === 'function') window._dstvCancelPendingPreview();
+              if (typeof window._vtRestoreStitchProjectSettings === 'function') window._vtRestoreStitchProjectSettings(data.stitchSettings);
               pu();
               canvasTabs = data.canvases.map(function(canvas, index) {
                 var next = {
@@ -18988,6 +19015,8 @@ $('importFile').addEventListener('change', function(e){
               render(); updateRightPanel();
             } else if (data.shapes) {
               _vtRestoreFonts(data.customFonts);
+              if (typeof window._dstvCancelPendingPreview === 'function') window._dstvCancelPendingPreview();
+              if (typeof window._vtRestoreStitchProjectSettings === 'function') window._vtRestoreStitchProjectSettings(data.stitchSettings);
               pu();
               shapes = normalizeShapesList(data.shapes);
               shapes.forEach(migrateEllipseVariant);
@@ -19092,6 +19121,7 @@ $('saveProjectBtn').addEventListener('click', function(){
   var data = {
     version: 2,
     activeCanvasIdx: activeTabIdx,
+    stitchSettings: typeof window._vtStitchProjectSettings === 'function' ? window._vtStitchProjectSettings() : null,
     defaults: _vtDeepClone(state.defaults),
     mirror: _vtDeepClone(state.mirror),
     /* [VT-TEXT-SATIN v1] hochgeladene Schriften als dataUrl mitspeichern, damit
@@ -20135,7 +20165,25 @@ function makeTextSettings(s) {
     html += '<textarea id="rpTextEdit" rows="1" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-3);resize:none;font-size:var(--fs-lg);font-family:inherit;margin-bottom:6px">'+(s.text||'').replace(/</g,'&lt;')+'</textarea>';
   }
   // Size
-  html += '<div class="rp-row"><label>Gr\u00f6sse</label><input type="range" class="sset" data-prop="fontSize" min="8" max="200" value="'+(s.fontSize||24)+'"><span class="val">'+(s.fontSize||24)+'</span></div>';
+  html += '<div class="rp-row"><label>Schriftgrösse (px)</label><input type="range" class="sset" data-prop="fontSize" min="8" max="200" value="'+(s.fontSize||24)+'"><span class="val">'+(s.fontSize||24)+'</span></div>';
+  /* Show measured ink, not the em size or padded text box. No stitch recalc. */
+  if (!s.onPath && window._vtTextLayout) {
+    try {
+      var tl = window._vtTextLayout(Object.assign({}, s));
+      var tc = document.createElement('canvas').getContext('2d'); tc.font = tl.font; tc.fontKerning = 'normal';
+      var ix0 = Infinity, iy0 = Infinity, ix1 = -Infinity, iy1 = -Infinity;
+      if (!document.fonts || document.fonts.check(tl.font, String(s.text || ''))) {
+        tl.lines.forEach(function(line, row) {
+          if (!line.trim()) return;
+          var m = tc.measureText(line), by = row * tl.lineHeight;
+          if (!isFinite(m.actualBoundingBoxLeft) || !isFinite(m.actualBoundingBoxAscent)) return;
+          ix0 = Math.min(ix0, -m.actualBoundingBoxLeft); ix1 = Math.max(ix1, m.actualBoundingBoxRight);
+          iy0 = Math.min(iy0, by - m.actualBoundingBoxAscent); iy1 = Math.max(iy1, by + m.actualBoundingBoxDescent);
+        });
+        if (ix1 >= ix0 && iy1 >= iy0) html += '<div style="font-size:var(--fs-xs);color:var(--fg2);margin:0 0 4px" title="Gemessene Schriftkontur ohne Drehung, nicht die gepolsterte Textbox oder Garnfläche.">Textkontur: ' + ((ix1-ix0)/3.7795275591).toFixed(2) + ' × ' + ((iy1-iy0)/3.7795275591).toFixed(2) + ' mm</div>';
+      }
+    } catch (textMeasureError) {}
+  }
   // Font picker
   html += '<div class="rp-title" style="margin-top:6px">Schrift</div>';
   html += '<div style="max-height:117px;overflow-y:auto;margin-bottom:4px">';
@@ -20192,7 +20240,7 @@ function makeTextSettingsGlobal() {
   var fonts = _getAllFonts();
   var html = '<div class="rp-section"><div class="rp-title">Text</div>';
   html += '<div style="font-size:var(--fs-xs);color:var(--fg2);margin-bottom:6px">Klick auf Canvas \u2192 Text platzieren<br>Klick auf Pfad/Linie \u2192 Pfadbeschriftung</div>';
-  html += '<div class="rp-row"><label>Gr\u00f6sse</label><input type="range" class="gset" data-var="textSize" min="8" max="200" value="'+textSize+'"><span class="val">'+textSize+'</span></div>';
+  html += '<div class="rp-row"><label>Schriftgrösse (px)</label><input type="range" class="gset" data-var="textSize" min="8" max="200" value="'+textSize+'"><span class="val">'+textSize+'</span></div>';
   html += '<div class="rp-title" style="margin-top:6px">Schrift</div>';
   html += '<div style="max-height:117px;overflow-y:auto;margin-bottom:4px">';
   for (var fi = 0; fi < fonts.length; fi++) {
@@ -29706,7 +29754,8 @@ window.STITCH_TYPES = STITCH_TYPES;  /* v44: für dgpStitchType-Select */
 /* M1: Globale Stickerei-Settings. minStitchLenUnits in DST-Units (0.1 mm),
    Default 3 = bisheriges Verhalten (keine Regression). lockEnabled schaltet
    das Vernähen pro Objekt (Tie-in/Tie-off) global an/aus. */
-window._stitchGlobal = { minStitchLenUnits: 3, lockEnabled: true, deComb: true };
+var _STITCH_GLOBAL_DEFAULTS = Object.freeze({ minStitchLenUnits: 3, lockEnabled: true, deComb: true });
+window._stitchGlobal = Object.assign({}, _STITCH_GLOBAL_DEFAULTS);
 
 /* [VT-STITCH-O15 v1] Zentrales Schwellwert-Objekt statt verstreuter Magic
    Numbers. Jeder Wert mit Begründung; das Debug-Panel kann das Objekt live
@@ -29763,6 +29812,56 @@ if (typeof window !== 'undefined') window.STITCH_LIMITS = STITCH_LIMITS; /* [VT-
 var DST_TRIM_DEFAULT_MM = STITCH_LIMITS.trimDefaultMM;                /* [VT-STITCH-F7 v1] Alias */
 var FILL_ROWSPACING_FALLBACK_MM = STITCH_LIMITS.fillRowSpacingFallbackMM; /* [VT-STITCH-F8 v1] Alias */
 
+/* Versioned project settings: only documented manufacturing options, never
+   arbitrary imported properties or transient preview flags. Legacy projects
+   get the same defaults as a fresh session, not the previous project's values. */
+var _STITCH_OFFSET_DEFAULTS = Object.freeze({ amount: 1.0, seed: 1337 });
+function _vtStitchSettingsDefaults() {
+  return { version: 1, global: Object.assign({}, _STITCH_GLOBAL_DEFAULTS),
+    trim: { enabled: true, thresholdMM: DST_TRIM_DEFAULT_MM }, fillConnect: 'continuous',
+    offset: Object.assign({}, _STITCH_OFFSET_DEFAULTS) };
+}
+function _vtNormalizeStitchSettings(input) {
+  var out = _vtStitchSettingsDefaults();
+  if (!input || input.version !== 1) return out;
+  var g = input.global || {}, tr = input.trim || {};
+  function bounded(value, min, max, fallback) {
+    return typeof value === 'number' && isFinite(value) ? Math.max(min, Math.min(max, Math.round(value))) : fallback;
+  }
+  out.global.minStitchLenUnits = bounded(g.minStitchLenUnits, 1, 10, out.global.minStitchLenUnits);
+  if (typeof g.lockEnabled === 'boolean') out.global.lockEnabled = g.lockEnabled;
+  if (typeof g.deComb === 'boolean') out.global.deComb = g.deComb;
+  if (typeof tr.enabled === 'boolean') out.trim.enabled = tr.enabled;
+  out.trim.thresholdMM = bounded(tr.thresholdMM, 2, 100, out.trim.thresholdMM);
+  if (input.fillConnect === 'continuous' || input.fillConnect === 'jump') out.fillConnect = input.fillConnect;
+  var offset = input.offset || {};
+  if (typeof offset.amount === 'number' && isFinite(offset.amount)) out.offset.amount = Math.max(0, Math.min(1, offset.amount));
+  out.offset.seed = bounded(offset.seed, -2147483648, 2147483647, out.offset.seed);
+  return out;
+}
+window._vtStitchProjectSettings = function() {
+  return _vtNormalizeStitchSettings({ version: 1, global: window._stitchGlobal,
+    trim: window._dstTrimSettings, fillConnect: window._fillConnect,
+    offset: { amount: window._stitchOffsetAmount, seed: window._stitchOffsetSeed } });
+};
+window._vtRestoreStitchProjectSettings = function(input) {
+  var settings = _vtNormalizeStitchSettings(input);
+  window._stitchGlobal = settings.global;
+  window._dstTrimSettings = settings.trim;
+  window._fillConnect = settings.fillConnect;
+  window._stitchOffsetAmount = settings.offset.amount;
+  window._stitchOffsetSeed = settings.offset.seed;
+  window._lastExportData = null;
+  if (typeof window._spiegelTrimUI === 'function') window._spiegelTrimUI();
+  var lock = document.getElementById('gpLock'), decomb = document.getElementById('gpDeComb');
+  if (lock) lock.checked = settings.global.lockEnabled;
+  if (decomb) decomb.checked = settings.global.deComb;
+  var min = document.getElementById('gpMinStitch'), label = document.getElementById('gpMinStitchVal');
+  if (min) min.value = settings.global.minStitchLenUnits / 10;
+  if (label) label.textContent = (settings.global.minStitchLenUnits / 10).toFixed(2) + ' mm';
+  return settings;
+};
+
 var _STITCH_LEGACY_PARAMS = {
   angle: 45,
   rowSpacing: 2.5,
@@ -29792,6 +29891,12 @@ var _STITCH_TYPE_PRESETS = {
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
 var _STITCH_CACHE_VERSION = 234;
+/* Bulk controls may update live presets. Keep their original defaults for Reset. */
+var _STITCH_TYPE_DEFAULTS = {};
+Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
+  _STITCH_TYPE_DEFAULTS[type] = Object.freeze(Object.assign({}, _STITCH_TYPE_PRESETS[type]));
+});
+Object.freeze(_STITCH_TYPE_DEFAULTS);
 
 function _stitchDefaults() {
   return {
@@ -29805,6 +29910,40 @@ function _stitchDefaults() {
     _paramPresetVersion: 0
   };
 }
+
+/* Reset stitch parameters on the active canvas, never geometry, ordering,
+   colour grouping or either visibility flag. Defaults come from the same
+   baseline as newly created shapes, including the text Tatami default. */
+window._vtResetStitchParameters = function() {
+  window._vtRestoreStitchProjectSettings(null);
+  Object.keys(_STITCH_TYPE_DEFAULTS).forEach(function(type) {
+    _STITCH_TYPE_PRESETS[type] = Object.assign({}, _STITCH_TYPE_DEFAULTS[type]);
+  });
+  var defaults = _stitchDefaults().params, shapes = window.shapes || [], count = 0;
+  for (var i = 0; i < shapes.length; i++) {
+    var shape = shapes[i];
+    if (!shape) continue;
+    if (shape.type === 'text') shape.textStitch = 'tatami';
+    if (!shape.stitch) continue;
+    var st = shape.stitch;
+    st.params = Object.assign({}, defaults, _STITCH_TYPE_DEFAULTS[st.type] || {});
+    st._paramPresetVersion = 4; st._presetTypeApplied = st.type;
+    if (st._strokeBand && st.type === 'satincol') _stitchSyncSatinWidthToStroke(shape, st);
+    st._needleCacheKey = ''; st.needlePoints = [];
+    shape._stitchFillGeomCache = null;
+    count++;
+  }
+  window._catStitchParams = {
+    text: { rowSpacing: defaults.rowSpacing, stitchLength: defaults.stitchLength },
+    line: { rowSpacing: _STITCH_TYPE_DEFAULTS.satin.stitchLength, stitchLength: defaults.stitchLength },
+    area: { rowSpacing: defaults.rowSpacing, stitchLength: defaults.stitchLength }
+  };
+  if (typeof window._v44SyncGlobalParamsFromShapes === 'function') window._v44SyncGlobalParamsFromShapes();
+  if (typeof window._v44SyncDstvGlobalParams === 'function') window._v44SyncDstvGlobalParams();
+  if (typeof window._dgpSyncTextStitch === 'function') window._dgpSyncTextStitch();
+  if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
+  return count;
+};
 
 function _stitchAutoDefaultType(shape) {
   if (!shape) return 'none';
@@ -30054,7 +30193,8 @@ function _stitchOrderedShapes(includeHidden) {
     });
     var out = [];
     for (var oi = 0; oi < indexed.length; oi++) {
-      if (!includeHidden) _ensureStitch(indexed[oi].shape).order = oi;  /* [VT-STITCHHIDE v1] nur der Export-Pfad (ohne hidden) schreibt die Reihenfolge fest; die Anzeige-Liste (includeHidden) liest nur */
+      /* Reading/filtering must not renumber the visible subset: hidden
+         members retain their position when they are shown again. */
       out.push(indexed[oi].shape);
     }
     return out;
@@ -31175,25 +31315,30 @@ function _stitchParamValueInfo(shapes, prop) {
 
 function _stitchParamValueText(prop, value, mixed) {
   if (value == null || !isFinite(value)) return mixed ? 'gemischt' : '—';
-  var suffix = (prop === 'angle' || prop === 'underlayAngle') ? '°' : prop === 'beanRepeat' ? '' : ' mm';
-  return value + suffix + (mixed ? ' • gemischt' : '');
+  var suffix = (prop === 'angle' || prop === 'underlayAngle') ? '°' : prop === 'beanRepeat' ? ' ×' : prop === 'shortStitchInset' ? ' %' : ' mm';
+  var display = Number((Number(value) * (prop === 'shortStitchInset' ? 100 : 1)).toFixed(6));
+  return display + suffix + (mixed ? ' • gemischt' : '');
 }
 
 /* Erklärende Tooltips für jeden Stitch-Parameter. Werden als kleines "i"-Icon
    neben dem Label angezeigt; Hover zeigt die native Browser-Tooltip-Bubble.    */
 var _STITCH_PARAM_INFO = {
   angle:               'Richtung der Füllstich-Linien in Grad. 0° = horizontal, 90° = vertikal. Bei runden/organischen Formen wirken 45° oft natürlicher.',
-  rowSpacing:          'Abstand zwischen den parallelen Füllstich-Linien in mm. Kleiner Wert = dichter und deckender. Standard: 0.2 mm (hohe Deckung; verhindert löchriges Aussehen).',
+  rowSpacing:          'Abstand zwischen den Stichreihen in mm. Kleiner = dichter. Standard: 0.30 mm. Deckung hängt auch von Schrift, Form und Garn ab.',
   stitchLength:        'Maximale Länge eines einzelnen Stichs in mm. Bei kleinen Shapes (<10 mm) ggf. auf 2 mm reduzieren.',
-  pullCompensation:    'POSITIV (+): Vergrössert die Füllung nach aussen, kompensiert Faden-Zug bei weichen Stoffen (T-Shirt, Sweat). 0.2-0.4 mm empfohlen. NEGATIV (-): Verkleinert die Füllung nach innen — verhindert dass Stich-Enden durch Faden-Dicke über die Outline lugen (sichtbare Spikes im Solid-Render). -0.15 bis -0.2 mm empfohlen für saubere Kanten ohne Halo. Standard 0 mm.',
+  pullCompensation:    'Zugausgleich der Parallel-Füllung: Plus erweitert die Stichreihen, Minus setzt sie nach innen. Standard: -0.10 mm. Bei Kontur nur für die Unterlage; bei Text nicht verfügbar. Auf dem vorgesehenen Stoff testen.',
   underlay:            'Zusätzliche Stütz-Reihen, die VOR der sichtbaren Füllung gestickt und von ihr überdeckt werden. Stabilisieren den Stoff und schaffen einen Untergrund, damit die Hauptstickerei deckend wirkt.',
   underlayAngle:       'Versatz der Unterlage-Linien ZUR Füllrichtung (relativ zur Füllung). 90° = senkrecht zur Hauptfüllung (stabilste Basis), unabhängig davon wie die Füllung gedreht ist.',
-  underlaySpacing:     'Abstand zwischen den Unterlage-Linien in mm. Standard: 3 mm (sparsame Stütz-Lage). Sehr enge Werte (<2 mm) sammeln Mikro-Stiche am Rand an und erzeugen sichtbare doppelte Outline-Linien.',
+  underlaySpacing:     'Abstand zwischen den Unterlage-Reihen in mm. Standard: 4.5 mm. Reihen unter 5 mm Länge werden ausgelassen; in schmalen Bereichen kann deshalb keine Unterlage entstehen.',
   adjustLastStitch:    'Verteilt die Stiche pro Reihe gleichmässig, sodass der letzte Stich präzise am Shape-Rand endet. Verhindert Treppenstufen-Optik am Rand.',
   beanRepeat:          'Anzahl der Hin-/Her-Bewegungen über jeden Stich-Abschnitt. 3 = klassischer Dreifach-Stich für extra dicke Konturen.',
   zigzagWidth:         'Gesamtbreite der Zickzack-Linie senkrecht zum Pfad in mm.',
   stitchLengthLine:    'Abstand zwischen den Einstichen entlang des Pfades in mm.',
   stitchLengthZigzag:  'Abstand zwischen den Zickzack-Spitzen in mm. Kleinere Werte = dichtere Satin-Optik.'
+  ,satinPitch:         'Abstand entlang des Satin-Bands in mm. Kleiner = dichter. Bei zwei Rails wird der Abstand im Parameter stitchLength gespeichert; die Breite kommt aus den Rails.'
+  ,shortStitchInset:   'Einzug der kurzen Kurvenstiche als Anteil der lokalen Satinbreite in Prozent. Standard: 15 %. Nur bei zwei Rails wirksam.'
+  ,satinUnderlay:      'Unterlage vor dem Satin. Einzelne Mittellinie: nur Mittellinien-Unterlage. Zwei Rails: zusätzlich Kontur und Zickzack. Geschlossene Satin-Fläche: Flächen-Unterlage.'
+  ,underlayStitchLength: 'Maximale Länge der Unterlage-Stiche in mm. Standard: 2.5 mm.'
 };
 
 function _paramInfoIcon(key) {
@@ -31217,101 +31362,143 @@ function _stitchParamBoolInfo(shapes, prop, defaultVal) {
   return { value: first == null ? def : first, mixed: mixed };
 }
 
+/* UI-only parameter profiles: mirror the existing computation paths. No
+   defaults or stitch algorithms are changed by opening a panel. */
+function _stitchUiProfile(shape) {
+  var st = (shape && shape.stitch) || {}, p = st.params || {}, type = st.type || 'none';
+  var result = { label: (STITCH_TYPES[type] || {}).label || type, params: [], notes: [] };
+  function number(key, label, min, max, fallback, unit, scale) {
+    result.params.push({key:key,label:label,min:min,max:max,step:0.01,unit:unit||'mm',defaultValue:fallback,scale:scale||1});
+  }
+  function bool(key,label,fallback) { result.params.push({key:key,label:label,kind:'bool',defaultValue:fallback}); }
+  function select(key,label,options,fallback) { result.params.push({key:key,label:label,kind:'select',options:options,defaultValue:fallback}); }
+  function fillUnderlay(contour) {
+    bool('underlay','Flächen-Unterlage',true);
+    if (p.underlay === false) return;
+    if (contour) {
+      number('angle','Unterlage-Basiswinkel',0,360,0,'°');
+      number('pullCompensation','Unterlage-Zugausgleich',-0.5,2,-0.1);
+    }
+    number('underlayAngle','Unterlage-Winkelversatz',0,360,90,'°');
+    number('underlaySpacing','Unterlage-Reihenabstand',1,8,4.5);
+    number('underlayStitchLength','Unterlage-Stichlänge',1,6,2.5);
+  }
+  if (type === 'fill') {
+    if (shape.type === 'text') {
+      var mode = shape.textStitch || 'tatami';
+      result.label = 'Text · ' + (mode === 'laengs' ? 'Längs' : mode === 'satin' ? 'Satin' : 'Tatami');
+      number('rowSpacing','Reihenabstand',0.15,3,0.3);
+      if (mode === 'tatami') {
+        number('angle','Winkel (Tatami)',0,360,0,'°');
+        number('stitchLength','Stichlänge (Tatami)',1,6,3);
+      } else result.notes.push('Stichlängen folgen automatisch der Schriftgeometrie.');
+      result.notes.push('Text-Unterlage und Zugausgleich sind nicht verfügbar.');
+    } else {
+      var contour = p.fillStyle === 'spiral';
+      result.label = contour ? 'Fläche · Kontur' : 'Fläche · Parallel';
+      number('rowSpacing','Reihenabstand',contour?0.15:0.1,3,0.3);
+      number('stitchLength','Stichlänge',1,6,3);
+      if (!contour) { number('angle','Winkel',0,360,0,'°'); number('pullCompensation','Zugausgleich',-0.5,2,-0.1); }
+      else result.notes.push('Die Konturfüllung folgt der Form; Winkel und Zugausgleich gelten nur für eine aktive Unterlage.');
+      fillUnderlay(contour);
+      if (!contour) bool('adjustLastStitch','Letzter Stich anpassen',true);
+    }
+  } else if (type === 'running' || type === 'bean') {
+    number('stitchLength','Stichlänge',1,6,2.5);
+    bool('adjustLastStitch','Letzter Stich anpassen',true);
+    if (type === 'bean') number('beanRepeat','Wiederholungen',1,7,3,'×');
+  } else if (type === 'satin' || type === 'satincol' || type === 'zigzag') {
+    var two = type !== 'zigzag' && !st._strokeBand && !!(shape.satinRail2 && shape.satinRail2.length >= 2);
+    var closed = !two && (type==='zigzag'||!st._strokeBand) && !!(shape.closed || /^(rect|ellipse|polygon|star|gear|wheel|svgpath)$/.test(shape.type));
+    if (two) {
+      result.label = 'Satin · zwei Rails';
+      number('stitchLength','Reihenabstand (Satin)',0.15,3,0.4);
+      number('shortStitchInset','Kurven-Einzug',0,50,0.15,'%',100);
+      select('satinUnderlay','Satin-Unterlage',[['none','Keine'],['center','Mittellinie'],['contour','Kontur'],['zigzag','Zickzack']],'center');
+      result.notes.push('Breite und Richtung werden von den beiden Rails bestimmt.');
+    } else if (closed) {
+      result.label = 'Geschlossene Satin-Fläche';
+      number('angle','Winkel',0,360,0,'°');
+      number('rowSpacing','Reihenabstand',0.25,1.5,Math.max(0.35,Math.min(1.15,(Number(p.zigzagWidth)||2.5)*0.38)));
+      number('zigzagWidth','Randbandbreite',0.8,3.5,2.5);
+      number('stitchLength','Randabstand / Längenbasis',0.3,1.2,0.4);
+      if(type !== 'zigzag') {
+        select('satinUnderlay','Satin-Unterlage',[['none','Keine'],['center','Flächen-Unterlage']],'none');
+        if(p.satinUnderlay && p.satinUnderlay !== 'none' && p.underlay !== false) {
+          number('pullCompensation','Unterlage-Zugausgleich',-0.5,2,-0.1);
+          number('underlayAngle','Unterlage-Winkelversatz',0,360,90,'°');
+          number('underlaySpacing','Unterlage-Reihenabstand',1,8,4.5);
+          number('underlayStitchLength','Unterlage-Stichlänge',1,6,2.5);
+        }
+      }
+      result.notes.push('Satin-Fläche: Der Randabstand ist zugleich Basis der Füllstichlänge (doppelter Wert, intern 1.4–2.4 mm).');
+    } else {
+      result.label = type === 'zigzag' ? 'Zickzack-Linie' : 'Satin-Linienband';
+      if (!st._strokeBand) number('zigzagWidth','Bandbreite',0.4,12,2.5);
+      else result.notes.push('Bandbreite ' + Math.max(0.4,Math.min(12,(Number(shape.strokeWidth)||1)/3.7795275591)).toFixed(2) + ' mm · an die gezeichnete Strichbreite gekoppelt.');
+      number(type==='zigzag'?'stitchLength':'satinPitch',type==='zigzag'?'Zickzack-Abstand':'Reihenabstand (Satin)',0.15,3,type==='zigzag'?2:0.4);
+      if (type !== 'zigzag') select('satinUnderlay','Satin-Unterlage',[['none','Keine'],['center','Mittellinie']],type==='satincol'?'center':'none');
+    }
+  }
+  return result;
+}
+function _stitchUiParamValue(shape, rule) {
+  var p = (shape.stitch && shape.stitch.params) || {}, value = p[rule.key];
+  if (rule.key === 'satinPitch' && !(Number(value)>0)) value = Number(p.stitchLength)>0?p.stitchLength:0.4;
+  if (rule.key === 'satinUnderlay' && rule.options && rule.options.some(function(o){return o[1]==='Flächen-Unterlage';}) && p.underlay===false) value='none';
+  if (value == null || (!rule.kind && !isFinite(value))) value = rule.defaultValue;
+  if (rule.key === 'satinUnderlay' && rule.options && !rule.options.some(function(o){return o[0]===value;})) value = value === 'none'?'none':'center';
+  return rule.kind ? value : Number(value);
+}
+function _stitchUiSharedProfile(shapes) {
+  var profiles = shapes.map(_stitchUiProfile), first = profiles[0] || {label:'',params:[],notes:[]};
+  var same = profiles.every(function(p){return p.label===first.label;});
+  var params = first.params.filter(function(rule){return profiles.every(function(p){return p.params.some(function(r){return r.key===rule.key&&r.label===rule.label&&r.kind===rule.kind;});});}).map(function(rule){
+    var r=Object.assign({},rule);
+    if (r.options) r.options=r.options.filter(function(o){
+      return profiles.every(function(p){
+        return p.params.some(function(q){return q.key===r.key&&q.options&&q.options.some(function(v){return v[0]===o[0];});});
+      });
+    });
+    return r;
+  });
+  return {label:same?first.label:'Gemischte Stichmodi',params:params,notes:same?first.notes:['Nur gemeinsam wirksame Parameter. Für weitere Einstellungen eine einzelne Form auswählen.']};
+}
+function _stitchUiEscape(value) { return String(value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function _stitchUiSetParam(shape, key, value) {
+  var profile=_stitchUiProfile(shape);
+  if(!profile.params.some(function(rule){return rule.key===key;}))return false;
+  shape.stitch.params[key]=value;
+  /* Closed Satin has two existing underlay gates. One UI switch operates both. */
+  if(key==='satinUnderlay' && profile.label==='Geschlossene Satin-Fläche')shape.stitch.params.underlay=value!=='none';
+  return true;
+}
+function _stitchUiNumberRange(rule, values) {
+  var scale=rule.scale||1, finite=values.filter(function(v){return isFinite(v);}).map(function(v){return Number(v)*scale;});
+  var min=rule.min,max=rule.max,step=rule.key==='beanRepeat'?1:0.01;
+  finite.forEach(function(v){v=Number(v.toFixed(6));min=Math.min(min,v);max=Math.max(max,v);var s=String(v),dec=s.indexOf('.')>=0?s.length-s.indexOf('.')-1:0;if(dec>2)step=Math.min(step,Math.pow(10,-Math.min(6,dec)));});
+  return {min:min,max:max,step:step};
+}
 function _stitchParamSectionHtml(type, shapes) {
   if (!shapes || !shapes.length) return '';
-  var html = '<div class="stitch-param-section">';
-  html += '<div class="stitch-param-section-title"><span>' + STITCH_TYPES[type].icon + ' ' + STITCH_TYPES[type].label + '</span><span>' + shapes.length + ' Shape' + (shapes.length > 1 ? 's' : '') + '</span></div>';
-
-  if (type === 'fill') {
-    var angleInfo = _stitchParamValueInfo(shapes, 'angle');
-    var rowInfo = _stitchParamValueInfo(shapes, 'rowSpacing');
-    var lenInfo = _stitchParamValueInfo(shapes, 'stitchLength');
-    var pullInfo = _stitchParamValueInfo(shapes, 'pullCompensation');
-    var underInfo = _stitchParamBoolInfo(shapes, 'underlay', true);
-    var underAngleInfo = _stitchParamValueInfo(shapes, 'underlayAngle');
-    var underSpacingInfo = _stitchParamValueInfo(shapes, 'underlaySpacing');
-    html += '<div class="rp-row"><label>Winkel' + _paramInfoIcon('angle') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="angle" min="0" max="360" value="' + (angleInfo.value == null ? 0 : angleInfo.value) + '" step="5"><span class="val">' + _stitchParamValueText('angle', angleInfo.value == null ? 0 : angleInfo.value, angleInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Reihenabstand' + _paramInfoIcon('rowSpacing') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="rowSpacing" min="0.15" max="3" value="' + (rowInfo.value == null ? 0.25 : rowInfo.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('rowSpacing', rowInfo.value == null ? 0.25 : rowInfo.value, rowInfo.mixed) + '</span></div>';
-    /* Warn visibly when row spacing is wider than ~0.4 mm — anything above
-       that shows through as visible "gaps" between rows (Industry-Standard
-       ist 0.3 mm, was auch unser Preset ist). */
-    var _rsVal = rowInfo.value;
-    if (_rsVal != null && Number(_rsVal) >= 0.4) {
-      html += '<div class="rp-row" style="padding-top:0"><label></label>' +
-        '<span style="font-size:var(--fs-xs);color:#c9720c;line-height:1.3">' +
-          '\u26A0 Reihenabstand ' + Number(_rsVal).toFixed(2) + ' mm ist gross &mdash; ' +
-          'Standard w\u00e4re 0.3 mm (dichtere F\u00fcllung ohne sichtbare L\u00fccken). ' +
-          '<a href="#" class="stitch-reset-fill-defaults" style="color:#c9720c;text-decoration:underline">Standard laden</a>' +
-        '</span></div>';
+  var profile=_stitchUiSharedProfile(shapes), html='<div class="stitch-param-section"><div class="stitch-param-section-title"><span>'+_stitchUiEscape(profile.label)+'</span><span>'+shapes.length+' Objekt'+(shapes.length===1?'':'e')+'</span></div>';
+  profile.params.forEach(function(rule){
+    var values=shapes.map(function(s){return _stitchUiParamValue(s,rule);}),v=values[0],mixed=values.some(function(x){return x!==v;}),attrs=' data-stype="'+type+'" data-sp="'+rule.key+'"';
+    html+='<div class="rp-row"><label>'+_stitchUiEscape(rule.label)+_paramInfoIcon(rule.key==='stitchLength'&&rule.label.indexOf('Reihenabstand')>=0?'satinPitch':rule.key)+'</label>';
+    if(rule.kind==='bool') html+='<input type="checkbox" class="stitch-param-bool"'+attrs+(v?' checked':'')+'><span class="val">'+(mixed?'gemischt':v?'an':'aus')+'</span>';
+    else if(rule.kind==='select') {
+      html+='<select class="stitch-param-sel"'+attrs+' style="flex:1;font-size:var(--fs-sm)">';
+      if(mixed)html+='<option value="" selected disabled>gemischt</option>';
+      rule.options.forEach(function(o){html+='<option value="'+o[0]+'"'+(!mixed&&o[0]===v?' selected':'')+'>'+_stitchUiEscape(o[1])+'</option>';});html+='</select><span class="val"></span>';
+    } else {
+      var range=_stitchUiNumberRange(rule,values),display=Number((v*(rule.scale||1)).toFixed(6));
+      html+='<input type="range" class="stitch-param"'+attrs+' data-scale="'+(rule.scale||1)+'" min="'+range.min+'" max="'+range.max+'" step="'+range.step+'" value="'+display+'"><span class="val">'+_stitchParamValueText(rule.key,v,mixed)+'</span>';
     }
-    html += '<div class="rp-row"><label>Stichlaenge' + _paramInfoIcon('stitchLength') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="stitchLength" min="1" max="5" value="' + (lenInfo.value == null ? 3.0 : lenInfo.value) + '" step="0.1"><span class="val">' + _stitchParamValueText('stitchLength', lenInfo.value == null ? 3.0 : lenInfo.value, lenInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Zugausgleich' + _paramInfoIcon('pullCompensation') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="pullCompensation" min="-0.5" max="2" value="' + (pullInfo.value == null ? -0.1 : pullInfo.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('pullCompensation', pullInfo.value == null ? -0.1 : pullInfo.value, pullInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Unterlage' + _paramInfoIcon('underlay') + '</label><input type="checkbox" class="stitch-param-bool" data-stype="fill" data-sp="underlay"' + (underInfo.value ? ' checked' : '') + '><span class="val">' + (underInfo.mixed ? 'gemischt' : (underInfo.value ? 'an' : 'aus')) + '</span></div>';
-    html += '<div class="rp-row"><label>Unterlage-Winkel' + _paramInfoIcon('underlayAngle') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="underlayAngle" min="0" max="360" value="' + (underAngleInfo.value == null ? 90 : underAngleInfo.value) + '" step="5"><span class="val">' + _stitchParamValueText('underlayAngle', underAngleInfo.value == null ? 90 : underAngleInfo.value, underAngleInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Unterlage-Abstand' + _paramInfoIcon('underlaySpacing') + '</label><input type="range" class="stitch-param" data-stype="fill" data-sp="underlaySpacing" min="1" max="8" value="' + (underSpacingInfo.value == null ? 3.0 : underSpacingInfo.value) + '" step="0.25"><span class="val">' + _stitchParamValueText('underlaySpacing', underSpacingInfo.value == null ? 3.0 : underSpacingInfo.value, underSpacingInfo.mixed) + '</span></div>';
-    /* Dense-Unterlage-Warnung: bei < 2 mm sammeln sich Mikro-Stiche am Rand
-       und es entsteht eine sichtbare doppelte Outline-Linie. Bietet Quick-Fix-
-       Link "Standard laden" der den ganzen Preset (inkl. 3 mm Unterlage) anwendet. */
-    var _usVal = underSpacingInfo.value;
-    if (underInfo.value && _usVal != null && Number(_usVal) < 2.0) {
-      html += '<div class="rp-row" style="padding-top:0"><label></label>' +
-        '<span style="font-size:var(--fs-xs);color:#c9720c;line-height:1.3">' +
-          '⚠ Unterlage-Abstand ' + Number(_usVal).toFixed(2) + ' mm ist dicht &mdash; ' +
-          'Standard wäre 3 mm (sparsame Stütz-Lage, weniger Mikro-Stiche am Rand). ' +
-          '<a href="#" class="stitch-reset-fill-defaults" style="color:#c9720c;text-decoration:underline">Standard laden</a>' +
-        '</span></div>';
-    }
-    /* "Letzter Stich anpassen" ON (default) = Stiche gleichmäßig pro Reihe →
-       keine Treppenstufe am Rand. OFF = globale Grid-Ausrichtung mit Stagger. */
-    var fillAdjInfo = _stitchParamBoolInfo(shapes, 'adjustLastStitch', true);
-    html += '<div class="rp-row"><label>Letzter Stich anpassen' + _paramInfoIcon('adjustLastStitch') + '</label><input type="checkbox" class="stitch-param-bool" data-stype="fill" data-sp="adjustLastStitch"' + (fillAdjInfo.value ? ' checked' : '') + '><span class="val">' + (fillAdjInfo.mixed ? 'gemischt' : (fillAdjInfo.value ? 'an' : 'aus')) + '</span></div>';
-  } else if (type === 'running' || type === 'bean') {
-    var lenInfo2 = _stitchParamValueInfo(shapes, 'stitchLength');
-    html += '<div class="rp-row"><label>Stichlaenge' + _paramInfoIcon('stitchLengthLine') + '</label><input type="range" class="stitch-param" data-stype="' + type + '" data-sp="stitchLength" min="1" max="5" value="' + (lenInfo2.value == null ? 2.5 : lenInfo2.value) + '" step="0.1"><span class="val">' + _stitchParamValueText('stitchLength', lenInfo2.value == null ? 2.5 : lenInfo2.value, lenInfo2.mixed) + '</span></div>';
-    if (type === 'bean') {
-      var beanInfo = _stitchParamValueInfo(shapes, 'beanRepeat');
-      html += '<div class="rp-row"><label>Wiederholungen' + _paramInfoIcon('beanRepeat') + '</label><input type="range" class="stitch-param" data-stype="bean" data-sp="beanRepeat" min="1" max="7" value="' + (beanInfo.value == null ? 3 : beanInfo.value) + '" step="2"><span class="val">' + _stitchParamValueText('beanRepeat', beanInfo.value == null ? 3 : beanInfo.value, beanInfo.mixed) + '</span></div>';
-    }
-    var adjInfo = _stitchParamBoolInfo(shapes, 'adjustLastStitch', true);
-    html += '<div class="rp-row"><label>Letzter Stich anpassen' + _paramInfoIcon('adjustLastStitch') + '</label><input type="checkbox" class="stitch-param-bool" data-stype="' + type + '" data-sp="adjustLastStitch"' + (adjInfo.value ? ' checked' : '') + '><span class="val">' + (adjInfo.mixed ? 'gemischt' : (adjInfo.value ? 'an' : 'aus')) + '</span></div>';
-  } else if (type === 'satin' || type === 'zigzag') {
-    var widthInfo = _stitchParamValueInfo(shapes, 'zigzagWidth');
-    var lenInfo3 = _stitchParamValueInfo(shapes, 'stitchLength');
-    html += '<div class="rp-row"><label>Breite' + _paramInfoIcon('zigzagWidth') + '</label><input type="range" class="stitch-param" data-stype="' + type + '" data-sp="zigzagWidth" min="0.5" max="6" value="' + (widthInfo.value == null ? 2.5 : widthInfo.value) + '" step="0.1"><span class="val">' + _stitchParamValueText('zigzagWidth', widthInfo.value == null ? 2.5 : widthInfo.value, widthInfo.mixed) + '</span></div>';
-    html += '<div class="rp-row"><label>Stichlaenge' + _paramInfoIcon('stitchLengthZigzag') + '</label><input type="range" class="stitch-param" data-stype="' + type + '" data-sp="stitchLength" min="0.2" max="3" value="' + (lenInfo3.value == null ? 0.4 : lenInfo3.value) + '" step="0.05"><span class="val">' + _stitchParamValueText('stitchLength', lenInfo3.value == null ? 0.4 : lenInfo3.value, lenInfo3.mixed) + '</span></div>';
-  } else if (type === 'satincol') {
-    var scWidth = _stitchParamValueInfo(shapes, 'zigzagWidth');
-    var scLen = _stitchParamValueInfo(shapes, 'stitchLength');
-    var scUL = _stitchParamValueInfo(shapes, 'satinUnderlay');
-    var scShort = _stitchParamValueInfo(shapes, 'shortStitchInset');
-    /* Winkel nur für geschlossene Satin-FÜLLUNGEN zeigen — dort nutzt
-       _calcClosedSatinFill params.angle. Bei echten 2-Rail-Säulen ist der
-       Winkel bedeutungslos (die Rails geben die Richtung vor), daher ausblenden,
-       statt einen wirkungslosen Regler zu zeigen. */
-    var scAngleShow = false;
-    for (var _si = 0; _si < shapes.length; _si++) {
-      var _ss = shapes[_si];
-      var _noRail2 = !_ss.satinRail2 || _ss.satinRail2.length < 2;
-      var _clsd = !!(_ss.closed || _ss.type === 'rect' || _ss.type === 'ellipse' || _ss.type === 'polygon' || _ss.type === 'star' || _ss.type === 'gear' || _ss.type === 'wheel' || _ss.type === 'svgpath');
-      if (_noRail2 && _clsd) { scAngleShow = true; break; }
-    }
-    if (scAngleShow) {
-      var scAngle = _stitchParamValueInfo(shapes, 'angle');
-      html += '<div class="rp-row"><label>Winkel' + _paramInfoIcon('angle') + '</label><input type="range" class="stitch-param" data-stype="satincol" data-sp="angle" min="0" max="360" value="' + (scAngle.value == null ? 45 : scAngle.value) + '" step="5"><span class="val">' + _stitchParamValueText('angle', scAngle.value == null ? 45 : scAngle.value, scAngle.mixed) + '</span></div>';
-    }
-    html += '<div class="rp-row"><label>Breite</label><input type="range" class="stitch-param" data-stype="satincol" data-sp="zigzagWidth" min="0.5" max="6" value="' + (scWidth.value == null ? 2.5 : scWidth.value) + '" step="0.1"><span class="val">' + (scWidth.mixed ? 'gemischt' : (Number(scWidth.value == null ? 2.5 : scWidth.value).toFixed(1) + ' mm')) + '</span></div>';
-    html += '<div class="rp-row"><label>Zickzack-Abstand</label><input type="range" class="stitch-param" data-stype="satincol" data-sp="stitchLength" min="0.2" max="3" value="' + (scLen.value == null ? 0.4 : scLen.value) + '" step="0.05"><span class="val">' + (scLen.mixed ? 'gemischt' : (Number(scLen.value == null ? 0.4 : scLen.value).toFixed(2) + ' mm')) + '</span></div>';
-    var ulVal = (scUL.value == null ? 'center' : scUL.value);
-    var ulOpts = [['none','Keine'],['center','Mittellinie'],['contour','Kontur'],['zigzag','Zickzack']];
-    html += '<div class="rp-row"><label>Unterlage</label><select class="stitch-param-sel" data-stype="satincol" data-sp="satinUnderlay" style="flex:1;font-size:var(--fs-sm);padding:var(--space-1) var(--space-2);">' + ulOpts.map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === ulVal ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select><span class="val"></span></div>';
-    html += '<div class="rp-row"><label>Kurven-Einzug</label><input type="range" class="stitch-param" data-stype="satincol" data-sp="shortStitchInset" min="0" max="0.5" value="' + (scShort.value == null ? 0.15 : scShort.value) + '" step="0.05"><span class="val">' + (scShort.mixed ? 'gemischt' : (Math.round((scShort.value == null ? 0.15 : scShort.value) * 100) + ' %')) + '</span></div>';
-  }
-
-  html += '</div>';
-  return html;
+    html+='</div>';
+  });
+  profile.notes.forEach(function(note){html+='<div style="font-size:var(--fs-xs);color:var(--fg2);line-height:1.4;margin-top:4px">'+_stitchUiEscape(note)+'</div>';});
+  return html+'</div>';
 }
-
-
 function _stitchUpdateTypeList() {
   var list = document.getElementById('stitchTypeList');
   if (!list || !window.shapes) return;
@@ -36762,8 +36949,8 @@ var _stitchSimView = false;   /* true = simulation-style (white bg, realistic st
    _stitchOffsetSeed: Random-Seed für die Variation. "Neu berechnen" Button
      rolled einen neuen Seed → andere Pattern-freie Verteilung. */
 window._stitchShowAllDots = false;
-window._stitchOffsetAmount = 1.0;  /* vt: Versatz default AN (Nutzer-Wunsch 2026-06-06) — gleichmaessige Blue-Noise-Streuung (golden ratio), bricht die Diagonal-Korridore des linearen Staggers. 0 = lineares 4er-Stagger (abschaltbar via Checkbox). */
-window._stitchOffsetSeed = 1337;  /* fester Default-Seed → reproduzierbares Stickbild ueber Reloads; 🎲 wuerfelt eine andere (gleich gleichmaessige) Verteilung. */
+window._stitchOffsetAmount = _STITCH_OFFSET_DEFAULTS.amount;  /* Versatz standardmässig an. */
+window._stitchOffsetSeed = _STITCH_OFFSET_DEFAULTS.seed;  /* Reproduzierbarer Default-Seed. */
 /* vt: Default-Verbindungsmodus beim Sticken. [durchgehen-default v1] Standard = 'continuous' (Durchgehend) -
    EIN durchgehender Stickpfad fast ohne Spruenge: Parallel via Euler-Reihenfolge, Kontur via Fermat-
    Spirale (Nutzer-Wunsch 2026-06-08; vorher 'jump' seit 2026-06-06). Per Dropdown #dgpFillConnect auf
@@ -37363,12 +37550,13 @@ function _stitchApplyParamsToTargets(type, prop, val) {
   for (var i = 0; i < targets.length; i++) {
     var st = _ensureStitch(targets[i]);
     if (st.type !== type) continue;
-    st.params[prop] = val;
+    if (!_stitchUiSetParam(targets[i], prop, val)) continue;
     st._paramPresetVersion = (type === 'fill' && prop.indexOf('underlay') === 0) ? 4 : 2;
     st._presetTypeApplied = st.type;
     affected.push(targets[i]);
   }
   if (!affected.length) return;
+  if (typeof window._dgpSyncTextStitch === 'function') window._dgpSyncTextStitch();
   _stitchMarkCheckDirty();
   /* [VT-STICK-MANUAL v1] Live-Vorschau aus → Parameter nur speichern, die
      teure Neuberechnung auf den "Berechnen"-Button verschieben (Slicer-Prinzip,
@@ -37482,29 +37670,29 @@ function _stitchAugmentParamRows(container) {
   _stitchUpdateRecalcButtons();
 }
 
-/* Übernimmt einen manuell eingetippten Wert: clampen, auf Slider-Step rasten,
-   Slider + Readout aktualisieren, dann anwenden (respektiert Live-Modus). */
+/* Manuelle Werte bleiben präzise; ungültige Werte werden sichtbar abgelehnt,
+   nicht still auf einen anderen Wert gerundet. Prozent sind nur UI-Einheiten. */
 function _stitchOnManualNumber(num) {
   var row = num.closest('.rp-row');
   var slider = row && row.querySelector('input.stitch-param[type=range]');
   if (!slider) return;
-  var v = parseFloat(num.value);
+  var v = Number(String(num.value).replace(',', '.'));
   if (!isFinite(v)) { num.value = slider.value; return; }
-  var min = parseFloat(slider.min), max = parseFloat(slider.max), step = parseFloat(slider.step);
-  if (isFinite(min) && v < min) v = min;
-  if (isFinite(max) && v > max) v = max;
-  if (isFinite(step) && step > 0 && isFinite(min)) {
-    v = min + Math.round((v - min) / step) * step;
-    v = parseFloat(v.toFixed(4));
+  var min = parseFloat(slider.min), max = parseFloat(slider.max);
+  if (String(num.value).trim()==='' || (isFinite(min)&&v<min) || (isFinite(max)&&v>max) || (slider.getAttribute('data-sp')==='beanRepeat'&&v!==Math.round(v))) {
+    num.setCustomValidity('Wert zwischen '+min+' und '+max+' eingeben.'); num.reportValidity(); return;
   }
+  num.setCustomValidity('');
+  slider.step = num.step = slider.getAttribute('data-sp')==='beanRepeat'?'1':'any';
   slider.value = v;
   num.value = v;
+  var internal = v / (Number(slider.getAttribute('data-scale')) || 1);
   var span = slider.nextElementSibling;
   if (span && span.classList && span.classList.contains('val')) {
-    span.textContent = _stitchParamValueText(slider.getAttribute('data-sp'), v, false);
+    span.textContent = _stitchParamValueText(slider.getAttribute('data-sp'), internal, false);
   }
   _puL('Stich-Parameter'); /* [uxfix v1] manueller Wert committet -> genau ein Undo-Schritt */
-  _stitchApplyParamsToTargets(slider.getAttribute('data-stype'), slider.getAttribute('data-sp'), v);
+  _stitchApplyParamsToTargets(slider.getAttribute('data-stype'), slider.getAttribute('data-sp'), internal);
 }
 
 function _stitchShapesForTargetSpec(spec) {
@@ -37757,11 +37945,11 @@ function _stitchUpdateParamTargetList() {
       if (!_stitchParamUndoPushed) { _puL('Stich-Parameter'); _stitchParamUndoPushed = true; } /* [uxfix v1] Snapshot vor der ersten Wertaenderung -> Slider-Aenderung ist per Ctrl+Z zuruecknehmbar */
       var type = inp.getAttribute('data-stype');
       var prop = inp.getAttribute('data-sp');
-      var val = parseFloat(inp.value);
+      var val = parseFloat(inp.value) / (Number(inp.getAttribute('data-scale')) || 1);
       var span = inp.nextElementSibling;
       if (span) span.textContent = _stitchParamValueText(prop, val, false);
       var numEl = inp.parentNode && inp.parentNode.querySelector('.stitch-param-num');
-      if (numEl) numEl.value = inp.value;
+      if (numEl) { numEl.value = inp.value; numEl.setCustomValidity(''); }
       _stitchApplyParamsToTargets(type, prop, val);
     });
     container.addEventListener('change', function(e) { /* [uxfix v1] Slider losgelassen -> naechster Zieh-Vorgang bekommt wieder einen eigenen Undo-Schritt */
@@ -37799,12 +37987,14 @@ function _stitchUpdateParamTargetList() {
       if (span) span.textContent = val ? 'an' : 'aus';
       _puL('Stich-Parameter'); /* [uxfix v1] Bool-Parameter (z. B. Unterlage) undo-bar */
       _stitchApplyParamsToTargets(type, prop, val);
+      if(prop==='underlay')_stitchUpdateParams();
     });
     container.addEventListener('change', function(e) {
       var sel = e.target.closest && e.target.closest('.stitch-param-sel');
       if (!sel || !container.contains(sel)) return;
       _puL('Stich-Parameter'); /* [uxfix v1] Auswahl-Parameter undo-bar */
       _stitchApplyParamsToTargets(sel.getAttribute('data-stype'), sel.getAttribute('data-sp'), sel.value);
+      if(sel.getAttribute('data-sp')==='satinUnderlay')_stitchUpdateParams();
     });
     /* "Standard laden" quick-fix link for the row-spacing warning. */
     container.addEventListener('click', function(e) {
@@ -37945,9 +38135,9 @@ function _stitchUpdateOrder() {
   var html = '<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:6px;">'
     + '<span style="flex:1;min-width:0;font-size:var(--fs-xs);color:var(--fg2);">Für Simulation und Export. Schloss verbindet alle Bereiche einer Farbe.'
     + ((_hidCount + _hidOutline) ? ' <b style="color:var(--warn-tx,#8a4b08);font-weight:700;">' + (_hidCount + _hidOutline) + ' ' + window.t('ausgeblendet') + '</b>' : '') + '</span>'
-    + '<button id="stitchHideAll" title="' + (_anyHidden ? 'Alle Bereiche wieder einblenden' : 'Alle Bereiche ausblenden (nicht sticken/exportieren)') + '" '
+    + '<button id="stitchHideAll" title="' + (_anyHidden ? 'Alle Füllungen wieder einblenden; Umrisse unverändert' : 'Alle Füllungen ausblenden (nicht sticken/exportieren); Umrisse unverändert') + '" '
     + 'style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 var(--space-2);border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;font-size:var(--fs-2xs);color:var(--fg2);line-height:1;white-space:nowrap;">'
-    + (_anyHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '<span>Alle</span></button>'
+    + (_anyHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '<span>Füllungen</span></button>'
     + '</div>';
 
   for (var i = 0; i < ordered.length; i++) {
@@ -38023,7 +38213,9 @@ function _stitchUpdateOrder() {
 
     /* [VT-STITCHHIDE v1] Auge: diese eine Zeile aus-/einblenden (nicht sticken/exportieren) */
     var _rowHidden = !!st.hidden;
-    html += '<button class="stitch-row-hide" data-sid="' + s.id + '" aria-pressed="' + (_rowHidden ? 'true' : 'false') + '" aria-label="' + (_rowHidden ? 'Ausgeblendet, klicken zum Einblenden' : 'Ausblenden (nicht sticken/exportieren)') + '" title="' + (_rowHidden ? 'Ausgeblendet, klicken zum Einblenden' : 'Ausblenden (nicht sticken/exportieren)') + '" style="flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;color:var(--fg2);display:flex;align-items:center;justify-content:center;line-height:1;">' + (_rowHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '</button>';
+    var _rowHideLabel = (typeof _stitchOutlineColorFor === 'function' && _stitchOutlineColorFor(s)) ? 'Füllung' : 'Bereich';
+    var _rowHideTitle = _rowHideLabel + (_rowHidden ? ' einblenden' : ' ausblenden (nicht sticken/exportieren)') + (_rowHideLabel === 'Füllung' ? '; separater Umriss unverändert' : '');
+    html += '<button class="stitch-row-hide" data-sid="' + s.id + '" aria-pressed="' + (_rowHidden ? 'true' : 'false') + '" aria-label="' + _rowHideTitle + '" title="' + _rowHideTitle + '" style="flex-shrink:0;width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--white);cursor:pointer;color:var(--fg2);display:flex;align-items:center;justify-content:center;line-height:1;">' + (_rowHidden ? _EYE_OFF_SVG : _EYE_ON_SVG) + '</button>';
 
     /* [stickui-klar v3] Umriss-Auge: der andersfarbige Umriss ist ein eigener
        Farbblock und laesst sich separat ausblenden. Farbiger Unterstrich = Umrissfarbe.
@@ -38291,38 +38483,33 @@ function _stitchUpdateOrder() {
    Änderungen wirken auf die Shape ODER ihre komplette Lock-Gruppe und
    triggern Recalc + (falls offen) DST-Auto-Recalc. */
 
-/* Parameter-Schema je Stichtyp: [key, label, min, max, step, unit, decimals] */
-var _STITCH_GEAR_PARAMS = {
-  fill: [
-    ['angle',            'Winkel',       0,   180, 5,    '°',  0],
-    ['rowSpacing',       'Zeilenabstand',0.1, 3.0, 0.01, 'mm', 2], /* [uxfix v1] max 0.8->3.0 = deckt den Bereich des rechten Panels (max 3), sonst klemmt das Zahnrad einen dort gesetzten Wert still auf 0.8 */
-    ['stitchLength',     'Stichlänge',   1.0, 6.0, 0.1,  'mm', 1],
-    ['pullCompensation', 'Pull-Komp.',   -0.5,2.0, 0.01, 'mm', 2] /* [uxfix v1] max 0.5->2.0 = deckt den Bereich des rechten Panels (max 2), sonst klemmt das Zahnrad einen dort gesetzten Wert still auf 0.5 */
-  ],
-  satin: [
-    ['zigzagWidth',  'Breite',     0.5, 8.0, 0.1,  'mm', 1],
-    ['stitchLength', 'Stichlänge', 0.2, 3.0, 0.05, 'mm', 2]
-  ],
-  /* [uxfix v1] F17: satincol (Auto-Typ für Linien/Konturen ab 0.8 mm Strichbreite) hatte
-     keinen Eintrag -> Zahnrad-Popover war leer. Werte spiegeln das rechte Panel (Z.30224 ff.). */
-  satincol: [
-    ['angle',            'Winkel',        0,   360, 5,    '°',  0],
-    ['zigzagWidth',      'Breite',        0.5, 6.0, 0.1,  'mm', 1],
-    ['stitchLength',     'Zickzack-Abst.',0.2, 3.0, 0.05, 'mm', 2],
-    ['shortStitchInset', 'Kurven-Einzug', 0,   0.5, 0.05, 'mm', 2]
-  ],
-  zigzag: [
-    ['zigzagWidth',  'Breite',     0.5, 8.0, 0.1,  'mm', 1],
-    ['stitchLength', 'Stichlänge', 0.2, 3.0, 0.05, 'mm', 2]
-  ],
-  running: [
-    ['stitchLength', 'Stichlänge', 1.0, 6.0, 0.1, 'mm', 1]
-  ],
-  bean: [
-    ['stitchLength', 'Stichlänge', 1.0, 6.0, 0.1, 'mm', 1],
-    ['beanRepeat',   'Wiederholungen', 2, 7, 1, '×', 0]
-  ]
-};
+/* Same mode-specific schema as the sidebar: opening a gear never changes data. */
+function _stitchUiGearBody(profile, members) {
+  var body='<div style="display:grid;grid-template-columns:minmax(82px,auto) minmax(35px,1fr) auto;gap:var(--space-2) var(--space-3);align-items:center;">';
+  profile.params.forEach(function(rule){
+    var values=members.map(function(s){return _stitchUiParamValue(s,rule);}),v=values[0],mixed=values.some(function(x){return x!==v;});
+    var help=rule.key==='stitchLength'&&rule.label.indexOf('Reihenabstand')>=0?'satinPitch':rule.key;
+    body+='<label style="font-weight:600;color:var(--fg);">'+_stitchUiEscape(rule.label)+_paramInfoIcon(help)+'</label>';
+    if(rule.kind==='bool') {
+      body+='<input class="stitch-gear-bool" data-key="'+rule.key+'" type="checkbox"'+(v?' checked':'')+' style="accent-color:var(--ac);justify-self:start;"><span style="font-size:var(--fs-xs);color:var(--fg2)">'+(mixed?'gemischt':v?'an':'aus')+'</span>';
+    } else if(rule.kind==='select') {
+      body+='<select class="stitch-gear-select" data-key="'+rule.key+'" style="grid-column:span 2;min-width:0;font-size:var(--fs-sm);">';
+      if(mixed)body+='<option value="" selected disabled>gemischt</option>';
+      rule.options.forEach(function(o){body+='<option value="'+o[0]+'"'+(!mixed&&o[0]===v?' selected':'')+'>'+_stitchUiEscape(o[1])+'</option>';});body+='</select>';
+    } else {
+      var range=_stitchUiNumberRange(rule,values),display=Number((v*(rule.scale||1)).toFixed(6));
+      var common=' data-key="'+rule.key+'" data-scale="'+(rule.scale||1)+'" min="'+range.min+'" max="'+range.max+'" step="'+range.step+'"';
+      body+='<input class="stitch-gear-slider"'+common+' type="range" value="'+display+'" style="min-width:0;width:100%;accent-color:var(--ac);" aria-label="'+_stitchUiEscape(rule.label)+(mixed?' (gemischt)':'')+'">';
+      body+='<span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">'
+        +'<input class="stitch-gear-num"'+common+' type="number" value="'+(mixed?'':display)+'" placeholder="'+(mixed?'gemischt':'')+'" aria-label="'+_stitchUiEscape(rule.label)+(mixed?' (gemischt)':'')+'" '
+        +'style="width:'+(mixed?58:48)+'px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;padding:1px 3px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--white);">'
+        +'<span style="color:var(--fg3);min-width:14px;">'+rule.unit+'</span></span>';
+    }
+  });
+  body+='</div>';
+  profile.notes.forEach(function(note){body+='<div style="font-size:var(--fs-xs);color:var(--fg2);line-height:1.4;margin-top:5px">'+_stitchUiEscape(note)+'</div>';});
+  return body;
+}
 
 function _stitchGearClose() {
   var pop = document.getElementById('stitchGearPopover');
@@ -38336,7 +38523,7 @@ function _stitchGearOutside(e) {
   }
 }
 
-function _stitchOpenGearPopover(sid, anchorEl) {
+function _stitchOpenGearPopover(sid, anchorEl, pending) {
   _stitchGearClose();
   var sh = (window.shapes || []).find(function (x) { return x.id === sid; });
   if (!sh) return;
@@ -38348,47 +38535,25 @@ function _stitchOpenGearPopover(sid, anchorEl) {
   }
   var members = _stitchLockGroupMembers(sh);
   var isGroup = members.length > 1;
-  var params = _STITCH_GEAR_PARAMS[type] || [];
+  var editableMembers = members.filter(function(s){return s.stitch && s.stitch.type===type;});
+  var profile = _stitchUiSharedProfile(editableMembers);
 
   var pop = document.createElement('div');
   pop.id = 'stitchGearPopover';
-  pop.style.cssText = 'position:fixed;z-index:10002;width:252px;background:var(--white);border:1px solid var(--ac);'
-    + 'border-radius:var(--radius-md);box-shadow:0 8px 28px rgba(0,0,0,0.22);padding:var(--space-5) var(--space-6);font-size:var(--fs-sm);';
+  pop.style.cssText = 'position:fixed;z-index:10002;width:280px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto;background:var(--white);border:1px solid var(--ac);'
+    + 'border-radius:var(--radius-md);box-shadow:0 8px 28px rgba(0,0,0,0.22);padding:var(--space-4) var(--space-5);font-size:var(--fs-sm);';
 
   var hdr = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'
-    + '<span style="font-weight:700;color:var(--ac);">⚙ ' + (STITCH_TYPES[type] ? STITCH_TYPES[type].label : type)
-    + (isGroup ? ' · Gruppe (' + members.length + ')' : ' · #' + sid) + '</span>'
+    + '<span style="font-weight:700;color:var(--ac);">⚙ ' + _stitchUiEscape(profile.label)
+    + (isGroup ? ' · Gruppe (' + editableMembers.length + ')' : ' · #' + sid) + '</span>'
     + '<button id="stitchGearCloseBtn" style="border:none;background:none;cursor:pointer;font-size:var(--fs-lg);color:var(--fg3);padding:0 var(--space-1);">&times;</button>'
     + '</div>';
 
-  var body = '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:var(--space-3) var(--space-4);align-items:center;">';
-  for (var i = 0; i < params.length; i++) {
-    var pdef = params[i];
-    var key = pdef[0], lbl = pdef[1], mn = pdef[2], mx = pdef[3], stp = pdef[4], unit = pdef[5], dec = pdef[6];
-    var val = isFinite(st.params[key]) ? Number(st.params[key]) : mn;
-    var numTxt = (dec > 0 ? val.toFixed(dec) : Math.round(val));
-    body += '<label style="font-weight:600;color:var(--fg);">' + lbl + '</label>';
-    body += '<input class="stitch-gear-slider" data-key="' + key + '" data-dec="' + dec + '" data-unit="' + unit + '" '
-      + 'type="range" min="' + mn + '" max="' + mx + '" step="' + stp + '" value="' + val + '" style="accent-color:var(--ac);">';
-    /* [VT-STICK-MANUAL v1] Editierbares Zahlenfeld statt reinem Readout. */
-    body += '<span style="display:flex;align-items:center;gap:3px;justify-content:flex-end;">'
-      + '<input class="stitch-gear-num" data-key="' + key + '" data-dec="' + dec + '" type="number" min="' + mn + '" max="' + mx + '" step="' + stp + '" value="' + numTxt + '" aria-label="' + lbl + '" '
-      + 'style="width:46px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;padding:1px 3px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--white);">'
-      + '<span style="color:var(--fg3);min-width:14px;">' + unit + '</span>'
-      + '</span>';
-  }
-  body += '</div>';
-
-  /* Underlay nur bei fill */
-  if (type === 'fill') {
-    var ulOn = st.params.underlay !== false;
-    body += '<label style="display:flex;align-items:center;gap:var(--space-3);margin-top:8px;cursor:pointer;font-weight:600;color:var(--fg);">'
-      + '<input id="stitchGearUnderlay" type="checkbox"' + (ulOn ? ' checked' : '') + ' style="cursor:pointer;"> Underlay</label>';
-  }
+  var body = _stitchUiGearBody(profile, editableMembers);
 
   /* [VT-STICK-MANUAL v1] Live-Vorschau-Schalter + Berechnen-Button (Slicer-Prinzip). */
   var ctrl = '<div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:8px;">'
-    + '<label style="display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--fg2);cursor:pointer;white-space:nowrap;" title="Bei jeder Änderung sofort neu berechnen. Aus = erst auf Berechnen.">'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--fg2);cursor:pointer;white-space:nowrap;" title="Sofort berechnen, wenn auch Auto aktiv ist. Bei Auto aus: erst mit Berechnen anwenden.">'
     + '<input type="checkbox" class="stitch-gear-live" style="accent-color:var(--ac);">Live-Vorschau</label>'
     + '<button type="button" class="stitch-gear-recalc" style="margin-left:auto;font-size:var(--fs-xs);font-weight:700;padding:2px 10px;border:1px solid var(--ac);border-radius:var(--radius-sm);background:var(--ac);color:#fff;cursor:pointer;white-space:nowrap;">Berechnen</button>'
     + '</div>';
@@ -38398,7 +38563,7 @@ function _stitchOpenGearPopover(sid, anchorEl) {
 
   /* Position: rechts neben/unter dem Anchor, im Viewport halten */
   var r = anchorEl.getBoundingClientRect();
-  var pw = 252, ph = pop.offsetHeight || 200;
+  var pw = pop.offsetWidth || 280, ph = pop.offsetHeight || 200;
   var left = r.left - pw - 6;                 /* links vom Zahnrad (Liste ist rechts) */
   if (left < 8) left = r.right + 6;
   var top = r.top;
@@ -38412,11 +38577,11 @@ function _stitchOpenGearPopover(sid, anchorEl) {
     try { window._stitchLiveApply = localStorage.getItem('vt_stitch_live') !== '0'; }
     catch (eLS) { window._stitchLiveApply = true; }
   }
-  var _gearPending = false;
-  function _gearLive() { return window._stitchLiveApply !== false; }
+  var _gearPending = !!pending || editableMembers.some(function(s){return (window._stitchPendingShapes||[]).indexOf(s)>=0;});
+  function _gearLive() { return window._stitchLiveApply !== false && window._dstvAutoRecalc !== false; }
   function _gearUpdateBtn() {
     var live = _gearLive();
-    var lc = pop.querySelector('.stitch-gear-live'); if (lc) lc.checked = live;
+    var lc = pop.querySelector('.stitch-gear-live'); if (lc) { lc.checked = live; lc.disabled = window._dstvAutoRecalc === false; }
     var rb = pop.querySelector('.stitch-gear-recalc');
     if (rb) {
       rb.style.display = live ? 'none' : '';
@@ -38431,6 +38596,8 @@ function _stitchOpenGearPopover(sid, anchorEl) {
     finally { _stitchBusyHide(); }
     _stitchRenderPreview();
     _stitchUpdateOrder();
+    window._stitchPendingShapes=(window._stitchPendingShapes||[]).filter(function(s){return editableMembers.indexOf(s)<0;});
+    if(typeof _stitchUpdateRecalcButtons==='function')_stitchUpdateRecalcButtons();
     /* DST-Auto-Recalc */
     try {
       if (window._dstvAutoRecalc !== false) {
@@ -38446,56 +38613,80 @@ function _stitchOpenGearPopover(sid, anchorEl) {
     for (var m = 0; m < members.length; m++) {
       var mst = _ensureStitch(members[m]);
       if (mst.type !== type) continue;
-      mst.params[key] = value;
+      if (!_stitchUiSetParam(members[m], key, value)) continue;
       mst._needleCacheKey = '';
       /* Pending-Modus: alte Stiche sichtbar lassen, bis Berechnen läuft. */
       if (live) mst.needlePoints = [];
     }
     _stitchMarkCheckDirty();
-    if (!live) { _gearPending = true; _gearUpdateBtn(); return; }
+    if (typeof window._dgpSyncTextStitch === 'function') window._dgpSyncTextStitch();
+    if (!live) {
+      window._stitchPendingShapes=window._stitchPendingShapes||[];
+      editableMembers.forEach(function(s){if(window._stitchPendingShapes.indexOf(s)<0)window._stitchPendingShapes.push(s);});
+      _gearPending = true; _gearUpdateBtn();
+      if(typeof _stitchUpdateRecalcButtons==='function')_stitchUpdateRecalcButtons();
+      return;
+    }
     _gearRecalcMembers();
   }
-  function _gearDoRecalc() { _gearPending = false; _gearRecalcMembers(); _gearUpdateBtn(); }
+  function _gearDoRecalc() {
+    _gearPending = false; _gearRecalcMembers(); _gearUpdateBtn();
+    var dm=document.getElementById('dstvModal');
+    if(dm&&dm.classList.contains('open')&&typeof window._dstvReloadFromLinea==='function')window._dstvReloadFromLinea();
+  }
 
   pop.querySelectorAll('.stitch-gear-slider').forEach(function (sl) {
     sl.addEventListener('change', function () { _stitchParamUndoPushed = false; }); /* [uxfix v1] Zieh-Vorgang beendet -> naechster bekommt eigenen Undo-Schritt */
     sl.addEventListener('input', function () {
       if (!_stitchParamUndoPushed) { _puL('Stich-Parameter'); _stitchParamUndoPushed = true; } /* [uxfix v1] Snapshot vor erster Wertaenderung im Zahnrad-Popover */
       var key = this.getAttribute('data-key');
-      var dec = parseInt(this.getAttribute('data-dec'), 10) || 0;
       var v = parseFloat(this.value);
       var numEl = pop.querySelector('.stitch-gear-num[data-key="' + key + '"]');
-      if (numEl) numEl.value = (dec > 0 ? v.toFixed(dec) : Math.round(v));
-      applyGear(key, v);
+      if (numEl) { numEl.value=v; numEl.setCustomValidity(''); numEl.placeholder=''; }
+      applyGear(key, v / (Number(this.getAttribute('data-scale')) || 1));
     });
   });
-  /* [VT-STICK-MANUAL v1] Manuelle Zahleneingabe je Parameter (clampen + auf Step rasten). */
+  /* Precision-preserving manual values. Invalid input is reported, not clamped. */
   pop.querySelectorAll('.stitch-gear-num').forEach(function (num) {
     num.addEventListener('change', function () {
       var key = this.getAttribute('data-key');
-      var dec = parseInt(this.getAttribute('data-dec'), 10) || 0;
       var sl = pop.querySelector('.stitch-gear-slider[data-key="' + key + '"]');
-      var v = parseFloat((this.value || '').replace(',', '.')); /* [uxfix v1] Dezimal-Komma akzeptieren (CH-Tastatur), sonst NaN bei nicht-de Locale */
-      var mn = parseFloat(this.min), mx = parseFloat(this.max), stp = parseFloat(this.step);
-      if (!isFinite(v)) { this.value = sl ? (dec > 0 ? parseFloat(sl.value).toFixed(dec) : Math.round(parseFloat(sl.value))) : ''; return; }
-      if (isFinite(mn) && v < mn) v = mn;
-      if (isFinite(mx) && v > mx) v = mx;
-      if (isFinite(stp) && stp > 0 && isFinite(mn)) { v = mn + Math.round((v - mn) / stp) * stp; v = parseFloat(v.toFixed(4)); }
-      this.value = (dec > 0 ? v.toFixed(dec) : Math.round(v));
-      if (sl) sl.value = v;
+      var v = Number(String(this.value).replace(',', '.'));
+      var mn = parseFloat(this.min), mx = parseFloat(this.max);
+      if (String(this.value).trim()==='' || !isFinite(v) || (isFinite(mn)&&v<mn) || (isFinite(mx)&&v>mx) || (key==='beanRepeat'&&v!==Math.round(v))) {
+        this.setCustomValidity('Wert zwischen '+mn+' und '+mx+' eingeben.'); this.reportValidity(); return;
+      }
+      this.setCustomValidity(''); this.placeholder='';
+      this.step=key==='beanRepeat'?'1':'any';
+      this.value = v;
+      if (sl) { sl.step=this.step; sl.value=v; }
       _puL('Stich-Parameter'); /* [uxfix v1] manueller Zahnrad-Wert undo-bar */
-      applyGear(key, v);
+      applyGear(key, v / (Number(this.getAttribute('data-scale')) || 1));
     });
-    num.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); this.blur(); } });
+    num.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+      if (e.key === 'Escape') { var sl=pop.querySelector('.stitch-gear-slider[data-key="'+this.getAttribute('data-key')+'"]'); this.value=this.placeholder?'':sl?sl.value:this.value; this.setCustomValidity(''); }
+    });
   });
-  var ulCb = document.getElementById('stitchGearUnderlay');
-  if (ulCb) ulCb.addEventListener('change', function () { _puL('Stich-Parameter'); applyGear('underlay', this.checked); }); /* [uxfix v1] Unterlage-Toggle undo-bar */
+  pop.querySelectorAll('.stitch-gear-bool,.stitch-gear-select').forEach(function(input){
+    input.addEventListener('change',function(){
+      _puL('Stich-Parameter');
+      applyGear(this.getAttribute('data-key'),this.type==='checkbox'?this.checked:this.value);
+      _stitchOpenGearPopover(sid,{getBoundingClientRect:function(){return r;}},_gearPending);
+    });
+  });
+  pop.addEventListener('keydown',function(e){
+    if(e.key!=='Escape')return;
+    e.preventDefault();e.stopPropagation();_stitchGearClose();
+    if(anchorEl&&typeof anchorEl.focus==='function'&&anchorEl.isConnected)anchorEl.focus();
+    else { var current=document.querySelector('.stitch-row-gear[data-sid="'+sid+'"]');if(current)current.focus(); }
+  });
 
   var _gearLiveCb = pop.querySelector('.stitch-gear-live');
   if (_gearLiveCb) _gearLiveCb.addEventListener('change', function () {
     window._stitchLiveApply = !!this.checked;
     try { localStorage.setItem('vt_stitch_live', this.checked ? '1' : '0'); } catch (e) {}
-    if (this.checked && _gearPending) _gearDoRecalc();
+    if (_gearLive() && _gearPending) _gearDoRecalc();
     else _gearUpdateBtn();
   });
   var _gearRecalcBtn = pop.querySelector('.stitch-gear-recalc');
@@ -38851,6 +39042,7 @@ window._spiegelTrimUI = function() {
   var row = document.getElementById('stitchTrimRow'); if (row) row.style.display = en ? 'flex' : 'none';
 };
 window._changeTrim = function(enabled, mmv) {
+  if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
   if (!window._dstTrimSettings) window._dstTrimSettings = { enabled: true, thresholdMM: DST_TRIM_DEFAULT_MM }; /* [VT-STITCH-F7 v1] war 10 */
   if (enabled === true || enabled === false) window._dstTrimSettings.enabled = enabled;
   if (isFinite(mmv)) window._dstTrimSettings.thresholdMM = mmv;
@@ -39023,7 +39215,45 @@ window._stitchExportDstBody = _stitchExportDstBody;
 /* skipDownload=true: nur rechnen + window._lastExportData befuellen, KEIN
    DST-Download und kein Viewer-Auto-Open. Wird vom PES-Export genutzt, damit
    nur das gewaehlte Format heruntergeladen wird. */
-function _stitchExportDstBody(skipDownload) {
+/* The viewer and every download use the same centred, rounded frame contour.
+   Points are the quantized stitch plan (including jump destinations), not only
+   the rectangular design bounds. 0.1 mm is the existing viewer tolerance. */
+function _stitchHoopCheck(points, hoop, unitsPerMM) {
+  var units = unitsPerMM || 10;
+  if (!hoop || !(hoop.wMM > 0) || !(hoop.hMM > 0) || !isFinite(hoop.wMM) || !isFinite(hoop.hMM)) return { available: false, ok: true };
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, count = 0;
+  for (var i = 0; i < (points || []).length; i++) {
+    var p = points[i];
+    if (!p || !isFinite(p.x) || !isFinite(p.y)) continue;
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); count++;
+  }
+  if (!count) return { available: false, ok: true };
+  var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  var hw = hoop.wMM / 2, hh = hoop.hMM / 2;
+  var radius = Math.max(0, Math.min(isFinite(hoop.rMM) ? hoop.rMM : 0, hw, hh));
+  var outside = 0, toleranceMM = 0.1;
+  for (var j = 0; j < points.length; j++) {
+    var q = points[j];
+    if (!q || !isFinite(q.x) || !isFinite(q.y)) continue;
+    var ax = Math.abs(q.x - cx) / units, ay = Math.abs(q.y - cy) / units;
+    var dx = Math.max(0, ax - (hw - radius)), dy = Math.max(0, ay - (hh - radius));
+    if (ax > hw + toleranceMM || ay > hh + toleranceMM ||
+        (radius > 0 && Math.hypot(dx, dy) > radius + toleranceMM)) outside++;
+  }
+  return { available: true, ok: outside === 0, outsideCount: outside,
+    widthMM: (maxX - minX) / units, heightMM: (maxY - minY) / units, toleranceMM: toleranceMM };
+}
+window._stitchHoopCheck = _stitchHoopCheck;
+function _stitchConfirmHoop(points) {
+  var hoop = typeof window._currentHoopShape === 'function' ? window._currentHoopShape() : null;
+  var check = _stitchHoopCheck(points, hoop, 10);
+  if (!check.available || check.ok) return true;
+  return window.confirm(window.t('Die Stickerei liegt teilweise ausserhalb der Rahmenkontur') + ' (' +
+    Math.round(check.widthMM) + ' × ' + Math.round(check.heightMM) + ' mm; ' + window.t('Rahmen') + ': ' +
+    Math.round(hoop.wMM) + ' × ' + Math.round(hoop.hMM) + ' mm). ' + window.t('Trotzdem exportieren?'));
+}
+function _stitchExportDstBody(skipDownload, exportOptions) {
   if(window._vtAssertTextFonts)window._vtAssertTextFonts(window.shapes);
   /* Reset Jump-Report — wird vom DST-Encoding-Loop befüllt pro Inter-Run/
      Inter-Shape Jump. Im DST-Viewer-Sidebar als Liste sichtbar. */
@@ -39643,29 +39873,15 @@ function _stitchExportDstBody(skipDownload) {
   data.set(new Uint8Array(stitchBytes), 512);
   /* skipDownload (PES-Pfad): nur _lastExportData zaehlt, kein DST-File. */
   if (skipDownload) return;
-  /* [uxfix v1] G1: Rahmen-Ueberlauf war nur als dezentes ⚠ im Viewer sichtbar, der
-     Export lief kommentarlos durch. Vor dem Download gegen den aktuellen Stickrahmen
-     pruefen (halfW/halfH = Design-Halbextents in DST-Units 0.1mm; 1mm Toleranz wie im
-     Viewer-Overlay) und bei Ueberlauf rueckfragen. */
-  try {
-    var _hoop = (typeof window._currentHoopShape === 'function') ? window._currentHoopShape() : null;
-    if (_hoop && _hoop.wMM > 0 && _hoop.hMM > 0) {
-      var _dwMM = (halfW * 2) / 10, _dhMM = (halfH * 2) / 10;
-      if (_dwMM > _hoop.wMM + 1 || _dhMM > _hoop.hMM + 1) {
-        if (!confirm(window.t('Die Stickerei ist grösser als der Stickrahmen') + ' ('
-            + Math.round(_dwMM) + ' × ' + Math.round(_dhMM) + ' mm > '
-            + Math.round(_hoop.wMM) + ' × ' + Math.round(_hoop.hMM) + ' mm). '
-            + window.t('Trotzdem exportieren?'))) return;
-      }
-    }
-  } catch (eHoop) { /* Rahmenpruefung darf den Export nie blockieren */ }
+  /* Preview is published by its revision-bound loader and never asks to export. */
+  if (!(exportOptions && exportOptions.preview) && !_stitchConfirmHoop(dstPts)) return;
   var blob = new Blob([data], { type: 'application/octet-stream' });
   /* [uxfix v1] Dokumentname im Dateinamen, damit mehrere Stickdateien unterscheidbar bleiben. */
   var _dstName = ((docName || 'vektortool-stickerei').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-stickerei') + '.dst';
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = _dstName; a.click();
   /* Auto-Open im integrierten DST-Viewer: gleicher Buffer, kein zweiter
      Klick nötig. Hook ist im DST-Viewer-IIFE auf window exponiert. */
-  if (typeof window._dstvAutoOpenWithBuffer === 'function') {
+  if (!(exportOptions && exportOptions.preview) && typeof window._dstvAutoOpenWithBuffer === 'function') {
     window._dstvAutoOpenWithBuffer(data.buffer.slice(0), _dstName);
   }
 }
@@ -39727,6 +39943,7 @@ function _stitchExportPesBody(fmt) {
     return;
   }
 
+  if (!_stitchConfirmHoop(ed.dstPts)) return;
   var out = [];                 /* Byte-Array */
   function u8(v){ out.push(v & 0xFF); }
   function str(s){ for (var i=0;i<s.length;i++) out.push(s.charCodeAt(i) & 0xFF); }
@@ -39885,6 +40102,7 @@ function _stitchExportExpBody() {
     window._vtToast(window.t('Kein Stickmuster vorhanden — erst Formen mit Stichtypen anlegen.'));
     return;
   }
+  if (!_stitchConfirmHoop(ed.dstPts)) return;
   var out = [];
   function sb(v){ out.push(v < 0 ? (v + 256) & 0xFF : v & 0xFF); }
   function stitch(dx,dy){ sb(dx); sb(dy); }
@@ -40074,6 +40292,10 @@ function _simUpdateProgress(idx, total) {
     line: { rowSpacing: 0.40, stitchLength: 3.0 },
     area: { rowSpacing: 0.30, stitchLength: 3.0 }
   };
+  if (Object.prototype.hasOwnProperty.call(window, '_vtPendingStitchSettings')) {
+    window._vtRestoreStitchProjectSettings(window._vtPendingStitchSettings);
+    delete window._vtPendingStitchSettings;
+  }
   window._v44BulkSetParamCat = function (cat, paramName, value) {
     var ss = (typeof window !== 'undefined' && window.shapes) ? window.shapes : null;
     if (!ss || !ss.length) return 0;
@@ -40208,6 +40430,7 @@ function _simUpdateProgress(idx, total) {
     gpLock.checked = !(window._stitchGlobal && window._stitchGlobal.lockEnabled === false);
     gpLock.addEventListener('change', function() {
       if (window._stitchGlobal) window._stitchGlobal.lockEnabled = this.checked;
+      if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
     });
   }
   /* Spitzen glätten (De-Comb) — globaler Schalter. Wirkt auf die needlePoints
@@ -40218,6 +40441,7 @@ function _simUpdateProgress(idx, total) {
     gpDeComb.checked = !(window._stitchGlobal && window._stitchGlobal.deComb === false);
     gpDeComb.addEventListener('change', function() {
       if (window._stitchGlobal) window._stitchGlobal.deComb = this.checked;
+      if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
       var ss = window.shapes || [];
       for (var i = 0; i < ss.length; i++) { if (ss[i].stitch) { ss[i].stitch._needleCacheKey = ''; ss[i]._stitchFillGeomCache = null; } }
       if (typeof _stitchRecalcAll === 'function') _stitchRecalcAll();
@@ -40238,6 +40462,7 @@ function _simUpdateProgress(idx, total) {
       var v = parseFloat(this.value) || 0.3;
       gpMinV.textContent = v.toFixed(2) + ' mm';
       if (window._stitchGlobal) window._stitchGlobal.minStitchLenUnits = Math.round(v * 10);
+      if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
     });
   }
 
@@ -41046,7 +41271,7 @@ window.__LINEA_DEBUG__ = {
       <button data-mode="2d" class="dstv-active">2D Linien</button><!-- VT-STICKBEGRIFFE v1: deutsche, laienverstaendliche Ansichts-Labels -->
       <button data-mode="3d">3D Garn</button>
     </div>
-    <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Sprung-Fäden zwischen den Bereichen anzeigen"><input type="checkbox" id="dstvShowJumps" checked style="accent-color:var(--ac);margin:0;"> Sprünge</label>
+    <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nadelbewegungen, keine Garantie für einen Fadenschnitt."><input type="checkbox" id="dstvShowJumps" checked style="accent-color:var(--ac);margin:0;"> Sprünge</label>
     <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Jeden Stich als Punkt markieren"><input type="checkbox" id="dstvShowDots" checked style="accent-color:var(--ac);margin:0;"> Stich-Punkte</label>
     <!-- [stickui-dots v1] "Reset" (Ansicht zuruecksetzen) aus der Topbar in den Sidebar-Kopf (#dstvGpHeadActions) verschoben - Lukas: zuruecksetzen oben in sidebar. -->
     <button id="dstvInfoBtn" title="Design-Statistiken (I)" style="font-weight:700;">&#x2139; Info</button>
@@ -41092,7 +41317,7 @@ window.__LINEA_DEBUG__ = {
            Stil + Verbindung bleiben gekoppelt im Gemeinsam-Block unten (Radio-Kacheln + Kontur-Sperre). -->
 
       <!-- [VT-TOPBAND v1] Aktionsband ganz oben (Lukas): Zurücksetzen/Neu berechnen/Auto links; der Schliessen-X (#stitchPanelCloseX, schwebt absolut) sitzt rechts darauf; vollbreit bis zum rechten Rand (negative Margins). padding-right haelt die Buttons vom X frei. -->
-      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><!-- [stickui-klar v1] Reihenfolge: Auto-Vorschau zuerst (Normalfall), Neu berechnen sekundaer (Primaer-Gewicht gehoert dem Export), Zuruecksetzen als destruktive Aktion rot und rechts aussen --><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto-Vorschau</span></label><button id="dstvManualRecalc" class="stitch-recalc-inline" title="Jetzt neu berechnen (unabhängig von Auto-Vorschau)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--white);color:var(--dstv-primary);cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><button id="dstvResetView" title="Alle Stick-Einstellungen auf Standard zur&uuml;cksetzen (kein Undo) - nur Zoom: Taste R" style="margin-left:auto;font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--red);border-radius:var(--radius-xs);background:var(--white);color:var(--red);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Alles zur&uuml;cksetzen</button></div>
+      <div id="dstvGpHeadActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:calc(var(--space-3) * -1) calc(var(--space-6) * -1) 0;padding:var(--space-2) 46px var(--space-2) var(--space-6);background:var(--white);border-bottom:1px solid var(--border);"><!-- [stickui-klar v1] Reihenfolge: Auto-Vorschau zuerst (Normalfall), Neu berechnen sekundaer (Primaer-Gewicht gehoert dem Export), Zuruecksetzen als destruktive Aktion rot und rechts aussen --><label class="stitch-recalc-inline" style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-weight:600;color:var(--fg);font-size:var(--fs-sm);" title="Bei jeder Änderung automatisch neu berechnen"><input id="dstvAutoRecalc" type="checkbox" checked style="cursor:pointer;"><span>Auto-Vorschau</span></label><button id="dstvManualRecalc" class="stitch-recalc-inline" title="Jetzt neu berechnen (unabhängig von Auto-Vorschau)" style="font-size:var(--fs-sm);padding:var(--space-2) var(--space-5);border:1px solid var(--dstv-primary);border-radius:var(--radius-xs);background:var(--white);color:var(--dstv-primary);cursor:pointer;font-weight:700;">&#x21BB; Neu berechnen</button><button id="dstvResetView" title="Stickparameter aller Texte, Linien und Flächen sowie globale Exportparameter zurücksetzen; Reihenfolge, Sichtbarkeit und Farbgruppen bleiben erhalten (kein Undo). Nur Zoom: Taste R" style="margin-left:auto;font-size:var(--fs-sm);padding:var(--space-2) var(--space-4);border:1px solid var(--red);border-radius:var(--radius-xs);background:var(--white);color:var(--red);cursor:pointer;font-weight:600;white-space:nowrap;">&#x21BA; Parameter zurücksetzen</button></div>
 
       <!-- Sektion FLAECHEN (Fuellstich) -->
       <div id="dgpAreaSection" style="margin-bottom:0;">
@@ -41242,6 +41467,7 @@ window.__LINEA_DEBUG__ = {
         <h4 id="dgpTextSectionTitle" class="dgp-reiter" title="Text-Einstellungen ein-/ausklappen">
           <span id="dgpTextCaret" style="font-size:var(--fs-xs);transition:transform 0.15s;display:inline-block;min-width:12px;">▾</span>
           <span>Text <span style="font-weight:400;color:var(--fg2);">(Satin, Tatami oder Längs)</span></span>
+          <span id="dgpTextScope" style="margin-left:auto;font-size:var(--fs-xs);font-weight:400;color:var(--fg2);">Alle Texte</span>
         </h4>
         <div id="dgpTextBody" style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
           <!-- [VT-TEXT-SATIN v1] Text-Stickart: Satin=echte Satin-Saeulen, Tatami=Flaechenfuellung, Laengs=Reihen laengs der Schrift. Gilt fuer alle Text-Formen. -->
@@ -41260,6 +41486,11 @@ window.__LINEA_DEBUG__ = {
             <label for="dgpTextAngle" title="Richtung der Tatami-Reihen im Text. 0° waagrecht, 90° senkrecht." style="font-weight:600;">Winkel (Tatami)</label>
             <input id="dgpTextAngle" type="range" min="0" max="180" value="0" step="5" style="accent-color:var(--fg);">
             <span id="dgpTextAngleVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">0°</span>
+          </div>
+          <div id="dgpTextLengthRow" style="display:none">
+            <label for="dgpTextStitchLength" title="Maximale Länge der Tatami-Reihenstiche. Gilt nur für Text mit Tatami-Füllung." style="font-weight:600;">Stichlänge (Tatami)</label>
+            <input id="dgpTextStitchLength" type="range" min="1" max="6" value="3" step="0.01" style="accent-color:var(--fg);">
+            <span id="dgpTextStitchLengthVal" style="font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">3.00 mm</span>
           </div>
           </div>
         </div>
@@ -41762,7 +41993,13 @@ window.__LINEA_DEBUG__ = {
       var br = _dstvW2S(cx + hw/2, cy - hh/2);               /* unten-rechts (Screen) */
       var w = br.x - tl.x, h = br.y - tl.y;
       var rr = (hoop.rMM > 0) ? Math.min(hoop.rMM * 10 * _dstvState.zoom, w/2, h/2) : 0;
-      var tooSmall = (bb.w > hw + 1) || (bb.h > hh + 1);
+      var hc = _dstvState._hoopCheckCache;
+      var hk = [hoop.wMM, hoop.hMM, hoop.rMM || 0].join('|');
+      if (!hc || hc.records !== _dstvState.parsed.records || hc.key !== hk) {
+        hc = _dstvState._hoopCheckCache = { records: _dstvState.parsed.records, key: hk,
+          result: window._stitchHoopCheck(_dstvState.parsed.records, hoop, 10) };
+      }
+      var tooSmall = hc.result.available && !hc.result.ok;
       _dstvCtx.save();
       _dstvCtx.beginPath();
       if (rr > 0 && _dstvCtx.roundRect) _dstvCtx.roundRect(tl.x, tl.y, w, h, rr);
@@ -41779,9 +42016,9 @@ window.__LINEA_DEBUG__ = {
       var wn = document.getElementById('dstvHoopWarn');
       if (wn) {
         wn.style.display = tooSmall ? '' : 'none';
-        var _wt = document.getElementById('dstvHoopWarnTxt'); if (_wt) _wt.textContent = tooSmall ? 'grösser als der Rahmen' : '';
+        var _wt = document.getElementById('dstvHoopWarnTxt'); if (_wt) _wt.textContent = tooSmall ? 'ausserhalb der Rahmenkontur' : '';
         if (tooSmall) wn.title = 'Stickerei (' + Math.round(bb.w/10) + ' \u00d7 ' + Math.round(bb.h/10) +
-          ' mm) ist grösser als der Rahmen (' + Math.round(hoop.wMM) + ' \u00d7 ' + Math.round(hoop.hMM) + ' mm).';
+          ' mm) liegt teilweise ausserhalb der Rahmenkontur (' + Math.round(hoop.wMM) + ' \u00d7 ' + Math.round(hoop.hMM) + ' mm, Radius ' + (hoop.rMM || 0) + ' mm).';
       }
     })();
     var recs = _dstvState.parsed.records;
@@ -41833,14 +42070,15 @@ window.__LINEA_DEBUG__ = {
       var s = _dstvW2S(r.x, r.y);
       if (prevS) {
         if (r.type === 'jump') {
-          if (_dstvState.showJumps && !mode3d) {
+          if (_dstvState.showJumps) {
             _dstvCtx.strokeStyle = 'rgba(120,120,120,0.55)';
             _dstvCtx.lineWidth = 0.6;
             _dstvCtx.setLineDash([3,3]);
             _dstvCtx.beginPath(); _dstvCtx.moveTo(prevS.x, prevS.y); _dstvCtx.lineTo(s.x, s.y); _dstvCtx.stroke();
             _dstvCtx.setLineDash([]);
           }
-          /* 3D: Sprünge sind getrimmte Trims (kein Faden auf Stoff) → nicht zeichnen. */
+          /* Diagnostic overlay in both views. A jump alone does not prove that
+             the machine trims; drawReal still renders sewn stitches only. */
         } else {
           if (mode3d && !_realbild) {
             /* Realistischer Faden als LINSE: in der Mitte volle Stärke, an den Stich-
@@ -42295,10 +42533,24 @@ window.__LINEA_DEBUG__ = {
     }).join('');
   }
 
+  var _dstvFileReadVersion = 0;
+  function _dstvLoadExternalFile(file) {
+    if (!file) return;
+    var request = ++_dstvFileReadVersion;
+    if (window._dstvCancelPendingPreview) window._dstvCancelPendingPreview('external-file');
+    return file.arrayBuffer().then(function (buf) {
+      if (request !== _dstvFileReadVersion || !document.getElementById('dstvModal').classList.contains('open')) return;
+      if (window._dstvCancelPendingPreview) window._dstvCancelPendingPreview('external-file-ready');
+      _dstvState.fitDone = false;
+      _dstvLoadBuf(buf, file.name);
+    }).catch(function (e) {
+      if (request === _dstvFileReadVersion) alert(window.t('Datei konnte nicht gelesen werden:') + ' ' + e.message);
+    });
+  }
   function _dstvLoadBuf(buf, filename) {
     var parsed;
     try { parsed = _dstvParseAny(buf, filename); }   /* [stick-import-formats v1] DST/PES/EXP/PEC */
-    catch (e) { alert(window.t('DST-Fehler:')+' ' + e.message); return; }
+    catch (e) { alert(window.t('DST-Fehler:')+' ' + e.message); return false; }
     _dstvState.parsed = parsed;
     _dstvState.filename = filename;
     /* Canvas-Farben nur bei Vektortool-eigenem Load (Dateiname enthält „linea"):
@@ -42332,6 +42584,7 @@ window.__LINEA_DEBUG__ = {
     if (!_dstvState.fitDone) { _dstvFit(); _dstvState.fitDone = true; }
     _dstvRender();
     _dstvRenderJumpReport();
+    return true;
   }
 
   /* Rendert window._dstLastJumpReport sortiert nach distMM (desc) — Top 12.
@@ -42448,6 +42701,8 @@ window.__LINEA_DEBUG__ = {
     requestAnimationFrame(function() { _dstvResize(); _dstvFit(); _dstvRender(); });
   }
   function _dstvClose() {
+    ++_dstvFileReadVersion;
+    if (window._dstvCancelPendingPreview) window._dstvCancelPendingPreview('close');
     document.getElementById('dstvModal').classList.remove('open');
     _dstvState.playing = false;
     document.getElementById('dstvPlayBtn').textContent = '▶';
@@ -42517,10 +42772,49 @@ window.__LINEA_DEBUG__ = {
 
   /* ── Load Vektortool's currently-rendered shapes as a DST, without opening a
      file picker. Uses the same blob-intercept trick as our test harness. */
-  function _dstvLoadFromLinea() {
+  /* [vt-preview-jobs v1] One serial, revision-bound preview pipeline for every
+     control. Old computations may finish their geometry, but cannot publish it. */
+  var _dstvPreviewTail=Promise.resolve(),_dstvScheduledTimer=null,_dstvScheduledResolve=null;
+  window._dstvPreviewRevision=0;
+  function _dstvPreviewCurrent(revision){return revision===window._dstvPreviewRevision&&!window._dstvChainAborted;}
+  function _dstvPreviewStatus(phase,message,revision){
+    if(revision!==window._dstvPreviewRevision)return;
+    window._dstvPreviewStatus={phase:phase,message:message||'',revision:revision};
+    if(typeof window._dstvSetPreviewProgress==='function')window._dstvSetPreviewProgress(phase,phase==='done'?100:undefined,message);
+    else{var el=document.getElementById('dgpApplyStatus');if(el)el.textContent=message||'';}
+  }
+  function _dstvStopScheduled(status){
+    if(_dstvScheduledTimer!==null)clearTimeout(_dstvScheduledTimer);
+    _dstvScheduledTimer=null;
+    if(_dstvScheduledResolve)_dstvScheduledResolve({status:status||'superseded'});
+    _dstvScheduledResolve=null;
+  }
+  window._dstvCancelPendingPreview=function(reason){
+    _dstvStopScheduled('cancelled');
+    var revision=++window._dstvPreviewRevision;
+    window._dstvChainAborted=true;
+    _dstvPreviewStatus('stale',reason||'Vorschau nicht aktualisiert',revision);
+    if(typeof window._hideLoadingOverlay==='function')window._hideLoadingOverlay();
+  };
+  function _dstvRunPreviewRevision(revision){
+    var job=_dstvPreviewTail.then(function(){
+      if(revision!==window._dstvPreviewRevision)return {status:'superseded',revision:revision};
+      window._dstvChainAborted=false;
+      return _dstvLoadFromLinea(revision);
+    }).catch(function(error){
+      if(revision!==window._dstvPreviewRevision)return {status:'superseded',revision:revision};
+      console.warn('[dstv] preview failed',error);
+      _dstvPreviewStatus('error','Vorschau nicht aktualisiert: '+(error&&error.message||'Berechnung fehlgeschlagen'),revision);
+      return {status:'error',revision:revision,error:error&&error.message};
+    });
+    _dstvPreviewTail=job;
+    return job;
+  }
+  function _dstvLoadFromLinea(revision) {
+    if(typeof revision!=='number')return window._dstvReloadFromLinea();
+    if(!_dstvPreviewCurrent(revision))return Promise.resolve({status:'superseded',revision:revision});
     if (typeof window._stitchExportDstBody !== 'function') {
-      alert(window.t('Vektortool Export-Funktion nicht verfügbar.'));
-      return;
+      return Promise.reject(new Error('Vektortool Export-Funktion nicht verfügbar.'));
     }
     /* Block E2: Ohne Shapes mit Stichen nicht rechnen - sonst lief der Loader
        bis 100% und blieb mit Alert "keine Shapes" haengen. Stattdessen sofort
@@ -42534,6 +42828,10 @@ window.__LINEA_DEBUG__ = {
       }
     }
     if (!_e2has) {
+      if(window._dstvExternalFile){
+        _dstvPreviewStatus('stale','Externe Datei bleibt angezeigt — das Canvas enthält keine Stickobjekte',revision);
+        return Promise.resolve({status:'external',revision:revision});
+      }
       var _e2emp = document.getElementById('dstvEmpty');
       if (_e2emp) {
         _e2emp.style.display = '';
@@ -42544,7 +42842,7 @@ window.__LINEA_DEBUG__ = {
           ? 'Alle Bereiche sind \u00fcber das <b>Auge</b> in der Stickreihenfolge ausgeblendet. Mindestens einen Bereich wieder einblenden, dann erscheint die Vorschau.'
           : 'Zuerst eine <b>Form zeichnen</b> und ihr einen Stichtyp geben - dann erscheint hier die DST-Vorschau.';
       }
-      if (_e2onlyHidden) {
+      {
         /* [hide-live v1] alte Stickerei nicht stehen lassen: zurueck in den legalen
            "nichts geladen"-Anfangszustand, sonst schiene sie durchs transparente
            Empty-Overlay durch (Render cleart den Canvas bei parsed=null). */
@@ -42556,7 +42854,8 @@ window.__LINEA_DEBUG__ = {
         } catch (eHL3) { console.warn('[vt:swallowed]', eHL3); }
       }
       if (typeof window._hideLoadingOverlay === 'function') window._hideLoadingOverlay();
-      return;
+      _dstvPreviewStatus('empty',_e2onlyHidden?'Alle Bereiche ausgeblendet':'Noch keine Stickerei',revision);
+      return Promise.resolve({status:'empty',revision:revision});
     }
     /* Build synchron innerhalb eines Overlay-Wrappers laufen lassen.
        Statt btn.click() wird die Body-Funktion direkt aufgerufen — das
@@ -42573,6 +42872,7 @@ window.__LINEA_DEBUG__ = {
       });
     }
     function _setProgress(pct, msg) {
+      if(!_dstvPreviewCurrent(revision))return;
       if (typeof window._setLoadingOverlayProgress === 'function') {
         window._setLoadingOverlayProgress(pct);
       }
@@ -42588,24 +42888,13 @@ window.__LINEA_DEBUG__ = {
          _dstvAutoOpenWithBuffer (in _stitchExportDstBody) prüft den Flag
          und skipped sein eigenes _dstvOpen — sonst würde der Modal nach
          dem Close wieder hochpoppen. */
-      window._dstvChainAborted = false;
-      /* Vorbereitung: rampt sichtbar von 0% → 20% über mehrere kleine
-         Etappen mit eigenen Labels, damit der User klar sieht "es zählt
-         hoch". Reine reale Vorarbeit ist trivial, aber UX-mässig braucht
-         es ein paar erkennbare Frames. Mit der CSS-Transition (0.5s)
-         interpoliert der Balken zusätzlich zwischen den Setzungen. */
+      window._dstvExternalFile=false;
+      /* Paint the working state once; progress then follows real work,
+         without artificial waits that only simulate preparation. */
       _setProgress(3, 'Vorbereitung …');
       await _yieldPaint();
-      if (window._dstvChainAborted) return;
-      _setProgress(8, 'Sammle Shapes …');
-      await new Promise(function(r){ setTimeout(r, 90); });
-      if (window._dstvChainAborted) return;
-      _setProgress(14, 'Initialisiere Cache …');
-      await new Promise(function(r){ setTimeout(r, 90); });
-      if (window._dstvChainAborted) return;
+      if (!_dstvPreviewCurrent(revision)) return {status:'superseded',revision:revision};
       _setProgress(20, 'Bereit zum Berechnen …');
-      await new Promise(function(r){ setTimeout(r, 80); });
-      if (window._dstvChainAborted) return;
 
       /* v44: Per-Shape chunked Recalc. User sieht "Shape X von Y · NNNN Stiche".
          Erlaubt dem Browser zwischen Shapes ein Frame zu zeichnen — der
@@ -42614,7 +42903,7 @@ window.__LINEA_DEBUG__ = {
       var recalcResult = { total: 0, stitches: 0 };
       if (typeof window._stitchRecalcAllChunkedAsync === 'function') {
         recalcResult = await window._stitchRecalcAllChunkedAsync(function(i, total, shape, stitchCount) {
-          if (window._dstvChainAborted) return;
+          if (!_dstvPreviewCurrent(revision)) return;
           /* 5% Startpunkt + linear hoch bis 70% bei i=total */
           var pct = recalcRange[0] + (recalcRange[1] - recalcRange[0]) * (total > 0 ? (i / total) : 1);
           var label;
@@ -42632,10 +42921,10 @@ window.__LINEA_DEBUG__ = {
         /* Fallback: synchroner Recalc */
         if (typeof _stitchRecalcAll === 'function') _stitchRecalcAll();
       }
-      if (window._dstvChainAborted) return;
+      if (!_dstvPreviewCurrent(revision)) return {status:'superseded',revision:revision};
       _setProgress(72, 'Kodiere DST …');
       await _yieldPaint();
-      if (window._dstvChainAborted) return;
+      if (!_dstvPreviewCurrent(revision)) return {status:'superseded',revision:revision};
 
       var origClick = HTMLAnchorElement.prototype.click;
       HTMLAnchorElement.prototype.click = function() {
@@ -42649,51 +42938,44 @@ window.__LINEA_DEBUG__ = {
         /* _stitchExportDstBody ruft intern auch _stitchRecalcAll — kostet
            praktisch nichts weil alle Shapes schon cached sind (per-shape
            _needleCacheKey hits). Macht den DST-Encode + Click-Capture. */
-        window._stitchExportDstBody();
+        window._stitchExportDstBody(false,{preview:true});
       } finally {
         HTMLAnchorElement.prototype.click = origClick;
       }
-      if (window._dstvChainAborted) return;
+      if (!_dstvPreviewCurrent(revision)) return {status:'superseded',revision:revision};
+      var capturedBlob=window._dstvCapturedBlob;
 
       _setProgress(82, 'DST fertig · lade Viewer …');
       await _yieldPaint();
-      if (window._dstvChainAborted) return;
+      if (!_dstvPreviewCurrent(revision)) return {status:'superseded',revision:revision};
 
-      if (!window._dstvCapturedBlob) {
-        _setProgress(100, 'Keine Shapes mit Stitches');
-        window._vtToast(window.t('DST konnte nicht erstellt werden — sind Objekte vorhanden?'));
-        await _yieldPaint();
-        return;
-      }
-      var resp = await fetch(window._dstvCapturedBlob);
+      if (!capturedBlob) throw new Error('DST konnte nicht erstellt werden — sind Objekte mit Stichen vorhanden?');
+      var resp = await fetch(capturedBlob);
       var buf = await resp.arrayBuffer();
       _setProgress(92, 'Render …');
       await _yieldPaint();
-      if (window._dstvChainAborted) return;
+      if (!_dstvPreviewCurrent(revision)) return {status:'superseded',revision:revision};
 
       var modalEl = document.getElementById('dstvModal');
       if (modalEl && modalEl.classList.contains('open')) {
-        _dstvLoadBuf(buf, '');  /* [stickui-fs-fn v1] Dateiname nicht mehr anschreiben (intern gerenderte DST) */
-      }
+        if(_dstvLoadBuf(buf,'')!==true)throw new Error('Erzeugte Stickdatei konnte nicht als Vorschau geladen werden.');
+      } else return {status:'superseded',revision:revision};
       _setProgress(100, '✓ ' + (recalcResult.stitches || 0).toLocaleString('de-CH') + ' Stiche · '
                        + (recalcResult.total || 0) + ' Shape' + ((recalcResult.total || 0) !== 1 ? 's' : ''));
-      await _yieldPaint();
+      _dstvPreviewStatus('done','Vorschau aktualisiert',revision);
+      return {status:'done',revision:revision};
     }
     /* Overlay manuell verwalten (statt _runWithOverlay), damit nach dem
        finalen 100%-Render kurz sichtbar bleibt vor dem Hide. */
     if (typeof window._showLoadingOverlay === 'function') {
       window._showLoadingOverlay('DST wird neu berechnet …');
     }
-    doLoad().catch(function(e) {
-      console.warn('[dstv] doLoad failed', e);
-    }).finally(function() {
+    _dstvPreviewStatus('computing','Berechne Stiche…',revision);
+    return doLoad().finally(function() {
       /* [stickui-klar v1] Zeilen-Stichzahlen nachziehen: die Reihenfolge-Zeilen
          wurden vor dem Recalc gerendert und zeigten bis dahin 0 St. */
       if (typeof window._stitchUpdateOrder === 'function') { try { window._stitchUpdateOrder(); } catch(eUO){} }
-      /* Kurz auf 100% verharren bevor verstecken */
-      setTimeout(function() {
-        if (typeof window._hideLoadingOverlay === 'function') window._hideLoadingOverlay();
-      }, 250);
+      if(revision===window._dstvPreviewRevision&&typeof window._hideLoadingOverlay==='function')window._hideLoadingOverlay();
     });
   }
 
@@ -42702,12 +42984,16 @@ window.__LINEA_DEBUG__ = {
      erfolgt automatisch nach Modal-Open. */
   window._dstvOpenAndLoadFromLinea = function() {
     _dstvOpen();
-    try { _dstvLoadFromLinea(); } catch (e) { /* Empty state bleibt */ }
+    var job=window._dstvReloadFromLinea();
     try { if (typeof window._v44SyncDstvGlobalParams === 'function') window._v44SyncDstvGlobalParams(); } catch(e){console.warn('[vt:swallowed]',e)}
+    return job;
   };
   /* Auch direkter Trigger-Hook für Force-Refresh nach Param-Change */
   window._dstvReloadFromLinea = function() {
-    try { _dstvLoadFromLinea(); } catch (e) { /* still */ }
+    _dstvStopScheduled('superseded');
+    var revision=++window._dstvPreviewRevision;
+    _dstvPreviewStatus('pending','Neuberechnung vorgemerkt…',revision);
+    return _dstvRunPreviewRevision(revision);
   };
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -42728,8 +43014,7 @@ window.__LINEA_DEBUG__ = {
     document.getElementById('dstvFileInput').addEventListener('change', function(e) {
       var f = e.target.files[0];
       if (!f) return;
-      _dstvState.fitDone = false; /* [VT-UIFIX v1] externe Datei -> einpassen */
-      f.arrayBuffer().then(function(buf) { _dstvLoadBuf(buf, f.name); });
+      _dstvLoadExternalFile(f);
     });
 
     document.getElementById('dstvViewModeGroup').addEventListener('click', function(e) {
@@ -42756,20 +43041,13 @@ window.__LINEA_DEBUG__ = {
 
 
     document.getElementById('dstvResetView').addEventListener('click', function() {
-      /* [stickui-klar v1] destruktiv ohne Undo -> vorher fragen */
-      if (!window.confirm(window.t('Alle Stick-Einstellungen auf Standard zurücksetzen? Das kann nicht rückgängig gemacht werden.'))) return;
-      /* [stickui-reset v1] "Zuruecksetzen" = globale Stick-Parameter auf Standard (Lukas: der reine
-         View-Reset reichte nicht). Setzt die dgp-Controls auf die _stitchDefaults()-Werte + Stil/
-         Verbindung, feuert change/input -> bestehende Handler wenden an, Radios syncen, DST rechnet
-         neu. Danach zusaetzlich die Ansicht neu einpassen. */
-      function setRadio(name, val){ var r = document.querySelector('input[name="'+name+'"][value="'+val+'"]'); if (r){ r.checked = true; r.dispatchEvent(new Event('change', {bubbles:true})); } }
-      setRadio('dgpRStyle', 'parallel');
-      setRadio('dgpRConn', 'continuous');
-      var rng = {dgpAngle:0, dgpRowSpacing:0.3, dgpStitchLength:3.0, dgpPullComp:-0.1, dgpUnderlayAngle:90, dgpUnderlaySpacing:4.5, dgpUnderlayStitchLength:2.5, dgpOutlineStitchLength:2.5, dgpSatinPitch:0.4, dgpRimDensity:0.2, toplineTrimMM:10}; /* [rs-default-03 v1] [umriss-2farbe v5] [satin-dichte v1] */
-      var chk = {dgpRandomOffset:true, dgpUnderlay:true, dgpOutline:false, toplineTrim:true}; /* [uxfix v1] Faden-Trimmen AN = deckt sich mit dem Boot-Default (_dstTrimSettings.enabled=true); vorher stellte der Reset Trim auf AUS und aenderte damit unbemerkt das Export-Verhalten gegenueber einer frischen Sitzung */
-      Object.keys(rng).forEach(function(id){ var el = document.getElementById(id); if (el){ el.value = rng[id]; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); } });
-      Object.keys(chk).forEach(function(id){ var el = document.getElementById(id); if (el && el.checked !== chk[id]){ el.checked = chk[id]; el.dispatchEvent(new Event('change', {bubbles:true})); } });
-      if (typeof _dstvFit === 'function') { _dstvFit(); _dstvRender(); }
+      if (!window.confirm(window.t('Stickparameter für alle Texte, Linien und Flächen dieser Zeichenfläche sowie die globalen Exportparameter zurücksetzen? Reihenfolge, Sichtbarkeit und Farbgruppen bleiben erhalten. Das kann nicht rückgängig gemacht werden.'))) return;
+      window._vtResetStitchParameters();
+      /* One manual refresh, including when Auto is off; no cascade of synthetic
+         slider events and no intermediate exports with partially reset state. */
+      Promise.resolve(window._dstvReloadFromLinea()).then(function() {
+        if (typeof _dstvFit === 'function') { _dstvFit(); _dstvRender(); }
+      });
     });
 
     /* v44: Info-Panel Toggle.
@@ -42841,27 +43119,35 @@ window.__LINEA_DEBUG__ = {
        - dstvManualRecalc Button: bypasst die Auto-Logik, triggert sofort
        - Disabled wenn Auto-Recalc OFF wäre? Nein — Manual macht immer Sinn. */
     window._dstvAutoRecalc = true;
-    var arDebouncer = null;
     window._dstvScheduleAutoRecalc = function() {
-      if (window._dstvAutoRecalc === false) return;
-      /* [uxfix v1] B15: Solange eine FREMDE Stickdatei angezeigt wird, ersetzt der
-         Auto-Recalc die Ansicht nicht mehr stillschweigend durch das Canvas-Design.
-         Der manuelle "Neu berechnen"-Knopf tut das weiterhin (bewusste Aktion). */
-      if (window._dstvExternalFile) return;
-      /* [stick-nur-auf-klick v1] Im Hintergrund (Stick-Viewer zu) NICHT rechnen.
-         Editor-Aenderungen wie die Strichstaerke sollen die Stickerei nicht von
-         selbst starten. Die Stickerei wird erst berechnet, wenn der Viewer offen
-         ist - das passiert ueber den Stick-Button (_dstvOpenAndLoadFromLinea
-         laedt direkt, nicht ueber diesen Scheduler). */
+      if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
+      _dstvStopScheduled('superseded');
+      var revision=++window._dstvPreviewRevision;
       var _arModal = document.getElementById('dstvModal');
-      if (!_arModal || !_arModal.classList.contains('open')) return;
-      if (arDebouncer) clearTimeout(arDebouncer);
-      arDebouncer = setTimeout(function() {
-        arDebouncer = null;
-        if (typeof window._dstvReloadFromLinea === 'function') {
-          window._dstvReloadFromLinea();
-        }
-      }, 350);
+      if(window._dstvExternalFile||!_arModal||!_arModal.classList.contains('open'))return Promise.resolve({status:'inactive',revision:revision});
+      /* A changed parameter makes the previous preview stale immediately,
+         including during dragging or with Auto off. No cosmetic success flash. */
+      if(typeof window._hideLoadingOverlay==='function')window._hideLoadingOverlay();
+      if(window._dstvAutoRecalc===false){
+        _dstvPreviewStatus('stale','Auto-Vorschau aus — Neu berechnen klicken',revision);
+        return Promise.resolve({status:'paused',revision:revision});
+      }
+      if(window._dgpSliderActive){
+        _dstvPreviewStatus('pending','Warte auf Loslassen des Reglers…',revision);
+        return Promise.resolve({status:'dragging',revision:revision});
+      }
+      _dstvPreviewStatus('pending','Änderungen vorgemerkt…',revision);
+      return new Promise(function(resolve){
+        _dstvScheduledResolve=resolve;
+        _dstvScheduledTimer=setTimeout(function(){
+          _dstvScheduledTimer=null;_dstvScheduledResolve=null;
+          var modal=document.getElementById('dstvModal');
+          if(revision!==window._dstvPreviewRevision||window._dstvAutoRecalc===false||window._dgpSliderActive||window._dstvExternalFile||!modal||!modal.classList.contains('open')){
+            resolve({status:'cancelled',revision:revision});return;
+          }
+          _dstvRunPreviewRevision(revision).then(resolve);
+        },350);
+      });
     };
     var arCheckbox = document.getElementById('dstvAutoRecalc');
     var arManualBtn = document.getElementById('dstvManualRecalc');
@@ -42869,24 +43155,16 @@ window.__LINEA_DEBUG__ = {
       arCheckbox.addEventListener('change', function() {
         window._dstvAutoRecalc = !!this.checked;
         console.info('[v44] Auto-Recalc:', window._dstvAutoRecalc ? 'ON' : 'OFF');
-        /* [VT-UIFIX v1] Auto aktiviert -> Hinweis ausblenden + sofort neu berechnen; abgewaehlt -> Hinweis sofort setzen (Lukas) */
-        var _st = document.getElementById('dgpApplyStatus');
         if (this.checked) {
-          if (_st) { _st.innerHTML = ''; _st.style.color = ''; }
-          if (arDebouncer) { clearTimeout(arDebouncer); arDebouncer = null; }
-          if (typeof window._dstvReloadFromLinea === 'function') window._dstvReloadFromLinea();
+          window._dstvScheduleAutoRecalc();
         } else {
-          if (_st) { _st.innerHTML = '<b style="color:#c87b1c;">⏸ Auto-Berechnung aus — "Neu berechnen" klicken</b>'; _st.style.color = '#c87b1c'; _st.style.fontStyle = 'normal'; }
+          window._dstvCancelPendingPreview('Auto-Vorschau aus — Neu berechnen klicken');
         }
       });
     }
     if (arManualBtn) {
       arManualBtn.addEventListener('click', function() {
-        /* Cancel pending debounce — manual hat Vorrang */
-        if (arDebouncer) { clearTimeout(arDebouncer); arDebouncer = null; }
-        if (typeof window._dstvReloadFromLinea === 'function') {
-          window._dstvReloadFromLinea();
-        }
+        window._dstvReloadFromLinea();
       });
     }
 
@@ -42987,7 +43265,7 @@ window.__LINEA_DEBUG__ = {
     modal.addEventListener('drop', function(e) {
       e.preventDefault(); document.body.classList.remove('dstv-dropzone-active');
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) { _dstvState.fitDone = false; /* [VT-UIFIX v1] externe Datei -> einpassen */ f.arrayBuffer().then(function(buf) { _dstvLoadBuf(buf, f.name); }); }
+      if (f) _dstvLoadExternalFile(f);
     });
 
     /* Keyboard: ESC to close, Space to play/pause, R to reset view. Only when modal open. */
@@ -43059,65 +43337,82 @@ window.__LINEA_DEBUG__ = {
          Aktiv-Markierung spiegelt den aktuellen Wert (window._dgpSyncTextStitch wird
          auch aus _dstvRender aufgerufen, damit die Knoepfe beim Oeffnen stimmen). */
       window._dgpSyncTextStitch = function () {
-        var v = null, mixed = false;
-        (window.shapes || []).forEach(function (s) { if (s && s.type === 'text') { var t = s.textStitch || 'tatami'; if (v === null) v = t; else if (v !== t) mixed = true; } });
+        var texts=(window.shapes||[]).filter(function(s){return s&&s.type==='text';});
+        var v=texts.length?(texts[0].textStitch||'tatami'):null;
+        var mixed=texts.some(function(s){return (s.textStitch||'tatami')!==v;});
+        var scope=document.getElementById('dgpTextScope');
+        if(scope)scope.textContent='Alle Texte · '+texts.length+(mixed?' · gemischt':'');
         var btns = document.querySelectorAll('.dgp-ts');
         for (var bi = 0; bi < btns.length; bi++) {
           var on = !mixed && v !== null && btns[bi].getAttribute('data-ts') === v;
           btns[bi].style.background = on ? 'var(--dstv-primary, #3f7191)' : 'var(--white)';
           btns[bi].style.color = on ? '#fff' : 'var(--fg)';
+          btns[bi].disabled=!texts.length;
+          btns[bi].setAttribute('aria-pressed',String(on));
         }
-        /* [VT-TEXT-DENSITY-SLIDER v1] eigenen Text-Dichte-Slider auf den aktuellen Wert spiegeln
-           (erste Text-Form, sonst gemerkter Kategorie-Wert). */
-        var _td = document.getElementById('dgpTextDensity'), _tdv = document.getElementById('dgpTextDensityVal');
-        if (_td && _tdv) {
-          var _tShape = (window.shapes || []).filter(function (s) { return s && s.type === 'text' && s.stitch && s.stitch.params; })[0];
-          var _trs = _tShape ? _tShape.stitch.params.rowSpacing : (window._catStitchParams && window._catStitchParams.text && window._catStitchParams.text.rowSpacing);
-          if (isFinite(_trs)) { _td.value = _trs; _tdv.textContent = Number(_trs).toFixed(2) + ' mm'; }
+        var tatamiTexts=texts.filter(function(s){return (s.textStitch||'tatami')==='tatami';});
+        function syncField(id, prop, targets, fallback, unit) {
+          var input=document.getElementById(id), label=document.getElementById(id+'Val');
+          if(!input||!label)return;
+          var values=targets.map(function(s){var p=s.stitch&&s.stitch.params;return p&&isFinite(p[prop])?Number(p[prop]):fallback;});
+          var first=values.length?values[0]:fallback;
+          if(prop==='angle')first=first>=0&&first<=180?first:((first%180)+180)%180;
+          var isMixed=values.some(function(n){return Math.abs(n-values[0])>1e-6;});
+          /* Imported/per-object fine values must survive native range sanitizing. */
+          var step=Number(input.step), min=Number(input.min)||0;
+          if(step>0&&Math.abs((first-min)/step-Math.round((first-min)/step))>1e-6)input.step='0.01';
+          input.value=first;input.disabled=!targets.length;
+          input.setAttribute('aria-valuetext',isMixed?'gemischt':first+unit);
+          input.setAttribute('aria-label',(prop==='angle'?'Tatami-Winkel':prop==='stitchLength'?'Tatami-Stichlänge':'Text-Reihenabstand')+' · alle '+targets.length+' Texte');
+          label.dataset.mixed=isMixed?'true':'false';
+          if(document.activeElement!==label)label.textContent=isMixed?'gemischt':(unit==='°'?String(first):first.toFixed(2))+unit;
         }
-        var angleRow=document.getElementById('dgpTextAngleRow'), angleInput=document.getElementById('dgpTextAngle'), angleValue=document.getElementById('dgpTextAngleVal');
-        var tatamiTexts=(window.shapes||[]).filter(function(s){return s&&s.type==='text'&&(s.textStitch||'tatami')==='tatami';});
+        syncField('dgpTextDensity','rowSpacing',texts,0.30,' mm');
+        syncField('dgpTextAngle','angle',tatamiTexts,0,'°');
+        syncField('dgpTextStitchLength','stitchLength',tatamiTexts,3,' mm');
+        var angleRow=document.getElementById('dgpTextAngleRow'),lengthRow=document.getElementById('dgpTextLengthRow');
         if(angleRow) angleRow.style.display=tatamiTexts.length?'contents':'none';
-        if(angleInput&&angleValue&&tatamiTexts.length){
-          var tp=tatamiTexts[0].stitch&&tatamiTexts[0].stitch.params, av=tp&&isFinite(tp.angle)?Number(tp.angle):0;
-          var shownAngle=av>=0&&av<=180?av:((av%180)+180)%180;
-          angleInput.value=shownAngle; angleValue.textContent=shownAngle+'°';
-        }
+        if(lengthRow)lengthRow.style.display=tatamiTexts.length?'contents':'none';
       };
+      /* One snapshot per confirmed text change/slider gesture. No-op and
+         cancelled fields must never overwrite mixed values or consume Undo. */
+      function _dgpApplyTextParam(prop,value,control) {
+        var targets=(window.shapes||[]).filter(function(s){
+          if(!s||s.type!=='text')return false;
+          if(prop==='textStitch')return (s.textStitch||'tatami')!==value;
+          if(!s.stitch||!s.stitch.params)return false;
+          if((prop==='angle'||prop==='stitchLength')&&(s.textStitch||'tatami')!=='tatami')return false;
+          return Number(s.stitch.params[prop])!==Number(value);
+        });
+        if(!targets.length)return false;
+        if(!control||!control._dgpUndoOpen){
+          if(typeof window.pu==='function')window.pu('Text-Stickparameter');
+          if(control&&window._dgpSliderActive)control._dgpUndoOpen=true;
+        }
+        targets.forEach(function(s){
+          if(prop==='textStitch')s.textStitch=value;else s.stitch.params[prop]=value;
+          if(s.stitch){s.stitch._needleCacheKey='';s.stitch.needlePoints=[];}
+        });
+        if(prop!=='textStitch'&&window._catStitchParams&&window._catStitchParams.text)window._catStitchParams.text[prop]=value;
+        window._dgpSyncTextStitch();
+        if(typeof window._dstvScheduleAutoRecalc==='function')window._dstvScheduleAutoRecalc();
+        return true;
+      }
       (function () {
         var tsBtns = document.querySelectorAll('.dgp-ts');
         for (var ti = 0; ti < tsBtns.length; ti++) {
           tsBtns[ti].addEventListener('click', function () {
             var v = this.getAttribute('data-ts');
-            (window.shapes || []).forEach(function (s) { if (s && s.type === 'text') { s.textStitch = v; if (s.stitch) s.stitch._needleCacheKey = ''; } });
-            window._dgpSyncTextStitch();
-            if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
+            _dgpApplyTextParam('textStitch',v,null);
           });
         }
         window._dgpSyncTextStitch();
       })();
-      /* [VT-TEXT-DENSITY-SLIDER v1] Dichte-Regler direkt bei der Text-Stickart -> wirkt NUR auf Text
-         (rowSpacing aller Text-Formen via Kategorie-Apply). */
-      (function () {
-        var dgpTD = document.getElementById('dgpTextDensity'), dgpTDV = document.getElementById('dgpTextDensityVal');
-        if (!dgpTD || !dgpTDV) return;
-        dgpTD.addEventListener('input', function () {
-          var v = parseFloat(this.value) || 0.30;
-          dgpTDV.textContent = v.toFixed(2) + ' mm';
-          if (window._catStitchParams && window._catStitchParams.text) window._catStitchParams.text.rowSpacing = v;
-          if (typeof window._v44BulkSetParamCat === 'function') window._v44BulkSetParamCat('text', 'rowSpacing', v);
-          if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
-        });
-      })();
-
-      /* Text has its own angle: the area slider intentionally excludes text. */
-      var textAngle=document.getElementById('dgpTextAngle'), textAngleValue=document.getElementById('dgpTextAngleVal');
-      if(textAngle) textAngle.addEventListener('input',function(){
-        var angle=Number(this.value); if(!isFinite(angle)) return;
-        if(textAngleValue) textAngleValue.textContent=angle+'°';
-        if(window._catStitchParams&&window._catStitchParams.text) window._catStitchParams.text.angle=angle;
-        if(typeof window._v44BulkSetParamCat==='function') window._v44BulkSetParamCat('text','angle',angle);
-        if(typeof window._dstvScheduleAutoRecalc==='function') window._dstvScheduleAutoRecalc();
+      [['dgpTextDensity','rowSpacing'],['dgpTextAngle','angle'],['dgpTextStitchLength','stitchLength']].forEach(function(spec){
+        var input=document.getElementById(spec[0]);if(!input)return;
+        input.addEventListener('input',function(){var value=Number(this.value);if(isFinite(value))_dgpApplyTextParam(spec[1],value,this);});
+        input.addEventListener('change',function(){this._dgpUndoOpen=false;});
+        input.addEventListener('blur',function(){this._dgpUndoOpen=false;});
       });
 
       /* Progress-UI: 3 Phasen.
@@ -43126,7 +43421,7 @@ window.__LINEA_DEBUG__ = {
          - done:      voller Balken grün, "✓ 100% aktualisiert" (1.2s Flash)
          Mehrere Slider-Inputs während debounce sammeln sich, das letzte
          Settlement startet computing. */
-      function _dgpShowProgress(phase, pct) {
+      function _dgpShowProgress(phase, pct, message) {
         if (!dgpStatus) return;
         if (phase === 'idle') {
           dgpStatus.innerHTML = '';
@@ -43144,10 +43439,15 @@ window.__LINEA_DEBUG__ = {
           color = '#c87b1c';
           barHtml = '<div class="dgp-bar"><div class="dgp-indet" style="background:linear-gradient(90deg,transparent,#c87b1c,transparent);"></div></div>';
         } else if (phase === 'done') {
-          label = '✓ 100 % aktualisiert';
+          label = '✓ Vorschau aktualisiert';
           color = '#2f8f4f';
           barHtml = '<div class="dgp-bar"><div class="dgp-fill" style="width:100%;background:#2f8f4f;"></div></div>';
+        } else {
+          label=message||'Vorschau nicht aktualisiert';
+          color=phase==='error'?'#b83d1a':'#c87b1c';barHtml='';
         }
+        if(message)label=message;
+        label=String(label||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         dgpStatus.style.color = color;
         dgpStatus.style.fontStyle = 'normal';
         dgpStatus.innerHTML =
@@ -43156,6 +43456,7 @@ window.__LINEA_DEBUG__ = {
             + (typeof pct === 'number' ? '<span style="font-family:\'SF Mono\',Menlo,monospace;">' + Math.round(pct) + ' %</span>' : '')
           + '</div>' + barHtml;
       }
+      window._dstvSetPreviewProgress=function(phase,pct,message){_dgpShowProgress(phase,pct,message);};
 
       /* Debouncer für Re-Export. Slider feuern Hunderte input-Events;
          wir wollen nur EINEN DST-Rebuild nach Settlement.
@@ -43165,45 +43466,7 @@ window.__LINEA_DEBUG__ = {
       var _dgpDebounce = null;
       var _dgpDoneFlashTimer = null;
       function _dgpScheduleRefresh() {
-        /* [VT-UIFIX v1] Waehrend des Slider-Ziehens NICHT neu berechnen (Lukas) - erst beim Loslassen (s. _dgpRelease) */
-        if (window._dgpSliderActive) return;
-        if (window._dstvAutoRecalc === false) {
-          _dgpShowProgress('pending');
-          if (dgpStatus) {
-            dgpStatus.innerHTML = '<b style="color:#c87b1c;">⏸ Auto-Berechnung aus — "Neu berechnen" klicken</b>';
-            dgpStatus.style.color = '#c87b1c';
-          }
-          return;
-        }
-        _dgpShowProgress('pending');
-        if (_dgpDebounce) clearTimeout(_dgpDebounce);
-        if (_dgpDoneFlashTimer) { clearTimeout(_dgpDoneFlashTimer); _dgpDoneFlashTimer = null; }
-        _dgpDebounce = setTimeout(function() {
-          _dgpDebounce = null;
-          _dgpShowProgress('computing');
-          /* Doppel-rAF: stellt sicher dass der Browser das "computing"-UI
-             zeichnet BEVOR der sync _stitchRecalcAll startet (sonst sieht
-             User die Indeterminate-Animation nie). */
-          requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-              var ok = true;
-              try {
-                if (typeof window._dstvReloadFromLinea === 'function') {
-                  window._dstvReloadFromLinea();
-                }
-              } catch (e) { ok = false; console.warn('[dgp] reload failed', e); }
-              if (ok) {
-                _dgpShowProgress('done', 100);
-                _dgpDoneFlashTimer = setTimeout(function() {
-                  _dgpDoneFlashTimer = null;
-                  _dgpShowProgress('idle');
-                }, 1400);
-              } else {
-                _dgpShowProgress('idle');
-              }
-            });
-          });
-        }, 350);
+        return window._dstvScheduleAutoRecalc();
       }
 
       /* [VT-UIFIX v1] Recalc erst beim LOSLASSEN des Sliders (Lukas: "während ich den slider bewege
@@ -43221,6 +43484,7 @@ window.__LINEA_DEBUG__ = {
         function _dgpRelease() {
           if (window._dgpSliderActive) {
             window._dgpSliderActive = false;
+            ['dgpTextDensity','dgpTextAngle','dgpTextStitchLength'].forEach(function(id){var el=document.getElementById(id);if(el)el._dgpUndoOpen=false;});
             _dgpScheduleRefresh();
           }
         }
@@ -43792,35 +44056,42 @@ window.__LINEA_DEBUG__ = {
           span.style.outline = 'none';
           span.style.transition = 'border-color .12s, box-shadow .12s';
           span.addEventListener('focus', function () {
+            span._beforeEditText=span.textContent;
+            span._beforeEditValue=sl.value;
+            span._edited=false;
             span.style.borderColor = 'var(--ac)';
             span.style.boxShadow = '0 0 0 2px rgba(var(--ac-rgb),0.18)';
             span.textContent = sl.value;
             try { var rg = document.createRange(); rg.selectNodeContents(span); var se = window.getSelection(); se.removeAllRanges(); se.addRange(rg); } catch (e) {}
           });
+          span.addEventListener('input',function(){span._edited=true;});
           span.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') { e.preventDefault(); span.blur(); }
-            else if (e.key === 'Escape') { e.preventDefault(); span._cancel = true; span.blur(); }
+            else if (e.key === 'Escape') { e.preventDefault(); if(e.stopPropagation)e.stopPropagation(); span._cancel = true; span.blur(); }
           });
           span.addEventListener('blur', function () {
             span.style.borderColor = 'var(--border-strong)';
             span.style.boxShadow = 'none';
-            if (span._cancel) { span._cancel = false; sl.dispatchEvent(new Event('input', { bubbles: true })); return; }
+            if (span._cancel) { span._cancel = false; span.textContent=span._beforeEditText; return; }
             var v = parseFloat((span.textContent || '').replace(',', '.'));
-            if (!isFinite(v)) { sl.dispatchEvent(new Event('input', { bubbles: true })); return; }
+            if (!isFinite(v)) { span.textContent=span._beforeEditText; return; }
             var mn = parseFloat(sl.min), mx = parseFloat(sl.max);
             if (isFinite(mn) && v < mn) v = mn;
             if (isFinite(mx) && v > mx) v = mx;
-            /* [uxfix v1] F18: Manuelle Eingabe NICHT mehr auf den groben Slider-Step rasten
-               (0,25 mm wurde so still zu 0,3). Nur auf 2 Nachkommastellen runden - das ist
-               die Präzision, die die Stick-Engine ohnehin nutzt (Zahnrad-Popover: Step 0,01).
-               Damit die feine Zahl im Slider hält, wird für die Zuweisung step='any' gesetzt
-               und danach der Drag-Step wiederhergestellt. */
+            /* A valid fine value must remain representable by the native range.
+               Restoring a coarse step after input silently changed 0.25 to 0.30. */
             v = parseFloat(v.toFixed(2));
-            var _origStep = sl.step;
-            sl.step = 'any';
+            if(v===Number(span._beforeEditValue)&&!span._edited){span.textContent=span._beforeEditText;return;}
+            var step=Number(sl.step),base=isFinite(mn)?mn:0;
+            if(step>0&&Math.abs((v-base)/step-Math.round((v-base)/step))>1e-6)sl.step='0.01';
             sl.value = v;
             sl.dispatchEvent(new Event('input', { bubbles: true }));
-            sl.step = _origStep;
+            sl.dispatchEvent(new Event('change', { bubbles: true }));
+            /* Text sync preserves an actively edited value; finish its display now. */
+            if(typeof window._dgpSyncTextStitch==='function'){
+              var shown=document.activeElement;
+              if(shown!==span)window._dgpSyncTextStitch();
+            }
           });
         });
       }
@@ -47782,7 +48053,7 @@ _boxBtnEl.addEventListener('click', function() {
          infoPopup bewusst NICHT (Popover, kein Blocker, Escape schliesst). */
       (function () {
         var MODALS = ['dstvModal', 'tracerOverlay', 'importChoiceOverlay'];
-        var SEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+        var SEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[contenteditable="true"],[tabindex]:not([tabindex="-1"])';
         var lastFocus = null, active = null;
         function visible(el) {
           if (!el) return false;
@@ -47792,9 +48063,29 @@ _boxBtnEl.addEventListener('click', function() {
           /* [uxfix v1] offsetParent ist bei position:fixed IMMER null -> tracerOverlay/importChoiceOverlay fielen faelschlich als "unsichtbar" durch. display/visibility sind oben schon geprueft; getClientRects().length erkennt fixed-Overlays korrekt (>0 sichtbar, 0 bei display:none). */
           return el.getClientRects().length > 0;
         }
+        /* The stitch workspace is visually one dialog, but its sidebar and
+           gear popover are DOM siblings. Include them in both ARIA ownership
+           and keyboard order without moving nodes used by the layout code. */
+        function roots(m) {
+          var result = [m], owned = [];
+          if (m.id === 'dstvModal') {
+            ['stitchPanel', 'stitchGearPopover'].forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el && visible(el) && !m.contains(el)) { result.push(el); owned.push(id); }
+            });
+            if (owned.length) m.setAttribute('aria-owns', owned.join(' '));
+            else m.removeAttribute('aria-owns');
+          }
+          return result;
+        }
         function foc(m) {
-          return Array.prototype.slice.call(m.querySelectorAll(SEL))
-            .filter(function (e) { return e.offsetParent !== null; });
+          var items = [];
+          roots(m).forEach(function (root) {
+            Array.prototype.forEach.call(root.querySelectorAll(SEL), function (el) {
+              if (visible(el) && !el.disabled && el.getAttribute('tabindex') !== '-1' && items.indexOf(el) < 0) items.push(el);
+            });
+          });
+          return items;
         }
         function open(m) {
           if (active === m) return;
@@ -47813,11 +48104,16 @@ _boxBtnEl.addEventListener('click', function() {
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'Tab' || !active) return;
           var f = foc(active); if (!f.length) { e.preventDefault(); return; }
-          var first = f[0], last = f[f.length - 1], a = document.activeElement;
-          if (!active.contains(a)) { e.preventDefault(); first.focus(); return; }
-          if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
-          else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+          var index = f.indexOf(document.activeElement);
+          var next = index < 0 ? (e.shiftKey ? f.length - 1 : 0) : (index + (e.shiftKey ? -1 : 1) + f.length) % f.length;
+          e.preventDefault(); f[next].focus();
         }, true);
+        if (window.MutationObserver) {
+          var syncOwned = function () { if (active) roots(active); };
+          new MutationObserver(syncOwned).observe(document.body, { childList: true, attributes: true, attributeFilter: ['class'] });
+          var stitchSidebar = document.getElementById('stitchPanel');
+          if (stitchSidebar) new MutationObserver(syncOwned).observe(stitchSidebar, { attributes: true, attributeFilter: ['style', 'class'] });
+        }
         MODALS.forEach(function (id) {
           var m = document.getElementById(id); if (!m) return;
           var was = visible(m); if (was) open(m);
