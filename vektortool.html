@@ -76,7 +76,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Vektortool · lokale Musterwerkstatt</title>
+<title>Vektortool - zeichnen, sticken, lasern, 3D-drucken</title>
 <meta name="description" content="Vektor-Editor im Browser: zeichnen und als Stickdatei (DST), Laservorlage (SVG) oder 3D-Druck-Vorlage herunterladen. Kostenlos, ohne Installation, ohne Konto.">
 <meta property="og:title" content="Vektortool - vom Vektor zum Objekt">
 <meta property="og:description" content="Zeichnen. Sticken. Lasern. 3D-Drucken. Kostenlos. Keine Installation, kein Konto, läuft auch offline.">
@@ -2139,7 +2139,7 @@ body.layer-panel-open #rsActions { display:none !important; }
   <div class="gen3d-body">
     <div class="gen3d-sec">
       <div class="gen3d-sec-t">Muster</div>
-      <div class="local-copy-note">Lokale Musterwerkstatt · <a href="original.html" target="_blank" rel="noopener">Original vergleichen</a></div>
+      <div class="local-copy-note">Textil-Labor · lokale Entwicklung</div>
       <div class="gen3d-pgrid" id="gen3dPgrid">
         <button class="gen3d-pbtn active" data-p="miura"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><path d="M3,4 L13,4 L11,18 L3,18 Z"/><path d="M13,4 L23,4 L25,18 L11,18 Z"/><path d="M23,4 L33,4 L33,18 L25,18 Z"/><path d="M3,18 L11,18 L13,32 L3,32 Z"/><path d="M11,18 L25,18 L23,32 L13,32 Z"/><path d="M25,18 L33,18 L33,32 L23,32 Z"/></svg><span>Miura</span></button>
         <button class="gen3d-pbtn" data-p="flasher"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><rect x="4" y="4" width="28" height="28"/><polygon points="23.9,30.7 5.3,23.9 12.1,5.3 30.7,12.1"/><polygon points="18.7,26.5 9.5,18.7 17.3,9.5 26.5,17.3"/></svg><span>Starshade</span></button>
@@ -2178,7 +2178,7 @@ body.layer-panel-open #rsActions { display:none !important; }
     <div class="gen3d-sec" id="gen3dSecRaster">
       <div class="gen3d-sec-t">Raster</div>
       <div id="gen3dDensityPresets" class="local-presets" aria-label="Flächenanteil">
-        <button type="button" data-gap-factor="1.6">Luftig</button><button type="button" data-gap-factor="1">Ausgewogen</button><button type="button" data-gap-factor="0.55">Dicht</button>
+        <button type="button" data-gap-factor="1">Luftig</button><button type="button" data-gap-factor="0.55">Ausgewogen</button><button type="button" data-gap-factor="0.25">Dicht</button>
       </div>
       <p id="gen3dGeometryNotice" class="gen3d-info" role="status" hidden></p>
       <div class="gen3d-row" id="gen3dRowN"><label>Anzahl<span id="gen3dNv">20</span></label><input type="range" id="gen3dN" min="2" max="30" value="20"></div>
@@ -43627,6 +43627,7 @@ var G = {
   pat: 'twist', alternate: false, minGap: 0, wall: 0.8, seed: 42, canvasFill: true, w: 150, h: 150, n: 8, elSc: 100, gap: 14, amp: 160, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400; [gap-default-vis v1] Start-Abstand 18% (auch dichte/Mehrfach-Facetten-Muster zeigen klar Abstand) */
   rA: 0, rB: 0, sc: 100, fill: false, invert: true, border: false, mirror: false
 };
+Object.assign(G,{pat:'hexagons',minGap:1,canvasFill:false,w:130,h:130,n:10,amp:100,gap:8});
 var DEF = _vtDeepClone(G);
 var open = false;
 
@@ -43804,6 +43805,35 @@ function genPaths() {
     return (d > 0) ? (_cellInset(pts, d) || pts) : pts;
   }
   switch (G.pat) {
+    case 'ribbons': {
+      // Separated straight ribs. Amplitude sets the occupied fraction of each row.
+      var rows = Math.max(2, Math.round(n*he/we)), pitchX=we/n, pitchY=he/rows;
+      var ribLength=pitchY*(0.25+0.65*ap/2);
+      for(var ri=0;ri<n;ri++) for(var rj=0;rj<rows;rj++) {
+        var rx=-hwe+(ri+.5)*pitchX, ry=-hhe+(rj+.5)*pitchY;
+        P.push({tp:'line',pts:[[rx,ry-ribLength/2],[rx,ry+ribLength/2]]});
+      }
+      break;
+    }
+    case 'radialribs': {
+      // Disconnected spokes leave the central fabric free; no promised dome shape.
+      var outer=Math.min(we,he)*.48, inner=outer*(.15+.55*ap/2);
+      for(var ray=0;ray<n;ray++) {
+        var theta=2*Math.PI*ray/n;
+        P.push({tp:'line',pts:[[inner*Math.cos(theta),inner*Math.sin(theta)],[outer*Math.cos(theta),outer*Math.sin(theta)]]});
+      }
+      break;
+    }
+    case 'gradedtiles': {
+      var cols=n, rows=Math.max(2,Math.round(n*he/we)), dx=we/cols, dy=he/rows;
+      for(var gi=0;gi<cols;gi++) for(var gj=0;gj<rows;gj++) {
+        var xx=-hwe+(gi+.5)*dx, yy=-hhe+(gj+.5)*dy;
+        var fraction=(.85-.5*(ap/2)*Math.abs(2*(gi+.5)/cols-1))*cellEs;
+        var wx=dx*fraction/2, wy=dy*fraction/2;
+        P.push({tp:'poly',pts:[[xx-wx,yy-wy],[xx+wx,yy-wy],[xx+wx,yy+wy],[xx-wx,yy+wy]]});
+      }
+      break;
+    }
     case 'lines': {
       if (n === 1) {
         P.push({tp:'line', pts:[[0,-hhe],[0,hhe]]});
@@ -45098,12 +45128,13 @@ function localLabels(){
  if(G.elSc>+es.max){G.elSc=+es.max;es.value=G.elSc;$$('gen3dEsv').textContent=G.elSc+'%';}
  pgrid.querySelectorAll('.gen3d-pbtn').forEach(function(b){b.classList.toggle('active',b.dataset.p===G.pat);b.setAttribute('aria-pressed',String(b.dataset.p===G.pat));});
  $$('gen3dDensityPresets').style.display=$$('gen3dRowGap').style.display==='none'?'none':'flex';
+ if (typeof textileSync === 'function') textileSync();
 }
 function makePatternThumbnails(){
  var saved=Object.assign({},G);
  try {
  pgrid.querySelectorAll('.gen3d-pbtn').forEach(function(b){
-  Object.assign(G,saved,localPreset(b.dataset.p),{pat:b.dataset.p,canvasFill:false,w:120,h:90,n:b.dataset.p==='flasher'?4:4,elSc:100,minGap:0,wall:.8,rA:0,rB:0,sc:100,border:false,alternate:false});
+  Object.assign(G,saved,localPreset(b.dataset.p),{pat:b.dataset.p,invert:isPrintableCellInvertPattern(b.dataset.p),fill:false,canvasFill:false,w:120,h:90,n:b.dataset.p==='flasher'?12:4,elSc:100,minGap:0,wall:.8,rA:0,rB:0,sc:100,border:false,alternate:false});
   var shapes=pathsToShapes(false),mm=3.7795275591,cx=(window.docW||297*mm)/2,cy=(window.docH||210*mm)/2;
   var svg=b.querySelector('svg');svg.setAttribute('viewBox',[cx-47*mm,cy-32*mm,94*mm,64*mm].join(' '));
   svg.setAttribute('aria-hidden','true');svg.setAttribute('stroke','none');svg.setAttribute('fill','none');
@@ -45119,7 +45150,7 @@ function makePatternThumbnails(){
 }
 function _gen3dPatDensityDefaults() {
   var preset=localPreset(G.pat);
-  Object.assign(G,preset,{elSc:100,alternate:false});
+  Object.assign(G,preset,{gap:Math.round(preset.gap*0.55),elSc:100,alternate:false});
   $$('gen3dEs').value=100;$$('gen3dEsv').textContent='100%';
   $$('gen3dGap').value=G.gap;$$('gen3dGapv').textContent=G.gap+'%';
   $$('gen3dAlternate').checked=false;
@@ -45194,7 +45225,181 @@ $$('gen3dResetBtn').addEventListener('click', function(){
   scheduleUpdate();
 });
 
-/* Initial: local workshop opens on the corrected Twist pattern. */
+/* Textile workshop: experimental geometry, not a mechanical simulation. */
+var TEXTILE = {
+ hexagons:['Hexagon-Inseln','Beweglich','Getrennte Plättchen: Der Stoff übernimmt die Verbindung und die Gelenke. Freie Spalten erhalten die Beweglichkeit.'],
+ triangles:['Dreieck-Inseln','Beweglich','Kleine Facetten für gerichtete Faltungen. Spitze Ecken und enge Spalten zuerst am Probestück prüfen.'],
+ quads:['Quadrat-Inseln','Beweglich','Einfaches Referenzmuster mit geraden Stoffgelenken in zwei Richtungen.'],
+ diamonds:['Rauten-Inseln','Beweglich','Diagonale Stoffgelenke. Die Dehnbarkeit ergibt sich aus Stoffrichtung und freien Zwischenräumen.'],
+ circles:['Runde Inseln','Beweglich','Runde Kontaktflächen ohne spitze Ecken. Getrennte Teile sind auf Stoff erwünscht; ihre Haftung muss geprüft werden.'],
+ brick:['Versetzte Inseln','Beweglich','Versetzte Rechtecke unterbrechen durchgehende Gelenklinien. Gut zum Vergleich mit dem quadratischen Raster.'],
+ voronoi:['Organische Inseln','Beweglich','Unregelmässige Facetten. Kleine Restflächen können bei grossen Spalten entfallen.'],
+ wave:['Wellenrippen','Selbstformend','Geschwungene Rippen als Versuch für gerichtete Nachgiebigkeit. Material und Druckhöhe bestimmen die Biegsamkeit mit.'],
+ gradedtiles:['Insel-Gradient','Selbstformend','Neu: grössere Druckinseln in der Mitte, kleinere aussen. Versuch für unterschiedliche lokale Versteifung auf gespanntem Stoff.'],
+ ribbons:['Segmentrippen','Selbstformend','Neu: getrennte gerade Rippen mit freien Stoffzonen. Auf vorgespanntem Stoff kann Entspannung Biegung und Wellen auslösen.'],
+ radialribs:['Radialrippen','Selbstformend','Neu: radial verteilte Rippen mit freier Mitte. Experiment für örtlich gerichtete Versteifung; die räumliche Endform ist nicht vorhergesagt.'],
+ lines:['Längsrippen','Selbstformend','Durchgehende Rippen als Vergleichsprobe. Druck auf vorgedehntem Stoff kann beim Entspannen zu Krümmung führen.'],
+ miura:['Miura-Facetten','Beweglich','Vom Origami inspirierte Facetten. Das gedruckte 2D-Muster allein definiert keine Berg-/Talfalten.'],
+ twist:['Twist-Facetten','Experiment','Rotierte Facetten mit Stoffgelenken. Keine Garantie für einen faltbaren oder auxetischen Mechanismus.'],
+ auxetic:['Re-entrant-Zellen','Experiment','Eingezogene Zellform. Auxetisches Verhalten des Textilverbunds ist ohne mechanischen Versuch nicht nachgewiesen.'],
+ yoshizawa:['Chevron-Facetten','Experiment','Gerichtete Facetten für Faltversuche. Der Stoff bleibt das Gelenk.'],
+ waterbomb:['Waterbomb-Facetten','Beweglich','Dichte Origami-Unterteilung. Kleine Druckflächen und viele Gelenke benötigen eine eigene Probe.'],
+ zigzag:['Zickzack','Experiment','Spitze Richtungswechsel. Mit Wellen vergleichen, um lokale Steifigkeit und Kanteneffekte zu beurteilen.'],
+ grid:['Gitter','Archiv','Verbundenes Netz versteift den Stoff stärker; als gezielte Verstärkung statt als Standard für weichen Fall.'],
+ crosshatch:['Kreuzgitter','Archiv','Durchgehende Kreuzungen begrenzen Beweglichkeit. Referenz für versteifte Textilien.'],
+ asanoha:['Asanoha','Archiv','Dekoratives, dichtes Netz. Für den ersten Textildruck weniger übersichtlich als einfache Inseln oder Rippen.'],
+ flasher:['Starshade','Beweglich','Radiales Faltmuster aus verdrehten Ringen. Ringanzahl und Ringdrehung steuern die Facetten.'],
+ penrose:['Penrose-Stern','Experiment','Dekoratives Einzelmotiv, keine flächendeckende Penrose-Parkettierung.'],
+ scales:['Schuppenbögen','Experiment','Das sind flache Bögen, keine überlappenden 3D-Schuppen.'],
+ gradmesh:['Gradient-Netz','Archiv','Ein verbundenes Netz mit variabler Dichte. Der neue Insel-Gradient bietet eine getrennte Alternative.']
+};
+Object.assign(PAT_PARAMS,{
+ ribbons:{elSc:0,gap:0,amp:1,rotB:0,mirror:0},
+ radialribs:{elSc:0,gap:0,amp:1,rotB:0,mirror:0},
+ gradedtiles:{elSc:1,gap:1,amp:1,rotB:0,mirror:0}
+});
+PRINTABLE_CELL_INVERT_PATTERNS.gradedtiles=1;
+Object.assign(LOCAL_PRESETS,{
+ hexagons:{n:10,amp:100,gap:14},ribbons:{n:8,amp:140,gap:0},
+ radialribs:{n:16,amp:80,gap:0},gradedtiles:{n:8,amp:140,gap:10}
+});
+['ribbons','radialribs','gradedtiles'].forEach(function(key){
+ var b=document.createElement('button');b.className='gen3d-pbtn';b.dataset.p=key;
+ b.innerHTML='<svg></svg><span>'+TEXTILE[key][0]+'</span>';pgrid.appendChild(b);
+});
+pgrid.querySelector('[data-p="waterbomb"]').after(pgrid.querySelector('[data-p="flasher"]'));
+Object.keys(TEXTILE).forEach(function(key){
+ PAT_DESC[key]=TEXTILE[key][2];
+ var b=pgrid.querySelector('[data-p="'+key+'"]');
+ if(b){b.querySelector('span').textContent=TEXTILE[key][0];b.title=TEXTILE[key][2];}
+});
+var textileCategory='Beweglich';
+var textileStyle=document.createElement('style');
+textileStyle.textContent=`
+#gen3dPanel{width:min(420px,calc(100vw - var(--sidebar-w) - var(--rsidebar-w)))}
+#gen3dPanel .gen3d-body{scroll-behavior:smooth}
+#gen3dPanel .textile-hero{padding:var(--space-4) var(--space-6);background:var(--panel);border-bottom:1px solid var(--border);color:var(--fg)}
+#gen3dPanel .textile-hero small{display:none}
+#gen3dPanel .textile-hero h2{font-size:var(--fs-base);margin:0 0 4px;line-height:1.2}
+#gen3dPanel .textile-hero p{font-size:var(--fs-xs);line-height:1.4;margin:0;color:var(--fg2)}
+#gen3dPanel .textile-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+#gen3dPanel .textile-tabs button{border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 7px;background:var(--white);color:var(--fg);font-size:var(--fs-xs);cursor:pointer}
+#gen3dPanel .textile-tabs button[aria-pressed=true]{background:var(--ac);color:var(--white)}
+#gen3dPanel .gen3d-pgrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;max-height:156px;overflow:auto;padding:2px}
+#gen3dPanel .gen3d-pbtn{min-height:64px;font-size:11px;padding:5px 2px}
+#gen3dPanel .gen3d-pbtn svg{height:32px}
+#gen3dPanel .gen3d-pbtn[hidden]{display:none}
+#gen3dPanel .gen3d-pbtn span{white-space:normal;font-size:11px}
+#gen3dPanel .textile-focus{background:var(--panel);border-left:none}
+#gen3dPanel .gen3d-row{flex-direction:row;align-items:center;gap:var(--space-4);margin:0 0 7px}
+#gen3dPanel .gen3d-row label{flex:0 0 145px;display:flex;justify-content:space-between;align-items:center;width:auto;font-size:var(--fs-sm);gap:4px}
+#gen3dPanel .gen3d-row label span{font-size:var(--fs-xs);font-weight:700;color:var(--ac);background:none;padding:0;border-radius:0;margin:0}
+#gen3dPanel input[type=range]{flex:1;min-width:0;width:auto;height:16px;accent-color:var(--ac)}
+#gen3dPanel .local-presets{gap:5px;margin:0 0 8px}
+#gen3dPanel .local-presets button{padding:4px;font-size:var(--fs-sm)}
+#gen3dPanel .textile-picker{flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--border)}
+#gen3dPanel .textile-picker .gen3d-sec{padding:8px var(--space-6);border-bottom:0}
+#gen3dPanel .textile-advanced{padding:12px 16px;border-bottom:1px solid var(--border)}
+#gen3dPanel summary{cursor:pointer;font-size:13px;font-weight:700;padding:5px 0}
+#gen3dPanel .textile-advanced .gen3d-sec{padding:14px 0}
+#gen3dPanel .textile-note{font-size:12px;line-height:1.5;color:var(--fg2);margin:8px 0}
+#gen3dPanel .gen3d-actions{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--border);padding:12px 16px;z-index:2;flex-shrink:0}
+#gen3dPanel .textile-stretch{padding:12px 18px;background:#f2eee3}
+#gen3dPanel .textile-stretch[hidden]{display:none}
+#gen3dPanel .textile-stretch label{display:flex;justify-content:space-between;margin:6px 0;font-size:13px}
+#gen3dPanel .textile-stretch input{width:64px;padding:4px}
+@media(max-width:600px){#gen3dPanel{right:var(--rsidebar-w)!important;width:calc(100vw - var(--rsidebar-w))!important;max-width:calc(100vw - var(--rsidebar-w))!important}#gen3dPanel .gen3d-pgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+`;
+document.head.appendChild(textileStyle);
+var textileBody=panel.querySelector('.gen3d-body');
+var chooser=pgrid.closest('.gen3d-sec');
+chooser.querySelector('.gen3d-sec-t').textContent='Muster wechseln';
+chooser.querySelector('.local-copy-note').remove();
+// Replace the generic compatibility claim with the context-specific hero.
+Array.from(chooser.children).forEach(function(el){
+ if(el!==pgrid&&!el.classList.contains('gen3d-sec-t'))el.remove();
+});
+var tabs=document.createElement('div');tabs.className='textile-tabs';
+['Beweglich','Selbstformend','Experiment','Archiv'].forEach(function(cat){
+ var b=document.createElement('button');b.type='button';b.textContent=cat==='Beweglich'?'Standard':cat;b.dataset.category=cat;
+ b.addEventListener('click',function(){textileCategory=cat;textileSync();});tabs.appendChild(b);
+});chooser.insertBefore(tabs,pgrid);
+var hero=document.createElement('div');hero.className='textile-hero';
+hero.innerHTML='<small>Textil-Labor / aktive Auswahl</small><h2 id="textileTitle"></h2><p id="textileDescription"></p>';
+textileBody.insertBefore(hero,chooser);
+var focus=$$('gen3dSecRaster');focus.classList.add('textile-focus');
+focus.querySelector('.gen3d-sec-t').textContent='Dein Muster einstellen';
+textileBody.insertBefore(focus,chooser);
+['gen3dMinGapRow','gen3dWallRow','gen3dRowAlternate','gen3dSeedRow'].forEach(function(id){focus.appendChild($$(id));});
+focus.appendChild($$('gen3dRa').closest('.gen3d-row'));
+var stretch=document.createElement('div');stretch.className='textile-stretch';
+stretch.innerHTML='<strong>Vorspannung planen</strong><p class="textile-note">Stoff vordehnen → Muster drucken → abkühlen lassen → entspannen. Rechenhilfe, keine Formsimulation.</p><label>X-Dehnung % <input id="textileStretchX" aria-label="Vordehnung X in Prozent" type="number" min="0" max="100" step="5" value="20"></label><label>Y-Dehnung % <input id="textileStretchY" aria-label="Vordehnung Y in Prozent" type="number" min="0" max="100" step="5" value="20"></label><p id="textileRelax" class="textile-note" aria-live="polite"></p>';
+textileBody.insertBefore(stretch,chooser);
+function textileStretchReadout(){
+ var x=Math.max(0,Math.min(100,Number($$('textileStretchX').value)||0));
+ var y=Math.max(0,Math.min(100,Number($$('textileStretchY').value)||0));
+ $$('textileRelax').textContent='100 × 100 mm ungespannter Stoff → '+(100+x)+' × '+(100+y)+' mm aufgespannt. Freie Rückstellung gegenüber dem gespannten Mass: X '+(100*x/(100+x)).toFixed(1)+' %, Y '+(100*y/(100+y)).toFixed(1)+' %. Der bedruckte Verbund zieht sich anders zurück. Die Eingabe verändert das 2D-Muster nicht.';
+}
+stretch.addEventListener('input',textileStretchReadout);textileStretchReadout();
+var advanced=document.createElement('details');advanced.className='textile-advanced';
+advanced.innerHTML='<summary>Fläche & weitere Optionen</summary>';
+Array.from(textileBody.children).forEach(function(el){
+ if(el.classList.contains('gen3d-sec')&&el!==chooser&&el!==focus) advanced.appendChild(el);
+});
+textileBody.appendChild(advanced);
+var chooserDetails=document.createElement('div');chooserDetails.className='textile-picker';
+chooserDetails.appendChild(chooser);
+panel.insertBefore(chooserDetails,textileBody);
+panel.querySelectorAll('.gen3d-row').forEach(function(row){
+ var input=row.querySelector('input'),label=row.querySelector('label');
+ if(input&&label)label.htmlFor=input.id;
+});
+// Keep insert/reset outside the scrolling controls.
+panel.appendChild(panel.querySelector('.gen3d-actions'));
+var note=document.createElement('p');note.className='textile-note';note.style.padding='0 18px';
+note.textContent='Start mit einer 100 × 100 mm Musterprobe. Druckhöhe und Material im Slicer festlegen. Haftung und Beweglichkeit am eigenen Stoff prüfen. SVG ist eine 2D-Vorlage, kein fertiges 3D-Modell.';
+textileBody.appendChild(note);
+$$('gen3dW').value=G.w;$$('gen3dWv').textContent=G.w;
+$$('gen3dH').value=G.h;$$('gen3dHv').textContent=G.h;
+$$('gen3dMinGap').value=G.minGap;$$('gen3dMinGapv').textContent=G.minGap+' mm';
+pgrid.addEventListener('click',function(e){
+ var b=e.target.closest('.gen3d-pbtn');if(!b)return;
+ G.invert=isPrintableCellInvertPattern(G.pat);G.fill=false;G.border=false;G.mirror=false;
+ $$('gen3dOInv').checked=G.invert;$$('gen3dOFill').checked=false;
+ $$('gen3dOBord').checked=false;$$('gen3dOMirr').checked=false;
+ textileSync();textileBody.scrollTop=0;
+});
+function textileSync(){
+ if(!hero)return;
+ var data=TEXTILE[G.pat];if(!data)return;
+ $$('textileTitle').textContent=data[0];$$('textileDescription').textContent=data[2];
+ stretch.hidden=data[1]!=='Selbstformend';
+ tabs.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.category===textileCategory));});
+ pgrid.querySelectorAll('button').forEach(function(b){b.hidden=TEXTILE[b.dataset.p][1]!==textileCategory;});
+ var labels={ribbons:'Rippenlänge',radialribs:'Freie Mitte',gradedtiles:'Grössenverlauf'};
+ if(labels[G.pat])$$('gen3dRowAmp').querySelector('label').firstChild.textContent=labels[G.pat];
+ var effTextile=_effDims(), ampTextile=Math.max(0,Math.min(2,G.amp/100));
+ if(G.pat==='ribbons'){
+   var rowCount=Math.max(2,Math.round(G.n*effTextile.he/effTextile.we));
+   $$('gen3dAmpv').textContent=(effTextile.he/rowCount*(.25+.65*ampTextile/2)).toFixed(1)+' mm';
+ } else if(G.pat==='radialribs'){
+   $$('gen3dAmpv').textContent=(Math.min(effTextile.we,effTextile.he)*.96*(.15+.55*ampTextile/2)).toFixed(1)+' mm Ø';
+ } else if(G.pat==='gradedtiles'){
+   $$('gen3dAmpv').textContent=Math.round(100*(.5*ampTextile/2)/.85)+'% Randreduktion';
+ }
+ $$('gen3dRa').closest('.gen3d-row').querySelector('label').firstChild.textContent='Ausrichtung';
+ $$('gen3dRav').textContent=G.rA+'°';
+ $$('gen3dEs').closest('.gen3d-row').querySelector('label').firstChild.textContent='Elementgrösse';
+ focus.querySelectorAll('.gen3d-row').forEach(function(row){
+   var input=row.querySelector('input'),label=row.querySelector('label');
+   if(input&&label){input.setAttribute('aria-label',label.firstChild.textContent);input.setAttribute('aria-valuetext',label.querySelector('span')?.textContent||input.value);}
+ });
+ $$('gen3dRowN').querySelector('label').firstChild.textContent=G.pat==='radialribs'?'Rippenanzahl':'Anzahl / Dichte';
+ // Printed cells and negative masks are materially different operations.
+ $$('gen3dOInv').parentElement.lastChild.textContent=isPrintableCellInvertPattern(G.pat)?' Getrennte Druckinseln':' Negativfläche statt Rippen';
+}
+/* Generate thumbnails with the same positive/cell defaults as selection. */
+$$('gen3dResetBtn').addEventListener('click',function(){textileCategory='Beweglich';textileSync();textileBody.scrollTop=0;});
 makePatternThumbnails();
 _gen3dPatDensityDefaults();
 updateParamVisibility();
