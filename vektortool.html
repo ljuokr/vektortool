@@ -2237,22 +2237,26 @@ body.layer-panel-open #rsActions { display:none !important; }
       <div class="box-sec-t">Runde Ecken</div>
       <label class="box-cbr" title="Deckel und Boden werden gerundete Rechtecke, die Wand ist EIN durchgehender Wickelstreifen mit Living-Hinge-Schlitzen und biegt sich um die runden Ecken."><input type="checkbox" id="boxORound"> Box mit runden Ecken (Living Hinge)</label>
       <div class="box-row" id="boxRowRadius" style="display:none"><label>Eck-Radius<input type="number" class="box-num" id="boxRv" value="30" min="3" max="100" step="1"></label><input type="range" id="boxR" min="3" max="100" value="30" step="1"></div>
+      <div class="box-info" id="boxRadiusNote" hidden></div>
       <div id="boxRowLidFit" style="display:none"><label class="box-cbr" title="Haken = Deckel/Boden sitzen als Kappe aussen auf (Wandhöhe = Höhe minus 2x Stärke). Ohne Haken = Deckel/Boden innen eingelegt (Wand volle Höhe)."><input type="checkbox" id="boxCapLid" checked> Deckel/Boden als Kappe (aussen)</label></div>
       <div id="boxRowFlexCorners" style="display:none"><label class="box-cbr" title="Haken = Schlitze nur in den 4 Eck-Bogen-Zonen: die geraden Wände bleiben steif, die Box bleibt rechteckig mit runden Ecken. Ohne Haken = Schlitze über die ganze Wand, die Box wird oval bis zylindrisch."><input type="checkbox" id="boxFlexCorners" checked> Schlitze nur in den Eck-Zonen</label></div>
       <div id="boxSecFlexBody" style="display:none">
         <div class="box-row"><label>Muster</label><select id="boxFlexPattern">
-          <option value="straight" selected>Gerade (flexibelste bis 4 mm)</option>
+          <option value="straight" selected>Gerade (Startmuster)</option>
           <option value="wave">Welle (dekorativ)</option>
           <option value="hex">Wabe (Sechseck-Schlitze)</option>
           <option value="diamond">Raute (dekorativ)</option>
           <option value="cross">Kreuz (ab 5 mm Material)</option>
         </select></div>
-        <label class="box-cbr" id="boxRowFlexAuto" title="Berechnet Schlitz-Dichte und -Länge automatisch aus Materialstärke, Kerf und Biegeradius (Torsions-Modell nach DefProc: Steglänge max. 4x Stärke, Stegzahl aus Kerf-Spielraum)."><input type="checkbox" id="boxFlexAuto" checked> Parameter automatisch berechnen</label>
+        <label class="box-cbr" id="boxRowFlexAuto" title="Startgeometrie aus Materialstärke: Schnittabstand 0.5×, Verbindung 1×, Schnittlänge bis 6×. Bestehende Mindestabstände zur Schnittfuge bleiben erhalten. Kein Festigkeitsnachweis."><input type="checkbox" id="boxFlexAuto" checked> Schnittmasse automatisch</label>
         <div id="boxFlexManualRows">
-        <div class="box-row"><label>Schlitzlänge<input type="number" class="box-num" id="boxFlexSLv" value="12" min="3" max="48" step="1"></label><input type="range" id="boxFlexSL" min="3" max="48" value="12" step="1"></div>
+        <div class="box-row" title="Schnittlänge in mm"><label>Schnittlänge<input type="number" class="box-num" id="boxFlexSLv" value="18" min="1" max="100" step="0.5"></label><input type="range" id="boxFlexSL" min="1" max="100" value="18" step="0.5"></div>
+        <div class="box-row" id="boxFlexPitchRow" title="Abstand zwischen Schnittspalten in mm, von Schnittmitte zu Schnittmitte"><label>Abstand<input type="number" class="box-num" id="boxFlexPitchv" value="1.5" min="0.5" max="15" step="0.1"></label><input type="range" id="boxFlexPitch" value="1.5" min="0.5" max="15" step="0.1"></div>
+        <div class="box-row" id="boxFlexBridgeRow" title="Ungeschnittene Verbindung zwischen aufeinanderfolgenden Schnitten, in mm"><label>Verbindung<input type="number" class="box-num" id="boxFlexBridgev" value="3" min="0.6" max="15" step="0.1"></label><input type="range" id="boxFlexBridge" value="3" min="0.6" max="15" step="0.1"></div>
         <div class="box-row"><label>Dichte<input type="number" class="box-num" id="boxFlexDv" value="70" min="20" max="95" step="1"></label><input type="range" id="boxFlexD" min="20" max="95" value="70" step="1"></div>
         </div>
-        <div class="box-info" id="boxFlexInfo">Straight: gerade Torsionsstege (DefProc), am flexibelsten in dünnem Material.</div>
+        <div class="box-info" id="boxFlexInfo">Gerade Schnittspalten als Startmuster; Biegbarkeit an einer Probe prüfen.</div>
+        <div class="box-info">Eckprobe: gleiche Wandhöhe und Biegezone wie die Box, mit Griffen und separater 90°-Schablone am eingestellten Radius. Prüft Biegung, nicht Deckelsitz oder Wandnaht.</div>
         <div class="box-stat" id="boxFlexStat" style="display:none"><span id="boxFlexStatTxt"></span></div>
         <button id="boxFlexSwatchBtn" class="box-btn" style="width:100%;margin-top:8px" title="Fügt einen Probestreifen (100×30 mm) mit den aktuellen Living-Hinge-Parametern ein - vor dem Box-Schnitt am echten Material probebiegen (Materialstreuung ist nur empirisch abschätzbar).">Test-Streifen einfügen</button>
       </div>
@@ -45430,7 +45434,7 @@ var $$ = function(id){ return document.getElementById(id); };
 /* ══ Defaults ══ */
 var B = {
   boxType: 'standard',      // 'standard' (6-Wand) | 'flex' (Deckel/Boden + gerundeter Streifen)
-  cornerRadius: 18,         // Eck-Radius mm (nur Flex-Box)
+  cornerRadius: 40,         // Geometrischer Start-Radius; am Material prüfen
   capLid: true,             // [flexbox-deckelsitz v1] Flex-Box: Deckel/Boden als Kappe (Wand H-2t) statt innen eingelegt
   joint: 'finger',  // 'finger' | 'tab' | 'butt'
   W: 120, D: 80, H: 60,    // Aussenmasse mm
@@ -45449,11 +45453,12 @@ var B = {
   flexFace: 'front',        // 'front' | 'back' | 'left' | 'right' | 'top' | 'bottom' | 'sides' | 'lr' | 'all'
   flexPattern: 'straight',  // 'straight' | 'wave' | 'diamond'
   flexCornersOnly: true,    // [livinghinge v1] Default AN: Rechteck mit runden Ecken (aus = ganze Wand -> oval)
-  flexSlitLen: 12,          // Länge eines Schlitzes mm ([livinghinge v1] Default 25->12: Generator clampt eh auf <=4t)
+  flexSlitLen: 18,          // Freie Schnittlänge; keine pauschale 4t-Grenze
+  flexPitch: 1.5, flexBridge: 3, // Manuelle gerade Biegezone, mm
   flexDensity: 70,          // Dichte 20..95 (höher = engere Reihen, mehr Biegsamkeit)
   /* [livinghinge v1] fehlende Defaults ergänzt (UI-Reaktivierung nach box-cleanup v1) */
   boxType: 'standard',      // 'standard' | 'flex' (runde Ecken + Wickelwand)
-  cornerRadius: 30,         // Eck-Radius der Flex-Box mm (30 = warnungsfrei bei t=3/kerf=0.1)
+  cornerRadius: 40,         // Am Material zu prüfender Startwert
   capLid: true,             // Deckel/Boden als Kappe (Wand H-2t) statt innen eingelegt
   flexAuto: true            // Schlitz-Parameter automatisch aus Radius/Materialstärke/Kerf
 };
@@ -45788,14 +45793,32 @@ function generateLivingHingeSlits(w, h, opts) {
   var bridge = Math.max(2.5 * kerf, t * (0.55 - df * 0.2));
   if (bridge < 0.6) bridge = 0.6;
 
-  /* Segmentlaenge entlang h: hart auf <= 4*t begrenzt (Splay-Grenze nach DefProc). */
-  var segLen = Math.min(opts.slitLen || (3 * t), 4 * t);
+  if (pattern === 'straight' && opts.bridge > 0) bridge = Math.max(opts.bridge, 2.5 * kerf, 0.6);
+  /* Lange Schnitte können die Nachgiebigkeit erhöhen; Wandhöhe begrenzt die Länge. */
+  var segLen = Math.min(opts.slitLen || (6 * t), Math.max(1, h - 2 * bridge));
   if (segLen < 1.5 * t) segLen = 1.5 * t;
 
   var marginW = Math.max(colPitch * 0.5, t * 0.5);
   var marginH = Math.max(bridge, 1);
   var aw = w - 2 * marginW, ah = h - 2 * marginH;
   if (aw <= colPitch || ah <= segLen * 0.6) return slits;
+
+  if (pattern === 'straight') {
+    // Gleichmässige Schnittspalten; derselbe Algorithmus für Wand und Eckprobe.
+    var countS = Math.floor(aw / colPitch) + 1;
+    var startS = marginW + (aw - (countS - 1) * colPitch) / 2;
+    var periodS = segLen + bridge;
+    var loS = opts.edgeCut ? 0 : marginH, hiS = opts.edgeCut ? h : h - marginH;
+    for (var cs = 0; cs < countS; cs++) {
+      var xs = startS + cs * colPitch;
+      var phaseS = marginH + (cs % 2) * periodS / 2;
+      for (var ys = phaseS - periodS; ys < hiS; ys += periodS) {
+        var y0S = Math.max(loS, ys), y1S = Math.min(hiS, ys + segLen);
+        if (y1S - y0S > 0.5) slits.push({x1:xs,y1:y0S,x2:xs,y2:y1S});
+      }
+    }
+    return slits;
+  }
 
   if (pattern === 'cross') {
     /* [livinghinge v1] Obrary-Kreuzmuster als reine Linien-Schnitte: Mittellinie mit
@@ -46107,9 +46130,7 @@ function buildCrossFlexSlits() {
   var out = [];
   for (var i=0;i<regions.length;i++) {
     var r = regions[i];
-    var slits = generateLivingHingeSlits(r.w, r.h, {
-      pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t, kerf: B.kerf /* [livinghinge v1] */
-    });
+    var slits = generateLivingHingeSlits(r.w, r.h, _hingeOptions());
     out.push({ region: r, slits: slits });
   }
   return out;
@@ -46238,14 +46259,7 @@ function buildFlexStripFull(W, D, H, R) {
   /* Living-Hinge-Schlitze. Standard: ganze Wand (ergibt eher oval/zylindrisch).
      Eck-Zonen-Modus: nur in den 4 Bogenzonen, gerade Waende bleiben steif
      (echtes Rechteck mit runden Ecken). */
-  var hingeOpts = { pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t, kerf: B.kerf };
-  /* [livinghinge v1] Auto-Parametrik: Pitch aus Stegzahl-Minimum (Kerf-Spielraum, DefProc),
-     Segmentlänge 3t (Generator clampt auf <=4t). Biegezone = Eck-Bogen bzw. ganzer Umfang. */
-  if (B.flexAuto) {
-    var _ap = _flexAutoPitch(B.flexCornersOnly ? arc : perim, B.flexCornersOnly ? Math.PI / 2 : 2 * Math.PI);
-    hingeOpts.colPitch = _ap.pitch;
-    hingeOpts.slitLen = 3 * B.t;
-  }
+  var hingeOpts = _hingeOptions();
   var slits;
   if (B.flexCornersOnly) {
     slits = [];
@@ -46273,10 +46287,8 @@ function buildFlexStripFull(W, D, H, R) {
 
 /* Erzeugt die Shapes für die Flex-Box (3 Teile). */
 function buildRoundedFlexShapes() {
-  var W = B.W, D = B.D, H = B.H, t = B.t, R = B.cornerRadius;
-  if (B.inner) { W += 2*t; D += 2*t; H += 2*t; }
-  var minDim = Math.min(W, D);
-  R = Math.max(3, Math.min(R, minDim/2 - 3));
+  var dims = _roundedBoxDims();
+  var W = dims.W, D = dims.D, H = dims.H, t = B.t, R = dims.R;
 
   /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
      Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
@@ -46386,13 +46398,7 @@ function buildAllPanels() {
     var includeEdges = panelIncludeEdges(f);
     var poly = buildPanelOutline(d.w, d.h, e, opts, includeEdges, panelInsets(f)); /* [box-hierarchie v1] Eck-Aussparung */
     if (flexFaces[f]) {
-      poly.slits = generateLivingHingeSlits(d.w, d.h, {
-        pattern: B.flexPattern,
-        slitLen: B.flexSlitLen,
-        density: B.flexDensity,
-        t: B.t,
-        kerf: B.kerf /* [livinghinge v1] fehlte: Brücke war auf 0.15-Fallback statt echtem Kerf */
-      });
+      poly.slits = generateLivingHingeSlits(d.w, d.h, _hingeOptions());
     }
     out.push({ face: f, label: d.label, w: d.w, h: d.h, poly: poly });
   }
@@ -46848,6 +46854,8 @@ function scheduleUpdate() {
 }
 
 function updateStat() {
+  _syncRoundedBoxUi();
+  if(B.boxType!=='flex')$$('boxInsertBtn').disabled=false;
   var t = B.t, W = B.W, D = B.D, H = B.H;
   var iW, iD, iH;
   if (B.inner) { iW = W; iD = D; iH = H; }
@@ -47008,6 +47016,13 @@ if (typeSel) typeSel.addEventListener('change', function(){
 /* [rundeecken v2] Runde Ecken als einzige Living-Hinge-Option: Checkbox statt Box-Typ-Select */
 var roundCb = $$('boxORound');
 if (roundCb) roundCb.addEventListener('change', function(){
+  if (roundCb.checked && !B._roundPresetUsed) {
+    if (B.W === DEF.W && B.D === DEF.D && B.H === DEF.H && !B.inner) {
+      B.W=160; B.D=120; B.H=60; B.cornerRadius=40;
+      ['W','D','H'].forEach(function(k){$$('box'+k).value=B[k];$$('box'+k+'v').value=B[k];});
+    }
+    B._roundPresetUsed=true;
+  }
   B.boxType = roundCb.checked ? 'flex' : 'standard';
   refreshTypeUi();
   scheduleUpdate();
@@ -47068,11 +47083,13 @@ if (flexPatSel) flexPatSel.addEventListener('change', function(){
                      : (B.flexPattern === 'hex') ? 'Wabe: flache Sechseck-Schlitze im Versatz-Raster - wabenartige Optik, mehr offene Fläche (die schmalen Ausschnitte fallen heraus).' /* [muster v3] */
                      : (B.flexPattern === 'diamond') ? 'Raute: diagonales Zickzack-Gitter, dekorativ.'
                      : (B.flexPattern === 'cross') ? 'Kreuz: Mittellinie mit V-Gabeln (Obrary) - auf dickem Material (ab ~5 mm) am flexibelsten, biegt in 2 Richtungen.' /* [livinghinge v1] */
-                     : 'Gerade: versetzte Torsionsstege (DefProc), am flexibelsten in dünnem Material.';
+                     : 'Gerade: versetzte Schnittspalten. Startwerte am eigenen Material mit der Eckprobe prüfen.';
   }
   scheduleUpdate();
 });
 bindSlider('boxFlexSL', 'boxFlexSLv', 'flexSlitLen');
+bindSlider('boxFlexPitch', 'boxFlexPitchv', 'flexPitch');
+bindSlider('boxFlexBridge', 'boxFlexBridgev', 'flexBridge');
 bindSlider('boxFlexD',  'boxFlexDv',  'flexDensity');
 bindCbx('boxFlexAuto', 'flexAuto', function(){ _flexManualRowsVis(); }); /* [livinghinge v1] */
 var flexCornersCb = $$('boxFlexCorners');
@@ -47098,84 +47115,99 @@ function refreshFlexBody() {
 
 /* [livinghinge v1] Manuelle Regler nur zeigen, wenn Auto aus ist (Auto gilt nur für die
    Flex-Box, wo der Biegeradius bekannt ist; bei der flexiblen Wand immer manuell). */
+function _roundedBoxDims() {
+  var W=B.W+(B.inner?2*B.t:0), D=B.D+(B.inner?2*B.t:0), H=B.H+(B.inner?2*B.t:0);
+  // Reserve a straight joining region rather than silently making needle-sized tabs.
+  var rMax=Math.max(1,Math.floor((Math.min(W,D)-Math.max(6,3*B.t))/2));
+  var R=Math.max(1,Math.min(Number(B.cornerRadius)||40,rMax));
+  return {W:W,D:D,H:H,R:R,rMax:rMax,wallH:B.capLid!==false?Math.max(2,H-2*B.t):H};
+}
+function _hingeOptions() {
+  var automatic=B.boxType==='flex' && B.flexAuto!==false && B.flexPattern==='straight';
+  var k=Math.max(.05,B.kerf||.15); // Existing clearance floor; never writes B.kerf.
+  return {pattern:B.flexPattern,t:B.t,kerf:B.kerf,density:B.flexDensity,
+    colPitch:Math.max(automatic?.5*B.t:B.flexPitch,2*k+.4),
+    bridge:Math.max(automatic?B.t:B.flexBridge,2.5*k,.6),
+    slitLen:automatic?6*B.t:B.flexSlitLen};
+}
 function _flexManualRowsVis() {
-  var autoRow = $$('boxRowFlexAuto');
-  if (autoRow) autoRow.style.display = (B.boxType === 'flex') ? '' : 'none';
-  var rows = $$('boxFlexManualRows');
-  if (rows) rows.style.display = (B.boxType === 'flex' && B.flexAuto !== false) ? 'none' : '';
+  var straight=B.flexPattern==='straight';
+  var auto=B.boxType==='flex' && B.flexAuto!==false && straight;
+  $$('boxRowFlexAuto').style.display=B.boxType==='flex'&&straight?'':'none';
+  $$('boxFlexManualRows').style.display='';
+  $$('boxFlexSL').closest('.box-row').style.display=B.flexPattern==='cross'?'none':'';
+  $$('boxFlexD').closest('.box-row').style.display=straight?'none':'';
+  ['boxFlexPitchRow','boxFlexBridgeRow'].forEach(function(id){$$(id).style.display=straight?'':'none';});
+  ['boxFlexSL','boxFlexSLv','boxFlexPitch','boxFlexPitchv','boxFlexBridge','boxFlexBridgev'].forEach(function(id){$$(id).disabled=auto;});
 }
-
-/* [livinghinge v1] DefProc-Torsionsmodell: kleinste Stegzahl n, bei welcher der Twist pro
-   Steg (theta/n) den Kerf-Spielraum nicht sprengt. Clearance-Formel (Quadratsteg):
-   k = t * (sqrt(2)*cos(pi/4 - theta/n) - 1) <= kerf.
-   Referenz: t=3, kerf=0.2, theta=90° -> n=23 (deckt sich mit DefProc-Beispiel). */
-function _hingeNMin(t, kerf, theta) {
-  var start = Math.max(1, Math.ceil(theta / (Math.PI / 4))); /* Twist pro Steg <= 45° (Formel-Domäne) */
-  for (var n = start; n <= 720; n++) {
-    var k = t * (Math.SQRT2 * Math.cos(Math.PI / 4 - theta / n) - 1);
-    if (k <= kerf) return n;
-  }
-  return 720;
-}
-
-/* [livinghinge v1] Auto-Pitch für eine Biegezone: Zonenbreite / n_min, nach unten durch
-   die Schneidbarkeit (2*kerf + 0.4) begrenzt, nach oben durch 2t (dichter = weniger Spannung). */
-function _flexAutoPitch(zoneW, theta) {
-  var kerf = Math.max(B.kerf || 0, 0.1);
-  var nMin = _hingeNMin(B.t, kerf, theta);
-  var floor = Math.max(2 * kerf + 0.4, 0.9);
-  /* [rundeecken v2] Generator laesst t/2 Randabstand je Zonenseite -> nutzbare Breite */
-  var usable = Math.max(1, zoneW - B.t);
-  var raw = usable / nMin;
-  return { nMin: nMin, floor: floor, usable: usable, pitch: Math.max(floor, Math.min(raw, B.t)), ok: raw >= floor - 1e-9 }; /* Cap bei t: dichter = weniger Spannung pro Steg */
-}
-
-/* [livinghinge v1] Kennzahlen + Warnungen unter den Living-Hinge-Reglern. */
-function _flexStatUpdate() {
-  var stat = $$('boxFlexStat'), txt = $$('boxFlexStatTxt');
-  if (!stat || !txt) return;
-  var isFlex = (B.boxType === 'flex');
-  if (!isFlex && !B.flex) { stat.style.display = 'none'; return; }
-  stat.style.display = '';
-  var msg = '', warn = '';
-  var kerf = Math.max(B.kerf || 0, 0.05);
-  if (isFlex) {
-    var W = B.inner ? B.W + 2 * B.t : B.W, D = B.inner ? B.D + 2 * B.t : B.D;
-    var R = Math.max(3, Math.min(B.cornerRadius || 30, Math.min(W, D) / 2 - 3));
-    var arc = (Math.PI * R / 2) / 1.05; /* wie buildFlexStripFull (boxes.py-Stretch) */
-    var perim = 2 * W + 2 * D - 8 * R + 4 * arc;
-    var theta = B.flexCornersOnly ? Math.PI / 2 : 2 * Math.PI;
-    var zoneW = B.flexCornersOnly ? arc : perim;
-    var a = _flexAutoPitch(zoneW, theta);
-    var pitchUsed;
-    if (B.flexAuto) { pitchUsed = a.pitch; }
-    else {
-      var df = (Math.min(95, Math.max(20, B.flexDensity)) - 20) / 75;
-      pitchUsed = Math.max(B.t * (2.0 - df * 1.1), 2 * kerf + 0.4);
-    }
-    var nCols = Math.floor(a.usable / pitchUsed) + 1; /* [rundeecken v2] wie Generator (Spalten 0..n inkl.) */
-    msg = (B.flexCornersOnly ? 'Eck-Bogen ' + arc.toFixed(1) + ' mm' : 'Wickelwand ' + zoneW.toFixed(0) + ' mm')
-        + ' · ' + nCols + ' Steg-Spalten (min. ' + a.nMin + ') · Pitch ' + pitchUsed.toFixed(2) + ' mm';
-    if (B.flexPattern !== 'straight') msg += ' · Kennzahlen gelten für «Gerade» - Deko-Muster mit Test-Streifen prüfen';
-    if (nCols < a.nMin) {
-      if (B.flexCornersOnly) {
-        /* [rundeecken v2] usable(R) = pi*R/2/1.05 - t >= nMin*Pitch-Boden aufgeloest nach R */
-        var rMin = (a.nMin * a.floor + B.t) * 2 * 1.05 / Math.PI;
-        warn = 'Zu wenige Stege für spannungsfreies Biegen - Eck-Radius auf min. ~' + Math.ceil(rMin) + ' mm erhöhen' + (B.flexAuto ? '' : ' oder Auto aktivieren') + '.';
-      } else {
-        warn = 'Zu wenige Stege für spannungsfreies Biegen - Dichte erhöhen' + (B.flexAuto ? '' : ' oder Auto aktivieren') + '.';
-      }
-    }
+function _syncRoundedBoxUi() {
+  if (!$$('boxRadiusNote')) return;
+  var d=_roundedBoxDims(), isFlex=B.boxType==='flex';
+  if(isFlex) B.cornerRadius=d.R;
+  ['boxR','boxRv'].forEach(function(id){var e=$$(id);e.min=1;e.max=d.rMax;e.value=d.R;});
+  $$('boxRadiusNote').hidden=!isFlex;
+  $$('boxRadiusNote').textContent='Verwendeter Radius: '+d.R+' mm · geometrisch max. '+d.rMax+' mm. Für grössere Radien Breite/Tiefe erhöhen. Keine Materialfreigabe.';
+  _flexManualRowsVis();
+  var opt=_hingeOptions();
+  if(B.flexPattern==='straight'){
+    var len=Math.max(1.5*B.t,Math.min(opt.slitLen,Math.max(1,d.wallH-2*opt.bridge)));
+    [['boxFlexSL',len],['boxFlexPitch',opt.colPitch],['boxFlexBridge',opt.bridge]].forEach(function(pair){
+      $$(pair[0]).value=pair[1];$$(pair[0]+'v').value=Number(pair[1].toFixed(2));
+    });
   } else {
-    /* Flexible Wand (Standard-Box): kein definierter Biegeradius, nur Geometrie-Kennwerte */
-    var segLen = Math.min(B.flexSlitLen || 3 * B.t, 4 * B.t);
-    var df2 = (Math.min(95, Math.max(20, B.flexDensity)) - 20) / 75;
-    var pitch2 = Math.max(B.t * (2.0 - df2 * 1.1), 2 * kerf + 0.4);
-    msg = 'Segment ' + segLen.toFixed(1) + ' mm (max 4×t = ' + (4 * B.t).toFixed(1) + ') · Pitch ' + pitch2.toFixed(2) + ' mm';
-    if ((B.flexSlitLen || 0) > 4 * B.t) warn = 'Schlitzlänge wird auf 4× Materialstärke begrenzt (längere Stege brechen).';
+    $$('boxFlexSL').value=B.flexSlitLen;$$('boxFlexSLv').value=B.flexSlitLen;
   }
-  if (warn) txt.innerHTML = msg + '<br><b style="color:var(--red)">⚠ ' + warn + '</b>';
-  else txt.textContent = msg;
+  var descriptions={
+    straight:'Gerade: versetzte Schnittspalten. Schnittmasse in mm; Biegbarkeit mit der Eckprobe prüfen.',
+    wave:'Welle: wellige Schnitte, dekorativ. Schnittlänge in mm; am Material prüfen.',
+    hex:'Wabe: Sechseck-Schlitze mit herausfallenden Ausschnitten. Am Material prüfen.',
+    diamond:'Raute: diagonale Schnitte. Schnittlänge in mm; am Material prüfen.',
+    cross:'Kreuz: Schnitte mit V-Gabeln. Geometrie aus Stärke und Dichte; am Material prüfen.'
+  };
+  $$('boxFlexInfo').textContent=descriptions[B.flexPattern]||'';
+  $$('boxFlexSwatchBtn').textContent=isFlex?'Eckprobe + 90°-Schablone einfügen':'Test-Streifen einfügen';
+  $$('boxFlexSwatchBtn').disabled=isFlex&&!B.flexCornersOnly;
+  $$('boxFlexSwatchBtn').title=isFlex?'Für die Eckprobe „Schlitze nur in den Eck-Zonen“ aktivieren. Die Schablone zeigt den nominellen Radius; Materialprobe bleibt nötig.':'Test-Streifen mit den aktuellen Schnittmassen';
+}
+function _flexStatUpdate() {
+  var stat=$$('boxFlexStat'),txt=$$('boxFlexStatTxt');
+  if(!stat||!txt)return;
+  var isFlex=B.boxType==='flex';
+  stat.style.display=isFlex||B.flex?'':'none';
+  if(!isFlex&&!B.flex)return;
+  if(!isFlex){txt.textContent='Biegeprobe am Material prüfen. Kerf und Passung bleiben unverändert.';return;}
+  var d=_roundedBoxDims(),arc=Math.PI*d.R/2/1.05;
+  var perim=2*d.W+2*d.D-8*d.R+4*arc;
+  var opt=_hingeOptions();opt.edgeCut=!!B.flexCornersOnly;
+  var width=B.flexCornersOnly?arc:perim;
+  var cuts=generateLivingHingeSlits(width,d.wallH,opt);
+  var columns={};
+  cuts.forEach(function(s){if(s.x1!=null)columns[s.x1.toFixed(4)]=true;});
+  var msg='Biegezone '+width.toFixed(1)+' × '+d.wallH.toFixed(1)+' mm · '+cuts.length+' Schnitte';
+  if(B.flexPattern==='straight')msg+=' · '+Object.keys(columns).length+' Schnittspalten';
+  msg+=' · Wickelwand '+perim.toFixed(1)+' mm lang.';
+  if(!cuts.length)msg+=' Keine Biegezone möglich: Radius/Wandhöhe erhöhen oder Schnittmasse verkleinern.';
+  else if(d.R<10*B.t)msg+=' Enger Radius im Verhältnis zur Stärke: zuerst die Eckprobe biegen.';
+  var pageW=(window.docW||297*MM)/MM, pageH=(window.docH||210*MM)/MM;
+  if(perim>Math.max(pageW,pageH))msg+=' Wickelwand länger als die Zeichenfläche; grösseres Format wählen. Masse werden nicht verkleinert.';
+  msg+=' Biegbarkeit am Material prüfen. Wandnaht muss verbunden werden.';
+  txt.textContent=msg;
+  $$('boxInsertBtn').disabled=!cuts.length;
+  if(!cuts.length)$$('boxFlexSwatchBtn').disabled=true;
+}
+function _cornerCouponGeometry() {
+  var d=_roundedBoxDims(), zoneW=Math.PI*d.R/2/1.05, grip=Math.max(15,4*B.t);
+  var w=zoneW+2*grip,h=d.wallH,opt=_hingeOptions();opt.edgeCut=true;
+  var slits=generateLivingHingeSlits(zoneW,h,opt).map(function(s){
+    if(s.poly)return Object.assign({},s,{poly:s.poly.map(function(p){return {x:p.x+grip,y:p.y};})});
+    return Object.assign({},s,{x1:s.x1+grip,x2:s.x2+grip});
+  });
+  // Separate quarter-disc template; its arc corresponds to the generator's nominal radius.
+  var guideRadius=d.R, guide=[{x:0,y:0},{x:guideRadius,y:0}];
+  for(var i=1;i<=48;i++){var a=i*Math.PI/96;guide.push({x:guideRadius*Math.cos(a),y:guideRadius*Math.sin(a)});}
+  guide.push({x:0,y:0});
+  return {w:w,h:h,zoneW:zoneW,grip:grip,slits:slits,guideRadius:guideRadius,guide:guide,
+    outline:[{x:0,y:0},{x:w,y:0},{x:w,y:h},{x:0,y:h}]};
 }
 
 /* Face-Checkbox-Optik (off-Klasse) */
@@ -47209,25 +47241,18 @@ $$('boxInsertBtn').addEventListener('click', function(){
    (inkl. Auto-Pitch der Flex-Box) zum Probebiegen vor dem Box-Schnitt (wie boxes.py FlexTest). */
 var swatchBtn = $$('boxFlexSwatchBtn');
 if (swatchBtn) swatchBtn.addEventListener('click', function(){
-  var wS = 100, hS = 30;
-  var hingeOpts = { pattern: B.flexPattern, slitLen: B.flexSlitLen, density: B.flexDensity, t: B.t, kerf: B.kerf };
-  if (B.boxType === 'flex' && B.flexAuto) {
-    var Wf = B.inner ? B.W + 2 * B.t : B.W, Df = B.inner ? B.D + 2 * B.t : B.D;
-    var Rf = Math.max(3, Math.min(B.cornerRadius || 30, Math.min(Wf, Df) / 2 - 3));
-    var arcF = (Math.PI * Rf / 2) / 1.05;
-    var perF = 2 * Wf + 2 * Df - 8 * Rf + 4 * arcF;
-    var apF = _flexAutoPitch(B.flexCornersOnly ? arcF : perF, B.flexCornersOnly ? Math.PI / 2 : 2 * Math.PI);
-    hingeOpts.colPitch = apF.pitch;
-    hingeOpts.slitLen = 3 * B.t;
-  }
-  hingeOpts.edgeCut = true; /* [rundeecken v2] Teststreifen wie die Eck-Zonen: durch die Kanten schneiden */
-  var slits = generateLivingHingeSlits(wS, hS, hingeOpts);
+  var coupon=B.boxType==='flex'?_cornerCouponGeometry():null;
+  var wS=coupon?coupon.w:100, hS=coupon?coupon.h:30;
+  var hingeOpts=_hingeOptions();hingeOpts.edgeCut=true;
+  var slits=coupon?coupon.slits:generateLivingHingeSlits(wS,hS,hingeOpts);
+  if(!slits.length)return;
   /* [box-schwarz v1] Schnittkontur fest schwarz statt aktueller Linienfarbe: LightBurn mappt
      Importfarben auf seine Palette (Schwarz->C00, Blau->C01 ...). Eine Box in der zuletzt
      benutzten Zeichenfarbe landete so auf einer fremden Ebene, die z.B. auf Gravur stand. */
   var inkCol = '#000000';
   var strokeW = (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.0;
-  var sx = ((window.docW || 297 * MM) / MM - wS) / 2, sy = ((window.docH || 210 * MM) / MM - hS) / 2;
+  var groupW=wS+(coupon?10+coupon.guideRadius:0),groupH=coupon?Math.max(hS,coupon.guideRadius):hS;
+  var sx = ((window.docW || 297 * MM) / MM - groupW) / 2, sy = ((window.docH || 210 * MM) / MM - groupH) / 2;
   var out = [{
     type: 'freehand', closed: true, smooth: false,
     points: [{x:sx,y:sy},{x:sx+wS,y:sy},{x:sx+wS,y:sy+hS},{x:sx,y:sy+hS}].map(function(p){ return { x: p.x*MM, y: p.y*MM }; }),
@@ -47256,17 +47281,28 @@ if (swatchBtn) swatchBtn.addEventListener('click', function(){
     }
   }
   if (window.previewShapes) { window.previewShapes = null; }
-  if (typeof window.pu === 'function') window.pu('Living-Hinge-Teststreifen');
+  if(coupon){
+    var gx=sx+wS+10,gy=sy;
+    var guidePts=coupon.guide.map(function(p){return {x:(gx+p.x)*MM,y:(gy+p.y)*MM};});
+    out.push({type:'freehand',points:guidePts,closed:true,smooth:false,stroke:inkCol,strokeWidth:strokeW,
+      fill:'none',fillEnabled:false,lineStyle:0,effectStrength:1,rotation:0,
+      x:gx*MM,y:gy*MM,w:coupon.guideRadius*MM,h:coupon.guideRadius*MM});
+  }
+  if (typeof window.pu === 'function') window.pu(coupon?'Eckprobe mit Radiusschablone':'Living-Hinge-Teststreifen');
   if (typeof window.addShapeWithMirror === 'function') {
     for (var k = 0; k < out.length; k++) window.addShapeWithMirror(out[k]);
   } else if (window.shapes) {
     for (var k2 = 0; k2 < out.length; k2++) window.shapes.push(out[k2]);
   }
   if (typeof window.render === 'function') window.render();
+  setOpen(false);
 });
 
 $$('boxResetBtn').addEventListener('click', function(){
+  var retainedKerf=B.kerf;
   Object.assign(B, _vtDeepClone(DEF));
+  B.kerf=retainedKerf;
+  B._roundPresetUsed=false;
   $$('boxW').value = B.W;   $$('boxWv').value = B.W; /* [box-inputs v1] number-Inputs */
   $$('boxD').value = B.D;   $$('boxDv').value = B.D;
   $$('boxH').value = B.H;   $$('boxHv').value = B.H;
@@ -47294,6 +47330,8 @@ $$('boxResetBtn').addEventListener('click', function(){
   if ($$('boxFlexSLv'))     $$('boxFlexSLv').value = B.flexSlitLen;
   if ($$('boxFlexD'))       $$('boxFlexD').value = B.flexDensity;
   if ($$('boxFlexDv'))      $$('boxFlexDv').value = B.flexDensity;
+  ['boxFlexPitch','boxFlexPitchv'].forEach(function(id){$$(id).value=B.flexPitch;});
+  ['boxFlexBridge','boxFlexBridgev'].forEach(function(id){$$(id).value=B.flexBridge;});
   if ($$('boxFlexCorners')) $$('boxFlexCorners').checked = !!B.flexCornersOnly;
   if ($$('boxR'))           $$('boxR').value = B.cornerRadius;
   if ($$('boxRv'))          $$('boxRv').value = B.cornerRadius;
