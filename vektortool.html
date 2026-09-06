@@ -76,7 +76,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Vektortool - zeichnen, sticken, lasern, 3D-drucken</title>
+<title>Vektortool · lokale Musterwerkstatt</title>
 <meta name="description" content="Vektor-Editor im Browser: zeichnen und als Stickdatei (DST), Laservorlage (SVG) oder 3D-Druck-Vorlage herunterladen. Kostenlos, ohne Installation, ohne Konto.">
 <meta property="og:title" content="Vektortool - vom Vektor zum Objekt">
 <meta property="og:description" content="Zeichnen. Sticken. Lasern. 3D-Drucken. Kostenlos. Keine Installation, kein Konto, läuft auch offline.">
@@ -1704,7 +1704,20 @@ body.layer-panel-open #rsActions { display:none !important; }
 .tb-stack .tb-label{font-size:var(--fs-sm);}
 .tool-btn .key{font-size:var(--fs-xs);opacity:.8;}
 </style>
-<!--VT-I18N-CSS-BEGIN--><style>.vt-lang{/*sprachwahl-vertikal v2: Position via .tb-stack (margin:auto) wie alle Controls, kein margin-Hack*/height:24px;max-width:128px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--white);color:var(--fg);font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0 var(--space-2)}[dir="rtl"] svg,[dir="rtl"] canvas,[dir="rtl"] #canvas,[dir="rtl"] #canvasWrap,[dir="rtl"] #rulerH,[dir="rtl"] #rulerV{direction:ltr}[dir="rtl"] </style><!--VT-I18N-CSS-END--></head>
+<!--VT-I18N-CSS-BEGIN--><style>.vt-lang{/*sprachwahl-vertikal v2: Position via .tb-stack (margin:auto) wie alle Controls, kein margin-Hack*/height:24px;max-width:128px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--white);color:var(--fg);font-size:var(--fs-sm);font-weight:600;cursor:pointer;padding:0 var(--space-2)}[dir="rtl"] svg,[dir="rtl"] canvas,[dir="rtl"] #canvas,[dir="rtl"] #canvasWrap,[dir="rtl"] #rulerH,[dir="rtl"] #rulerV{direction:ltr}[dir="rtl"] </style><!--VT-I18N-CSS-END--><style id="local-pattern-styles">
+#gen3dPanel .gen3d-pbtn{--pattern-paper:var(--white);min-height:80px;font-size:14px;}
+#gen3dPanel .gen3d-pbtn.active{--pattern-paper:var(--ac);}
+#gen3dPanel .gen3d-pbtn svg{width:100%;height:46px;opacity:1;}
+#gen3dPanel .local-copy-note{font-size:13px;line-height:1.5;margin-bottom:12px;}
+#gen3dPanel .local-copy-note a{color:var(--ac);text-decoration:underline;}
+#gen3dPanel .local-presets{display:flex;gap:6px;margin:0 0 14px;}
+#gen3dPanel .local-presets button{flex:1;padding:8px 4px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--fg);font-size:14px;cursor:pointer;}
+#gen3dPanel .local-presets button:hover{border-color:var(--ac);}
+#gen3dPanel .gen3d-row label{flex-basis:130px;font-size:14px;}
+#gen3dPanel .gen3d-row input{min-width:0;}
+#gen3dSeed{width:100%;padding:7px;border:1px solid var(--border);background:var(--white);color:var(--fg);border-radius:6px;}
+#gen3dGeometryNotice[hidden]{display:none;}
+</style></head>
 <body class="notranslate"><!-- [VT-NOTRANSLATE v1] s. head-Kommentar -->
 
 <!-- Loading-Overlay für lange Berechnungen (DST-Export, Stitch-Recalc).
@@ -2126,6 +2139,7 @@ body.layer-panel-open #rsActions { display:none !important; }
   <div class="gen3d-body">
     <div class="gen3d-sec">
       <div class="gen3d-sec-t">Muster</div>
+      <div class="local-copy-note">Lokale Musterwerkstatt · <a href="original.html" target="_blank" rel="noopener">Original vergleichen</a></div>
       <div class="gen3d-pgrid" id="gen3dPgrid">
         <button class="gen3d-pbtn active" data-p="miura"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><path d="M3,4 L13,4 L11,18 L3,18 Z"/><path d="M13,4 L23,4 L25,18 L11,18 Z"/><path d="M23,4 L33,4 L33,18 L25,18 Z"/><path d="M3,18 L11,18 L13,32 L3,32 Z"/><path d="M11,18 L25,18 L23,32 L13,32 Z"/><path d="M25,18 L33,18 L33,32 L23,32 Z"/></svg><span>Miura</span></button>
         <button class="gen3d-pbtn" data-p="flasher"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><rect x="4" y="4" width="28" height="28"/><polygon points="23.9,30.7 5.3,23.9 12.1,5.3 30.7,12.1"/><polygon points="18.7,26.5 9.5,18.7 17.3,9.5 26.5,17.3"/></svg><span>Starshade</span></button>
@@ -2139,7 +2153,7 @@ body.layer-panel-open #rsActions { display:none !important; }
         <button class="gen3d-pbtn" data-p="diamonds"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="2"><polygon points="18,4 32,18 18,32 4,18"/><line x1="18" y1="4" x2="18" y2="32"/><line x1="4" y1="18" x2="32" y2="18"/></svg><span>Raute</span></button>
         <button class="gen3d-pbtn" data-p="quads"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="2"><rect x="4" y="4" width="12" height="12"/><rect x="20" y="4" width="12" height="12"/><rect x="4" y="20" width="12" height="12"/><rect x="20" y="20" width="12" height="12"/></svg><span>Viereck</span></button>
         <button class="gen3d-pbtn" data-p="asanoha"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><line x1="18" y1="4" x2="18" y2="32"/><line x1="4" y1="18" x2="32" y2="18"/><line x1="4" y1="4" x2="32" y2="32"/><line x1="32" y1="4" x2="4" y2="32"/><circle cx="18" cy="18" r="8"/></svg><span>Asanoha</span></button>
-        <button class="gen3d-pbtn" data-p="penrose"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.4"><polygon points="18,5 22,16 18,18 14,16"/><polygon points="29,12 23,18 22,16 25,8"/><polygon points="29,24 22,20 23,18 29,12"/><polygon points="18,31 14,20 18,18 22,20"/><polygon points="7,24 13,18 14,20 11,28"/><polygon points="7,12 14,16 13,18 7,24"/></svg><span>Penrose</span></button>
+        <button class="gen3d-pbtn" data-p="penrose"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.4"><polygon points="18,5 22,16 18,18 14,16"/><polygon points="29,12 23,18 22,16 25,8"/><polygon points="29,24 22,20 23,18 29,12"/><polygon points="18,31 14,20 18,18 22,20"/><polygon points="7,24 13,18 14,20 11,28"/><polygon points="7,12 14,16 13,18 7,24"/></svg><span>Penrose-Stern</span></button>
         <button class="gen3d-pbtn" data-p="voronoi"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.4"><path d="M3,12 L11,3 L20,7 L26,3 L33,9 L29,18 L33,27 L26,33 L18,29 L10,33 L3,25 L8,16 Z"/><path d="M11,3 L8,16 L18,29"/><path d="M20,7 L26,3"/><path d="M26,3 L29,18"/><path d="M29,18 L33,27"/><path d="M18,29 L26,33"/><path d="M8,16 L20,7"/></svg><span>Voronoi</span></button>
         <button class="gen3d-pbtn" data-p="scales"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><path d="M2,18 Q10,4 18,18"/><path d="M18,18 Q26,4 34,18"/><path d="M10,34 Q18,20 26,34"/></svg><span>Schuppen</span></button>
         <button class="gen3d-pbtn" data-p="circles"><svg viewBox="0 0 36 36" stroke="currentColor" fill="none" stroke-width="1.6"><circle cx="10" cy="10" r="6"/><circle cx="26" cy="10" r="6"/><circle cx="10" cy="26" r="6"/><circle cx="26" cy="26" r="6"/></svg><span>Kreise</span></button>
@@ -2163,6 +2177,10 @@ body.layer-panel-open #rsActions { display:none !important; }
     </div>
     <div class="gen3d-sec" id="gen3dSecRaster">
       <div class="gen3d-sec-t">Raster</div>
+      <div id="gen3dDensityPresets" class="local-presets" aria-label="Flächenanteil">
+        <button type="button" data-gap-factor="1.6">Luftig</button><button type="button" data-gap-factor="1">Ausgewogen</button><button type="button" data-gap-factor="0.55">Dicht</button>
+      </div>
+      <p id="gen3dGeometryNotice" class="gen3d-info" role="status" hidden></p>
       <div class="gen3d-row" id="gen3dRowN"><label>Anzahl<span id="gen3dNv">20</span></label><input type="range" id="gen3dN" min="2" max="30" value="20"></div>
       <!-- [muster-perf v1] Mindest-Zellgrössen-Warnung (analog Dichte-Warnung Stickerei): bei sehr kleinen Flächen verschmilzt alles unter der 0,8-mm-Mindestwand -->
       <div class="gen3d-info" id="gen3dCellWarn" style="display:none; border-left-color:var(--red);">⚠️ Zellen unter 3 mm - beim 3D-Druck verschmelzen sie mit der 0,8-mm-Mindestwand zum Klumpen. Fläche vergrössern oder Anzahl verringern.</div>
@@ -2171,6 +2189,10 @@ body.layer-panel-open #rsActions { display:none !important; }
       <div class="gen3d-row" id="gen3dRowAmp"><label>Amplitude<span id="gen3dAmpv">400%</span></label><input type="range" id="gen3dAmp" min="0" max="800" value="400" step="5"></div>
     </div>
     <div class="gen3d-sec">
+      <label class="gen3d-cbr" id="gen3dRowAlternate"><input type="checkbox" id="gen3dAlternate"> Drehrichtung abwechseln</label>
+      <div class="gen3d-row" id="gen3dSeedRow"><label for="gen3dSeed">Variante</label><input id="gen3dSeed" type="number" min="0" max="999999" step="1" value="42"></div>
+      <div class="gen3d-row" id="gen3dMinGapRow"><label for="gen3dMinGap">Mindestspalt<span id="gen3dMinGapv">0 mm</span></label><input id="gen3dMinGap" type="range" min="0" max="3" step="0.1" value="0"></div>
+      <div class="gen3d-row" id="gen3dWallRow"><label for="gen3dWall">Linienbreite<span id="gen3dWallv">0.8 mm</span></label><input id="gen3dWall" type="range" min="0.2" max="3" step="0.1" value="0.8"></div>
       <div class="gen3d-sec-t">Drehung</div>
       <div class="gen3d-row"><label title="Drehung des Hauptmusters">Muster A°<span id="gen3dRav">0</span></label><input type="range" id="gen3dRa" min="-90" max="90" value="0"></div>
       <div class="gen3d-row" id="gen3dRowRB"><label title="Drehung des Zweitsets (z. B. Spiegellinien)">Muster B°<span id="gen3dRbv">0</span></label><input type="range" id="gen3dRb" min="-90" max="90" value="0"></div>
@@ -43602,7 +43624,7 @@ var stitchBtnEl = document.getElementById('stitchBtn');
 if (!panel || !btn) return;
 
 var G = {
-  pat: 'miura', canvasFill: true, w: 150, h: 150, n: 20, elSc: 100, gap: 18, amp: 400, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400; [gap-default-vis v1] Start-Abstand 18% (auch dichte/Mehrfach-Facetten-Muster zeigen klar Abstand) */
+  pat: 'twist', alternate: false, minGap: 0, wall: 0.8, seed: 42, canvasFill: true, w: 150, h: 150, n: 8, elSc: 100, gap: 14, amp: 160, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400; [gap-default-vis v1] Start-Abstand 18% (auch dichte/Mehrfach-Facetten-Muster zeigen klar Abstand) */
   rA: 0, rB: 0, sc: 100, fill: false, invert: true, border: false, mirror: false
 };
 var DEF = _vtDeepClone(G);
@@ -43716,7 +43738,7 @@ function genPaths() {
   /* Universelles Area-Shrinking: Gap verringert auch die Gesamtfläche,
      damit Linien/Wellen/Miura/etc. sichtbar Abstand zum Rand bekommen.
      Halbe Stärke gegenüber Cell-Skalierung. */
-  var areaShrink = 1 - gp * 0.5;
+  var areaShrink = 1; // Local: Abstand verändert niemals die Gesamtfläche.
   var eff = _effDims();
   var we = eff.we * areaShrink;
   var he = eff.he * areaShrink;
@@ -44186,41 +44208,29 @@ function genPaths() {
       break;
     }
     case 'twist': {
-      /* Square-Twist: jede Zelle hat ein um Amplitude*45 Grad gedrehtes inneres
-         Quadrat (Pinwheel/Spinner-Effekt) zwischen den vier Aussenkanten.
-         Invert: Innenquadrat + Ring als 8 Dreiecks-Facetten (printCell-Tiles). */
-      var c = n, r = Math.max(2, Math.round(n*he/we));
-      var dx = we/c, dy = he/r;
-      var twistAng = (Math.PI/4) * Math.min(1, ap*0.5);
-      for (var ri=0; ri<r; ri++) for (var ci=0; ci<c; ci++) {
-        var cx = -hwe + (ci+0.5)*dx, cy = -hhe + (ri+0.5)*dy;
-        var hx = (dx/2) * cellEs, hy = (dy/2) * cellEs;
-        var rIn = Math.min(hx, hy) * 0.55;
-        var innerPts = [];
-        for (var k=0; k<4; k++) {
-          var an = twistAng + k*Math.PI/2 - Math.PI/4;
-          innerPts.push([cx + rIn*Math.SQRT2*Math.cos(an), cy + rIn*Math.SQRT2*Math.sin(an)]);
+      // Five non-overlapping convex panels. Matching corner order is essential.
+      // A moderate 0–25° turn keeps all four surrounding panels compact.
+      var c=n, r=Math.max(2,Math.round(n*he/we)), dx=we/c, dy=he/r;
+      var angle = Math.PI/180 * 25 * Math.min(1,ap/2);
+      for(var ri=0;ri<r;ri++) for(var ci=0;ci<c;ci++) {
+        var cx=-hwe+(ci+.5)*dx, cy=-hhe+(ri+.5)*dy;
+        var hx=dx/2*cellEs, hy=dy/2*cellEs;
+        var theta=angle*(G.alternate && (ri+ci)%2 ? -1 : 1);
+        var inner=[], outer=[[cx-hx,cy-hy],[cx+hx,cy-hy],[cx+hx,cy+hy],[cx-hx,cy+hy]];
+        for(var k=0;k<4;k++) {
+          var an=-3*Math.PI/4+k*Math.PI/2+theta;
+          inner.push([cx+hx*.44*Math.SQRT2*Math.cos(an),cy+hy*.44*Math.SQRT2*Math.sin(an)]);
         }
-        var corners = [[cx-hx,cy-hy],[cx+hx,cy-hy],[cx+hx,cy+hy],[cx-hx,cy+hy]];
-        if (G.invert) {
-          /* [muster-fix v1] Vorher Zentroid-Skalierung twShr(0.86): die Luecke
-             skaliert mit der lokalen Ausdehnung -> bei den spitzen Ring-Dreiecken
-             entstehen ungleiche Keile/Splitter ("fehlende Zacken", unruhig).
-             Jetzt kantenparalleler Innen-Offset (_cellInset, skaliert mit der
-             Zellgroesse wie von gen3d-fixes v1 gewollt) -> ueberall gleich breite
-             Faltstege; degenerierte Facetten werden uebersprungen. */
-          var twD = 0; /* [gap-uniform v1] Facetten-Luecke zentral via Render-Ebene (gleich breit wie Zell-Luecke) */
-          var twPush = function(pp){ var sI = _cellInset(pp, twD); P.push({tp:'poly', printCell:1, pts: sI || pp}); }; /* null -> roh pushen, der globale 1.2px-Shrink uebernimmt (kein Loch im Muster) */
-          twPush(innerPts);
-          for (var tk=0; tk<4; tk++) {
-            var tk2 = (tk+1)%4;
-            twPush([corners[tk], corners[tk2], innerPts[tk]]);
-            twPush([corners[tk2], innerPts[tk2], innerPts[tk]]);
-          }
+        if(G.invert) {
+          P.push({tp:'poly',printCell:1,pts:inner});
+          for(var k=0;k<4;k++) P.push({tp:'poly',printCell:1,pts:[outer[k],outer[(k+1)%4],inner[(k+1)%4],inner[k]]});
         } else {
-          P.push({tp:'pline', pts:[[cx-hx,cy-hy],[cx+hx,cy-hy],[cx+hx,cy+hy],[cx-hx,cy+hy],[cx-hx,cy-hy]]});
-          P.push({tp:'poly', pts:innerPts});
-          for (var k2=0; k2<4; k2++) P.push({tp:'line', pts:[corners[k2], innerPts[k2]]});
+          P.push({tp:'poly',pts:inner});
+          // Each shared outer edge only once, avoiding doubled walls.
+          P.push({tp:'line',pts:[outer[0],outer[1]]},{tp:'line',pts:[outer[0],outer[3]]});
+          if(ci===c-1 || cellEs<.999) P.push({tp:'line',pts:[outer[1],outer[2]]});
+          if(ri===r-1 || cellEs<.999) P.push({tp:'line',pts:[outer[3],outer[2]]});
+          for(var k=0;k<4;k++) P.push({tp:'line',pts:[outer[k],inner[k]]});
         }
       }
       break;
@@ -44295,12 +44305,12 @@ function genPaths() {
          Cell-Polygone als Schnittmenge von Halbebenen-Bisektoren. Seed
          deterministisch aus n+amp, damit identische Einstellungen identische
          Ergebnisse liefern. */
-      var seedV = (n * 7919 + Math.round(ap*100) * 31) % 2147483647;
-      function vRand() { seedV = (seedV * 1103515245 + 12345) & 0x7fffffff; return seedV / 0x7fffffff; }
-      var nSites = Math.max(4, n * Math.max(2, Math.round(n*he/we)));
-      var sites = [];
-      for (var s=0; s<nSites; s++) {
-        sites.push([-hwe + vRand()*we, -hhe + vRand()*he]);
+      var seedV = (G.seed == null ? 42 : G.seed) >>> 0;
+      function vRand(){seedV=(Math.imul(seedV,1664525)+1013904223)>>>0;return seedV/4294967296;}
+      var vcols=Math.max(2,n),vrows=Math.max(2,Math.round(n*he/we));
+      var nSites=vcols*vrows,sites=[],jitter=.65*Math.min(1,ap/2);
+      for(var vy=0;vy<vrows;vy++) for(var vx=0;vx<vcols;vx++) {
+        sites.push([-hwe+(vx+.5+(vRand()-.5)*jitter)*we/vcols,-hhe+(vy+.5+(vRand()-.5)*jitter)*he/vrows]);
       }
       function clipHalf(poly, A, B) {
         var nx = B[0] - A[0], ny = B[1] - A[1];
@@ -44513,9 +44523,7 @@ function pathsToShapes(forReal) {
      (Default 1px = 0.26mm) machte die eingefuegten Muster-Waende sub-pixel-
      duenn (wirkt gestrichelt, "Linien zu duenn" bei Twist/Zickzack) und
      unterhalb der FDM-Druckbarkeit. Dickere Topbar-Staerke gewinnt. */
-  var strokeW = Math.max(
-    (window.state && window.state.defaults && window.state.defaults.strokeWidth) || 1.5,
-    (typeof window._mm2px === 'function') ? window._mm2px(0.8) : 3.02);
+  var strokeW = Math.max(0.2, G.wall == null ? 0.8 : G.wall) * MM;
   var defFill = (window.state && window.state.defaults && window.state.defaults.fill) || '#dbeaf3';
   var paperCol = '#faf7f0';
   var dW = window.docW || (297*MM), dH = window.docH || (210*MM);
@@ -44539,7 +44547,7 @@ function pathsToShapes(forReal) {
     return { x: cxPx + r1[0]*MM, y: cyPx + r1[1]*MM };
   }
 
-  var out = [];
+  var out = [], omittedCells=0;
 
   if (G.invert && !printableCellInvert) {
     /* Invert-Hintergrund deckt die effektive Zeichenfläche ab
@@ -44596,6 +44604,33 @@ function pathsToShapes(forReal) {
        Zentroid AUFGEBLASENE Polygone lieferte. Details zum Deckel und warum
        eine Zwei-Punkt-Square-Kappe beim Inset NICHT geht: Kommentar unten. */
     if (!pts || pts.length < 3 || !(amountPx > 0)) return pts;
+    var signedArea=0;
+    for(var v=0;v<pts.length;v++) signedArea+=pts[v].x*pts[(v+1)%pts.length].y-pts[(v+1)%pts.length].x*pts[v].y;
+    var orientation=signedArea>=0?1:-1, convex=true;
+    for(var v=0;v<pts.length;v++) {
+      var a=pts[v],b=pts[(v+1)%pts.length],c=pts[(v+2)%pts.length];
+      if(orientation*((b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x)) < -1e-7) convex=false;
+    }
+    if(convex) {
+      var clipped=pts.slice();
+      for(var v=0;v<pts.length && clipped.length>=3;v++) {
+        var a=pts[v],b=pts[(v+1)%pts.length],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+        if(len<1e-9) continue;
+        var nx=-dy/len*orientation,ny=dx/len*orientation;
+        var limit=nx*a.x+ny*a.y+amountPx, next=[];
+        for(var q=0;q<clipped.length;q++) {
+          var u=clipped[q],w=clipped[(q+1)%clipped.length];
+          var du=nx*u.x+ny*u.y-limit,dw=nx*w.x+ny*w.y-limit;
+          if(du>=-1e-8) next.push(u);
+          if((du>=-1e-8)!==(dw>=-1e-8)) {
+            var t=du/(du-dw);next.push({x:u.x+t*(w.x-u.x),y:u.y+t*(w.y-u.y)});
+          }
+        }
+        clipped=next;
+      }
+      var clean=clipped.filter(function(p,i){var q=clipped[(i+clipped.length-1)%clipped.length];return Math.hypot(p.x-q.x,p.y-q.y)>1e-7;});
+      return clean.length>=3?clean:[];
+    }
     var n = pts.length;
     /* Zentroid für die "innen"-Richtungs-Bestimmung */
     var cx = 0, cy = 0;
@@ -44778,6 +44813,8 @@ function pathsToShapes(forReal) {
     }
   }
 
+  if(printableCellInvert) uniformInset=Math.max(uniformInset,(G.minGap||0)*MM*scF/2);
+
   if (useSvgPath && !G.fill) {
     for (var odi = 0; odi < pathData.length; odi++) {
       var od = pathData[odi];
@@ -44821,6 +44858,7 @@ function pathsToShapes(forReal) {
       if (p.tp === 'poly') {
         /* Geschlossenes Polygon: direkt gefüllt speichern. */
         var outlinePtsA = (printableCellInvert && !p.border) ? shrinkPolyToCenter(pts, uniformInset) : pts.slice();
+        if(outlinePtsA.length<3){omittedCells++;continue;}
         var bbP = _bb(outlinePtsA);
         sh = markInvertHole({
           type:'freehand', points: outlinePtsA, closed:true, smooth:false,
@@ -44853,10 +44891,11 @@ function pathsToShapes(forReal) {
         };
       } else if (p.tp === 'poly') {
         var previewPts = (printableCellInvert && !p.border) ? shrinkPolyToCenter(pts, uniformInset) : pts;
+        if(previewPts.length<3){omittedCells++;continue;}
         var previewBb = previewPts === pts ? bb : _bb(previewPts);
         sh = {
           type:'freehand', points: previewPts, closed:true, smooth:false,
-          stroke: strokeCol, strokeWidth: strokeW, fill: fillCol, fillEnabled: G.fill || printableCellInvert,
+          stroke: printableCellInvert ? 'none' : strokeCol, strokeWidth: printableCellInvert ? 0 : strokeW, fill: fillCol, fillEnabled: G.fill || printableCellInvert,
           lineStyle:0, effectStrength:1, rotation:0,
           x:previewBb.x, y:previewBb.y, w:previewBb.w, h:previewBb.h
         };
@@ -44873,6 +44912,7 @@ function pathsToShapes(forReal) {
       pushShape(make3DNodeHole(openNodePts[nk], sharedNodeHoleRadiusPx));
     }
   }
+  window._localPatternOmitted=omittedCells;
   return out;
 }
 
@@ -44892,7 +44932,7 @@ function updateParamVisibility() {
   $$('gen3dRowMirr').style.display = params.mirror ? 'flex' : 'none';
   $$('gen3dRowFill').style.display = cellInvert ? 'none' : 'flex';
   $$('gen3dRowBord').style.display = cellInvert ? 'none' : 'flex';
-  _gen3dDefaultsSync(); /* [gen3d-defaults v1] Amp-Max je Muster + Canvas-füllen-UI */
+  _gen3dDefaultsSync(); localLabels(); /* [gen3d-defaults v1] Amp-Max je Muster + Canvas-füllen-UI */
   /* [muster-perf v1] Mindest-Zellgrössen-Warnung: bei sehr kleinen Flächen
      (Breite/Höhe-Minimum 10 mm -> effektiv 4 mm, oder kleines Dokument mit
      Canvas füllen) verschmilzt alles unter der 0,8-mm-Mindestwand. Zell-Pitch
@@ -44905,7 +44945,8 @@ function updateParamVisibility() {
       var effWD = _effDims();
       var rWD = Math.max(2, Math.round(G.n * effWD.he / effWD.we));
       var pitchMm = Math.min(effWD.we / Math.max(2, G.n), effWD.he / rWD);
-      showCellWarn = pitchMm < 3;
+      showCellWarn = !cellInvert && pitchMm < (G.wall||0.8)*3;
+      cellWarnEl.textContent='Die Linienbreite ist im Verhältnis zur Zellgrösse gross. Linienbreite reduzieren oder Anzahl verringern.';
     }
     cellWarnEl.style.display = showCellWarn ? 'block' : 'none';
   }
@@ -44919,6 +44960,9 @@ function renderCanvasLive() {
   }
   try {
     window.previewShapes = pathsToShapes(false);
+    var omitted=window._localPatternOmitted||0, notice=$$('gen3dGeometryNotice');
+    notice.hidden=!omitted;notice.textContent=omitted+' Teilflächen sind für den gewählten Abstand zu klein. Abstand oder Mindestspalt reduzieren.';
+    $$('gen3dInsertBtn').disabled=!window.previewShapes.length;
     if (typeof window.render === 'function') window.render();
   } catch(e) { console.warn('gen3d preview error', e); }
 }
@@ -45001,6 +45045,15 @@ bindCbx('gen3dOBord','border');
 bindCbx('gen3dOMirr','mirror');
 /* [gen3d-defaults v1] Canvas füllen (Default an, Rand 10 mm) + Miura-Amplitude bis 800 % */
 bindCbx('gen3dOCanvasFill','canvasFill');
+bindCbx('gen3dAlternate','alternate');
+bindSlider('gen3dMinGap','gen3dMinGapv','minGap',' mm');
+bindSlider('gen3dWall','gen3dWallv','wall',' mm');
+$$('gen3dSeed').addEventListener('input',function(){G.seed=Math.max(0,Math.min(999999,Math.round(Number(this.value)||0)));scheduleUpdate();});
+$$('gen3dDensityPresets').addEventListener('click',function(e){
+ var b=e.target.closest('[data-gap-factor]');if(!b)return;
+ G.gap=Math.round(localPreset(G.pat).gap*Number(b.dataset.gapFactor));
+ $$('gen3dGap').value=G.gap;$$('gen3dGapv').textContent=G.gap+'%';scheduleUpdate();
+});
 /* [gen3d-dichte v1] Dichte-Defaults je Muster: beim Muster-Wechsel werden
    Anzahl (n) und Amplitude auf frische Startwerte gesetzt. Kalibriert auf
    A4 quer mit "Canvas füllen" (nutzbar 277x190 mm): Ziel-Zellgrösse ~12-16 mm,
@@ -45022,16 +45075,59 @@ var PAT_DENSITY_N = {
    dass ~2500 Shapes (A4 quer) nicht überschritten werden; alle anderen
    Muster behalten das HTML-max von 30. */
 var PAT_N_MAX = { asanoha:20, waterbomb:20, twist:14 };
+var LOCAL_PRESETS = {
+ twist:{n:8,amp:160,gap:14},miura:{n:16,amp:200,gap:14},
+ waterbomb:{n:12,amp:100,gap:14},yoshizawa:{n:14,amp:75,gap:14},
+ voronoi:{n:16,amp:150,gap:14},asanoha:{n:12,amp:100,gap:12},
+ flasher:{n:6,amp:80,gap:12},penrose:{n:4,amp:100,gap:12}
+};
+function localPreset(pat){return LOCAL_PRESETS[pat]||{n:PAT_DENSITY_N[pat]||16,amp:100,gap:14};}
+function ampMax(){return G.pat==='miura'?800:G.pat==='yoshizawa'?100:G.pat==='zigzag'?110:200;}
+function localLabels(){
+ var names={twist:'Drehwinkel',miura:'Faltversatz',voronoi:'Unregelmässigkeit',yoshizawa:'Falttiefe',wave:'Wellenhöhe',zigzag:'Zackenhöhe',flasher:'Ringdrehung',auxetic:'Einbuchtung',gradmesh:'Verdichtung'};
+ var label=$$('gen3dRowAmp').querySelector('label');label.firstChild.textContent=names[G.pat]||'Amplitude';
+ $$('gen3dAmpv').textContent=G.pat==='twist'?(G.amp/8).toFixed(1)+'°':G.amp+'%';
+ $$('gen3dRowAlternate').style.display=G.pat==='twist'?'flex':'none';
+ $$('gen3dSeedRow').style.display=G.pat==='voronoi'?'flex':'none';
+ var cells=G.invert&&isPrintableCellInvertPattern(G.pat);
+ $$('gen3dMinGapRow').style.display=cells?'flex':'none';
+ $$('gen3dWallRow').style.display=cells?'none':'flex';
+ // Do not show a gap slider for line sets where it has no geometric meaning.
+ if(['lines','grid','crosshatch','wave','gradmesh'].indexOf(G.pat)>=0) $$('gen3dRowGap').style.display='none';
+ var es=$$('gen3dEs');es.max=cells?100:150;
+ if(G.elSc>+es.max){G.elSc=+es.max;es.value=G.elSc;$$('gen3dEsv').textContent=G.elSc+'%';}
+ pgrid.querySelectorAll('.gen3d-pbtn').forEach(function(b){b.classList.toggle('active',b.dataset.p===G.pat);b.setAttribute('aria-pressed',String(b.dataset.p===G.pat));});
+ $$('gen3dDensityPresets').style.display=$$('gen3dRowGap').style.display==='none'?'none':'flex';
+}
+function makePatternThumbnails(){
+ var saved=Object.assign({},G);
+ try {
+ pgrid.querySelectorAll('.gen3d-pbtn').forEach(function(b){
+  Object.assign(G,saved,localPreset(b.dataset.p),{pat:b.dataset.p,canvasFill:false,w:120,h:90,n:b.dataset.p==='flasher'?4:4,elSc:100,minGap:0,wall:.8,rA:0,rB:0,sc:100,border:false,alternate:false});
+  var shapes=pathsToShapes(false),mm=3.7795275591,cx=(window.docW||297*mm)/2,cy=(window.docH||210*mm)/2;
+  var svg=b.querySelector('svg');svg.setAttribute('viewBox',[cx-47*mm,cy-32*mm,94*mm,64*mm].join(' '));
+  svg.setAttribute('aria-hidden','true');svg.setAttribute('stroke','none');svg.setAttribute('fill','none');
+  svg.innerHTML=shapes.map(function(sh){
+   if(sh.type==='rect') return '<rect x="'+sh.x+'" y="'+sh.y+'" width="'+sh.w+'" height="'+sh.h+'" fill="currentColor"/>';
+   if(!sh.points)return '';
+   var d=sh.points.map(function(pt,i){return (i?'L':'M')+pt.x.toFixed(3)+','+pt.y.toFixed(3);}).join(' ')+(sh.closed?' Z':'');
+   var hole=G.invert&&!isPrintableCellInvertPattern(G.pat);
+   return '<path d="'+d+'" fill="'+(sh.fillEnabled?(hole?'var(--pattern-paper)':'currentColor'):'none')+'" stroke="'+(sh.stroke==='none'?'none':hole?'var(--pattern-paper)':'currentColor')+'" stroke-width="'+(sh.strokeWidth||0)+'" stroke-linejoin="round"/>';
+  }).join('');
+ });
+ } finally {Object.assign(G,saved);}
+}
 function _gen3dPatDensityDefaults() {
-  var dn = PAT_DENSITY_N[G.pat];
-  if (dn == null) return; /* penrose: n unverändert lassen */
-  G.n = dn;
-  G.amp = (G.pat === 'miura') ? 400 : 100;
+  var preset=localPreset(G.pat);
+  Object.assign(G,preset,{elSc:100,alternate:false});
+  $$('gen3dEs').value=100;$$('gen3dEsv').textContent='100%';
+  $$('gen3dGap').value=G.gap;$$('gen3dGapv').textContent=G.gap+'%';
+  $$('gen3dAlternate').checked=false;
   var nEl = $$('gen3dN'), nV = $$('gen3dNv');
   if (nEl) nEl.value = G.n;
   if (nV) nV.textContent = G.n;
   var ampEl = $$('gen3dAmp'), ampV = $$('gen3dAmpv');
-  if (ampEl) { ampEl.max = (G.pat === 'miura') ? 800 : 200; ampEl.value = G.amp; }
+  if (ampEl) { ampEl.max = ampMax(); ampEl.value = G.amp; }
   if (ampV) ampV.textContent = G.amp + '%';
 }
 function _gen3dDefaultsSync() {
@@ -45045,7 +45141,7 @@ function _gen3dDefaultsSync() {
   }
   var ampEl = $$('gen3dAmp'), ampV = $$('gen3dAmpv');
   if (ampEl) {
-    var mx = (G.pat === 'miura') ? 800 : 200;
+    var mx = ampMax();
     if (parseFloat(ampEl.max) !== mx) ampEl.max = mx;
     if (G.amp > mx) { G.amp = mx; ampEl.value = mx; if (ampV) ampV.textContent = mx + '%'; }
     else if (parseFloat(ampEl.value) !== G.amp) { ampEl.value = G.amp; if (ampV) ampV.textContent = G.amp + '%'; } /* [gen3d-dichte v1] DOM nach max-Wechsel nachziehen (Reset-Pfad) */
@@ -45078,6 +45174,9 @@ $$('gen3dInsertBtn').addEventListener('click', function(){
 
 $$('gen3dResetBtn').addEventListener('click', function(){
   Object.assign(G, _vtDeepClone(DEF));
+  $$('gen3dAlternate').checked=G.alternate;$$('gen3dSeed').value=G.seed;
+  $$('gen3dMinGap').value=G.minGap;$$('gen3dMinGapv').textContent=G.minGap+' mm';
+  $$('gen3dWall').value=G.wall;$$('gen3dWallv').textContent=G.wall+' mm';
   $$('gen3dW').value = G.w; $$('gen3dWv').textContent = G.w;
   $$('gen3dH').value = G.h; $$('gen3dHv').textContent = G.h;
   $$('gen3dN').value = G.n; $$('gen3dNv').textContent = G.n;
@@ -45095,8 +45194,11 @@ $$('gen3dResetBtn').addEventListener('click', function(){
   scheduleUpdate();
 });
 
-/* Initial */
+/* Initial: local workshop opens on the corrected Twist pattern. */
+makePatternThumbnails();
+_gen3dPatDensityDefaults();
 updateParamVisibility();
+setTimeout(function(){setOpen(true);},200);
 })();
 </script>
 
@@ -47273,7 +47375,7 @@ _boxBtnEl.addEventListener('click', function() {
 })();
 </script>
 <!-- Aufruf-Statistik: cookielos, nur Web-Version. Offline-Kopien senden nichts. -->
-<script data-goatcounter="https://lujokr.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<!-- Analytics in lokaler Kopie deaktiviert. -->
 <script>
 (function(){
   var line = document.getElementById('hitCountLine');
@@ -47281,7 +47383,7 @@ _boxBtnEl.addEventListener('click', function() {
   if (!el) return;
   // Lokale/Offline-Kopie: keine Statistik anzeigen
   if (location.protocol === 'file:') { if (line) line.style.display='none'; return; }
-  fetch('https://lujokr.goatcounter.com/counter/TOTAL.json')
+  Promise.reject(new Error('Lokale Kopie: kein Besucherzähler'))
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){
       var v = d && (d.count_unique != null && d.count_unique !== '' ? d.count_unique : d.count);
