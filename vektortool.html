@@ -1932,6 +1932,7 @@ body.layer-panel-open #rsActions { display:none !important; }
 
 <!-- STITCH PANEL -->
 <div id="stitchPanel" style="display:none;">
+  <div class="stitch-workspace-head"><span>Einstellungen</span></div>
   <!-- [stickclose v1] Schliessen-Knopf oben rechts im Stickmodul-Panel (Header-Balken liegt nur ueber der
        Vorschau, darum braucht das Panel einen eigenen X). Per CSS nur im merged Modus sichtbar; delegiert ans bestehende DST-Schliessen. -->
   <button id="stitchPanelCloseX" type="button" title="Stickerei schliessen" aria-label="Schliessen">&times;</button>
@@ -29890,7 +29891,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 234;
+var _STITCH_CACHE_VERSION = 235;
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -31738,7 +31739,7 @@ function _fillPathLocalToWorld(px, py) {
    Modul-Cache je (Zeichen|Font) - mehrere Shapes/Refreshs teilen die Loops. */
 var _vtCharLoopCache = {};
 function _stitchCharLocalLoops(ch, fontStr, fontSize, scale, pad) {
-  var key = ch + '|' + fontStr + '|' + (window._vtFontRevision || 0);
+  var key = 'pixel-edges-v1|' + ch + '|' + fontStr + '|' + scale + '|' + (window._vtFontRevision || 0);
   if (_vtCharLoopCache[key]) return _vtCharLoopCache[key];
   if (Object.keys(_vtCharLoopCache).length > 200) _vtCharLoopCache = {};
   var meas = document.createElement('canvas');
@@ -31760,7 +31761,7 @@ function _stitchCharLocalLoops(ch, fontStr, fontSize, scale, pad) {
     var lum = (img[p] + img[p+1] + img[p+2]) / 3;
     mask[idx] = lum < 128 ? 1 : 0;
   }
-  var loops = _marchingSquaresContours(mask, tw, th);
+  var loops = _stitchTextMaskContours(mask, tw, th);
   var out = [];
   for (var li = 0; li < loops.length; li++) {
     var loop = loops[li];
@@ -31786,7 +31787,7 @@ function _stitchTextOnPathToD(shape) {
   if (!lay || !lay.length) return '';
   var fontSize = Number(shape.fontSize) || 24;
   var fontFamily = shape.fontFamily || 'sans-serif';
-  var key = ['onpath-v2', shape.text, fontSize, fontFamily, shape.bold ? 1 : 0, shape.italic ? 1 : 0, window._vtFontRevision || 0,
+  var key = ['onpath-pixel-edges-v3', shape.text, fontSize, fontFamily, shape.bold ? 1 : 0, shape.italic ? 1 : 0, window._vtFontRevision || 0,
     lay.map(function(c){ return c.ch + ':' + c.x + ',' + c.y + ',' + c.rot; }).join(';')].join('|');
   if (shape._textPathKey === key && shape._textPathD) return shape._textPathD;
   var scale = 4;
@@ -31818,7 +31819,7 @@ function _stitchTextToPathD(shape) {
   if (!shape || shape.type !== 'text' || !shape.text) return '';
   if (shape.onPath && shape.pathId) return _stitchTextOnPathToD(shape);
   var l=window._vtTextLayout(shape);
-  var key=JSON.stringify(['text-layout-v2',l.lines,l.font,l.x,l.y,!!shape.wFixed,l.width,l.height,window._vtFontRevision||0]);
+  var key=JSON.stringify(['text-pixel-edges-v3',l.lines,l.font,l.x,l.y,!!shape.wFixed,l.width,l.height,window._vtFontRevision||0]);
   if (shape._textPathKey===key && typeof shape._textPathD==='string') return shape._textPathD;
   var scale=4, pad=Math.ceil(l.fontSize*0.4);
   var meas=document.createElement('canvas'), mctx=meas.getContext('2d');
@@ -31836,7 +31837,7 @@ function _stitchTextToPathD(shape) {
   l.lines.forEach(function(line,i){ctx.fillText(line,pad*scale,(l.fontSize+i*l.lineHeight+pad)*scale);});
   var img=ctx.getImageData(0,0,tw,th).data,mask=new Uint8Array(tw*th);
   for(var p=0,idx=0;p<img.length;p+=4,idx++)mask[idx]=(img[p]+img[p+1]+img[p+2])/3<128?1:0;
-  var loops=_marchingSquaresContours(mask,tw,th),d='';
+  var loops=_stitchTextMaskContours(mask,tw,th),d='';
   loops.forEach(function(loop){
     if(loop.length<3)return;
     loop.forEach(function(pt,i){d+=(i?'L':'M')+(l.x+(pt[0]-pad*scale)/scale).toFixed(3)+','+(l.y+(pt[1]-pad*scale)/scale).toFixed(3);});
@@ -31844,6 +31845,57 @@ function _stitchTextToPathD(shape) {
   });
   shape._textPathKey=key;shape._textPathD=d;
   return d;
+}
+
+/* Text-only boundary tracing follows pixel EDGES, not boundary pixel centres.
+   A one-pixel hairline therefore retains its area. Clockwise boundary edges
+   keep ink on the right; at diagonal contacts the right turn keeps holes and
+   separate components explicit rather than inventing a filled bridge. */
+function _stitchTextMaskContours(mask, W, H) {
+  var stride = W + 1, edges = [], starts = new Map();
+  function ink(x, y) { return x >= 0 && y >= 0 && x < W && y < H && mask[y * W + x]; }
+  function edge(x0, y0, x1, y1, dir) {
+    var from = y0 * stride + x0, to = y1 * stride + x1;
+    var id = edges.length;
+    edges.push({ from: from, to: to, dir: dir, used: false });
+    if (!starts.has(from)) starts.set(from, []);
+    starts.get(from).push(id);
+  }
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    if (!ink(x, y)) continue;
+    if (!ink(x, y - 1)) edge(x, y, x + 1, y, 0);
+    if (!ink(x + 1, y)) edge(x + 1, y, x + 1, y + 1, 1);
+    if (!ink(x, y + 1)) edge(x + 1, y + 1, x, y + 1, 2);
+    if (!ink(x - 1, y)) edge(x, y + 1, x, y, 3);
+  }
+  var loops = [];
+  for (var i = 0; i < edges.length; i++) {
+    if (edges[i].used) continue;
+    var first = edges[i].from, current = i, loop = [], closed = false;
+    for (var guard = 0; guard <= edges.length; guard++) {
+      var e = edges[current]; if (e.used) break;
+      e.used = true; loop.push([e.from % stride, Math.floor(e.from / stride)]);
+      if (e.to === first) { closed = true; break; }
+      var next = starts.get(e.to) || [], choice = -1, score = 9;
+      for (var j = 0; j < next.length; j++) {
+        var candidate = edges[next[j]]; if (candidate.used) continue;
+        var turn = (candidate.dir - e.dir + 4) % 4;
+        var rank = turn === 1 ? 0 : turn === 0 ? 1 : turn === 3 ? 2 : 3;
+        if (rank < score) { score = rank; choice = next[j]; }
+      }
+      if (choice < 0) break;
+      current = choice;
+    }
+    if (!closed || loop.length < 3) continue;
+    // Exact collinear simplification: no smoothing or erosion of tiny details.
+    var corners = [];
+    for (var k = 0; k < loop.length; k++) {
+      var a = loop[(k + loop.length - 1) % loop.length], b = loop[k], c = loop[(k + 1) % loop.length];
+      if ((b[0] - a[0]) * (c[1] - b[1]) !== (b[1] - a[1]) * (c[0] - b[0])) corners.push(b);
+    }
+    if (corners.length >= 3) loops.push(corners);
+  }
+  return loops;
 }
 
 /* Marching-Squares Konturen-Extraktion aus binärer Maske.
@@ -32157,7 +32209,7 @@ function _stitchGeometryCacheKey(shape) {
     /* Text-Geometrie hängt am String/Font/Grösse, NICHT an points; x/y/w/h
        allein reichen nicht (Editieren in-place ändert die bbox nicht). Sonst
        bliebe der Stich bei Textänderung stale. */
-    geomKey += 'text-layout-v2|' + (shape.text || '') + '|' + (shape.fontSize || 0) + '|' + (shape.fontFamily || '') + '|' + (shape.bold ? 1 : 0) + '|' + (shape.italic ? 1 : 0) + '|' + !!shape.wFixed + '|' + (window._vtFontRevision || 0);
+    geomKey += 'text-pixel-edges-v3|' + (shape.text || '') + '|' + (shape.fontSize || 0) + '|' + (shape.fontFamily || '') + '|' + (shape.bold ? 1 : 0) + '|' + (shape.italic ? 1 : 0) + '|' + !!shape.wFixed + '|' + (window._vtFontRevision || 0);
     if(shape.onPath&&shape.pathId){
       var ref=typeof window.findShape==='function'?window.findShape(shape.pathId):null;
       geomKey+='|path:'+JSON.stringify([shape.pathId,shape.pathOffset,shape.pathDist,shape.pathLetterSpacing,shape.pathFlip,shape.pathClosed,ref&&ref.type!=='text'?_stitchGeometryCacheKey(ref):null]);
@@ -35091,7 +35143,7 @@ function _calcTextFillStitch(shape, opts) {
   if(shape && !(shape.onPath&&shape.pathId)){
     var l=window._vtTextLayout(shape);
     if(l.lines.length>1){
-      var key=JSON.stringify([l.lines,l.font,l.x,l.y,l.width,window._vtFontRevision||0]);
+      var key=JSON.stringify(['pixel-edges-v1',l.lines,l.font,l.x,l.y,l.width,window._vtFontRevision||0]);
       if(!shape._vtTextFillLines||shape._vtTextFillLines.key!==key){
         var paths=l.lines.map(function(line,i){
           var lineShape=Object.assign({},shape,{text:line,x:l.x,y:l.y+i*l.lineHeight,wFixed:false,rotation:0,_textPathKey:null,_textPathD:null});
@@ -35202,8 +35254,8 @@ function _stitchScanFillD(d, shape, opts) {
        beide Randabstaende <= halber Sollabstand, auch bei Resthoehen. */
     var spanRows = [], rowCount = Math.max(1, Math.ceil((maxY - minY) / rowSp - 1e-9));
     var actualRowSp = (maxY - minY) / rowCount;
-    for (var rowI = 0; rowI < rowCount; rowI++) {
-      var y = minY + (rowI + 0.5) * actualRowSp, intersections = [], spans = [];
+    function spansAt(y, rowIndex) {
+      var intersections = [], spans = [];
       for (var li = 0; li < loops.length; li++) {
         var ring = loops[li];
         for (var ei = 0; ei < ring.length; ei++) {
@@ -35213,10 +35265,85 @@ function _stitchScanFillD(d, shape, opts) {
       }
       intersections.sort(function(a, b) { return a - b; });
       for (var xi = 0; xi + 1 < intersections.length; xi += 2) {
-        if (intersections[xi + 1] - intersections[xi] > 1e-7) spans.push({ x0: intersections[xi], x1: intersections[xi + 1], row: rowI, y: y });
+        if (intersections[xi + 1] - intersections[xi] > 1e-7) spans.push({ x0: intersections[xi], x1: intersections[xi + 1], row: rowIndex, y: y });
       }
-      spanRows.push(spans);
+      return spans;
     }
+    for (var rowI = 0; rowI < rowCount; rowI++) {
+      spanRows.push(spansAt(minY + (rowI + 0.5) * actualRowSp, rowI));
+    }
+    /* Preserve scan-topology cells that fall ENTIRELY between regular rows:
+       e.g. the H crossbar or the thin cap closing an o. Each interval between
+       contour-vertex heights has constant span topology. Continue a cell only
+       through a one-to-one connection; split/merge events delimit branches.
+       Add one local span only for an unvisited cell, not a denser whole-word
+       scan. Regular row positions, spacing and stagger phases stay unchanged. */
+    var eventY = [];
+    loops.forEach(function(ring) { ring.forEach(function(p) { eventY.push(p.y); }); });
+    eventY.sort(function(a, b) { return a - b; });
+    eventY = eventY.filter(function(y, i, ys) { return i === 0 || y - ys[i - 1] > 1e-7; });
+    var cells = [], activeCells = [];
+    for (var slab = 1; slab < eventY.length; slab++) {
+      var low = eventY[slab - 1], high = eventY[slab], middle = (low + high) / 2;
+      if (high - low < 1e-7) continue;
+      var epsilon = Math.min((high - low) * 0.0001, 1e-6);
+      var slabSpans = spansAt(middle, 0), upper = spansAt(low + epsilon, 0), lower = spansAt(high - epsilon, 0);
+      var previousHits = activeCells.map(function() { return []; });
+      var currentHits = slabSpans.map(function() { return []; });
+      for (var ai = 0; ai < activeCells.length; ai++) {
+        var lastSpan = activeCells[ai].last;
+        for (var si = 0; si < slabSpans.length; si++) {
+          var topSpan = upper[si] || slabSpans[si];
+          if (lastSpan.x0 < topSpan.x1 - 1e-7 && topSpan.x0 < lastSpan.x1 - 1e-7) {
+            previousHits[ai].push(si); currentHits[si].push(ai);
+          }
+        }
+      }
+      var nextCells = [], retained = [];
+      var regularIndex = Math.max(0, Math.ceil((low - minY) / actualRowSp - 0.5 + 1e-8));
+      var visitedByRow = regularIndex < rowCount && minY + (regularIndex + 0.5) * actualRowSp < high - 1e-8;
+      for (var si2 = 0; si2 < slabSpans.length; si2++) {
+        var parent = currentHits[si2].length === 1 ? currentHits[si2][0] : -1;
+        var cell = parent >= 0 && previousHits[parent].length === 1 ? activeCells[parent] : null;
+        if (cell) retained[parent] = true;
+        else {
+          /* A pixel-edge cap may start as two tiny free tips which merge
+             before any regular row reaches them. Preserve that free end only
+             through shallow, wholly unvisited predecessors with no other
+             successor; this does not reopen real split/merge junctions. */
+          var terminalTopY = low, terminalTop = currentHits[si2].length === 0;
+          if (currentHits[si2].length) {
+            terminalTop = currentHits[si2].every(function(pi) {
+              var predecessor = activeCells[pi];
+              var topY = isFinite(predecessor.terminalTopY) ? predecessor.terminalTopY : predecessor.low;
+              terminalTopY = Math.min(terminalTopY, topY);
+              return predecessor.terminalTop && !predecessor.visited && previousHits[pi].length === 1 &&
+                low - topY <= Math.min(_mm2px(0.15), actualRowSp * 0.5) + 1e-7;
+            });
+          }
+          cell = { low: low, high: high, visited: false, samples: [], terminalTop: terminalTop, terminalTopY: terminalTopY };
+        }
+        cell.high = high; cell.visited = cell.visited || visitedByRow;
+        cell.samples.push({ low: low, high: high, slot: si2, x0: slabSpans[si2].x0, x1: slabSpans[si2].x1 });
+        cell.last = lower[si2] || slabSpans[si2]; nextCells.push(cell);
+      }
+      for (var ai2 = 0; ai2 < activeCells.length; ai2++) if (!retained[ai2]) { activeCells[ai2].terminalBottom = previousHits[ai2].length === 0; cells.push(activeCells[ai2]); }
+      activeCells = nextCells;
+    }
+    activeCells.forEach(function(cell) { cell.terminalBottom = true; });
+    cells = cells.concat(activeCells);
+    var detailSpans = [];
+    cells.forEach(function(cell) {
+      if (cell.visited) return;
+      var y = (cell.low + cell.high) / 2;
+      var sample = cell.samples.find(function(s) { return s.low <= y && y <= s.high; });
+      if (!sample) return;
+      // Avoid an exact vertex plane where the span count is ambiguous.
+      y = Math.max(sample.low + 1e-7, Math.min(sample.high - 1e-7, y));
+      var index = Math.max(0, Math.min(rowCount - 1, Math.floor((y - minY) / actualRowSp)));
+      var span = spansAt(y, index)[sample.slot];
+      if (span && span.x1 - span.x0 >= _mm2px(0.12)) detailSpans.push(span);
+    });
     /* 2) Streifen-Zerlegung (vertikaler Sweep): jede Buchstaben-Gliedmasse wird
           ein durchgehender Streifen. Ein aktiver Streifen wächst nur, wenn er in
           der nächsten Reihe GENAU einen überlappenden Span hat und dieser Span
@@ -35239,6 +35366,7 @@ function _stitchScanFillD(d, shape, opts) {
       active = newActive;
     }
     for (var aI3 = 0; aI3 < active.length; aI3++) strips.push(active[aI3]);
+    for (var detail = 0; detail < detailSpans.length; detail++) strips.push({ spans: [detailSpans[detail]] });
     if (!strips.length) return [];
     /* 3) Streifen in Lesereihenfolge ordnen (x-Spalte, dann y). */
     for (var st1 = 0; st1 < strips.length; st1++) { var sp2 = strips[st1].spans, mnx = 1e9, mny = 1e9; for (var z = 0; z < sp2.length; z++) { var cx = (sp2[z].x0 + sp2[z].x1) / 2; if (cx < mnx) mnx = cx; if (sp2[z].y < mny) mny = sp2[z].y; } strips[st1].mnx = mnx; strips[st1].mny = mny; }
@@ -35255,6 +35383,11 @@ function _stitchScanFillD(d, shape, opts) {
         var span = spans[i];
         var p0 = dir > 0 ? { x: span.x0, y: span.y } : { x: span.x1, y: span.y };
         var p1 = dir > 0 ? { x: span.x1, y: span.y } : { x: span.x0, y: span.y };
+        /* A hairline narrower than a useful penetration pair gets one centre
+           station; neighbouring stations form a contour-validated running
+           stitch instead of two nearly coincident needle holes per row. */
+        var hairline = span.x1 - span.x0 < _mm2px(0.12);
+        if (hairline) p0 = p1 = { x: (span.x0 + span.x1) / 2, y: span.y };
         if (prev) {
           var dd = Math.hypot(p0.x - prev.x, p0.y - prev.y);
           /* Auch Wendestiche INNERHALB eines Streifens koennen eine konkave
@@ -35279,10 +35412,323 @@ function _stitchScanFillD(d, shape, opts) {
           if (dir < 0) pen.reverse();
           for (var q = 0; q < pen.length; q++) out.push({ x: pen[q], y: span.y });
         }
-        out.push({ x: p1.x, y: p1.y });
+        if (!hairline) out.push({ x: p1.x, y: p1.y });
         prev = p1; dir = -dir;
       }
     }
+    /* A sloping hairline can still lie between rows even when its topology
+       cell was visited elsewhere. Follow only uncovered short portions of
+       that cell's centreline. Wide Tatami areas keep the normal row fill.
+       These are real, contour-validated stitches, not painted-in gap hiding. */
+    var supportRadius = Math.min(_mm2px(0.20), rowSp * 0.67);
+    var thinWidth = _mm2px(0.60), support = [], sampleStep = _mm2px(0.04);
+    function pointSegmentDistance(p, a, b) {
+      var dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy;
+      var t = length2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2)) : 0;
+      return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+    }
+    /* Only proximity within supportRadius matters. Index expanded segment
+       bounds so long words do not compare every hairline sample with every
+       stitch in every other letter. The distance/coverage test stays exact. */
+    var supportGrid = new Map(), supportCell = _mm2px(1), supportLimit = supportRadius + 1e-6;
+    for (var edgeI = 1; edgeI < out.length; edgeI++) if (!out[edgeI].jump) {
+      var edgeA = out[edgeI - 1], edgeB = out[edgeI];
+      var gridX0 = Math.floor((Math.min(edgeA.x, edgeB.x) - supportLimit) / supportCell);
+      var gridX1 = Math.floor((Math.max(edgeA.x, edgeB.x) + supportLimit) / supportCell);
+      var gridY0 = Math.floor((Math.min(edgeA.y, edgeB.y) - supportLimit) / supportCell);
+      var gridY1 = Math.floor((Math.max(edgeA.y, edgeB.y) + supportLimit) / supportCell);
+      for (var gridY = gridY0; gridY <= gridY1; gridY++) for (var gridX = gridX0; gridX <= gridX1; gridX++) {
+        var gridKey = gridX + ',' + gridY, edgeBucket = supportGrid.get(gridKey);
+        if (!edgeBucket) { edgeBucket = []; supportGrid.set(gridKey, edgeBucket); }
+        edgeBucket.push(edgeI);
+      }
+    }
+    function rowDistance(p) {
+      var best = Infinity, candidates = supportGrid.get(Math.floor(p.x / supportCell) + ',' + Math.floor(p.y / supportCell)) || [];
+      for (var ci = 0; ci < candidates.length; ci++) {
+        var s = candidates[ci];
+        best = Math.min(best, pointSegmentDistance(p, out[s - 1], out[s]));
+        if (best <= supportLimit) return best;
+      }
+      return best;
+    }
+    function supportChain(chain) {
+      if (chain.length < 2) return;
+      var dense = [chain[0]];
+      for (var ci = 1; ci < chain.length; ci++) {
+        var a = chain[ci - 1], b = chain[ci], count = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / sampleStep));
+        for (var t = 1; t <= count; t++) dense.push({ x: a.x + (b.x - a.x) * t / count, y: a.y + (b.y - a.y) * t / count });
+      }
+      var missing = dense.map(function(p) { return inside(p.x, p.y) && rowDistance(p) > supportRadius + 1e-6; });
+      for (var start = 0; start < dense.length; start++) {
+        if (!missing[start]) continue;
+        var end = start; while (end + 1 < dense.length && missing[end + 1]) end++;
+        var from = Math.max(0, start - 3), to = Math.min(dense.length - 1, end + 3);
+        var run = [dense[from]], cursor = from;
+        while (cursor < to) {
+          var chosen = -1;
+          for (var next = to; next > cursor; next--) {
+            var distance = Math.hypot(dense[next].x - dense[cursor].x, dense[next].y - dense[cursor].y);
+            if (distance < _mm2px(0.12) || distance > Math.min(stLen, _mm2px(1.0))) continue;
+            var deviation = 0;
+            for (var mid = cursor + 1; mid < next; mid++) deviation = Math.max(deviation, pointSegmentDistance(dense[mid], dense[cursor], dense[next]));
+            if (deviation <= _mm2px(0.025) && connectorInside(dense[cursor], dense[next])) { chosen = next; break; }
+          }
+          if (chosen < 0) break;
+          run.push(dense[chosen]); cursor = chosen;
+        }
+        if (run.length >= 2) {
+          run.forEach(function(p, i) { support.push({ x: p.x, y: p.y, jump: i === 0, detail: true }); });
+        }
+        start = to;
+      }
+    }
+    cells.forEach(function(cell) {
+      var chain = [];
+      cell.samples.forEach(function(s) {
+        if (s.x1 - s.x0 > thinWidth) { supportChain(chain); chain = []; return; }
+        chain.push({ x: (s.x0 + s.x1) / 2, y: (s.low + s.high) / 2 });
+      });
+      supportChain(chain);
+    });
+    if (support.length && out.length) { out[0].jump = true; out = support.concat(out); }
+    /* Connect separated parts of a thin glyph, e.g. the upper drop of a serif
+       a. The normal Tatami rows and needle positions stay unchanged. A short
+       bridge uses existing needle positions plus at most one inner corner;
+       every leg must lie inside the glyph polygon. It never crosses a counter.
+
+       Contact groups assume a 0.30-mm thread footprint. This is geometric
+       contact, not a promise of one continuous needle run: each repair starts
+       with a positioning jump. Physical thread/fabric still need a sew-out. */
+    (function connectThinFragments() {
+      var ends = [], run = 0, start = 0, edges = [], bridges = [];
+      for (var i = 1; i <= out.length; i++) {
+        if (i < out.length && !out[i].jump) {
+          var e = [out[i - 1], out[i]];
+          e.run = run;
+          edges.push(e);
+        }
+        if (i === out.length || out[i].jump) {
+          /* A useful attachment may be an inner needle in the small drop,
+             not the endpoint of its serpentine run. */
+          if (i - start >= 2) {
+            for (var pi = start; pi < i; pi++) ends.push({ p: out[pi], run: run });
+          }
+          start = i;
+          run++;
+        }
+      }
+
+      /* Local buckets avoid comparing every needle/segment of a long text
+         with every other one. The point search radius is at most 0.85 mm. */
+      var cell = _mm2px(1), edgeGrid = new Map(), pointGrid = new Map(), parent = [];
+      for (var i = 0; i < run; i++) parent[i] = i;
+      function root(i) {
+        while (parent[i] !== i) {
+          parent[i] = parent[parent[i]];
+          i = parent[i];
+        }
+        return i;
+      }
+      function unite(a, b) {
+        a = root(a); b = root(b);
+        if (a !== b) parent[b] = a;
+      }
+      edges.forEach(function(e, ei) {
+        var margin = _mm2px(0.30);
+        var x0 = Math.floor((Math.min(e[0].x, e[1].x) - margin) / cell);
+        var x1 = Math.floor((Math.max(e[0].x, e[1].x) + margin) / cell);
+        var y0 = Math.floor((Math.min(e[0].y, e[1].y) - margin) / cell);
+        var y1 = Math.floor((Math.max(e[0].y, e[1].y) + margin) / cell);
+        for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+          var key = x + ',' + y, b = edgeGrid.get(key);
+          if (!b) { b = []; edgeGrid.set(key, b); }
+          b.push(ei);
+        }
+      });
+      function nearbyEdges(p) {
+        return edgeGrid.get(Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell)) || [];
+      }
+      function nearestEdge(p) {
+        var best = Infinity, b = nearbyEdges(p);
+        for (var i = 0; i < b.length; i++) {
+          var e = edges[b[i]];
+          best = Math.min(best, pointSegmentDistance(p, e[0], e[1]));
+        }
+        return best;
+      }
+      ends.forEach(function(e, i) {
+        var key = Math.floor(e.p.x / cell) + ',' + Math.floor(e.p.y / cell);
+        var b = pointGrid.get(key);
+        if (!b) { b = []; pointGrid.set(key, b); }
+        b.push(i);
+        nearbyEdges(e.p).forEach(function(ei) {
+          var edge = edges[ei];
+          if (edge.run !== e.run && pointSegmentDistance(e.p, edge[0], edge[1]) <= _mm2px(0.30)) {
+            unite(e.run, edge.run);
+          }
+        });
+      });
+
+      function thinAt(a, b) {
+        var dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+        var nx = -dy / len, ny = dx / len, m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        var step = _mm2px(0.025), width = 0;
+        if (!inside(m.x, m.y)) return false;
+        for (var side = -1; side <= 1; side += 2) {
+          for (var k = 1; k <= 25; k++) {
+            if (!inside(m.x + nx * k * step * side, m.y + ny * k * step * side)) break;
+            width += step;
+          }
+        }
+        return width <= _mm2px(0.60);
+      }
+
+      /* Disjoint groups of contour bounds cannot be connected by an
+         in-ink seam. Reject those pairs before expensive polygon queries.
+         Overlapping/touching bounds remain together, so this is only a
+         conservative accelerator, never a replacement for connectorInside. */
+      var contourBoxes = loops.map(function(ring) {
+        var box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+        ring.forEach(function(p) {
+          box.x0 = Math.min(box.x0, p.x); box.y0 = Math.min(box.y0, p.y);
+          box.x1 = Math.max(box.x1, p.x); box.y1 = Math.max(box.y1, p.y);
+        });
+        return box;
+      });
+      var contourParents = contourBoxes.map(function(b, i) { return i; });
+      function contourRoot(i) {
+        while (contourParents[i] !== i) {
+          contourParents[i] = contourParents[contourParents[i]];
+          i = contourParents[i];
+        }
+        return i;
+      }
+      for (var bi = 0; bi < contourBoxes.length; bi++) for (var bj = bi + 1; bj < contourBoxes.length; bj++) {
+        var aBox = contourBoxes[bi], bBox = contourBoxes[bj];
+        if (aBox.x0 <= bBox.x1 + 1e-7 && bBox.x0 <= aBox.x1 + 1e-7 &&
+            aBox.y0 <= bBox.y1 + 1e-7 && bBox.y0 <= aBox.y1 + 1e-7) {
+          contourParents[contourRoot(bj)] = contourRoot(bi);
+        }
+      }
+      ends.forEach(function(e) {
+        e.contourGroup = -1;
+        for (var bi = 0; bi < contourBoxes.length; bi++) {
+          var box = contourBoxes[bi];
+          if (e.p.x >= box.x0 - 1e-7 && e.p.x <= box.x1 + 1e-7 &&
+              e.p.y >= box.y0 - 1e-7 && e.p.y <= box.y1 + 1e-7) {
+            e.contourGroup = contourRoot(bi);
+            break;
+          }
+        }
+      });
+
+      var candidates = [];
+      for (var i = 0; i < ends.length; i++) {
+        var gx = Math.floor(ends[i].p.x / cell), gy = Math.floor(ends[i].p.y / cell), neighbors = [];
+        for (var ny = gy - 1; ny <= gy + 1; ny++) for (var nx = gx - 1; nx <= gx + 1; nx++) {
+          var bucket = pointGrid.get(nx + ',' + ny);
+          if (bucket) neighbors = neighbors.concat(bucket);
+        }
+        for (var ni = 0; ni < neighbors.length; ni++) {
+          var j = neighbors[ni];
+          if (j <= i || root(ends[i].run) === root(ends[j].run)) continue;
+          if (ends[i].contourGroup >= 0 && ends[j].contourGroup >= 0 &&
+              ends[i].contourGroup !== ends[j].contourGroup) continue;
+          var a = ends[i].p, b = ends[j].p, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+          if (d < _mm2px(0.12) || d > _mm2px(0.85)) continue;
+          var mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          if (nearestEdge(mid) <= _mm2px(0.12)) continue;
+
+          var path = null;
+          if (connectorInside(a, b) && thinAt(a, b)) path = [a, b];
+          else for (var off of [0.025, 0.05, 0.075, 0.10, 0.15, 0.20, 0.25]) {
+            for (var fraction of [0.5, 0.25, 0.75]) for (var side of [-1, 1]) {
+              var m = {
+                x: a.x + dx * fraction - dy / d * _mm2px(off) * side,
+                y: a.y + dy * fraction + dx / d * _mm2px(off) * side
+              };
+              var l0 = Math.hypot(m.x - a.x, m.y - a.y), l1 = Math.hypot(b.x - m.x, b.y - m.y);
+              if (l0 >= _mm2px(0.12) && l1 >= _mm2px(0.12) && l0 + l1 <= d * 1.8 &&
+                  inside(m.x, m.y) && connectorInside(a, m) && connectorInside(m, b) &&
+                  thinAt(a, m) && thinAt(m, b)) {
+                path = [a, m, b];
+                break;
+              }
+            }
+            if (path) break;
+          }
+          if (path) candidates.push({ i: i, j: j, path: path, length: d });
+        }
+      }
+
+      /* Shortest useful connection first. Once two contact groups are joined,
+         avoid adding another seam over already connected material. */
+      candidates.sort(function(a, b) { return a.length - b.length; });
+      var used = {};
+      candidates.forEach(function(c) {
+        if (used[c.i] || used[c.j] || root(ends[c.i].run) === root(ends[c.j].run)) return;
+        used[c.i] = used[c.j] = true;
+        unite(ends[c.i].run, ends[c.j].run);
+        c.path.forEach(function(p, i) {
+          bridges.push({ x: p.x, y: p.y, jump: i === 0, detail: true });
+        });
+      });
+      if (bridges.length && out.length) {
+        out[0].jump = true;
+        out = bridges.concat(out);
+      }
+    })();
+    /* Retain thin end caps which share a visited topology cell with a stem.
+       A visited stem does not imply that its wider terminal was sampled.
+       Only the cap before the first / after the last regular row is eligible;
+       its depth is therefore less than one row interval. Keep existing rows,
+       ordering and connectors unchanged; add contour-valid local cap seams. */
+    (function adaptiveMissingHorizontalTerminalSpans() {
+      var seams = [], minStep = _mm2px(0.12);
+      cells.forEach(function(cell) {
+        if (!cell.visited) return; // Unvisited branches already have detailSpans.
+        var first = null, last = null;
+        cell.samples.forEach(function(sample) {
+          var ri = Math.max(0, Math.ceil((sample.low - minY) / actualRowSp - 0.5));
+          for (; ri < rowCount; ri++) {
+            var y = minY + (ri + 0.5) * actualRowSp;
+            if (y >= sample.high - 1e-8) break;
+            if (y < sample.low - 1e-8) continue;
+            var span = spanRows[ri][sample.slot];
+            if (!span) continue;
+            if (!first || y < first.y) first = span;
+            if (!last || y > last.y) last = span;
+          }
+        });
+        if (!first || !last) return;
+        [false, true].forEach(function(atBottom) {
+          if (atBottom ? !cell.terminalBottom : !cell.terminalTop) return;
+          var regular = atBottom ? last : first, cap = null, best = minStep;
+          var depth = atBottom ? cell.high - regular.y : regular.y - cell.low;
+          if (!(depth > 0 && depth < actualRowSp + 1e-7)) return;
+          cell.samples.forEach(function(sample) {
+            var y = (sample.low + sample.high) / 2;
+            if (atBottom ? y <= regular.y : y >= regular.y) return;
+            var span = spansAt(y, regular.row)[sample.slot];
+            if (!span || span.x1 - span.x0 < Math.max(minStep, depth * 2)) return;
+            // A cap must still attach to its own stem, not a separate counter.
+            if (span.x0 >= regular.x1 || span.x1 <= regular.x0) return;
+            var missing = Math.max(regular.x0 - span.x0, span.x1 - regular.x1);
+            if (missing > best + 1e-7) { best = missing; cap = span; }
+          });
+          if (!cap) return;
+          var a = { x: cap.x0, y: cap.y }, b = { x: cap.x1, y: cap.y };
+          if (!connectorInside(a, b)) return;
+          var length = b.x - a.x, count = Math.max(1, Math.ceil(length / stLen));
+          if (length / count < minStep) return;
+          for (var i = 0; i <= count; i++) {
+            seams.push({ x: a.x + length * i / count, y: a.y, jump: i === 0, detail: true });
+          }
+        });
+      });
+      if (seams.length) out = out.concat(seams);
+    })();
   } finally { try { svg.remove(); } catch(e){console.warn('[vt:swallowed]',e)} }
   for (var pi = 0; pi < out.length; pi++) {
     var ux = out[pi].x, uy = out[pi].y;
@@ -51526,6 +51972,84 @@ function _coverageBackstop(stitches, loops, inInk, flowSegments){
 }
 
 /* Segmente -> alternierende Satin-Stiche (fuer Version B + Vorschau). */
+/* Compact only Satin fine seams, retaining endpoints and deliberate jumps.
+   Global station selection avoids tiny leftovers from greedy long chords.
+   The 0.025-mm ink-border tolerance accommodates raster stairs; replacement
+   chords also stay within 0.04 mm of the old curve, never cut wide counters. */
+function _satinCompactSeam(points,inInk){
+  var out=[],minLen=_mm2px(0.10),maxLen=_mm2px(1.1),tol=_mm2px(0.04),sample=_mm2px(0.025);
+  function closeInk(x,y){if(inInk(x,y))return true;var d=_mm2px(0.025);for(var ni=0;ni<8;ni++)if(inInk(x+d*Math.cos(ni*Math.PI/4),y+d*Math.sin(ni*Math.PI/4)))return true;return false;}
+  function run(a){
+    if(a.length<3){for(var z=0;z<a.length;z++)out.push(a[z]);return;}
+    var n=a.length,cost=new Array(n).fill(Infinity),next=new Array(n).fill(-1);cost[n-1]=0;
+    for(var i=n-2;i>=0;i--){
+      for(var j=i+1;j<n;j++){
+        var p=a[i],q=a[j],dx=q.x-p.x,dy=q.y-p.y,l2=dx*dx+dy*dy,len=Math.sqrt(l2),valid=true;
+        if(len>maxLen&&j>i+1)continue;
+        if(j>i+1){
+          for(var k=i+1;k<j;k++){var t=l2?Math.max(0,Math.min(1,((a[k].x-p.x)*dx+(a[k].y-p.y)*dy)/l2)):0;if(Math.hypot(a[k].x-p.x-t*dx,a[k].y-p.y-t*dy)>tol){valid=false;break;}}
+          if(valid){var steps=Math.max(2,Math.ceil(len/sample));for(var k=0;k<=steps;k++)if(!closeInk(p.x+dx*k/steps,p.y+dy*k/steps)){valid=false;break;}}
+        }
+        if(!valid)continue;
+        var value=cost[j]+1+(len<minLen-1e-8?1000:0);
+        if(value<cost[i]){cost[i]=value;next[i]=j;}
+      }
+    }
+    for(var i=0;i>=0;i=next[i]){out.push(a[i]);if(i===n-1)break;}
+  }
+  var start=0;for(var i=1;i<=points.length;i++)if(i===points.length||points[i].jump){run(points.slice(start,i));start=i;}
+  return out;
+}
+function _satinFineAxisRepair(stitches, segments, inInk) {
+  var edges=[],out=[],radius=_mm2px(0.16),thinWidth=_mm2px(0.45),sample=_mm2px(0.04);
+  function addEdges(points){for(var i=1;i<points.length;i++)if(!points[i].jump)edges.push([points[i-1],points[i]]);}
+  /* Measure the path that survives the existing word-level 0.2-mm filter.
+     Counting a micro-stitch that will be removed hides real cap gaps. */
+  var coveragePoints=[],last=null;
+  for(var i=0;i<stitches.length;i++){
+    var p=stitches[i];
+    if(p.jump||p.textAnchor||!last||Math.hypot(p.x-last.x,p.y-last.y)>=_mm2px(0.2)){coveragePoints.push(p);last=p;}
+  }
+  addEdges(coveragePoints);
+  function distance(p){var best=Infinity;for(var i=0;i<edges.length;i++){var a=edges[i][0],b=edges[i][1],dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l2)):0;best=Math.min(best,Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy));}return best;}
+  function safe(a,b){var n=Math.max(2,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/sample));for(var i=0;i<=n;i++)if(!inInk(a.x+(b.x-a.x)*i/n,a.y+(b.y-a.y)*i/n))return false;return true;}
+  segments.forEach(function(segment){
+    var cc=segment.center,hw=segment.hw;
+    if(!cc||cc.length<2)return;
+    var missing=cc.map(function(p,i){return (segment.kind==='run'||(hw&&hw[i]*2<=thinWidth))&&inInk(p.x,p.y)&&distance(p)>radius;});
+    var n=cc.length,start=-1;
+    /* Start=end is the arbitrary seam of a closed source axis, never two free
+       terminals. Rotate a gap across that seam into one continuous repair. */
+    if(Math.hypot(cc[0].x-cc[n-1].x,cc[0].y-cc[n-1].y)<_mm2px(0.04)&&missing[0]&&missing[n-1]){
+      var anchor=-1;for(var ai=1;ai<n-1;ai++)if(!missing[ai]){anchor=ai;break;}
+      if(anchor>=0){cc=cc.slice(anchor,n-1).concat(cc.slice(0,anchor+1));missing=missing.slice(anchor,n-1).concat(missing.slice(0,anchor+1));n=cc.length;}
+    }
+    function emit(end){
+      var lo=Math.max(0,start-1),hi=Math.min(n-1,end+1),arc=0;
+      for(var ai=lo+1;ai<=hi;ai++)arc+=Math.hypot(cc[ai].x-cc[ai-1].x,cc[ai].y-cc[ai-1].y);
+      /* A tiny uncovered cap can be topologically essential. Extend onto
+         its covered neighbours instead of dropping it as a micro-run. */
+      while(arc<_mm2px(0.30)&&(lo>0||hi<n-1)){
+        if(lo>0){arc+=Math.hypot(cc[lo].x-cc[lo-1].x,cc[lo].y-cc[lo-1].y);lo--;}
+        if(hi<n-1){arc+=Math.hypot(cc[hi+1].x-cc[hi].x,cc[hi+1].y-cc[hi].y);hi++;}
+      }
+      var run=cc.slice(lo,hi+1);
+      if(run.length<2)return;
+      var simple=_satinCompactSeam(_flowClipToInk(_simplifyFlowRun(run,_mm2px(1.1),safe),inInk),inInk),length=0;
+      for(var k=1;k<simple.length;k++)if(!simple[k].jump)length+=Math.hypot(simple[k].x-simple[k-1].x,simple[k].y-simple[k-1].y);
+      if(length<_mm2px(0.15))return;
+      simple=simple.map(function(p){return Object.assign({},p,{textAnchor:true});});
+      simple[0].jump=true;
+      addEdges(simple);
+      for(var k=0;k<simple.length;k++)out.push(simple[k]);
+    }
+    for(var i=0;i<=n;i++){
+      if(i<n&&missing[i]){if(start<0)start=i;}
+      else if(start>=0){emit(i-1);start=-1;}
+    }
+  });
+  return out;
+}
 function segsToStitches(segs, pitchMM, contour, inInk, startPos){
   if(!segs||!segs.length) return [];
   var _ink=inInk||function(x,y){ return _pointInLoops(x,y,contour); };
@@ -51550,6 +52074,203 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
     }
     order.push({seg:remaining[bi], rev:bRev}); var ee=segEnds(remaining[bi]); curPos=bRev?ee[0]:ee[1]; remaining.splice(bi,1);
   }
+  function satinBranchAssembly(records, original, fine, patches) {
+    function decline(reason) { return null; }
+    var allWide = records.filter(function(r) { return r.kind === 'satin'; }), wide = null;
+    var narrow = records.filter(function(r) { return r.kind === 'run'; });
+    if (allWide.length < 2 || allWide.length + narrow.length !== records.length || records.length>16 ||
+        records.reduce(function(n,r){return n+r.center.length+r.points.length;},0)>2400) return decline('unsupported-column-set');
+    var junctionRadius = _mm2px(0.25), interior = _mm2px(0.8), minimum = _mm2px(0.1000001), maximum = _mm2px(1.5);
+    function project(p, axis) {
+      var best = null, distance = Infinity, arc = 0;
+      for (var i = 1; i < axis.length; i++) {
+        var a = axis[i-1], b = axis[i], dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy);
+        var t = len ? Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(len*len))) : 0;
+        var x = a.x+dx*t, y = a.y+dy*t, d = Math.hypot(p.x-x,p.y-y);
+        if (d < distance) { distance = d; best = {x:x,y:y,d:d,arc:arc+len*t,index:i,t:t}; }
+        arc += len;
+      }
+      if (best) best.total = arc;
+      return best;
+    }
+    function reversePoints(points) {
+      var result = [];
+      for (var i = points.length-1; i >= 0; i--) {
+        var p = Object.assign({},points[i]);
+        delete p.jump; delete p.travel;
+        if (i+1 < points.length) { if (points[i+1].jump) p.jump = true; if (points[i+1].travel) p.travel = true; }
+        result.push(p);
+      }
+      return result;
+    }
+    function inside(a,b) { return _flowTravelInside(a,b,contour,_ink); }
+    function compact(raw) {
+      if(raw.length>512)return null;
+      var p = [];
+      for (var i=0;i<raw.length;i++) if (!p.length || Math.hypot(raw[i].x-p[p.length-1].x,raw[i].y-p[p.length-1].y)>1e-8) p.push(raw[i]);
+      if (p.length < 2) return p;
+      var costs=[],next=[],last=p.length-1; costs[last]=0;
+      for (var from=last-1;from>=0;from--) {
+        costs[from]=Infinity;
+        for (var to=from+1;to<=last;to++) {
+          var length=Math.hypot(p[to].x-p[from].x,p[to].y-p[from].y);
+          if (!isFinite(costs[to]) || length<minimum || length>maximum || !inside(p[from],p[to])) continue;
+          var cost=length+_mm2px(0.03)+costs[to];
+          if (cost<costs[from]) { costs[from]=cost; next[from]=to; }
+        }
+      }
+      if (!isFinite(costs[0])) return null;
+      var result=[p[0]],at=0;
+      while (at<last) { at=next[at]; result.push(p[at]); }
+      return result;
+    }
+    var connector=null, joins=null;
+    for (var r=0;r<narrow.length;r++) for(var wa=0;wa<allWide.length;wa++)for(var wb=wa+1;wb<allWide.length;wb++) {
+      var ends=[narrow[r].center[0],narrow[r].center[narrow[r].center.length-1]], options=[];
+      for (var direction=0;direction<2;direction++) {
+        var pair=[project(ends[direction],allWide[wa].center),project(ends[1-direction],allWide[wb].center)];
+        if (pair.every(function(j) { return j && j.d<=junctionRadius && j.arc>interior && j.total-j.arc>interior; }) &&
+            inside(ends[direction],pair[0]) && inside(ends[1-direction],pair[1])) options.push(pair);
+      }
+      if (options.length>1 || (options.length && connector)) return decline('ambiguous-cross-branch');
+      if (options.length) { connector=narrow[r]; joins=options[0]; wide=[allWide[wa],allWide[wb]]; }
+    }
+    if (!connector) return decline('no-interior-cross-branch');
+    var nodes=[],leaves=[];
+    for (var w=0;w<2;w++) {
+      var column=wide[w], pts=column.points, join=joins[w], cut=-1, cutCost=Infinity;
+      if (pts.length<5 || pts.some(function(p,i) { return i>0 && p.jump; })) return decline('discontinuous-column');
+      for (var j=1;j<pts.length-1;j++) {
+        if (!_ink(pts[j].x,pts[j].y)) continue;
+        var station=project(pts[j],column.center), along=Math.abs(station.arc-join.arc);
+        if (along>_mm2px(0.35)) continue;
+        var cost=along*4+Math.hypot(pts[j].x-join.x,pts[j].y-join.y);
+        if (cost<cutCost && inside(pts[j],join)) { cutCost=cost; cut=j; }
+      }
+      if (cut<1) return decline('no-inner-needle-port');
+      var node={port:pts[cut],join:join,leaves:[]}; nodes.push(node);
+      var firstAxis=column.center.slice(0,join.index).reverse(),secondAxis=column.center.slice(join.index);
+      var branches=[{points:pts.slice(0,cut+1),axis:firstAxis},{points:reversePoints(pts.slice(cut)),axis:secondAxis}];
+      for (var b=0;b<2;b++) {
+        var branch=branches[b]; branch.node=w; branch.axis=[{x:join.x,y:join.y}].concat(branch.axis);
+        branch.end=branch.axis[branch.axis.length-1]; branch.runs=[];
+        node.leaves.push(branch); leaves.push(branch);
+      }
+    }
+    var terminals=records.filter(function(r){return r!==connector&&r!==wide[0]&&r!==wide[1];});
+    for (var r=0;r<terminals.length;r++) {
+      var terminal=terminals[r],center=terminal.center, chosen=-1,best=Infinity,second=Infinity;
+      if(terminal.kind==='satin'&&project(center[0],center).total>_mm2px(1.2))return decline('third-nonterminal-column');
+      for (var l=0;l<leaves.length;l++) {
+        var samples=[center[0],center[center.length-1]],d=Infinity;
+        var reverseProjection=project(leaves[l].end,center);
+        if(reverseProjection)d=reverseProjection.d;
+        for(var e=0;e<samples.length;e++){
+          var projection=project(samples[e],leaves[l].axis);
+          if(projection&&projection.total-projection.arc<=_mm2px(1.2))d=Math.min(d,projection.d);
+        }
+        if (d<best) { second=best; best=d; chosen=l; } else if (d<second) second=d;
+      }
+      if (best>_mm2px(0.25) || second-best<_mm2px(0.15)) return decline('ambiguous-terminal-run');
+      leaves[chosen].runs.push(terminal);
+    }
+    var cross=connector.points;
+    if (cross.some(function(p,i) { return i>0 && p.jump; })) return decline('discontinuous-cross-branch');
+    if (Math.hypot(cross[0].x-nodes[0].join.x,cross[0].y-nodes[0].join.y)>
+        Math.hypot(cross[cross.length-1].x-nodes[0].join.x,cross[cross.length-1].y-nodes[0].join.y)) cross=reversePoints(cross);
+    if (!inside(nodes[0].port,cross[0]) || !inside(cross[cross.length-1],nodes[1].port)) return decline('cross-port-outside');
+    function plan(root) {
+      var result=fine.map(function(p) { return Object.assign({},p); }),failed=false;
+      function append(points,travel,jump) {
+        for (var i=0;i<points.length;i++) {
+          var p=Object.assign({},points[i]),last=result[result.length-1];
+          if (i===0 && last && Math.hypot(p.x-last.x,p.y-last.y)<1e-8) continue;
+          if (travel) { p.travel=true; p.textAnchor=true; delete p.jump; }
+          if (i===0 && jump) p.jump=true;
+          if (!travel && (i===0 || i===points.length-1)) p.textAnchor=true;
+          result.push(p);
+        }
+      }
+      function routeTo(target,raw) {
+        var last=result[result.length-1];
+        if (!last) { append([target],true,true); return true; }
+        if (Math.hypot(last.x-target.x,last.y-target.y)<1e-8) return true;
+        if(!_ink(last.x,last.y)){
+          var preceding=result[result.length-2],departure=preceding&&!last.travel&&!last.jump?innerOnEdge(last,preceding):null;
+          if(!departure)return false;
+          append([departure],true,false);last=departure;
+        }
+        var route=compact([last].concat(raw||[],[target]));
+        if (!route) return false;
+        append(route,true,false); return true;
+      }
+      var first=nodes[root].port,last=result[result.length-1],entry=null;
+      if (last) {
+        for (var l=0;l<nodes[root].leaves.length;l++) {
+          var trial=compact([last].concat(nodes[root].leaves[l].axis.slice().reverse().filter(function(p){return _ink(p.x,p.y);}),[first]));
+          if (trial && (!entry || trial.length<entry.length)) entry=trial;
+        }
+        if (entry) append(entry,true,false); else append([first],true,true);
+      } else append([first],true,true);
+      function innerOnEdge(p,next){
+        if(!next)return null;
+        var length=Math.hypot(next.x-p.x,next.y-p.y);
+        for(var fraction=0.1;fraction<=1.000001;fraction+=0.05){
+          var q={x:p.x+(next.x-p.x)*fraction,y:p.y+(next.y-p.y)*fraction};
+          if(length*fraction>=_mm2px(0.12)&&_ink(q.x,q.y))return q;
+        }
+        return null;
+      }
+      function enterBlock(primary,axis){
+        var p=primary[0],q=p,extra=false;
+        if(!_ink(p.x,p.y)){q=innerOnEdge(p,primary[1]);if(!q)return false;extra=true;}
+        if(!routeTo(q,axis))return false;
+        if(extra)append([p],true,false);
+        append(primary,false,false);
+        return true;
+      }
+      function sewLeaf(leaf) {
+        var port=nodes[leaf.node].port,axis=leaf.axis.filter(function(p){return _ink(p.x,p.y);});
+        for (var r=0;r<leaf.runs.length;r++) {
+          var run=leaf.runs[r].points;
+          if (!enterBlock(run,axis)) { failed=true; return; }
+        }
+        if(!enterBlock(leaf.points,leaf.runs.length?[]:axis)){failed=true;return;}
+        if (Math.hypot(result[result.length-1].x-port.x,result[result.length-1].y-port.y)>1e-8) failed=true;
+      }
+      var other=1-root,go=root===0?cross:reversePoints(cross),back=reversePoints(go);
+      var outward=compact([nodes[root].port].concat(go,[nodes[other].port]));
+      if (!outward) return null;
+      append(outward,true,false);
+      for (var l=0;l<nodes[other].leaves.length;l++) { sewLeaf(nodes[other].leaves[l]); if(failed)return null; }
+      if (!routeTo(back[0],[])) return null;
+      append(back,false,false);
+      if (!routeTo(nodes[root].port,[])) return null;
+      for (var l=0;l<nodes[root].leaves.length;l++) { sewLeaf(nodes[root].leaves[l]); if(failed)return null; }
+      append(patches,false,true);
+      return result;
+    }
+    function risk(points) {
+      var micro=0,jumps=0,shortJumps=0;
+      for(var i=0;i<points.length;i++)if(!isFinite(points[i].x)||!isFinite(points[i].y))return null;
+      for(var i=1;i<points.length;i++) {
+        var d=Math.hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y)/_mm2px(1);
+        if(points[i].jump){jumps+=d;if(d<=5+1e-7)shortJumps+=d;}else if(d>1e-7&&d<0.1-1e-7)micro++;
+      }
+      return {micro:micro,jumps:jumps,shortJumps:shortJumps};
+    }
+    var before=risk(original),best=null,bestRisk=null;
+    for(var root=0;root<2;root++) {
+      var proposed=plan(root);if(!proposed||!proposed.length)continue;
+      var r=risk(proposed),a=proposed[0],b=original[0],z=proposed[proposed.length-1],y=original[original.length-1];
+      if(!r||r.micro>before.micro+1||r.jumps>before.jumps+1e-7||r.shortJumps>before.shortJumps+1e-7||
+         Math.hypot(a.x-b.x,a.y-b.y)>_mm2px(1e-7)||Math.hypot(z.x-y.x,z.y-y.y)>_mm2px(1e-7))continue;
+      if(!bestRisk||r.jumps<bestRisk.jumps){best=proposed;bestRisk=r;}
+    }
+    return best || decline('no-safe-tree-route');
+  }
+
+  var branchPrimaries=[];
   var out=[],prevEnd=null,oi, runLen=_mm2px(2.0), scLen=Math.max(0.1, pitchMM/2), scInset=0.15;
   for(oi=0;oi<order.length;oi++){ var sg=order[oi].seg, rev=order[oi].rev, segPts=[];
     if(sg.kind==='dot'){
@@ -51560,7 +52281,12 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
     }
     else if(sg.kind==='run'){ var cc=rev?sg.center.slice().reverse():sg.center,ctot=0,ci;
       if(_flowMode) segPts=_flowClipToInk(_simplifyFlowRun(cc,_mm2px(1.1)),_ink);
-      else {for(ci=1;ci<cc.length;ci++) ctot+=Math.hypot(cc[ci].x-cc[ci-1].x,cc[ci].y-cc[ci-1].y); var nrun=Math.max(1,Math.round(ctot/runLen)); for(ci=0;ci<=nrun;ci++) segPts.push(_satinPointAt(cc,ci/nrun));} }
+      else {
+        /* A thin stroke is a curved seam, not a straight 2-mm chord through a counter. */
+        function seamInside(a,b){var ns=Math.max(2,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/_mm2px(0.04)));for(var ni=0;ni<=ns;ni++)if(!_ink(a.x+(b.x-a.x)*ni/ns,a.y+(b.y-a.y)*ni/ns))return false;return true;}
+        segPts=_satinCompactSeam(_flowClipToInk(_simplifyFlowRun(cc,_mm2px(1.1),seamInside),_ink),_ink);
+        for(ci=0;ci<segPts.length;ci++)segPts[ci].textAnchor=true;
+      } }
     else { var cc2=rev?sg.center.slice().reverse():sg.center.slice(), hh2=rev?sg.hw.slice().reverse():sg.hw.slice(), eK0=rev?sg.endK1:sg.endK0, eK1=rev?sg.endK0:sg.endK1;
       /* Satin aus echter Kontur (kein Faecher); Fallback aufs Mittellinien-Offset nur wenn keine Kontur.
          endKinds [Anfang,Ende] passend zur (evtl. gedrehten) cc2 durchreichen -> Junction-Hebel-Drosselung. */
@@ -51578,6 +52304,7 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
         if(!segPts.length) segPts=_flowClipToInk(_simplifyFlowRun(cc2,_mm2px(1.1)),_ink);
       } else segPts=_astSatinFromRail(cc2,hh2,_mm2px(scLen),scInset); }
     if(!segPts||!segPts.length) continue;
+    if(!_flowMode && window._bowlFill==='satin') branchPrimaries.push({kind:sg.kind,center:sg.center?(rev?sg.center.slice().reverse():sg.center.slice()):[],points:segPts.map(function(p){return Object.assign({},p);})});
     if(out.length && prevEnd){
       /* [Travel-Routing] zwischen Saeulen: kurzer Weg, der IM Ink bleibt -> Laufstich-
          Travel (durchgehende Naht statt Sprung+Trim). Quert er die Punze/Aussenraum
@@ -51614,6 +52341,13 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos){
     prevEnd=segPts[segPts.length-1]; }
   /* COVERAGE-BACKSTOP: unbedeckte Innenflaeche (Script-Loop-/Cap-Luecken) mit Fuell-Stichen schliessen. */
   if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null); if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
+  /* Preserve primary Satin and its existing routing. Add only uncovered fine
+     axis seams before it, retaining the original endpoint for the next glyph. */
+  if(!_flowMode && window._bowlFill==='satin'){
+    var fineSeams=_satinFineAxisRepair(out,segs,_ink);
+    if(fineSeams.length){if(out.length)out[0]=Object.assign({},out[0],{jump:true,textAnchor:true});out=fineSeams.concat(out);}
+  }
+  if(!_flowMode && window._bowlFill==='satin') { var branchCandidate=satinBranchAssembly(branchPrimaries,out,fineSeams||[],_bs||[]); if(branchCandidate)out=branchCandidate; }
   return out;
 }
 
@@ -51954,36 +52688,39 @@ function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
   var hw=tw*0.5, pad=2, W=tilePx*_RT_NTILE, H=Math.ceil(tw+pad*2), cy=H/2;
   var c=document.createElement('canvas'); c.width=W; c.height=H; var o=c.getContext('2d');
   var nx=-Math.sin(a), ny=Math.cos(a), ndl=nx*_RT_LIGHT.x+ny*_RT_LIGHT.y;
-  var ridge=0.50-0.16*ndl, lit=0.80+0.20*Math.max(0,ndl)-0.06*Math.max(0,-ndl);
+  /* A thread has an axis, not a lighting direction: sewing the same axis in
+     reverse must not alternate bright/dark bars. Keep the highlight on the
+     light-facing side, with a broad, low-contrast textile sheen. */
+  var ridge=0.50-0.12*ndl, lit=0.94+0.06*Math.abs(ndl);
   function R(v){ return _rtClamp(v*lit); }
   var g=o.createLinearGradient(0, cy-hw, 0, cy+hw);
   function cs(off, base){ g.addColorStop(Math.max(0,Math.min(1,off)), 'rgb('+R(base[0])+','+R(base[1])+','+R(base[2])+')'); }
-  cs(0.00, _rtScale(C,0.85));
+  cs(0.00, _rtScale(C,0.82));
   cs(ridge-0.34, C);
   /* Matter Garn-Glanz: besonders Schwarz soll nicht wie Chrom aussehen. */
-  cs(ridge-0.12, _rtMixW(C,0.20));
-  cs(ridge,      _rtMixW(C,0.36));
-  cs(ridge+0.14, _rtMixW(C,0.10));
+  cs(ridge-0.16, _rtMixW(C,0.09));
+  cs(ridge,      _rtMixW(C,0.18));
+  cs(ridge+0.18, _rtMixW(C,0.07));
   cs(ridge+0.38, _rtScale(C,0.92));
   cs(1.00, _rtScale(C,0.76));
   o.fillStyle=g; o.fillRect(0, cy-hw, W, tw);
   var shadeTop=ndl<0;
   var sg=o.createLinearGradient(0, shadeTop?cy-hw:cy+hw, 0, shadeTop?cy-hw+tw*0.42:cy+hw-tw*0.42);
-  sg.addColorStop(0,'rgba(18,8,4,0.22)'); sg.addColorStop(1,'rgba(18,8,4,0)');
+  sg.addColorStop(0,'rgba(18,8,4,0.12)'); sg.addColorStop(1,'rgba(18,8,4,0)');
   o.fillStyle=sg; o.fillRect(0, cy-hw, W, tw);
   o.save(); o.beginPath(); o.rect(0, cy-hw, W, tw); o.clip(); o.globalCompositeOperation='overlay';
-  var slope=Math.tan(27*Math.PI/180), dxOverH=tw*slope, step=Math.max(2.0, tilePx/9), off=(phase||0)*step*0.5, s;
+  var slope=Math.tan(27*Math.PI/180), dxOverH=tw*slope, step=Math.max(2.0, tilePx/32), off=(phase||0)*step*0.5, s;
   for(s=-dxOverH-W; s<W+dxOverH; s+=step){
     var lv=0.5+0.5*Math.sin(s*(6.283185/(step*6))), val=lv>0.5?178:118;
-    o.strokeStyle='rgba('+val+','+val+','+val+',0.13)'; o.lineWidth=step*0.42;
+    o.strokeStyle='rgba('+val+','+val+','+val+',0.07)'; o.lineWidth=step*0.28;
     o.beginPath(); o.moveTo(s+off, cy-hw-1); o.lineTo(s+off+dxOverH, cy+hw+1); o.stroke();
   }
   o.restore();
   o.globalCompositeOperation='source-over';
   var ry=cy-hw+ridge*tw;
-  o.strokeStyle='rgba(255,250,240,'+(0.10+0.06*Math.max(0,ndl)).toFixed(2)+')'; o.lineWidth=Math.max(0.8, tw*0.18);
+  o.strokeStyle='rgba(255,250,240,0.035)'; o.lineWidth=Math.max(0.5, tw*0.06);
   o.beginPath(); o.moveTo(0, ry-tw*0.04); o.lineTo(W, ry-tw*0.04); o.stroke();
-  o.strokeStyle='rgba(8,5,2,0.13)'; o.lineWidth=Math.max(0.6, tw*0.10);
+  o.strokeStyle='rgba(8,5,2,0.06)'; o.lineWidth=Math.max(0.5, tw*0.06);
   var gy=cy-hw+Math.min(0.92, ridge+0.40)*tw;
   o.beginPath(); o.moveTo(0, gy); o.lineTo(W, gy); o.stroke();
   return { cv:c, h:H };
@@ -52004,40 +52741,46 @@ function drawReal(ctx, pts, fit, opts){
   var tw=Math.max(2.0, 0.40*ppmm), hw=tw*0.5, i, p, x, y, prev;
   var RT=_rtEnsure(tw, colorKey, C), sp=RT.sprites, NA=_RT_NA, spW=RT.W, ppmmSrc=RT.ppx;
   var srcPerCanvasPx=ppmmSrc/ppmm;
-  ctx.lineCap='butt'; ctx.lineJoin='miter'; ctx.miterLimit=2;
-  ctx.strokeStyle='rgb('+_rtClamp(C[0]*0.92)+','+_rtClamp(C[1]*0.92)+','+_rtClamp(C[2]*0.92)+')'; ctx.lineWidth=tw; ctx.lineCap='round'; prev=null;
-  ctx.beginPath();
-  /* jump bezeichnet nur die ANKOMMENDE Bewegung ohne Stich; ihr Ziel ist
-     Startpunkt des naechsten echten Stichs und darf nicht verworfen werden. */
-  for(i=0;i<pts.length;i++){ p=pts[i]; x=fit.X(p.x); y=fit.Y(p.y); if(prev&&!p.jump&&!p.travel){ctx.moveTo(prev.x,prev.y);ctx.lineTo(x,y);} prev={x:x,y:y}; }
-  ctx.stroke(); ctx.lineCap='butt';
-  prev=null; var savedT=ctx.getTransform?ctx.getTransform():null, uOff=0;
+  ctx.save();
+  ctx.lineJoin='round'; ctx.lineWidth=tw; ctx.lineCap='round';
+  ctx.strokeStyle='rgb('+_rtClamp(C[0]*0.92)+','+_rtClamp(C[1]*0.92)+','+_rtClamp(C[2]*0.92)+')';
+  prev=null; var uOff=0;
   ctx.imageSmoothingEnabled=true; if(ctx.imageSmoothingQuality) ctx.imageSmoothingQuality='high';
   for(i=0;i<pts.length;i++){ p=pts[i]; x=fit.X(p.x); y=fit.Y(p.y);
+    /* Complete each sewn segment before painting the next one. A global base
+       pass followed by a global sheen pass lets earlier highlights paint over
+       later stitch caps. Jumps only skip their incoming move; their target
+       remains the start of the next stitch. No sewn DST move is hidden. */
     if(prev&&!p.jump&&!p.travel){ var dx=x-prev.x,dy=y-prev.y,len=Math.hypot(dx,dy);
+      ctx.beginPath(); ctx.moveTo(prev.x,prev.y); ctx.lineTo(x,y); ctx.stroke();
       if(len>0.25){ var ang=Math.atan2(dy,dx), bk=((Math.round(ang/6.283185*NA)%NA)+NA)%NA, spr=sp[bk], H=spr.h, srcW=len*srcPerCanvasPx, u0=uOff%spW; if(u0<0)u0+=spW;
+        ctx.save();
         ctx.translate(prev.x,prev.y); ctx.rotate(ang);
+        /* Shade the existing round caps too; the former flat sprite ended at
+           each needle and left a dark bead. The capsule is the SAME footprint
+           as the original round base stroke, not a wider coverage mask. */
+        ctx.beginPath();
+        ctx.moveTo(0,-hw); ctx.lineTo(len,-hw);
+        ctx.arc(len,0,hw,-Math.PI/2,Math.PI/2);
+        ctx.lineTo(0,hw); ctx.arc(0,0,hw,Math.PI/2,Math.PI*1.5);
+        ctx.closePath(); ctx.clip();
         /* Auch lange importierte Stiche duerfen beliebig viele Kacheln nutzen.
            Kein Quellrechteck darf ueber den Sprite-Rand hinausreichen. */
-        var remainingSrc=srcW, sourceX=u0, destX=0;
+        var remainingSrc=(len+tw)*srcPerCanvasPx, sourceX=u0, destX=-hw;
         while(remainingSrc>1e-7){
           var takeSrc=Math.min(remainingSrc,spW-sourceX), takeDst=takeSrc/srcPerCanvasPx;
           ctx.drawImage(spr.cv,sourceX,0,takeSrc,H,destX,-H/2,takeDst,H);
           remainingSrc-=takeSrc; destX+=takeDst; sourceX=0;
         }
-        if(savedT) ctx.setTransform(savedT); else { ctx.rotate(-ang); ctx.translate(-prev.x,-prev.y); }
+        ctx.restore();
         uOff+=srcW;
       }
     }
     prev={x:x,y:y};
   }
-  var kf=_rtMixW(C,0.14); ctx.fillStyle='rgb('+_rtClamp(kf[0])+','+_rtClamp(kf[1])+','+_rtClamp(kf[2])+')';
-  var pA=null,pB=null;
-  for(i=0;i<pts.length;i++){ p=pts[i]; if(p.jump||p.travel){pA=null;pB=null;continue;} var cx=fit.X(p.x),cyy=fit.Y(p.y);
-    if(pA&&pB){ var ux=pB.x-pA.x,uy=pB.y-pA.y,vx=cx-pB.x,vy=cyy-pB.y, ul=Math.hypot(ux,uy)||1, vl=Math.hypot(vx,vy)||1, dot=(ux*vx+uy*vy)/(ul*vl);
-      if(dot>0.17&&dot<0.6){ ctx.beginPath(); ctx.arc(pB.x,pB.y,hw*0.42,0,6.283185); ctx.fill(); } }
-    pA=pB; pB={x:cx,y:cyy};
-  }
+  /* Needle markers belong to the explicit viewer overlay. Do not add a
+     second, unconditional set of angle-dependent dots above the embroidery. */
+  ctx.restore();
 }
 
 function textToStitches(opts){
@@ -52063,5 +52806,354 @@ return { textToStitches:textToStitches, drawReal:drawReal, _mm2px:_mm2px, _px2mm
 })();
 
 </script>
+<style id="vt-stitch-ui-polish">
+/* Presentation only: keep the proven controls, state and needle paths intact.
+   Shared app tokens, compact choices and one scrolling settings column. */
+body.dstv-with-stitch {
+  --stitch-ui-width: clamp(360px, 30vw, 400px);
+  --stitch-ui-top: 54px;
+  --stitch-ui-player: 56px;
+}
+#dstvModal, #stitchPanel {
+  font-family: 'Nunito', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+}
+body.dstv-with-stitch #dstvModal.open {
+  grid-template-columns: minmax(0, 1fr) var(--stitch-ui-width);
+  grid-template-rows: var(--stitch-ui-top) minmax(0, 1fr) var(--stitch-ui-player);
+}
+body.dstv-with-stitch #stitchPanel {
+  width: var(--stitch-ui-width) !important;
+  background: var(--bg) !important;
+  color: var(--fg);
+}
+.stitch-workspace-head { display: none; }
+body.dstv-with-stitch #stitchPanel .stitch-workspace-head {
+  display: flex;
+  align-items: center;
+  flex: 0 0 var(--stitch-ui-top);
+  padding: 0 48px 0 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+body.dstv-with-stitch #stitchPanel #stitchPanelCloseX {
+  top: 11px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--fg2);
+}
+body.dstv-with-stitch #stitchPanel .stitch-panel-body {
+  padding: 0 !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+#stitchPanel #dstvGlobalParams {
+  padding: 0 12px 8px !important;
+  background: transparent !important;
+  border-bottom: 0 !important;
+}
+#stitchPanel #dstvGpHeadActions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px !important;
+  margin: 0 -12px 10px !important;
+  padding: 8px 12px !important;
+  background: var(--panel) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+#stitchPanel #dstvGpHeadActions > label { font-size: var(--fs-md) !important; }
+#stitchPanel #dstvManualRecalc {
+  min-height: 28px;
+  padding: 4px 8px !important;
+  border-color: var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  color: var(--fg2) !important;
+  font-weight: 600 !important;
+}
+#stitchPanel #dstvResetView {
+  grid-column: 2;
+  justify-self: end;
+  margin: 0 !important;
+  padding: 3px 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--red-tx) !important;
+  font-size: var(--fs-sm) !important;
+  font-weight: 600 !important;
+}
+#stitchPanel #dstvResetView:hover { text-decoration: underline; }
+#stitchPanel :is(#dgpAreaSection, #dgpLineSection, #dgpTextSection) {
+  margin: 0 0 8px !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+#stitchPanel #dstvGlobalParams .dgp-reiter {
+  margin: 0;
+  padding: 8px 10px;
+  min-height: 36px;
+  gap: 5px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--bg2);
+  color: var(--fg);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  line-height: 1.35;
+}
+#stitchPanel #dstvGlobalParams .dgp-reiter:hover { background: var(--bg3); }
+#stitchPanel .dgp-reiter > span:nth-child(2) > span {
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+#stitchPanel #dgpTextSectionTitle { flex-wrap: wrap; }
+#stitchPanel #dgpTextScope {
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--panel);
+  color: var(--fg2) !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#stitchPanel :is(#dgpAreaBody, #dgpLineBody, #dgpTextBody) { padding: 8px 10px; }
+#stitchPanel :is(#dgpLineBody, #dgpTextBody, #dgpUnderlaySub, #dgpTrimSub),
+#stitchPanel #dgpAreaBody > div[style*="grid-template-columns"] {
+  grid-template-columns: minmax(108px, auto) minmax(52px, 1fr) 64px !important;
+  gap: 4px 8px !important;
+  font-size: var(--fs-sm) !important;
+  line-height: 1.4;
+}
+#stitchPanel #dstvGlobalParams label { color: var(--fg2) !important; }
+#stitchPanel #dstvGlobalParams input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  accent-color: var(--ac) !important;
+}
+#stitchPanel #dstvGlobalParams input[type="range"], #dstvModal #dstvScrub {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  accent-color: var(--ac) !important;
+  cursor: pointer;
+}
+#stitchPanel #dstvGlobalParams input[type="range"]::-webkit-slider-runnable-track,
+#dstvModal #dstvScrub::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 3px;
+  background: var(--border);
+}
+#stitchPanel #dstvGlobalParams input[type="range"]::-webkit-slider-thumb,
+#dstvModal #dstvScrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--ac);
+  box-shadow: 0 0 0 1px var(--ac);
+}
+#stitchPanel #dstvGlobalParams input[type="range"]::-moz-range-track,
+#dstvModal #dstvScrub::-moz-range-track { height: 3px; border-radius: 3px; background: var(--border); }
+#stitchPanel #dstvGlobalParams input[type="range"]::-moz-range-thumb,
+#dstvModal #dstvScrub::-moz-range-thumb {
+  width: 10px; height: 10px; border: 2px solid var(--white);
+  border-radius: 50%; background: var(--ac); box-shadow: 0 0 0 1px var(--ac);
+}
+#stitchPanel #dstvGlobalParams input:disabled { opacity: .4; cursor: default; }
+#stitchPanel #dstvGlobalParams span[id$="Val"] {
+  min-height: 24px;
+  padding: 3px 5px;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-xs) !important;
+  background: var(--bg) !important;
+  color: var(--ac);
+  font-family: inherit !important;
+  font-size: var(--fs-md) !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  white-space: nowrap;
+}
+#stitchPanel #dstvGlobalParams span[id$="Val"]:hover { border-color: var(--ac) !important; }
+#stitchPanel #dstvGlobalParams span[id$="Val"]:focus {
+  border-color: var(--ac) !important;
+  background: var(--white) !important;
+}
+#stitchPanel #dstvGlobalParams .dgp-radio { gap: 6px; }
+#stitchPanel #dstvGlobalParams .dgp-rtile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px;
+  min-height: 48px;
+  border-width: 1px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+#stitchPanel #dstvGlobalParams .dgp-rtile.sel {
+  border-color: var(--ac);
+  background: rgba(var(--ac-rgb), .07);
+  box-shadow: inset 0 0 0 1px rgba(var(--ac-rgb), .15);
+}
+#stitchPanel #dstvGlobalParams .dgp-rill { grid-column: 1; grid-row: 1; width: 118px; max-width: 100%; margin: 0; }
+#stitchPanel #dstvGlobalParams .dgp-rlbl { grid-column: 1; font-size: var(--fs-md); line-height: 1.3; font-weight: 700; }
+#stitchPanel #dstvGlobalParams .dgp-rsub { grid-column: 1 / -1; font-size: var(--fs-xs); line-height: 1.35; margin-top: 3px; }
+#stitchPanel #dgpFillConnectRow .dgp-radio svg .r { stroke: var(--red-tx); stroke-width: 2; opacity: 1; }
+#stitchPanel #dgpFillConnectRow .dgp-rtile:has(input[value="continuous"]) svg .r { stroke-dasharray: none; }
+#stitchPanel #dstvGlobalParams .dgp-radio-sm { grid-column: 2 / -1; }
+#stitchPanel #dstvGlobalParams .dgp-radio-sm .dgp-rtile { grid-template-columns: 1fr; justify-items: center; min-height: 60px; gap: 3px; padding: 5px; text-align: center; }
+#stitchPanel #dstvGlobalParams .dgp-radio-sm .dgp-rill { grid-column: 1; grid-row: 1; width: 38px; }
+#stitchPanel #dstvGlobalParams .dgp-radio-sm .dgp-rlbl { grid-column: 1; font-size: var(--fs-sm); }
+#stitchPanel #dstvGlobalParams .dgp-ts {
+  min-height: 29px;
+  padding: 4px 6px !important;
+  border-color: var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: var(--fs-md) !important;
+}
+#stitchPanel #dstvGlobalParams .dgp-ts[aria-pressed="true"] { border-color: var(--ac) !important; }
+#stitchPanel #dstvGlobalParams .dgp-ts:disabled { opacity: .4; cursor: default !important; }
+#stitchPanel #dstvGlobalParams .vt-cardlink { width: 16px; height: 16px; margin-left: 1px; border-color: var(--border); }
+#stitchPanel #dstvGlobalParams button[id$="Gear"] { color: var(--fg3) !important; padding: 2px 3px !important; }
+#stitchPanel #dgpApplyStatus { margin: 2px 0 0 !important; padding: 0 1px; font-style: normal !important; line-height: 1.4; }
+#stitchPanel #dgpApplyStatus .dgp-bar { height: 3px; margin-top: 4px; }
+#stitchPanel .stitch-content[data-stab="order"] { padding: 0 12px 12px !important; }
+#stitchPanel #stitchOrderTitle {
+  margin: 0 0 8px !important;
+  padding: 9px 0 7px !important;
+  background: transparent !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-size: var(--fs-md);
+  font-weight: 800;
+}
+#stitchPanel .stitch-order-row { min-height: 36px; padding: 5px 7px !important; }
+#stitchPanel .stitch-order-row :is(.stitch-row-hide, .stitch-row-hide-outline, .stitch-row-gear) { width: 26px !important; height: 26px !important; }
+#stitchPanel #stitchExportFooter {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 64px 70px;
+  gap: 6px !important;
+  min-height: 56px;
+  padding: 10px 12px !important;
+  background: var(--panel) !important;
+}
+#stitchPanel #stitchExportFooter :is(button, select) { height: 34px; min-width: 0; border-radius: var(--radius-sm) !important; }
+#stitchPanel #stitchExportFooterDst { height: auto !important; min-height: 34px; padding: 5px 8px !important; font-size: var(--fs-md) !important; line-height: 1.3; }
+#stitchPanel #stitchExportFooterDst:hover { background: var(--ac-hover) !important; }
+#stitchPanel #stitchExportFormat { width: 64px; border-color: var(--border) !important; font-size: var(--fs-md) !important; }
+#stitchPanel #stitchImportBtn { padding: 0 !important; border-color: var(--border) !important; }
+#stitchPanel #stitchTestRow { padding: 0 12px 6px !important; }
+#stitchPanel #stitchTestBtn { margin: 0; padding: 5px 8px !important; border-radius: var(--radius-sm) !important; font-size: var(--fs-sm) !important; }
+#dstvModal .dstv-top {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto auto auto;
+  grid-template-rows: 1fr 1fr;
+  gap: 0 10px;
+  padding: 6px 14px;
+  min-height: 0;
+}
+body.dstv-with-stitch #dstvModal .dstv-top { overflow: visible; }
+#dstvModal .dstv-title { grid-column: 1; grid-row: 1; font-size: var(--fs-lg); line-height: 1.4; }
+#dstvModal .dstv-filename { grid-column: 1; grid-row: 2; max-width: 100%; min-width: 0; font-family: inherit; font-size: var(--fs-xs); color: var(--fg3); line-height: 1.4; }
+#dstvModal .dstv-spacer { display: none; }
+#dstvModal #dstvViewModeGroup { grid-column: 2; grid-row: 1 / 3; padding: 2px; gap: 2px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg2); }
+#dstvModal #dstvViewModeGroup button { height: 28px; padding: 3px 8px; border: 0; border-radius: var(--radius-xs); font-size: var(--fs-sm); font-weight: 700; }
+#dstvModal #dstvViewModeGroup button.dstv-active { background: var(--white); color: var(--ac); box-shadow: var(--shadow-1); }
+#dstvModal .dstv-top > label { grid-column: 3; line-height: 1.3; font-size: var(--fs-xs) !important; }
+#dstvModal .dstv-top > label:has(#dstvShowJumps) { grid-row: 1; }
+#dstvModal .dstv-top > label:has(#dstvShowDots) { grid-row: 2; }
+#dstvModal #dstvInfoBtn { grid-column: 4; grid-row: 1 / 3; height: 30px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+body.dstv-with-stitch #dstvModal.open .dstv-bot { right: var(--stitch-ui-width) !important; height: var(--stitch-ui-player) !important; }
+#dstvModal .dstv-bot {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.2fr) 32px auto 58px minmax(64px, 1fr) auto;
+  gap: 8px;
+  padding: 6px 14px;
+}
+#dstvModal #dstvHoopInfo { min-width: 0; flex-wrap: wrap; gap: 2px 6px; font-size: var(--fs-xs); white-space: normal; }
+#dstvModal #dstvHoopWarn {
+  position: absolute;
+  left: 12px;
+  bottom: calc(100% + 8px);
+  max-width: calc(100% - 24px);
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-size: var(--fs-sm);
+  line-height: 1.3;
+  box-shadow: var(--shadow-1);
+}
+#dstvModal #stitchHoop { max-width: 100% !important; min-width: 0; margin-left: 0 !important; font-size: var(--fs-xs) !important; }
+#dstvModal #dstvPlayBtn { width: 32px; height: 32px; padding: 0; border-radius: var(--radius-sm); color: var(--ac); }
+#dstvModal #dstvSpeed { width: 58px; min-width: 0; font-size: var(--fs-sm); border-radius: var(--radius-sm); }
+#dstvModal .dstv-counter { min-width: 0; font-family: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+body.dstv-with-stitch #dstvInfoPanel { top: calc(var(--stitch-ui-top) + 8px); right: calc(var(--stitch-ui-width) + 10px); }
+#stitchPanel :is(button, input, select, [contenteditable="true"]):focus-visible,
+#dstvModal :is(button, input, select):focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+@media (max-width: 900px) {
+  body.dstv-with-stitch { --stitch-ui-top: 54px; --stitch-ui-preview: clamp(140px, 32dvh, 280px); --stitch-ui-player: 60px; }
+  body.dstv-with-stitch #dstvModal.open {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--stitch-ui-top) var(--stitch-ui-preview) var(--stitch-ui-player) minmax(0, 1fr);
+    grid-template-areas: "top" "view" "bot" "stitch";
+  }
+  body.dstv-with-stitch #stitchPanel {
+    top: calc(var(--stitch-ui-top) + var(--stitch-ui-preview) + var(--stitch-ui-player)) !important;
+    left: 0 !important; width: 100% !important;
+    border-left: 0 !important; border-top: 1px solid var(--border);
+  }
+  body.dstv-with-stitch #stitchPanel .stitch-workspace-head { flex-basis: 42px; }
+  body.dstv-with-stitch #stitchPanel #stitchPanelCloseX { top: 5px; }
+  body.dstv-with-stitch #dstvModal.open .dstv-bot {
+    top: calc(var(--stitch-ui-top) + var(--stitch-ui-preview)) !important;
+    right: 0 !important; bottom: auto !important;
+  }
+  #dstvModal .dstv-top { grid-template-columns: minmax(70px, 1fr) auto auto auto; gap: 0 6px; padding: 6px 10px; }
+  #dstvModal #dstvViewModeGroup button { padding: 3px 6px; }
+  #dstvModal .dstv-bot { grid-template-columns: minmax(80px, 1fr) 32px 58px minmax(55px, 1fr) auto; gap: 6px; padding: 5px 10px; }
+  #dstvModal .dstv-bot > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  body.dstv-with-stitch #dstvInfoPanel { top: calc(var(--stitch-ui-top) + 8px); right: 10px; width: min(360px, calc(100vw - 20px)); }
+}
+@media (max-width: 900px) and (max-height: 580px) {
+  body.dstv-with-stitch { --stitch-ui-preview: 28dvh; --stitch-ui-player: 50px; }
+}
+@media (max-width: 420px) {
+  body.dstv-with-stitch { --stitch-ui-top: 82px; --stitch-ui-player: 78px; }
+  body.dstv-with-stitch #dstvModal .dstv-top {
+    grid-template-columns: minmax(64px, 1fr) auto auto;
+    grid-template-rows: 1fr 1fr 1fr;
+  }
+  body.dstv-with-stitch #dstvModal #dstvInfoBtn { grid-column: 3; }
+  body.dstv-with-stitch #dstvModal .dstv-top > label:has(#dstvShowJumps) { grid-column: 1; grid-row: 3; }
+  body.dstv-with-stitch #dstvModal .dstv-top > label:has(#dstvShowDots) { grid-column: 2 / -1; grid-row: 3; }
+  body.dstv-with-stitch #dstvModal .dstv-bot {
+    grid-template-columns: 32px 58px minmax(40px, 1fr) auto;
+    grid-template-rows: 22px 32px;
+    align-content: center;
+    gap: 4px 6px;
+  }
+  body.dstv-with-stitch #dstvModal #dstvHoopInfo { grid-column: 1 / -1; grid-row: 1; justify-content: space-between; flex-wrap: nowrap; }
+  body.dstv-with-stitch #dstvModal #stitchHoop { max-width: 55% !important; }
+  body.dstv-with-stitch #dstvModal #dstvPlayBtn { grid-column: 1; grid-row: 2; }
+  body.dstv-with-stitch #dstvModal #dstvSpeed { grid-column: 2; grid-row: 2; }
+  body.dstv-with-stitch #dstvModal #dstvScrub { grid-column: 3; grid-row: 2; }
+  body.dstv-with-stitch #dstvModal #dstvScrubCounter { grid-column: 4; grid-row: 2; text-align: right; font-size: var(--fs-xs); }
+}
+</style>
 </body>
 </html>
