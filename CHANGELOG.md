@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+Prepared 2 October 2026 as `VT-20261002-local-r12`; not published.
+
+- Distinct freehand, line and curve preview cards with interaction hints in all 32 languages; Bezier handles retained in previews.
+- Consistent micro-stitch quality warnings across legal zero-length stitch records; exported stitch geometry unchanged by this warning fix.
+- Visible-colour paint bucket with tolerance, independent vector output, undo and cancellation safeguards.
+- Editable SVG projects replace the `.linea` save option; legacy project import remains available.
+- Triangle/Brackets living-hinge cutouts, quieter snap confirmation and independent colour/black-and-white tracer previews.
+- Includes the preceding local tracing, text, embroidery, project-storage and translation repairs.
+
+Release gates still open: real browser downloads and reimports, final cross-browser and cold-offline checks. Fine embroidery details and laser/material behaviour require physical samples; this is not a manufacturing approval.
+
 ## 2026-06-17
 - Text on a path: distance slider (outside / on the line / inside), arc side, letter spacing and text colour; glyphs now sit straight on rectangles, polygons and stars
 - Image tracer: camera capture and a test-image button
