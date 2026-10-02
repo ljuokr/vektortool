@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261002-local-r15 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261002-local-r16 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -11605,7 +11605,10 @@ function _vtAutoSaveNotice() {
   var notice = document.getElementById('vtAutosaveConflictNotice');
   if (sync.mode==='opening'||sync.mode==='recovering') return;
   var T=typeof window.t==='function'?window.t:function(s){return s;};
-  var important=!!(sync.resetPaused||sync.conflict||sync.saveFailed||sync.restoreFailed||sync.recoveryError||sync.mode==='fallback'||sync.resumeDraft||sync.hasDrafts);
+  /* Archived drafts are history, not a current save failure. Keep them behind
+     the explicit status toggle; never discard their recovery data. A resumed
+     tab showing a different main document still needs its direct warning. */
+  var important=!!(sync.resetPaused||sync.conflict||sync.saveFailed||sync.restoreFailed||sync.recoveryError||sync.mode==='fallback'||sync.resumeDraft);
   var status=document.getElementById('vtStorageStatus'), bar=document.getElementById('statusbar');
   if(!status&&bar){
     status=document.createElement('button');status.type='button';status.id='vtStorageStatus';
@@ -11690,8 +11693,7 @@ function _vtAutoSaveNotice() {
     var resumeHint=document.createElement('div');resumeHint.textContent=T('Dieser Tab hatte einen abweichenden Stand vom')+' '+sync.resumeDraft.stamp+'. '+T('Aktuell wird der Hauptstand angezeigt.');notice.appendChild(resumeHint);
     var resume=document.createElement('button');resume.type='button';resume.id='vtStorageResumeDraft';resume.textContent=T('Früheren Tab-Stand wiederherstellen');resume.style.cssText='padding:6px 10px;margin-top:6px';resume.addEventListener('click',function(){_vtStoreUseBackup(sync.resumeDraft.raw);});notice.appendChild(resume);
   }
-  if(sync.hasDrafts&&!sync.conflict){var draftHint=document.createElement('div');draftHint.textContent=T('Gespeicherte Konfliktstände sind verfügbar. Bitte die gespeicherten Stände prüfen.');notice.appendChild(draftHint);}
-  if(sync.restoredAt) {var restored=document.createElement('div');restored.textContent=T('Geladene Sicherung:')+' '+sync.restoredAt;notice.appendChild(restored);}
+  if(sync.noticeExpanded&&sync.hasDrafts&&!sync.conflict){var draftHint=document.createElement('div');draftHint.textContent=T('Gespeicherte Konfliktstände sind verfügbar. Bitte die gespeicherten Stände prüfen.');notice.appendChild(draftHint);}
   if(backups.length&&sync.mode!=='idb') {
     var details=document.createElement('details'),summary=document.createElement('summary');
     summary.textContent=T('Andere Sicherungen herunterladen')+' ('+backups.length+')';details.appendChild(summary);
@@ -56555,6 +56557,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-02', t:'VT-20261002-local-r16', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r15', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r14', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r13', c:null},

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2 October 2026 — r16
+
+- Keep the routine storage notice closed even when archived conflict backups exist. Backup details remain available through the status bar.
+- Remove the loaded-backup timestamp from the notice; the recovery list retains its entry dates.
+- Preserve warnings for real save/restore failures, active conflicts, degraded storage, reset operations and a resumed tab whose own prior state differs from the displayed main document.
+- Storage writes, recovery data and loading logic are unchanged. Verified with 19 regression assertions and a real two-tab conflict, reload, and recovery-list workflow.
+
 ## 2 October 2026 — r15
 
 Release build `VT-20261002-local-r15`, byte-identical to the tested local file.

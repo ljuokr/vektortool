@@ -10,8 +10,11 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 2 October 2026 release uses the tested `VT-20261002-local-r15` build
+The 2 October 2026 release uses the tested `VT-20261002-local-r16` build
 (the local build identifier is retained to keep the tested application bytes unchanged).
+Archived conflict backups no longer keep the storage notice open automatically;
+backups remain accessible from the status bar. The loaded-backup timestamp is
+removed from the notice. Actual save failures and active conflicts still warn.
 The embroidery preview now shows actual calculation errors instead of a misleading
 missing-DST-file message, offers a direct retry, and clearly labels a retained older
 preview. Preview and export consistently respect hidden, disabled and ignored objects;
