@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261002-local-r16 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261002-local-r18 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -2687,8 +2687,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
         <label class="tracer-check"><input type="checkbox" id="tracerAutoMerge" checked aria-describedby="tracerAutoMergeNote"><span>Ähnliche Farben automatisch zusammenführen</span></label>
         <div class="tracer-row"><label for="tracerGroupCount">Sichtbare Zielfarben</label><button type="button" id="tracerGroupCountMinus" class="tracer-step-btn" aria-label="−">−</button><input type="range" id="tracerGroupCount" min="1" max="24" value="4" step="1"><button type="button" id="tracerGroupCountPlus" class="tracer-step-btn" aria-label="+">+</button><span class="tval" id="tracerGroupCountVal">4</span></div>
         <div class="tracer-color-actions"><button type="button" id="tracerAutoMergeAgain">Automatisch neu zusammenführen</button></div>
-        <div id="tracerAutoMergeNote" class="tracer-presort-note">Quellfarben bleiben erhalten. Manuelle Änderungen bleiben bis zur nächsten Quellpalette erhalten. Rückgängig ist möglich.</div>
-        <div id="tracerBackgroundNote" class="tracer-presort-note">Hintergrund nicht übernehmen? Blende seine Farbgruppe mit dem Auge aus. Sichtbare Farben werden auch exportiert und gestickt.</div>
+        <div id="tracerAutoMergeNote" class="tracer-presort-note">Farben zusammenführen – rückgängig möglich.</div>
+        <div id="tracerBackgroundNote" class="tracer-presort-note">Hintergrund ausblenden: Auge anklicken.</div>
         <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg" aria-describedby="tracerBackgroundNote">Hintergrund entfernen</label>
         <!-- Optional arrangement never replaces the actual automatic output merge. -->
         <details><summary>Farben automatisch vorsortieren</summary><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farben automatisch vorsortieren</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Bis zu 4 Farbfamilien – nur angeordnet, keine Farbe verändert.</div></details>
@@ -34467,7 +34467,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 245; /* Retained short-row coverage and non-collapsing inset; refresh earlier stitch caches. */
+var _STITCH_CACHE_VERSION = 246; /* Refresh cached diagnostics for the explicit micro-fill recovery. */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -34970,6 +34970,112 @@ function _vtStitchCurrentFailures() {
     return st&&!s.hidden&&!st.hidden&&!st.disabled&&st.type!=='none'&&!(st.commands&&st.commands.ignore)&&_vtStitchCalcFailures.has(s);
   });
 }
+/* Explicit embroidery-only recovery, never an automatic geometry deletion.
+   Classify every candidate again on click, so edits cannot use stale IDs. */
+/* Offer an explicit, undoable omission of noise-only fill OBJECTS; never
+   erase vector components or weaken the ordinary calculation/export guard.
+   Uses raw renderer-compatible geometry, NOT overlap-clipped fill geometry. */
+function _vtStitchMicroFillInfo(shape) {
+  var st=shape&&shape.stitch;
+  if(!shape||shape.type!=='svgpath'||!st||st.type!=='fill'||shape.hidden||st.hidden||st.disabled||
+     (st.commands&&st.commands.ignore)||!shape.fillEnabled||
+     !shape.fill||/^(none|transparent)$/i.test(String(shape.fill).trim())||
+     shape.svgClipD||shape.svgMask||shape.clipPath||shape.mask||
+     (st.params&&st.params.outline))return null;
+  var dimensions=['x','y','w','h','svgOrigX','svgOrigY','svgOrigW','svgOrigH','rotation'];
+  for(var di=0;di<dimensions.length;di++){
+    var value=shape[dimensions[di]];
+    if(value!=null&&!Number.isFinite(Number(value)))return null;
+  }
+  if(!(Number(shape.w)>0)||!(Number(shape.h)>0))return null;
+  /* Ignoring an object also ignores its outlines. Never offer that action
+     when any visible stroke or an explicit fill outline could be lost. */
+  var stroke=String(shape.stroke||'').trim().toLowerCase();
+  if(Number(shape.strokeWidth)>0&&stroke&&stroke!=='none'&&stroke!=='transparent')return null;
+  if(typeof _stitchOutlineColorFor==='function'&&_stitchOutlineColorFor(shape))return null;
+  try {
+    var d=_stitchBuildShapePathD(shape);
+    if(!d||d.length>1000000)return null;
+    var parts=_stitchFlattenContours(d),boxes=[],limit=_mm2px(0.25),margin=_mm2px(0.02),maxSize=0;
+    /* _stitchBuildShapePathD flattens curves with <=0.01mm error. A 0.02mm
+       width/height margin makes this classification conservative at edges.
+       Explicit closure only; implicitly filled open paths are not candidates. */
+    if(!parts.length||parts.length>1000)return null;
+    for(var i=0;i<parts.length;i++){
+      var sub=parts[i];
+      if(!sub.closed||!sub.pts||sub.pts.length<3)return null;
+      var pts=_stitchRotatePoints(shape,sub.pts),minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,area=0;
+      var origin=pts[0];
+      for(var j=0;j<pts.length;j++){
+        var p=pts[j],q=pts[(j+1)%pts.length];
+        if(!Number.isFinite(p.x)||!Number.isFinite(p.y))return null;
+        minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+        area+=(p.x-origin.x)*(q.y-origin.y)-(q.x-origin.x)*(p.y-origin.y);
+      }
+      if(!Number.isFinite(area)||Math.abs(area)<1e-12||maxX-minX+margin>=limit||maxY-minY+margin>=limit)return null;
+      boxes.push({x:minX,y:minY,r:maxX,b:maxY});
+    }
+    /* Subpaths can overlap into ONE sizeable material component. Merge
+       overlapping/touching expanded bounds conservatively; a chain of tiny
+       tiles forming a long strip must never be treated as isolated speckles. */
+    var groups=[];
+    for(var i=0;i<boxes.length;i++){
+      var box=boxes[i],merged=true;
+      while(merged){
+        merged=false;
+        for(var j=groups.length-1;j>=0;j--){
+          var g=groups[j];
+          if(box.x>g.r+margin||box.r<g.x-margin||box.y>g.b+margin||box.b<g.y-margin)continue;
+          box={x:Math.min(box.x,g.x),y:Math.min(box.y,g.y),r:Math.max(box.r,g.r),b:Math.max(box.b,g.b)};
+          groups.splice(j,1);merged=true;
+          if(box.r-box.x+margin>=limit||box.b-box.y+margin>=limit)return null;
+        }
+      }
+      groups.push(box);
+    }
+    for(var i=0;i<groups.length;i++)maxSize=Math.max(maxSize,groups[i].r-groups[i].x,groups[i].b-groups[i].y);
+    return {subpathCount:parts.length,componentCount:groups.length,maxMM:_px2mm(maxSize),limitMM:0.25};
+  }catch(error){return null;}
+}
+function _vtStitchMicroFillCandidates() {
+  return (window.shapes||[]).filter(function(s){return !!_vtStitchMicroFillInfo(s);});
+}
+function _vtStitchHideMicroFills() {
+  var candidates=_vtStitchMicroFillCandidates();
+  if(!candidates.length)return 0;
+  _puL('Mikroflächen vom Sticken ausblenden');
+  candidates.forEach(function(s){
+    s.stitch.hidden=true;s.stitch.needlePoints=[];s.stitch._needleCacheKey='';
+    _vtStitchCalcFailures.delete(s);
+    if(window._vtFillFailures)delete window._vtFillFailures[s.id];
+  });
+  _stitchMarkCheckDirty();
+  _stitchUpdateOrder();
+  _vtStitchUpdateCalculationNotice();
+  if(typeof window._vtScheduleProjectSave==='function')window._vtScheduleProjectSave();
+  if(typeof window._dstvReloadFromLinea==='function')window._dstvReloadFromLinea();
+  return candidates.length;
+}
+function _vtStitchMicroFillRecovery(host,id,enabled) {
+  if(!host)return;
+  var box=document.getElementById(id),candidates=enabled?_vtStitchMicroFillCandidates():[];
+  if(!box){
+    box=document.createElement('div');box.id=id;box.style.cssText='margin-top:10px;pointer-events:auto;';
+    var hint=document.createElement('div');hint.className='vt-microfill-hint';hint.style.cssText='font-size:12px;line-height:1.45;margin-bottom:6px;';
+    var button=document.createElement('button');button.type='button';button.id=id+'Action';button.style.cssText='white-space:normal;padding:6px 10px;';
+    button.addEventListener('click',_vtStitchHideMicroFills);box.appendChild(hint);box.appendChild(button);host.appendChild(box);
+  }
+  box.hidden=!candidates.length;
+  if(!candidates.length)return;
+  var T=typeof window.t==='function'?window.t:function(s){return s;};
+  box.querySelector('.vt-microfill-hint').textContent=T('Nur Objekte mit Teilflächen unter 0,25 × 0,25 mm. Die Zeichnung bleibt erhalten; Rückgängig oder das Auge im Stickdialog macht sie wieder aktiv.');
+  box.querySelector('button').textContent=T('Mikroflächen vom Sticken ausblenden')+' ('+candidates.length+')';
+}
+window._vtStitchMicroFillRecovery=_vtStitchMicroFillRecovery;
+function _vtStitchEmptyCalculationError(shape) {
+  var message=_vtStitchMicroFillInfo(shape)?'Nur Mikroflächen unter 0,25 × 0,25 mm; das Füllraster trifft sie nicht zuverlässig.':'Keine Stiche für dieses aktive Objekt berechnet. Geometrie, Schrift und Parameter prüfen.';
+  return new Error(typeof window.t==='function'?window.t(message):message);
+}
 function _vtStitchUpdateCalculationNotice() {
   var host=document.querySelector('#stitchPanel .stitch-panel-body');
   if(!host)return;
@@ -34979,6 +35085,7 @@ function _vtStitchUpdateCalculationNotice() {
   failed.forEach(function(s){texts.push('#'+s.id+': '+_vtStitchCalcFailures.get(s).message);});
   (window.shapes||[]).forEach(function(s){if(s.stitch&&!s.hidden&&!s.stitch.hidden&&!s.stitch.disabled&&!(s.stitch.commands&&s.stitch.commands.ignore)&&warnings[s.id])texts.push('#'+s.id+': '+warnings[s.id]);});
   notice.hidden=!texts.length;notice.textContent=(failed.length?'Export gesperrt. Die Vorschau kann noch den letzten gültigen Stand zeigen. ':'')+texts.join(' · ');
+  _vtStitchMicroFillRecovery(notice,'vtStitchMicroFillRecovery',!!failed.length);
 }
 function _vtAssertCompleteStitchCalculation() {
   var failed=_vtStitchCurrentFailures();
@@ -42487,7 +42594,7 @@ async function _stitchRecalcCooperative(shape, shouldCancel) {
     var points=result.value||[];
     if(points.length>300000)throw new Error('Mehr als 300000 Nadelpunkte in einem Objekt. Motiv oder Dichte reduzieren.');
     if(points.some(function(p){return !p||!Number.isFinite(p.x)||!Number.isFinite(p.y);}))throw new Error('Ungültige Nadelkoordinaten.');
-    if(!points.length&&shape._stitchCleanD!=='')throw new Error('Keine Stiche für dieses aktive Objekt berechnet. Geometrie, Schrift und Parameter prüfen.');
+    if(!points.length&&shape._stitchCleanD!=='')throw _vtStitchEmptyCalculationError(shape);
     live.needlePoints=points;live._needleCacheKey=key;
     if(staged._materialGuardInfo)live._materialGuardInfo=staged._materialGuardInfo;
     return {cancelled:false};
@@ -42530,7 +42637,7 @@ function _stitchRecalc(shape) {
     var points=st.needlePoints||[];
     if(points.length>300000)throw new Error('Mehr als 300000 Nadelpunkte in einem Objekt. Motiv oder Dichte reduzieren.');
     if(points.some(function(p){return !p||!Number.isFinite(p.x)||!Number.isFinite(p.y);}))throw new Error('Ungültige Nadelkoordinaten.');
-    if(!points.length&&shape._stitchCleanD!=='')throw new Error('Keine Stiche für dieses aktive Objekt berechnet. Geometrie, Schrift und Parameter prüfen.');
+    if(!points.length&&shape._stitchCleanD!=='')throw _vtStitchEmptyCalculationError(shape);
     st._needleCacheKey=key;
   } catch(error) {
     _vtRecordStitchFailure(shape,error,key);
@@ -48560,6 +48667,7 @@ window.__LINEA_DEBUG__ = {
     if(view)view.setAttribute('aria-busy',String(ui.busy));
     var action=document.getElementById('dstvEmptyRecalc');
     if(action){action.hidden=!ui.showAction;action.disabled=ui.busy;}
+    if(typeof window._vtStitchMicroFillRecovery==='function')window._vtStitchMicroFillRecovery(empty,'dstvMicroFillRecovery',phase==='error'&&!hasPreview);
     var label=document.getElementById('dstvFilename');
     if(label){
       var base=hasPreview?(_dstvState.filename||T('Eigenes Design (noch nicht als Datei gespeichert)')):T('Stickerei');
@@ -55093,6 +55201,223 @@ installBriefToolPreview();
   })();
   /* Translation registration is refreshed AFTER all dictionary additions.
      Templates contain data, never HTML. Numerical/diagnostic values are kept. */
+/* Register inside the existing VectorTool i18n closure where DICT is in scope.
+   Hiding affects embroidery only; it never removes the source artwork. */
+(function () {
+  var keys = [
+    'Mikroflächen vom Sticken ausblenden',
+    'Nur Objekte mit Teilflächen unter 0,25 × 0,25 mm. Die Zeichnung bleibt erhalten; Rückgängig oder das Auge im Stickdialog macht sie wieder aktiv.',
+    'Nur Mikroflächen unter 0,25 × 0,25 mm; das Füllraster trifft sie nicht zuverlässig.'
+  ];
+  var values = {
+    en: [
+      'Hide micro-areas from embroidery',
+      'Only objects with sub-areas smaller than 0.25 × 0.25 mm. The drawing is preserved; Undo or the eye icon in the embroidery dialog reactivates them.',
+      'Only micro-areas smaller than 0.25 × 0.25 mm; the fill grid does not reliably intersect them.'
+    ],
+    fr: [
+      'Masquer les micro-surfaces pour la broderie',
+      'Uniquement les objets comportant des sous-surfaces inférieures à 0,25 × 0,25 mm. Le dessin est conservé ; Annuler ou l’icône en forme d’œil dans la boîte de dialogue de broderie les réactive.',
+      'Uniquement des micro-surfaces inférieures à 0,25 × 0,25 mm ; la grille de remplissage ne les recoupe pas de manière fiable.'
+    ],
+    it: [
+      'Nascondi le microaree dal ricamo',
+      'Solo oggetti con sottoaree inferiori a 0,25 × 0,25 mm. Il disegno viene conservato; Annulla o l’icona dell’occhio nella finestra di ricamo li riattiva.',
+      'Solo microaree inferiori a 0,25 × 0,25 mm; la griglia di riempimento non le interseca in modo affidabile.'
+    ],
+    es: [
+      'Ocultar las microáreas del bordado',
+      'Solo objetos con subáreas inferiores a 0,25 × 0,25 mm. El dibujo se conserva; Deshacer o el icono del ojo en el diálogo de bordado los vuelve a activar.',
+      'Solo microáreas inferiores a 0,25 × 0,25 mm; la cuadrícula de relleno no las intersecta de forma fiable.'
+    ],
+    pt: [
+      'Ocultar microáreas do bordado',
+      'Apenas objetos com subáreas inferiores a 0,25 × 0,25 mm. O desenho é preservado; Desfazer ou o ícone do olho na janela de bordado volta a ativá-los.',
+      'Apenas microáreas inferiores a 0,25 × 0,25 mm; a grelha de preenchimento não as interceta de forma fiável.'
+    ],
+    nl: [
+      'Microvlakken verbergen voor borduren',
+      'Alleen objecten met deelvlakken kleiner dan 0,25 × 0,25 mm. De tekening blijft behouden; Ongedaan maken of het oogpictogram in het borduurdialoogvenster activeert ze opnieuw.',
+      'Alleen microvlakken kleiner dan 0,25 × 0,25 mm; het vulraster doorsnijdt ze niet betrouwbaar.'
+    ],
+    pl: [
+      'Ukryj mikroobszary podczas haftowania',
+      'Tylko obiekty z podobszarami mniejszymi niż 0,25 × 0,25 mm. Rysunek pozostaje zachowany; Cofnij lub ikona oka w oknie haftowania ponownie je aktywuje.',
+      'Tylko mikroobszary mniejsze niż 0,25 × 0,25 mm; siatka wypełnienia nie przecina ich w sposób niezawodny.'
+    ],
+    cs: [
+      'Skrýt mikroplochy pro vyšívání',
+      'Pouze objekty s dílčími plochami menšími než 0,25 × 0,25 mm. Kresba zůstane zachována; Zpět nebo ikona oka v dialogu vyšívání je znovu aktivuje.',
+      'Pouze mikroplochy menší než 0,25 × 0,25 mm; mřížka výplně je neprotíná spolehlivě.'
+    ],
+    sk: [
+      'Skryť mikroplochy pre vyšívanie',
+      'Iba objekty s čiastkovými plochami menšími ako 0,25 × 0,25 mm. Kresba zostane zachovaná; Späť alebo ikona oka v dialógu vyšívania ich znova aktivuje.',
+      'Iba mikroplochy menšie ako 0,25 × 0,25 mm; mriežka výplne ich nepretína spoľahlivo.'
+    ],
+    ro: [
+      'Ascunde microzonele din broderie',
+      'Doar obiectele cu subzone mai mici de 0,25 × 0,25 mm. Desenul este păstrat; Anulare sau pictograma ochi din dialogul de broderie le reactivează.',
+      'Doar microzone mai mici de 0,25 × 0,25 mm; grila de umplere nu le intersectează în mod fiabil.'
+    ],
+    hu: [
+      'Mikroterületek elrejtése a hímzésből',
+      'Csak a 0,25 × 0,25 mm-nél kisebb részterületeket tartalmazó objektumok. A rajz megmarad; a Visszavonás vagy a hímzési párbeszédablak szem ikonja ismét aktiválja őket.',
+      'Csak 0,25 × 0,25 mm-nél kisebb mikroterületek; a kitöltési rács nem metszi őket megbízhatóan.'
+    ],
+    el: [
+      'Απόκρυψη μικροπεριοχών από το κέντημα',
+      'Μόνο αντικείμενα με επιμέρους περιοχές μικρότερες από 0,25 × 0,25 mm. Το σχέδιο διατηρείται· η Αναίρεση ή το εικονίδιο του ματιού στο παράθυρο κεντήματος τα ενεργοποιεί ξανά.',
+      'Μόνο μικροπεριοχές μικρότερες από 0,25 × 0,25 mm· το πλέγμα γεμίσματος δεν τις τέμνει αξιόπιστα.'
+    ],
+    sv: [
+      'Dölj mikroytor från broderiet',
+      'Endast objekt med delytor mindre än 0,25 × 0,25 mm. Teckningen bevaras; Ångra eller ögonikonen i broderidialogen aktiverar dem igen.',
+      'Endast mikroytor mindre än 0,25 × 0,25 mm; fyllnadsrutnätet skär inte igenom dem tillförlitligt.'
+    ],
+    da: [
+      'Skjul mikroflader fra broderiet',
+      'Kun objekter med delflader mindre end 0,25 × 0,25 mm. Tegningen bevares; Fortryd eller øjeikonet i broderidialogen aktiverer dem igen.',
+      'Kun mikroflader mindre end 0,25 × 0,25 mm; udfyldningsgitteret skærer dem ikke pålideligt.'
+    ],
+    no: [
+      'Skjul mikroflater fra broderiet',
+      'Bare objekter med delflater mindre enn 0,25 × 0,25 mm. Tegningen bevares; Angre eller øyeikonet i broderidialogen aktiverer dem igjen.',
+      'Bare mikroflater mindre enn 0,25 × 0,25 mm; fyllrutenettet skjærer dem ikke pålitelig.'
+    ],
+    fi: [
+      'Piilota mikroalueet kirjonnasta',
+      'Vain objektit, joiden osa-alueet ovat pienempiä kuin 0,25 × 0,25 mm. Piirros säilyy; Kumoa tai kirjontaikkunan silmäkuvake aktivoi ne uudelleen.',
+      'Vain mikroalueita, jotka ovat pienempiä kuin 0,25 × 0,25 mm; täyttöruudukko ei leikkaa niitä luotettavasti.'
+    ],
+    ca: [
+      'Amaga les microàrees del brodat',
+      'Només objectes amb subàrees inferiors a 0,25 × 0,25 mm. El dibuix es conserva; Desfés o la icona de l’ull al diàleg de brodat els torna a activar.',
+      'Només microàrees inferiors a 0,25 × 0,25 mm; la quadrícula d’emplenament no les interseca de manera fiable.'
+    ],
+    tr: [
+      'Mikro alanları nakıştan gizle',
+      'Yalnızca 0,25 × 0,25 mm’den küçük alt alanları olan nesneler. Çizim korunur; Geri Al veya nakış iletişim kutusundaki göz simgesi bunları yeniden etkinleştirir.',
+      'Yalnızca 0,25 × 0,25 mm’den küçük mikro alanlar; dolgu ızgarası bu alanlarla güvenilir biçimde kesişmez.'
+    ],
+    ru: [
+      'Скрыть микрообласти из вышивки',
+      'Только объекты с подобластями меньше 0,25 × 0,25 мм. Рисунок сохраняется; команда «Отменить» или значок глаза в диалоге вышивки снова активирует их.',
+      'Только микрообласти меньше 0,25 × 0,25 мм; сетка заполнения не всегда пересекает их.'
+    ],
+    uk: [
+      'Приховати мікроділянки з вишивки',
+      'Лише об’єкти з підділянками, меншими за 0,25 × 0,25 мм. Малюнок зберігається; команда «Скасувати» або значок ока в діалозі вишивки знову активує їх.',
+      'Лише мікроділянки, менші за 0,25 × 0,25 мм; сітка заповнення не завжди перетинає їх.'
+    ],
+    bg: [
+      'Скриване на микрообластите от бродерията',
+      'Само обекти с подобласти, по-малки от 0,25 × 0,25 мм. Рисунката се запазва; Отмяна или иконата с око в диалога за бродерия ги активира отново.',
+      'Само микрообласти, по-малки от 0,25 × 0,25 мм; мрежата за запълване не ги пресича надеждно.'
+    ],
+    zh: [
+      '在刺绣中隐藏微小区域',
+      '仅适用于含有小于 0.25 × 0.25 mm 子区域的对象。图形会保留；使用“撤销”或刺绣对话框中的眼睛图标可重新启用这些对象。',
+      '仅包含小于 0.25 × 0.25 mm 的微小区域；填充网格无法可靠地穿过这些区域。'
+    ],
+    ja: [
+      '微小領域を刺繍から非表示にする',
+      '0.25 × 0.25 mm 未満の部分領域を持つオブジェクトのみが対象です。図形は保持されます。「元に戻す」または刺繍ダイアログの目のアイコンで再び有効にできます。',
+      '0.25 × 0.25 mm 未満の微小領域のみです。塗りつぶしグリッドがこれらの領域を確実に通過するとは限りません。'
+    ],
+    ko: [
+      '자수에서 미세 영역 숨기기',
+      '0.25 × 0.25 mm보다 작은 하위 영역이 있는 객체만 해당합니다. 그림은 유지되며, 실행 취소 또는 자수 대화상자의 눈 아이콘으로 다시 활성화할 수 있습니다.',
+      '0.25 × 0.25 mm보다 작은 미세 영역만 있습니다. 채우기 격자가 이 영역을 안정적으로 지나가지 못합니다.'
+    ],
+    vi: [
+      'Ẩn các vùng cực nhỏ khỏi phần thêu',
+      'Chỉ các đối tượng có vùng con nhỏ hơn 0,25 × 0,25 mm. Bản vẽ được giữ nguyên; Hoàn tác hoặc biểu tượng con mắt trong hộp thoại thêu sẽ kích hoạt lại chúng.',
+      'Chỉ các vùng cực nhỏ dưới 0,25 × 0,25 mm; lưới tô không cắt qua chúng một cách ổn định.'
+    ],
+    th: [
+      'ซ่อนพื้นที่จิ๋วจากงานปัก',
+      'เฉพาะวัตถุที่มีพื้นที่ย่อยเล็กกว่า 0.25 × 0.25 mm ภาพวาดจะยังคงอยู่ ใช้เลิกทำหรือไอคอนรูปตาในกล่องโต้ตอบงานปักเพื่อเปิดใช้งานวัตถุเหล่านี้อีกครั้ง',
+      'มีเฉพาะพื้นที่จิ๋วที่เล็กกว่า 0.25 × 0.25 mm ตารางเติมอาจตัดผ่านพื้นที่เหล่านี้ได้ไม่สม่ำเสมอ'
+    ],
+    id: [
+      'Sembunyikan area mikro dari sulaman',
+      'Hanya objek dengan subarea lebih kecil dari 0,25 × 0,25 mm. Gambar tetap dipertahankan; Urungkan atau ikon mata dalam dialog sulaman akan mengaktifkannya kembali.',
+      'Hanya area mikro lebih kecil dari 0,25 × 0,25 mm; kisi isian tidak selalu memotong area tersebut.'
+    ],
+    hi: [
+      'सूक्ष्म क्षेत्रों को कढ़ाई से छिपाएँ',
+      'केवल वे ऑब्जेक्ट जिनके उपक्षेत्र 0.25 × 0.25 mm से छोटे हैं। चित्र सुरक्षित रहता है; पूर्ववत करें या कढ़ाई संवाद में आँख का चिह्न उन्हें फिर सक्रिय करता है।',
+      'केवल 0.25 × 0.25 mm से छोटे सूक्ष्म क्षेत्र; भराव ग्रिड विश्वसनीय रूप से इनसे नहीं गुज़रता।'
+    ],
+    ar: [
+      'إخفاء المساحات الدقيقة من التطريز',
+      'فقط العناصر التي تحتوي على مساحات فرعية أصغر من 0.25 × 0.25 مم. يبقى الرسم محفوظًا؛ يعيد التراجع أو رمز العين في مربع حوار التطريز تفعيلها.',
+      'مساحات دقيقة أصغر من 0.25 × 0.25 مم فقط؛ لا تتقاطع معها شبكة التعبئة بشكل موثوق.'
+    ],
+    he: [
+      'הסתרת אזורים זעירים מהרקמה',
+      'רק אובייקטים עם תתי־אזורים קטנים מ־0.25 × 0.25 מ״מ. הציור נשמר; ביטול הפעולה או סמל העין בחלונית הרקמה מפעילים אותם מחדש.',
+      'רק אזורים זעירים קטנים מ־0.25 × 0.25 מ״מ; רשת המילוי אינה חוצה אותם באופן אמין.'
+    ],
+    fa: [
+      'پنهان کردن ناحیه‌های بسیار ریز از گلدوزی',
+      'فقط اشیایی که زیرناحیه‌هایی کوچک‌تر از 0.25 × 0.25 میلی‌متر دارند. طرح حفظ می‌شود؛ با واگرد یا نماد چشم در پنجرهٔ گلدوزی، آن‌ها دوباره فعال می‌شوند.',
+      'فقط ناحیه‌های بسیار ریز کوچک‌تر از 0.25 × 0.25 میلی‌متر؛ شبکهٔ پُرکردن به‌طور قابل اعتماد از آن‌ها عبور نمی‌کند.'
+    ]
+  };
+  Object.keys(values).forEach(function (lang) {
+    if (!DICT[lang]) DICT[lang] = {};
+    keys.forEach(function (key, i) { DICT[lang][key] = values[lang][i]; });
+  });
+})();
+/* Insert inside VT-I18N after DICT exists and before translation lookup/index
+   construction. Text-only update; keep the two markup IDs and aria-describedby. */
+(function () {
+  var keys = [
+    'Farben zusammenführen – rückgängig möglich.',
+    'Hintergrund ausblenden: Auge anklicken.'
+  ];
+  var values = {
+    en: ['Merge colours – can be undone.', 'Hide background: click the eye icon.'],
+    fr: ['Fusionner les couleurs – annulation possible.', 'Masquer le fond : cliquer sur l’œil.'],
+    it: ['Unisci i colori – operazione annullabile.', 'Nascondi lo sfondo: fai clic sull’occhio.'],
+    es: ['Fusionar colores – se puede deshacer.', 'Ocultar fondo: haz clic en el ojo.'],
+    pt: ['Juntar cores – é possível desfazer.', 'Ocultar fundo: clique no olho.'],
+    nl: ['Kleuren samenvoegen – ongedaan maken mogelijk.', 'Achtergrond verbergen: klik op het oog.'],
+    pl: ['Połącz kolory – można cofnąć.', 'Ukryj tło: kliknij oko.'],
+    cs: ['Sloučit barvy – lze vrátit zpět.', 'Skrýt pozadí: klikněte na oko.'],
+    sk: ['Zlúčiť farby – možno vrátiť späť.', 'Skryť pozadie: kliknite na oko.'],
+    ro: ['Unește culorile – se poate anula.', 'Ascunde fundalul: apasă pe ochi.'],
+    hu: ['Színek összevonása – visszavonható.', 'Háttér elrejtése: kattints a szemre.'],
+    el: ['Συγχώνευση χρωμάτων – αναιρείται.', 'Απόκρυψη φόντου: πάτησε το μάτι.'],
+    sv: ['Slå ihop färger – kan ångras.', 'Dölj bakgrunden: klicka på ögat.'],
+    da: ['Flet farver – kan fortrydes.', 'Skjul baggrunden: klik på øjet.'],
+    no: ['Slå sammen farger – kan angres.', 'Skjul bakgrunnen: klikk på øyet.'],
+    fi: ['Yhdistä värit – voidaan kumota.', 'Piilota tausta: napsauta silmää.'],
+    ca: ['Combina colors – es pot desfer.', 'Amaga el fons: fes clic a l’ull.'],
+    tr: ['Renkleri birleştir – geri alınabilir.', 'Arka planı gizle: göz simgesine tıkla.'],
+    ru: ['Объединение цветов – можно отменить.', 'Скрыть фон: нажмите на значок глаза.'],
+    uk: ['Об’єднання кольорів – можна скасувати.', 'Приховати тло: натисніть значок ока.'],
+    bg: ['Сливане на цветове – може да се отмени.', 'Скриване на фона: натиснете иконата с око.'],
+    zh: ['合并颜色，可撤销。', '隐藏背景：点击眼睛图标。'],
+    ja: ['色を統合します。元に戻せます。', '背景を非表示：目のアイコンをクリック。'],
+    ko: ['색상 병합 – 실행 취소 가능.', '배경 숨기기: 눈 아이콘을 클릭하세요.'],
+    vi: ['Gộp màu – có thể hoàn tác.', 'Ẩn nền: nhấp vào biểu tượng con mắt.'],
+    th: ['รวมสี – ย้อนกลับได้', 'ซ่อนพื้นหลัง: คลิกไอคอนรูปตา'],
+    id: ['Gabungkan warna – dapat diurungkan.', 'Sembunyikan latar: klik ikon mata.'],
+    hi: ['रंग मिलाएँ – पूर्ववत किया जा सकता है।', 'पृष्ठभूमि छिपाएँ: आँख के आइकन पर क्लिक करें।'],
+    ar: ['دمج الألوان – يمكن التراجع عنه.', 'إخفاء الخلفية: انقر على رمز العين.'],
+    he: ['מיזוג צבעים – ניתן לבטל.', 'הסתרת הרקע: יש ללחוץ על סמל העין.'],
+    fa: ['ادغام رنگ‌ها – قابل واگردانی است.', 'پنهان‌کردن پس‌زمینه: روی نماد چشم کلیک کنید.']
+  };
+  Object.keys(values).forEach(function (lang) {
+    if (!DICT[lang]) DICT[lang] = {};
+    keys.forEach(function (key, index) {
+      DICT[lang][key] = values[lang][index];
+    });
+  });
+})();
   /* VT-NODE-DECOMPOSE-I18N-BEGIN: register before the translation lookup. */
   (function(){
     var warning = {
@@ -56557,7 +56882,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
-    {d:'2026-10-02', t:'VT-20261002-local-r16', c:null},
+    {d:'2026-10-02', t:'VT-20261002-local-r18', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r15', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r14', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r13', c:null},
