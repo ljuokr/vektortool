@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261002-local-r14 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261002-local-r15 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35263,6 +35263,23 @@ function _stitchOutlineColorFor(shape) {
   return shape.stroke; /* Originalwert (Gross-/Kleinschreibung) als Faden-Farbe */
 }
 
+/* Shared, read-only eligibility for editor previews and every embroidery
+   export. Whole-object hiding/disable/ignore suppresses both stages; hiding
+   only the fill deliberately leaves a separately coloured outline active. */
+function _stitchExportEligibility(shape) {
+  var st=shape&&shape.stitch;
+  if(!shape)return {eligible:false,main:false,outline:false,reason:'missing'};
+  if(shape.hidden||(st&&(st.disabled||(st.commands&&st.commands.ignore))))
+    return {eligible:false,main:false,outline:false,reason:'suppressed'};
+  if(!st||!st.type||st.type==='none')
+    return {eligible:false,main:false,outline:false,reason:'unassigned'};
+  var main=!st.hidden;
+  var outline=!st.hiddenOutline&&!!_stitchOutlineColorFor(shape);
+  return {eligible:main||outline,main:main,outline:outline,
+    reason:main||outline?'active':'suppressed'};
+}
+window._stitchExportEligibility=_stitchExportEligibility;
+
 /* [umriss-2farbe v4] Scharfe Ecken eines (geschlossenen) Polygonzugs verrunden,
    damit das Satin-Band an Ecken nicht als Sonnenstrahl-Faecher ausreisst. An einer
    scharfen Ecke dreht sich die Quer-Senkrechte des Bands zu schnell -> aussen
@@ -44952,7 +44969,9 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
   /* [stickui-klar v2] hidden-Formen mitnehmen: das Auge blendet nur die FUELLUNG
      aus, ein andersfarbiger Umriss (eigener Farbblock) bleibt gestickt (Lukas).
      Im Loop unten wird fuer hidden-Formen nur der Umriss-Block emittiert. */
-  var ss = _stitchOptimizeShapeOrder(_stitchOrderedShapes(true));
+  var ss = _stitchOptimizeShapeOrder(_stitchOrderedShapes(true)).filter(function(s) {
+    return _stitchExportEligibility(s).eligible;
+  });
   /* Diagnostic: log per-shape fill parameters so the user can verify why
      density vom Standard abweicht (üblicherweise rowSpacing > 0.25 mm). */
   try {
@@ -46949,7 +46968,7 @@ window.__LINEA_DEBUG__ = {
 <div id="dstvModal">
   <div class="dstv-top">
     <!-- VT-STICK-KOPFZEILE v1 --><!-- VT-STICK-TITEL-EMOJI v1 --><div class="dstv-title">&#x1F9F5; Stickerei</div><!-- [ux-feinschliff v1] Lukas: kurzer Titel -->
-    <div class="dstv-filename" id="dstvFilename">— keine Datei —</div>
+    <div class="dstv-filename" id="dstvFilename" role="status" aria-live="polite">Stickerei</div>
     <div class="dstv-spacer"></div>
     <div class="dstv-group-btns" id="dstvViewModeGroup">
       <button data-mode="2d" class="dstv-active">2D Linien</button><!-- VT-STICKBEGRIFFE v1: deutsche, laienverstaendliche Ansichts-Labels -->
@@ -46981,12 +47000,10 @@ window.__LINEA_DEBUG__ = {
   </div>
   <div class="dstv-view" id="dstvView">
     <canvas id="dstvCanvas"></canvas>
-    <div class="dstv-empty" id="dstvEmpty">
-      <div class="dstv-e-title">Keine DST-Datei geladen</div>
-      <div class="dstv-e-hint">
-        Formen zeichnen - die Stich-Vorschau erscheint hier automatisch.
-        Eine fertige <b>.dst</b>-Datei kannst du auch direkt hierher ziehen.
-      </div>
+    <div class="dstv-empty" id="dstvEmpty" role="status" aria-live="polite">
+      <div class="dstv-e-title">Stickerei</div>
+      <div class="dstv-e-hint">Neu berechnen</div>
+      <button type="button" id="dstvEmptyRecalc" style="margin-top:12px;padding:6px 12px;pointer-events:auto;">Neu berechnen</button>
     </div>
   </div>
   <div class="dstv-side" id="dstvSide">
@@ -48292,9 +48309,15 @@ window.__LINEA_DEBUG__ = {
        eigenen Formen berechnet). "— keine Datei —" las sich wie ein Fehler. */
     document.getElementById('dstvFilename').textContent = (filename || window.t('Eigenes Design (noch nicht als Datei gespeichert)')) + (_dstvState.externalFile ? ' · ' + window.t('Ansicht - Regler wirken auf das Canvas-Design, erst „Neu berechnen" wechselt dorthin') : '');
     document.getElementById('dstvEmpty').style.display = 'none';
+    // A successfully parsed file replaces prior pending/error presentation.
+    // This is a UI state only; loading does not certify manufacturing quality.
+    _dstvPresentPreviewState('loaded','');
     var scrub = document.getElementById('dstvScrub');
     scrub.max = String(parsed.records.length - 1);
     scrub.value = scrub.max;
+    scrub.disabled = !parsed.records.length;
+    var playButton = document.getElementById('dstvPlayBtn');
+    if (playButton) playButton.disabled = !parsed.records.length;
     _dstvState.scrubTo = parsed.records.length - 1;
     document.getElementById('dstvScrubCounter').textContent =
       parsed.records.length + ' / ' + parsed.records.length;
@@ -48381,6 +48404,10 @@ window.__LINEA_DEBUG__ = {
   function _dstvOpen() {
     var modal = document.getElementById('dstvModal');
     modal.classList.add('open');
+    var previousStatus=window._dstvPreviewStatus,previousLabel=document.getElementById('dstvFilename');
+    if(previousStatus&&previousLabel&&previousLabel.getAttribute('data-preview-phase')===previousStatus.phase){
+      _dstvPresentPreviewState(previousStatus.phase,previousStatus.message,previousStatus.emptyContext);
+    }else _dstvPresentPreviewState('initial','');
     _dstvState.fitDone = false; /* [VT-UIFIX v1] frisch geoeffnet -> erstes Laden fittet, danach Recalc Zoom erhalten */
     /* v50 FIX: Der Vorschau-Balken (.dstv-bot) lag im HTML in #dstvSide,
        das per CSS dauerhaft display:none ist → der Balken wurde mitversteckt
@@ -48500,9 +48527,50 @@ window.__LINEA_DEBUG__ = {
   var _dstvPreviewTail=Promise.resolve(),_dstvScheduledTimer=null,_dstvScheduledResolve=null;
   window._dstvPreviewRevision=0;
   function _dstvPreviewCurrent(revision){return revision===window._dstvPreviewRevision&&!window._dstvChainAborted;}
-  function _dstvPreviewStatus(phase,message,revision){
+  function _dstvPreviewPresentation(phase,message,hasPreview,emptyContext) {
+    var busy=phase==='pending'||phase==='computing';
+    var stale=phase==='error'||phase==='stale';
+    var title=phase==='computing'?'Berechne Stiche…':phase==='pending'?'Neuberechnung vorgemerkt…':stale?'Vorschau nicht aktualisiert':'Stickerei';
+    var hint=message||(!hasPreview&&!busy?'Neu berechnen':'');
+    if(phase==='empty'){
+      title=emptyContext&&emptyContext.title||message||'Noch keine Stickerei';
+      hint=emptyContext&&emptyContext.hint||'Neu berechnen';
+    }
+    // Never turn a missing parse into a success indication. A previous valid
+    // parse remains on screen during pending/error states, explicitly stale.
+    if((phase==='done'||phase==='loaded')&&!hasPreview){title='Noch keine Stickerei';hint='Neu berechnen';}
+    return {title:title,hint:hint,busy:busy,stale:stale,showEmpty:!hasPreview,showAction:!hasPreview&&!busy};
+  }
+  function _dstvPresentPreviewState(phase,message,emptyContext) {
+    var parsed=_dstvState.parsed;
+    var hasPreview=!!(parsed&&parsed.records&&parsed.records.length);
+    var ui=_dstvPreviewPresentation(phase,message,hasPreview,emptyContext);
+    var T=function(s){return window.t?window.t(s):s;};
+    var empty=document.getElementById('dstvEmpty'),view=document.getElementById('dstvView');
+    if(empty){
+      empty.style.display=ui.showEmpty?'':'none';
+      empty.setAttribute('data-preview-phase',phase);
+      empty.setAttribute('aria-busy',String(ui.busy));
+      var title=empty.querySelector('.dstv-e-title'),hint=empty.querySelector('.dstv-e-hint');
+      if(title)title.textContent=T(ui.title);
+      if(hint)hint.textContent=T(ui.hint);
+    }
+    if(view)view.setAttribute('aria-busy',String(ui.busy));
+    var action=document.getElementById('dstvEmptyRecalc');
+    if(action){action.hidden=!ui.showAction;action.disabled=ui.busy;}
+    var label=document.getElementById('dstvFilename');
+    if(label){
+      var base=hasPreview?(_dstvState.filename||T('Eigenes Design (noch nicht als Datei gespeichert)')):T('Stickerei');
+      if(hasPreview&&_dstvState.externalFile)base+=' · '+T('Ansicht - Regler wirken auf das Canvas-Design, erst „Neu berechnen" wechselt dorthin');
+      label.textContent=(ui.stale||ui.busy?T(ui.title)+' · ':'')+base;
+      label.title=message?T(message):base;
+      label.setAttribute('data-preview-phase',phase);
+    }
+  }
+  function _dstvPreviewStatus(phase,message,revision,emptyContext){
     if(revision!==window._dstvPreviewRevision)return;
-    window._dstvPreviewStatus={phase:phase,message:message||'',revision:revision};
+    window._dstvPreviewStatus={phase:phase,message:message||'',revision:revision,emptyContext:emptyContext||null};
+    _dstvPresentPreviewState(phase,message,emptyContext);
     if(typeof window._dstvSetPreviewProgress==='function')window._dstvSetPreviewProgress(phase,phase==='done'?100:undefined,message);
     else{var el=document.getElementById('dgpApplyStatus');if(el)el.textContent=message||'';}
   }
@@ -48516,7 +48584,8 @@ window.__LINEA_DEBUG__ = {
     _dstvStopScheduled('cancelled');
     var revision=++window._dstvPreviewRevision;
     window._dstvChainAborted=true;
-    _dstvPreviewStatus('stale',reason||'Vorschau nicht aktualisiert',revision);
+    var message=reason&& !/^(close|external-file|external-file-ready)$/.test(reason)?reason:'Vorschau nicht aktualisiert';
+    _dstvPreviewStatus('stale',message,revision);
     if(typeof window._hideLoadingOverlay==='function')window._hideLoadingOverlay();
   };
   function _dstvRunPreviewRevision(revision){
@@ -48533,6 +48602,24 @@ window.__LINEA_DEBUG__ = {
     _dstvPreviewTail=job;
     return job;
   }
+  function _dstvEditorPreviewCandidates(ss) {
+    /* Read-only preflight. Do not reactivate hidden/disabled/ignored artwork,
+       or mistake absent calculated points for an unsupported drawing. The
+       main calculation/export gate remains responsible for real failures. */
+    var result={total:0,eligible:0,main:0,outline:0,suppressed:0,unassigned:0};
+    (ss||[]).forEach(function(s) {
+      if(!s)return;
+      result.total++;
+      var state=window._stitchExportEligibility(s);
+      if(state.eligible) {
+        result.eligible++;if(state.main)result.main++;if(state.outline)result.outline++;
+      } else if(state.reason==='suppressed')result.suppressed++;
+      else result.unassigned++;
+    });
+    result.kind=result.eligible?'active':!result.total?'no-drawing':
+      result.suppressed===result.total?'suppressed':'unassigned';
+    return result;
+  }
   function _dstvLoadFromLinea(revision) {
     if(typeof revision!=='number')return window._dstvReloadFromLinea();
     if(!_dstvPreviewCurrent(revision))return Promise.resolve({status:'superseded',revision:revision});
@@ -48543,41 +48630,37 @@ window.__LINEA_DEBUG__ = {
        bis 100% und blieb mit Alert "keine Shapes" haengen. Stattdessen sofort
        Inline-Hinweis im Viewer, kein Recalc, kein Overlay. */
     var _e2ss = window.shapes || [];
-    var _e2has = false, _e2onlyHidden = false;  /* [hide-live v1] sichtbar vs. nur ausgeblendet (Auge) */
-    for (var _e2i = 0; _e2i < _e2ss.length; _e2i++) {
-      if (_e2ss[_e2i].stitch && _e2ss[_e2i].stitch.type !== 'none') {
-        if (_e2ss[_e2i].stitch.hidden) { _e2onlyHidden = true; continue; }
-        _e2has = true; _e2onlyHidden = false; break;
-      }
-    }
-    if (!_e2has) {
+    var _e2state = _dstvEditorPreviewCandidates(_e2ss);
+    if (!_e2state.eligible) {
       if(window._dstvExternalFile){
         _dstvPreviewStatus('stale','Externe Datei bleibt angezeigt — das Canvas enthält keine Stickobjekte',revision);
         return Promise.resolve({status:'external',revision:revision});
       }
-      var _e2emp = document.getElementById('dstvEmpty');
-      if (_e2emp) {
-        _e2emp.style.display = '';
-        var _e2t = _e2emp.querySelector('.dstv-e-title');
-        if (_e2t) _e2t.textContent = _e2onlyHidden ? 'Alle Bereiche ausgeblendet' : 'Noch keine Stickerei';
-        var _e2h = _e2emp.querySelector('.dstv-e-hint');
-        if (_e2h) _e2h.innerHTML = _e2onlyHidden
-          ? 'Alle Bereiche sind \u00fcber das <b>Auge</b> in der Stickreihenfolge ausgeblendet. Mindestens einen Bereich wieder einblenden, dann erscheint die Vorschau.'
-          : 'Zuerst eine <b>Form zeichnen</b> und ihr einen Stichtyp geben - dann erscheint hier die DST-Vorschau.';
-      }
+      var _e2title = _e2state.kind==='no-drawing' ? 'Noch keine Stickerei' : 'Keine aktiven Stickobjekte';
+      var _e2hint = _e2state.kind==='no-drawing'
+        ? 'Zeichne zuerst eine Form oder öffne ein Projekt.'
+        : _e2state.kind==='suppressed'
+          ? 'Alle Stickobjekte sind ausgeblendet, deaktiviert oder ignoriert. Aktiviere mindestens ein Objekt für die Stickerei.'
+          : 'Die Zeichnung ist vorhanden. Weise mindestens einem Objekt einen Stichtyp zu.';
       {
         /* [hide-live v1] alte Stickerei nicht stehen lassen: zurueck in den legalen
            "nichts geladen"-Anfangszustand, sonst schiene sie durchs transparente
            Empty-Overlay durch (Render cleart den Canvas bei parsed=null). */
         try {
           _dstvState.parsed = null;
+          _dstvState.scrubTo = 0;
+          _dstvState.playing = false;
+          var _e2scrub = document.getElementById('dstvScrub');
+          if (_e2scrub) { _e2scrub.max = '0'; _e2scrub.value = '0'; _e2scrub.disabled = true; }
+          var _e2play = document.getElementById('dstvPlayBtn');
+          if (_e2play) { _e2play.textContent = '▶'; _e2play.disabled = true; }
           var _e2sc = document.getElementById('dstvScrubCounter');
           if (_e2sc) _e2sc.textContent = '0 / 0';
           if (typeof _dstvRender === 'function') _dstvRender();
         } catch (eHL3) { console.warn('[vt:swallowed]', eHL3); }
       }
       if (typeof window._hideLoadingOverlay === 'function') window._hideLoadingOverlay();
-      _dstvPreviewStatus('empty',_e2onlyHidden?'Alle Bereiche ausgeblendet':'Noch keine Stickerei',revision);
+      _dstvPreviewStatus('empty',_e2title,revision,{title:_e2title,hint:_e2hint});
       return Promise.resolve({status:'empty',revision:revision});
     }
     /* Build synchron innerhalb eines Overlay-Wrappers laufen lassen.
@@ -48743,6 +48826,8 @@ window.__LINEA_DEBUG__ = {
       window._dstvOpenAndLoadFromLinea();
     });
     document.getElementById('dstvCloseBtn').addEventListener('click', _dstvClose);
+    var emptyRecalc=document.getElementById('dstvEmptyRecalc');
+    if(emptyRecalc)emptyRecalc.addEventListener('click',function(){window._dstvReloadFromLinea();});
 
     (document.getElementById('dstvLoadBtn')||{addEventListener:function(){}}).addEventListener('click', function() { /* VT-STICKBEGRIFFE v1: Button entfernt, null-sicher (Muster wie dstvLoadLineaBtn) */
       document.getElementById('dstvFileInput').click();
@@ -55169,6 +55254,44 @@ installBriefToolPreview();
     };
     Object.keys(values).forEach(function(lang){keys.forEach(function(key,i){DICT[lang][key]=values[lang][i];});});
   })();
+  /* VT-STITCH-EMPTY-UI: distinguish drawing/eligibility from missing files. */
+  (function(){
+    var keys=['Zeichne zuerst eine Form oder öffne ein Projekt.','Keine aktiven Stickobjekte','Alle Stickobjekte sind ausgeblendet, deaktiviert oder ignoriert. Aktiviere mindestens ein Objekt für die Stickerei.','Die Zeichnung ist vorhanden. Weise mindestens einem Objekt einen Stichtyp zu.'];
+    var values={
+      en:['Draw a shape first or open a project.','No active embroidery objects','All embroidery objects are hidden, disabled or ignored. Enable at least one object for embroidery.','The drawing is present. Assign a stitch type to at least one object.'],
+      fr:['Dessinez d’abord une forme ou ouvrez un projet.','Aucun objet de broderie actif','Tous les objets de broderie sont masqués, désactivés ou ignorés. Activez au moins un objet pour la broderie.','Le dessin est présent. Attribuez un type de point à au moins un objet.'],
+      it:['Disegna prima una forma o apri un progetto.','Nessun oggetto da ricamo attivo','Tutti gli oggetti da ricamo sono nascosti, disattivati o ignorati. Attiva almeno un oggetto per il ricamo.','Il disegno è presente. Assegna un tipo di punto ad almeno un oggetto.'],
+      es:['Primero dibuja una forma o abre un proyecto.','No hay objetos de bordado activos','Todos los objetos de bordado están ocultos, desactivados o ignorados. Activa al menos un objeto para bordar.','El dibujo está presente. Asigna un tipo de puntada a al menos un objeto.'],
+      pt:['Desenhe primeiro uma forma ou abra um projeto.','Nenhum objeto de bordado ativo','Todos os objetos de bordado estão ocultos, desativados ou ignorados. Ative pelo menos um objeto para bordar.','O desenho está presente. Atribua um tipo de ponto a pelo menos um objeto.'],
+      nl:['Teken eerst een vorm of open een project.','Geen actieve borduurobjecten','Alle borduurobjecten zijn verborgen, uitgeschakeld of genegeerd. Schakel minstens één object in voor borduren.','De tekening is aanwezig. Wijs minstens één object een steektype toe.'],
+      pl:['Najpierw narysuj kształt lub otwórz projekt.','Brak aktywnych obiektów haftu','Wszystkie obiekty haftu są ukryte, wyłączone lub ignorowane. Włącz przynajmniej jeden obiekt do haftowania.','Rysunek jest obecny. Przypisz typ ściegu co najmniej jednemu obiektowi.'],
+      cs:['Nejprve nakreslete tvar nebo otevřete projekt.','Žádné aktivní vyšívací objekty','Všechny vyšívací objekty jsou skryté, vypnuté nebo ignorované. Aktivujte alespoň jeden objekt pro vyšívání.','Kresba je přítomna. Přiřaďte typ stehu alespoň jednomu objektu.'],
+      sk:['Najprv nakreslite tvar alebo otvorte projekt.','Žiadne aktívne vyšívacie objekty','Všetky vyšívacie objekty sú skryté, vypnuté alebo ignorované. Aktivujte aspoň jeden objekt na vyšívanie.','Kresba je prítomná. Priraďte typ stehu aspoň jednému objektu.'],
+      ro:['Desenați mai întâi o formă sau deschideți un proiect.','Niciun obiect de broderie activ','Toate obiectele de broderie sunt ascunse, dezactivate sau ignorate. Activați cel puțin un obiect pentru broderie.','Desenul există. Atribuiți un tip de cusătură cel puțin unui obiect.'],
+      hu:['Először rajzoljon alakzatot vagy nyisson meg egy projektet.','Nincs aktív hímzési objektum','Minden hímzési objektum rejtett, kikapcsolt vagy mellőzött. Aktiváljon legalább egy objektumot a hímzéshez.','A rajz megvan. Rendeljen öltéstípust legalább egy objektumhoz.'],
+      el:['Σχεδιάστε πρώτα ένα σχήμα ή ανοίξτε ένα έργο.','Δεν υπάρχουν ενεργά αντικείμενα κεντήματος','Όλα τα αντικείμενα κεντήματος είναι κρυμμένα, απενεργοποιημένα ή αγνοημένα. Ενεργοποιήστε τουλάχιστον ένα αντικείμενο για κέντημα.','Το σχέδιο υπάρχει. Αντιστοιχίστε τύπο βελονιάς σε τουλάχιστον ένα αντικείμενο.'],
+      sv:['Rita först en form eller öppna ett projekt.','Inga aktiva broderiobjekt','Alla broderiobjekt är dolda, inaktiverade eller ignorerade. Aktivera minst ett objekt för broderi.','Teckningen finns. Tilldela minst ett objekt en stygntyp.'],
+      da:['Tegn først en form eller åbn et projekt.','Ingen aktive broderiobjekter','Alle broderiobjekter er skjulte, deaktiverede eller ignorerede. Aktivér mindst ét objekt til broderi.','Tegningen findes. Tildel mindst ét objekt en stingtype.'],
+      no:['Tegn først en form eller åpne et prosjekt.','Ingen aktive broderiobjekter','Alle broderiobjekter er skjult, deaktivert eller ignorert. Aktiver minst ett objekt for broderi.','Tegningen finnes. Tildel minst ett objekt en stingtype.'],
+      fi:['Piirrä ensin muoto tai avaa projekti.','Ei aktiivisia kirjontaobjekteja','Kaikki kirjontaobjektit on piilotettu, poistettu käytöstä tai ohitettu. Ota vähintään yksi objekti käyttöön kirjontaa varten.','Piirros on olemassa. Määritä pistotyyppi vähintään yhdelle objektille.'],
+      ca:['Primer dibuixeu una forma o obriu un projecte.','No hi ha objectes de brodat actius','Tots els objectes de brodat estan ocults, desactivats o ignorats. Activeu almenys un objecte per brodar.','El dibuix hi és. Assigneu un tipus de puntada a almenys un objecte.'],
+      tr:['Önce bir şekil çizin veya proje açın.','Etkin nakış nesnesi yok','Tüm nakış nesneleri gizli, devre dışı veya yok sayılmış. Nakış için en az bir nesneyi etkinleştirin.','Çizim mevcut. En az bir nesneye bir dikiş türü atayın.'],
+      ru:['Сначала нарисуйте фигуру или откройте проект.','Нет активных объектов вышивки','Все объекты вышивки скрыты, отключены или игнорируются. Включите хотя бы один объект для вышивки.','Рисунок существует. Назначьте тип стежка хотя бы одному объекту.'],
+      uk:['Спочатку намалюйте фігуру або відкрийте проєкт.','Немає активних об’єктів вишивки','Усі об’єкти вишивки приховані, вимкнені або ігноруються. Увімкніть принаймні один об’єкт для вишивки.','Малюнок є. Призначте тип стібка принаймні одному об’єкту.'],
+      bg:['Първо нарисувайте форма или отворете проект.','Няма активни обекти за бродиране','Всички обекти за бродиране са скрити, деактивирани или игнорирани. Активирайте поне един обект за бродиране.','Рисунката е налична. Задайте тип бод на поне един обект.'],
+      zh:['请先绘制形状或打开项目。','没有活动的刺绣对象','所有刺绣对象均已隐藏、禁用或忽略。请至少启用一个刺绣对象。','图形已存在。请为至少一个对象指定针迹类型。'],
+      ja:['まず図形を描くか、プロジェクトを開いてください。','有効な刺繍オブジェクトがありません','すべての刺繍オブジェクトが非表示、無効、または無視されています。少なくとも1つを刺繍用に有効にしてください。','図形は存在します。少なくとも1つのオブジェクトにステッチの種類を指定してください。'],
+      ko:['먼저 도형을 그리거나 프로젝트를 여세요.','활성 자수 객체가 없습니다','모든 자수 객체가 숨김, 비활성 또는 무시 상태입니다. 자수용 객체를 하나 이상 활성화하세요.','그림이 있습니다. 객체 하나 이상에 스티치 유형을 지정하세요.'],
+      vi:['Trước tiên hãy vẽ hình hoặc mở dự án.','Không có đối tượng thêu đang hoạt động','Mọi đối tượng thêu đều bị ẩn, vô hiệu hóa hoặc bỏ qua. Bật ít nhất một đối tượng để thêu.','Bản vẽ đã có. Gán loại mũi thêu cho ít nhất một đối tượng.'],
+      th:['วาดรูปทรงหรือเปิดโครงการก่อน','ไม่มีวัตถุปักที่ใช้งานอยู่','วัตถุปักทั้งหมดถูกซ่อน ปิดใช้งาน หรือข้ามอยู่ เปิดใช้งานวัตถุปักอย่างน้อยหนึ่งชิ้น','มีภาพวาดอยู่แล้ว กำหนดชนิดฝีเข็มให้วัตถุอย่างน้อยหนึ่งชิ้น'],
+      id:['Gambar bentuk terlebih dahulu atau buka proyek.','Tidak ada objek sulaman aktif','Semua objek sulaman disembunyikan, dinonaktifkan atau diabaikan. Aktifkan setidaknya satu objek untuk sulaman.','Gambar tersedia. Tetapkan jenis jahitan pada setidaknya satu objek.'],
+      hi:['पहले आकृति बनाएँ या परियोजना खोलें।','कोई सक्रिय कढ़ाई ऑब्जेक्ट नहीं','सभी कढ़ाई ऑब्जेक्ट छिपे, निष्क्रिय या अनदेखे हैं। कढ़ाई के लिए कम से कम एक ऑब्जेक्ट सक्रिय करें।','चित्र मौजूद है। कम से कम एक ऑब्जेक्ट को टाँके का प्रकार दें।'],
+      ar:['ارسم شكلًا أولًا أو افتح مشروعًا.','لا توجد عناصر تطريز نشطة','جميع عناصر التطريز مخفية أو معطّلة أو مُتجاهَلة. فعّل عنصرًا واحدًا على الأقل للتطريز.','الرسم موجود. عيّن نوع غرزة لعنصر واحد على الأقل.'],
+      he:['ציירו תחילה צורה או פתחו פרויקט.','אין אובייקטי רקמה פעילים','כל אובייקטי הרקמה מוסתרים, מושבתים או מתעלמים מהם. הפעילו לפחות אובייקט אחד לרקמה.','הציור קיים. הקצו סוג תפר לפחות לאובייקט אחד.'],
+      fa:['ابتدا شکلی بکشید یا پروژه‌ای باز کنید.','هیچ شیء گلدوزی فعالی وجود ندارد','همه اشیای گلدوزی پنهان، غیرفعال یا نادیده گرفته شده‌اند. دست‌کم یک شیء را برای گلدوزی فعال کنید.','طرح موجود است. به دست‌کم یک شیء نوع دوخت اختصاص دهید.']
+    };
+    Object.keys(values).forEach(function(lang){keys.forEach(function(key,i){DICT[lang][key]=values[lang][i];});});
+  })();
   var KNOWN = Object.create(null), REVERSE = Object.create(null);
   var TEMPLATE_RULES = [], RULES_BY_LANG = Object.create(null), MESSAGE_PREFIXES = [], i18nReady = false;
   var origTx = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -56432,6 +56555,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-02', t:'VT-20261002-local-r15', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r14', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r13', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r12', c:null},

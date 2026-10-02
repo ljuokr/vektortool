@@ -10,8 +10,13 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 2 October 2026 release uses the tested `VT-20261002-local-r14` build
+The 2 October 2026 release uses the tested `VT-20261002-local-r15` build
 (the local build identifier is retained to keep the tested application bytes unchanged).
+The embroidery preview now shows actual calculation errors instead of a misleading
+missing-DST-file message, offers a direct retry, and clearly labels a retained older
+preview. Preview and export consistently respect hidden, disabled and ignored objects;
+a separately active outline remains available when only its fill is hidden.
+No numerical stitch algorithms or strict export error guards changed in r15.
 It includes SVG component splitting, a combined selection frame, laser SVG text
 outlines, and fixes for background remnants and empty embroidery fill results.
 Actual project-SVG, laser-SVG, DST and PES downloads have been independently

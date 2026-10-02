@@ -1,5 +1,20 @@
 # Changelog
 
+## 2 October 2026 — r15
+
+Release build `VT-20261002-local-r15`, byte-identical to the tested local file.
+
+- Replace the misleading missing-DST placeholder for editor drawings with actual preparation, empty, inactive-object and calculation-error states. A direct **Recalculate** button is available in the empty preview.
+- Preserve the last valid preview on calculation failure and explicitly mark it as not updated. Reset playback controls when the current drawing has no active embroidery; restore them after a successful calculation.
+- Use one eligibility check for preview and export. Hidden, disabled or ignored whole objects are excluded; a separately active differently coloured outline remains available when only the fill is hidden.
+- Add contextual hints in all 32 supported languages. Numerical stitch algorithms, stitch cache 245 and strict export error guards remain unchanged.
+
+Verified with real browser failure/retry/recovery, hidden-fill/active-outline,
+manual recalculation and language-switch flows; 382 source-function, pipeline,
+translation and syntax assertions passed. Additional eligibility and production
+DST/PES/PEC/EXP encoder tests passed. The exact cause in the unavailable reported
+user drawing remains undetermined; no new machine/material approval.
+
 ## 2 October 2026 — r14
 
 Release build `VT-20261002-local-r14`, byte-identical to the tested local file.
