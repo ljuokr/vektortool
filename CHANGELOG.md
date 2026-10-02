@@ -1,5 +1,23 @@
 # Changelog
 
+## 2 October 2026 — r14
+
+Release build `VT-20261002-local-r14`, byte-identical to the tested local file.
+Includes the previously unpublished r13 fixes.
+
+- Split compound SVG colour shapes into separate components while retaining holes; one combined selection frame for multi-selection.
+- Dedicated **SVG for laser (text as outlines)** export: raster-derived text/path-text contours with an expanded export page where needed. Editable project SVG retains its text. DXF text export remains unsupported.
+- Tracer colour/black-and-white demo switching, visible background selection and interface translations improved.
+- Background removal now follows the existing colour-distance threshold without stranding darker JPEG background pixels at a second brightness cutoff. Automatic colour merging and contour tracing are unchanged. Similar light foreground edges can still be removed.
+- Short embroidery rows can no longer mutually eliminate each other; negative pull compensation cannot collapse a usable short row. Stitch cache updated to 245. Empty active objects still block export.
+- Reproduced the Gecko-without-background workflow: after component splitting, 8 objects instead of 127 and no empty-stitch errors in the tested configuration. Existing vector documents are not silently cleaned; retrace the source image.
+
+Actual Gecko DST/PES downloads were independently decoded: identical ordered
+nonzero sewn segments and colour blocks after origin alignment. Format-specific
+trim commands are not a guarantee of identical machine behaviour. Actual project
+SVG metadata and laser SVG output were also inspected. Cross-browser, cold-offline,
+LightBurn and physical material validation remain incomplete; no manufacturing approval.
+
 ## 2 October 2026
 
 Release build `VT-20261002-local-r12`. Application bytes are unchanged from the tested local candidate.

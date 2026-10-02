@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261002-local-r12 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261002-local-r14 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -1934,7 +1934,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
       <button class="tb-btn" id="clearAllBtn" title="Alles löschen">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3,5 15,5"/><path d="M6,5V3h6v2"/><path d="M5,5l1,10h6l1-10"/></svg>
       </button>
-      <button class="tb-btn" id="exportMenuBtn" title="Projekt speichern oder Datei exportieren" aria-label="Speichern / Exportieren">
+      <button class="tb-btn" id="exportMenuBtn" title="Speichern / Exportieren" aria-label="Speichern / Exportieren">
         <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4,2h8l3,3v10a1,1,0,0,1-1,1H4a1,1,0,0,1-1-1V3A1,1,0,0,1,4,2Z"/><rect x="6" y="10" width="6" height="5"/><path d="M6,2v4h5"/></svg><span class="entry-label">Speichern</span>
       </button>
       <button class="tb-btn" id="importBtn" title="Importieren · SVG, DXF (Vektor) · PNG, JPG, GIF, WEBP, AVIF, BMP (Bild) · .linea (Projekt)">
@@ -1955,6 +1955,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   <div style="padding:4px 12px 8px;max-width:290px;font-size:11px;line-height:1.4;color:var(--fg2)">Enthält alle Zeichenflächen und versteckte Objekte. Zum Teilen: SVG-Grafik ohne Projektdaten. Vollständig weiterbearbeiten mit dieser Version; ältere Versionen erkennen eventuell nur die sichtbare Grafik.</div>
   <div class="exp-sep"></div>
   <button id="exportSvgBtn" title="Nur die sichtbare Grafik der aktiven Zeichenfläche, ohne VectorTool-Projektdaten. Zum Teilen oder Weiterbearbeiten in anderen Programmen. Für alle editierbaren Objekte und Einstellungen SVG (Projekt, bearbeitbar) wählen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2,2h12v12H2z"/><path d="M5,11l3-3 3,3"/><circle cx="10" cy="6" r="1.5"/></svg>SVG-Grafik ohne Projektdaten</button>
+  <button id="exportLaserSvgBtn" title="Schrift und Pfadtext werden als geschlossene Konturen angenähert (Raster-Abtastung 0,0166 mm), nicht als editierbarer Text. Der Seitenrahmen wird bei Bedarf erweitert, ohne das Projekt zu ändern. Keine Bilder, Texturen oder Clips. Vor dem Lasern im Zielprogramm prüfen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3,13L8,3l5,10M5,9h6"/><circle cx="3" cy="13" r="1"/><circle cx="8" cy="3" r="1"/><circle cx="13" cy="13" r="1"/></svg>SVG für Laser (Text als Konturen)</button>
   <button id="exportPngBtn" title="Pixelbild mit transparentem Hintergrund, dreifache Auflösung. Nicht verlustfrei skalierbar (fester Raster). Für Vorschau, Web und Social Media. Hinweis: Text wird als Bild gerastert - manche Schriften erscheinen dabei in einer Ersatzschrift. Wenn die Schrift exakt stimmen muss, SVG nutzen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2,11l4-4 3,3 2-2 3,3"/></svg>PNG-Rasterbild</button>
   <button id="exportPdfBtn" title="PDF-Seite in echten mm mit eingebettetem JPEG-Rasterbild, kein Vektor-PDF. Zum Ausdrucken, Versenden und Archivieren. Hinweis: Text wird als Bild eingebettet - manche Schriften erscheinen dabei in einer Ersatzschrift. Wenn die Schrift exakt stimmen muss, SVG nutzen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4,1h6l3,3v11H4z"/><path d="M10,1v3h3"/><path d="M6,8h4M6,10.5h3"/></svg>PDF (gerastert)</button>
   <!-- [export3d-raus v1] "SVG 3D-Druck"-Button entfernt (Lukas 2026-06-09: "brauche ich jetzt nicht mehr").
@@ -2535,7 +2536,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 </div>
 
 <div id="canvasWrap">
-  <svg id="mainSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zeichenfläche von Vektortool - Vektorgrafik zeichnen und bearbeiten"></svg>
+  <svg id="mainSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zeichenflaeche"></svg>
   <div id="dropOverlay">
     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v13m0 0l-5-5m5 5l5-5" stroke="#999" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#999" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>Bild hier ablegen</span>
@@ -2687,6 +2688,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
         <div class="tracer-row"><label for="tracerGroupCount">Sichtbare Zielfarben</label><button type="button" id="tracerGroupCountMinus" class="tracer-step-btn" aria-label="−">−</button><input type="range" id="tracerGroupCount" min="1" max="24" value="4" step="1"><button type="button" id="tracerGroupCountPlus" class="tracer-step-btn" aria-label="+">+</button><span class="tval" id="tracerGroupCountVal">4</span></div>
         <div class="tracer-color-actions"><button type="button" id="tracerAutoMergeAgain">Automatisch neu zusammenführen</button></div>
         <div id="tracerAutoMergeNote" class="tracer-presort-note">Quellfarben bleiben erhalten. Manuelle Änderungen bleiben bis zur nächsten Quellpalette erhalten. Rückgängig ist möglich.</div>
+        <div id="tracerBackgroundNote" class="tracer-presort-note">Hintergrund nicht übernehmen? Blende seine Farbgruppe mit dem Auge aus. Sichtbare Farben werden auch exportiert und gestickt.</div>
+        <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg" aria-describedby="tracerBackgroundNote">Hintergrund entfernen</label>
         <!-- Optional arrangement never replaces the actual automatic output merge. -->
         <details><summary>Farben automatisch vorsortieren</summary><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farben automatisch vorsortieren</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Bis zu 4 Farbfamilien – nur angeordnet, keine Farbe verändert.</div></details>
         <div id="tracerSwatches" class="tracer-swatches" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-8) 13px;align-items:center;padding:var(--space-2) var(--space-1);"></div>
@@ -2738,7 +2741,6 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
              JS-Reader/-Writer weiter funktionieren - Hausmuster wie tracerBlur/tracerMaxDim. -->
         <input type="hidden" id="tracerSimplify" value="0">
         <div class="tracer-row" title="Kleine Flächen unter dieser Grenze werden entfernt. Einheit: Quadratpixel der SVG-Ausgabe, nicht der feineren internen Abtastung. 0 = keine manuelle Flächenfilterung. Bei Überschreitung des Sicherheitslimits wird ein reduzierter SW-Vorschlag erst nach ausdrücklicher Bestätigung übernehmbar. Höhere Werte können sichtbare Details entfernen."><label for="tracerMinArea">Min. Fl&#xE4;che</label><input type="range" id="tracerMinArea" min="0" max="50" value="0" step="1"><span class="tval" id="tracerMinAreaVal">0 px²</span></div>
-        <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg">Hintergrund entfernen</label>
         <input type="hidden" id="tracerMaxDim" value="1400">
       </div>
 
@@ -12555,9 +12557,18 @@ function renderMultiSelectionBox() {
   var hs = 5 / zoom, sw2 = 1 / zoom;
   var rotAttr = groupRot ? ' transform="rotate('+groupRot+','+(allBb.x+allBb.w/2)+','+(allBb.y+allBb.h/2)+')"' : '';
   var html2 = '';
-  /* Individual selection outlines with corner marks for each shape */
+  // A colour-traced/imported motif needs one useful outer frame, not a stack
+  // of almost identical boxes. Mixed independent selections keep their marks.
+  var selectedShapes = Array.from(selIds).map(findShape).filter(Boolean);
+  var firstSelected = selectedShapes[0];
+  var singleGroupFrame = selectedShapes.length > 1 && (
+    (firstSelected.groupId && selectedShapes.every(function(s) { return s.groupId === firstSelected.groupId; })) ||
+    (firstSelected.generatedSetId != null && selectedShapes.every(function(s) { return s.generatedSetId === firstSelected.generatedSetId; })) ||
+    selectedShapes.every(function(s) { return s.type === 'svgpath'; })
+  );
+  /* Individual selection outlines with corner marks for independent shapes */
   var ihs = 3.5 / zoom;
-  selIds.forEach(function(sid) {
+  if (!singleGroupFrame) selIds.forEach(function(sid) {
     var s2 = findShape(sid);
     if (!s2) return;
     var ib = geoBBox(s2);
@@ -12574,6 +12585,7 @@ function renderMultiSelectionBox() {
   });
   /* Combined box (invisible) for resize/rotate handles only */
   html2 += '<g'+rotAttr+'>';
+  if (singleGroupFrame) html2 += '<rect data-selection-frame="combined" x="'+allBb.x+'" y="'+allBb.y+'" width="'+allBb.w+'" height="'+allBb.h+'" fill="none" stroke="'+boxColor+'" stroke-width="'+sw2+'" stroke-dasharray="'+(3/zoom)+'" pointer-events="none"/>';
   // Invisible resize hit areas at corners of combined bbox (no visible handles)
   var corners = [[allBb.x,allBb.y],[allBb.x+allBb.w,allBb.y],[allBb.x+allBb.w,allBb.y+allBb.h],[allBb.x,allBb.y+allBb.h]];
   var cursors2 = ['nwse-resize','nesw-resize','nwse-resize','nesw-resize'];
@@ -13894,7 +13906,7 @@ canvasEl.addEventListener('contextmenu', function(e){
   var hasClip = !!clipboard;
   var multiSel = selIds.size > 1;
   var s = selId ? findShape(selId) : null;
-  var inGroup = Object.keys(selectionGroupIds()).length > 0;
+  var inGroup = Object.keys(selectionGroupIds()).length > 0 || _selectionHasCompoundSvgPath();
   var html = '';
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="copy">Kopieren<span class="ctx-key">Ctrl+C</span></div>';
   html += '<div class="ctx-item'+(hasSel?'':' disabled')+'" data-ctx="cut">Ausschneiden<span class="ctx-key">Ctrl+X</span></div>';
@@ -13915,7 +13927,7 @@ canvasEl.addEventListener('contextmenu', function(e){
   html += '<div class="ctx-sep"></div>';
   html += '<div class="ctx-item'+(multiSel?'':' disabled')+'" data-ctx="group">Gruppieren<span class="ctx-key">Ctrl+G</span></div>';
   html += '<div class="ctx-item'+(inGroup?'':' disabled')+'" data-ctx="ungroup">Gruppe aufl\u00f6sen<span class="ctx-key">Ctrl+Shift+G</span></div>';
-  var canDecompose = s && (s.type==='rect'||s.type==='polygon'||s.type==='star'||s.type==='solid3d'||(s.type==='ellipse'&&(s.centerLine||s.fishbone))||(s.type==='svgpath'&&s.svgEditable&&s.svgNodeSubpaths&&s.svgNodeSubpaths.length>1));
+  var canDecompose = s && (s.type==='rect'||s.type==='polygon'||s.type==='star'||s.type==='solid3d'||(s.type==='ellipse'&&(s.centerLine||s.fishbone))||(s.type==='svgpath'&&_selectionHasCompoundSvgPath()));
   html += '<div class="ctx-item'+(canDecompose?'':' disabled')+'" data-ctx="decompose">In Pfad aufl\u00f6sen<span class="ctx-key">Ctrl+Shift+P</span></div>';
   var _simplifyTarget = s || (hit ? findShape(hit) : null);
   var canSimplify = _simplifyTarget && _simplifyTarget.points && _simplifyTarget.points.length >= 3 && (_simplifyTarget.type==='path'||_simplifyTarget.type==='freehand'||(_simplifyTarget.type==='svgpath'&&_simplifyTarget.svgEditable));
@@ -16613,7 +16625,20 @@ function ungroupSelected() {
   if (!_vtCanMutate()) return;
   var gids = selectionGroupIds();
   if (!Object.keys(gids).length) {
-    if (window._vtToast) window._vtToast(window.t('Die Auswahl enthält keine Gruppe zum Auflösen.'));  /* [uxfix v1] G1: vorher stiller No-Op ohne Feedback */
+    // A traced colour is commonly ONE compound SVG path, not a user group.
+    // Prepare every split before pushing undo; holes/overlaps stay attached.
+    var plans = [];
+    (selIds.size ? Array.from(selIds) : [selId]).forEach(function(id) {
+      var shape = findShape(id), plan = _planSvgPathSeparation(shape);
+      if (plan) plans.push({ shape: shape, plan: plan });
+    });
+    if (plans.length) {
+      pu();
+      plans.forEach(function(item) { _decomposeSvgPathInPlace(item.shape, {pushUndo:false, plan:item.plan}); });
+      render(); updateRightPanel();
+      return;
+    }
+    if (window._vtToast) window._vtToast(window.t('Keine getrennten Flächen zum Auflösen. Löcher und überlappende Konturen bleiben zusammen.'));
     return;
   }
   pu();
@@ -16621,6 +16646,14 @@ function ungroupSelected() {
     if (shapes[i].groupId && gids[shapes[i].groupId]) delete shapes[i].groupId;
   }
   render(); updateRightPanel();
+}
+
+function _selectionHasCompoundSvgPath() {
+  return (selIds.size ? Array.from(selIds) : [selId]).some(function(id) {
+    var s = findShape(id);
+    return !!s && s.type === 'svgpath' &&
+      ((s.svgNodeSubpaths && s.svgNodeSubpaths.length > 1) || ((s.svgD || '').match(/[Mm]/g) || []).length > 1);
+  });
 }
 
 /* groupBtn/ungroupBtn now in right panel, bound in _bindEditorEvents */
@@ -17135,20 +17168,45 @@ function decomposeShapeInPlace(s, options) {
 // bei ihrer umschliessenden Aussenkontur, sonst stanzt die Stickerei das Loch als
 // Overlay und legt einen Travel-Kanal zum Loch. Nur echte getrennte Aussenkonturen
 // werden eigene Formen.
-function _decomposeSvgPathInPlace(s, options) {
-  options = options || {};
-  if (!s || s.type !== 'svgpath' || !s.svgEditable) return null;
-  if (!_vtCanMutate([s.id])) return null;
+function _planSvgPathSeparation(s) {
+  if (!s || s.type !== 'svgpath') return null;
   // Splitting changes each shape's rotation origin. Clip/mask coordinates and
   // additional transforms likewise cannot simply be copied to the new bounds.
   // Refuse before an undo entry or any mutation rather than reveal hidden fill.
   if (s.svgClipD || s.svgMask || s.clipPath || s.mask || s.svgExtraTransform ||
-      s.svgTransform || s.svgMatrix || s.transform || s.matrix || Number(s.rotation || 0) % 360 !== 0) {
-    if (window._vtToast) window._vtToast('Zerlegen nicht ausgeführt: Clip, Maske oder zusätzliche Transformation. Die Kontur bleibt unverändert.');
+      s.svgTransform || s.svgMatrix || s.transform || s.matrix || s.fillTexture || Number(s.rotation || 0) % 360 !== 0 ||
+      shapes.some(function(other) { return other.onPath && other.pathId === s.id; })) {
     return null;
   }
-  var subs = _getEditableSvgPathSubpaths(s);
+  // Never enable the legacy approximate node converter on an imported path:
+  // parse its rendered M/L/H/V/C/Z geometry exactly, on a detached copy.
+  var sourceD = _getRenderableSvgPathD(s);
+  var subs = _parseExactTracerNodeSubpaths(sourceD);
   if (!subs || subs.length < 2) return null;
+  if (!s.svgEditable) {
+    if (!Number.isFinite(s.x) || !Number.isFinite(s.y)) return null;
+    var mapping = Object.assign({}, s);
+    mapping.svgOrigX = s.svgOrigX != null ? s.svgOrigX : 0;
+    mapping.svgOrigY = s.svgOrigY != null ? s.svgOrigY : 0;
+    mapping.svgOrigW = Math.abs(s.svgOrigW || 0);
+    mapping.svgOrigH = Math.abs(s.svgOrigH || 0);
+    // Keep the existing renderer's tiny-box fallback exactly, including flips.
+    if (mapping.svgOrigW < 0.5) { mapping.svgOrigX=s.x||0; mapping.svgOrigW=Math.max(Math.abs(s.w||1),1); }
+    if (mapping.svgOrigH < 0.5) { mapping.svgOrigY=s.y||0; mapping.svgOrigH=Math.max(Math.abs(s.h||1),1); }
+    subs.forEach(function(sub) {
+      sub.points = sub.points.map(function(p) {
+        var q = _mapSvgPathPointFromSource(mapping, p.x, p.y);
+        q.svgNodeExact = true; q.svgOutCommand = p.svgOutCommand;
+        ['h1','h2'].forEach(function(h) {
+          if (p[h+'x'] === undefined) return;
+          var mapped = _mapSvgPathPointFromSource(mapping, p.x+p[h+'x'], p.y+p[h+'y']);
+          q[h+'x'] = mapped.x-q.x; q[h+'y'] = mapped.y-q.y;
+        });
+        return q;
+      });
+    });
+  }
+  if (subs.some(function(sub) { return sub.points.some(function(p) { return Object.keys(p).some(function(k) { return typeof p[k] === 'number' && !Number.isFinite(p[k]); }); }); })) return null;
 
   // An anchor polygon is not the painted Bezier contour: even a valid closed
   // cubic may have only two anchors. Keep every potentially interacting set
@@ -17156,12 +17214,13 @@ function _decomposeSvgPathInPlace(s, options) {
   // Actual SVG bounds give a conservative, geometry-preserving separation;
   // disconnected contours with overlapping bounds deliberately stay grouped.
   var bounds = subs.map(function(sub) {
-    return _getSvgPathBBox(_buildSvgPathDFromPointSubpaths([sub], s.svgNodeSmooth !== false));
+    return _getSvgPathBBox(_buildSvgPathDFromPointSubpaths([sub], false));
   });
   if (bounds.some(function(bb) { return !bb; })) return null;
   var groups = [], seen = new Set();
   function _boundsTouch(a, b) {
-    var epsilon = 1e-7;
+    // Strokes that overlap must still be painted together (not alpha-stacked).
+    var epsilon = 1e-7 + (s.stroke && s.stroke !== 'none' && s.stroke !== 'transparent' ? Math.max(0, Number(s.strokeWidth) || 0) : 0);
     return a.x <= b.x + b.w + epsilon && b.x <= a.x + a.w + epsilon &&
       a.y <= b.y + b.h + epsilon && b.y <= a.y + a.h + epsilon;
   }
@@ -17179,58 +17238,58 @@ function _decomposeSvgPathInPlace(s, options) {
     groups.push({ outer: members[0], holes: members.slice(1) });
   }
   if (groups.length < 2) return null;
-
-  var idx = shapes.indexOf(s);
-  if (idx < 0) return null;
-  if (options.pushUndo !== false) pu();
-  var hadSelected = selIds.has(s.id);
-  var wasPrimary = selId === s.id;
-  selIds.delete(s.id);
-  delete state.nodesel[String(s.id)];
-  shapes.splice(idx, 1);
-  var insertedIds = [];
-  var firstId = null;
-  function _clonePts(pts) {
-    return pts.map(function(p) { var q = { x: p.x, y: p.y }; if (s.svgNodeExact) { q.svgNodeExact = true; q.svgOutCommand = p.svgOutCommand; } if (p.h1x !== undefined) { q.h1x = p.h1x; q.h1y = p.h1y; } if (p.h2x !== undefined) { q.h2x = p.h2x; q.h2y = p.h2y; } return q; });
-  }
+  var prepared = [];
   for (var grp = 0; grp < groups.length; grp++) {
     var memberIdx = [groups[grp].outer].concat(groups[grp].holes);
     var flat = [], metas = [];
     for (var m = 0; m < memberIdx.length; m++) {
       var msub = subs[memberIdx[m]];
       if (!msub.points || msub.points.length < 2) continue;
-      var mp = _clonePts(msub.points);
-      metas.push({ start: flat.length, count: mp.length, closed: !!msub.closed, exact: !!s.svgNodeExact });
+      var mp = msub.points.map(function(p) { return Object.assign({}, p); });
+      metas.push({ start: flat.length, count: mp.length, closed: !!msub.closed, exact: true });
       for (var fp = 0; fp < mp.length; fp++) flat.push(mp[fp]);
     }
     if (!metas.length) continue;
-    var ns = {
+    // Preserve opacity, fill settings and fabrication parameters as well as
+    // colour. Only geometry identity, links and cached calculations are reset.
+    var ns = Object.assign(_vtDeepClone(s), {
       type: 'svgpath', svgEditable: true,
-      svgNodeExact: !!s.svgNodeExact,
-      svgNodeSmooth: s.svgNodeSmooth !== false,
+      svgNodeExact: true,
+      svgNodeSmooth: false,
       svgFillRule: s.svgFillRule || 'nonzero',
       points: flat,
       svgNodeSubpaths: metas,
       closed: !!subs[groups[grp].outer].closed, smooth: false,
-      stroke: s.stroke || 'none', strokeWidth: s.strokeWidth || 0,
-      fill: s.fill || 'none', fillEnabled: !!s.fillEnabled,
-      lineStyle: s.lineStyle || 0, effectStrength: s.effectStrength || 1,
-      flipX: false, flipY: false,
-      id: mkId(), gid: mkId(), mirrorIndex: 0
-    };
-    if (s.svgTraceAffineVersion === 1) ns.svgTraceAffineVersion = 1;
+      rotation: 0, flipX: false, flipY: false, mirrorTf: null, mirrorIndex: 0,
+      groupId: null
+    });
+    ['generatedSetId','nodeLinks','nodeLinkSeeds','_boundaryLinks','_groupRot','_stitchFillGeomCache'].forEach(function(key) { delete ns[key]; });
     if (s.stitch) {
       ns.stitch = JSON.parse(JSON.stringify(s.stitch));
       ns.stitch.needlePoints = [];
       ns.stitch._needleCacheKey = '';
       delete ns.stitch._materialGuardInfo;
     }
-    _syncEditableSvgPathShape(ns);
-    shapes.splice(idx + insertedIds.length, 0, ns);
-    insertedIds.push(ns.id);
-    if (!firstId) firstId = ns.id;
+    if (!_syncEditableSvgPathShape(ns)) return null;
+    prepared.push(ns);
   }
-  if (!insertedIds.length) return null;
+  return prepared.length > 1 ? prepared : null;
+}
+
+function _decomposeSvgPathInPlace(s, options) {
+  options = options || {};
+  if (!s || !_vtCanMutate([s.id])) return null;
+  var prepared = options.plan || _planSvgPathSeparation(s);
+  if (!prepared) return null;
+  var idx = shapes.indexOf(s);
+  if (idx < 0) return null;
+  if (options.pushUndo !== false) pu();
+  var hadSelected = selIds.has(s.id), wasPrimary = selId === s.id;
+  var insertedIds = prepared.map(function(ns) { ns.id=mkId(); ns.gid=mkId(); return ns.id; });
+  var firstId = insertedIds[0];
+  selIds.delete(s.id);
+  delete state.nodesel[String(s.id)];
+  shapes.splice.apply(shapes, [idx, 1].concat(prepared));
   if (options.selectAllNodes) {
     selIds.clear(); selId = firstId; selectedNodeIdx = -1; selectedNodes.clear();
     insertedIds.forEach(function(id) { selIds.add(id); var ss = findShape(id); if (ss && ss.points) { for (var ni = 0; ni < ss.points.length; ni++) selectedNodes.add(nodeToken(id, ni)); } });
@@ -17247,10 +17306,13 @@ function decomposeSelected() {
   var s = findShape(selId);
   if (!s) return;
   var opts = { pushUndo: true, selectAllNodes: tool === 'node' };
-  var result = (s.type === 'svgpath' && s.svgEditable)
+  var result = s.type === 'svgpath'
     ? _decomposeSvgPathInPlace(s, opts)
     : decomposeShapeInPlace(s, opts);
-  if (!result) return;
+  if (!result) {
+    if (s.type === 'svgpath' && window._vtToast) window._vtToast(window.t('Keine getrennten Flächen zum Auflösen. Löcher und überlappende Konturen bleiben zusammen.'));
+    return;
+  }
   render(); updateRightPanel();
 }
 
@@ -19952,6 +20014,167 @@ function downloadBlob(blob, filename) {
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
 }
 
+/* Laser SVG is deliberately separate from editable project/graphic SVG.
+   Browser-shaped WHOLE text (including textPath, ligatures and rotations) is
+   sampled at 16 pixels per document px = 0.01654 mm. These are bounded raster
+   contour approximations, NOT original OpenType outlines. The project and its
+   editable text are never changed. No network, font substitution or partial
+   download is used as a fallback. */
+function _vtLaserExportError(message) { throw new Error(window.t ? window.t(message) : message); }
+function _vtLaserWait(promise) {
+  return new Promise(function(resolve,reject){
+    var timer=setTimeout(function(){reject(new Error(window.t?window.t('Laser-SVG abgebrochen: Schrift oder Vorschau antwortet nicht.'): 'Laser-SVG abgebrochen: Schrift oder Vorschau antwortet nicht.'));},20000);
+    Promise.resolve(promise).then(function(value){clearTimeout(timer);resolve(value);},function(error){clearTimeout(timer);reject(error);});
+  });
+}
+async function _vtLaserEnsureFonts(list) {
+  var ready=window._vtFontsReady;
+  if(ready)await _vtLaserWait(ready);
+  if(ready!==window._vtFontsReady)_vtLaserExportError('Laser-SVG abgebrochen: Schriften wurden während des Exports geändert. Bitte erneut versuchen.');
+  var text=list.filter(function(s){return s&&!s.hidden&&s.type==='text'&&String(s.text||'').trim();});
+  if(!text.length)return '';
+  if(!document.fonts||!document.fonts.load)_vtLaserExportError('Laser-SVG abgebrochen: Der Browser kann die Schriften nicht zuverlässig prüfen.');
+  var families=Object.create(null);
+  await _vtLaserWait(Promise.all(text.map(async function(s){
+    var family=s.fontFamily||'Nunito';families[family]=true;
+    if((window._vtFontErrors||{})[family])_vtLaserExportError('Laser-SVG abgebrochen: Eine verwendete Schrift ist nicht verfügbar. Bitte die Schrift erneut laden.');
+    var spec=(s.italic?'italic ':'normal ')+(s.bold?'700 ':'400 ')+(Number(s.fontSize)||24)+'px '+JSON.stringify(family);
+    var faces=await document.fonts.load(spec,String(s.text));
+    if(!faces.length||faces.some(function(face){return face.status!=='loaded';})||!document.fonts.check(spec,String(s.text)))
+      _vtLaserExportError('Laser-SVG abgebrochen: Eine verwendete Schrift ist nicht verfügbar. Bitte die Schrift erneut laden.');
+  })));
+  if(ready!==window._vtFontsReady)_vtLaserExportError('Laser-SVG abgebrochen: Schriften wurden während des Exports geändert. Bitte erneut versuchen.');
+  return buildGoogleFontsImport(Object.keys(families),true);
+}
+function _vtLaserStrokePadding(cs,m) {
+  var sw=parseFloat(cs.strokeWidth)||0,scale=1;
+  var effect=cs.vectorEffect||(cs.getPropertyValue&&cs.getPropertyValue('vector-effect'))||'';
+  if(m&&effect!=='non-scaling-stroke'){
+    // Largest singular value, not merely the longer transformed axis: shear
+    // can extend a diagonal stroke farther than either matrix column alone.
+    var u=m.a*m.a+m.b*m.b,v=m.c*m.c+m.d*m.d,dot=m.a*m.c+m.b*m.d;
+    scale=Math.sqrt(Math.max(0,(u+v+Math.sqrt((u-v)*(u-v)+4*dot*dot))/2));
+  }
+  // Non-scaling strokes keep their viewport width even in a tiny SVG group.
+  return sw*scale*.5*(cs.strokeLinejoin==='miter'?Math.max(1,parseFloat(cs.strokeMiterlimit)||4):1);
+}
+function _vtLaserMeasure(markup) {
+  var ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),group=document.createElementNS(ns,'g');
+  svg.setAttribute('width','1');svg.setAttribute('height','1');svg.style.cssText='position:absolute;left:-100000px;top:0;visibility:hidden;overflow:visible;pointer-events:none';
+  group.innerHTML=markup;svg.appendChild(group);
+  // Duplicate textPath IDs must not resolve to the visible editor's defs.
+  var suffix='-laser-'+Math.random().toString(36).slice(2),ids=Object.create(null);
+  group.querySelectorAll('[id]').forEach(function(el){var old=el.id;ids[old]=old+suffix;el.id=ids[old];});
+  group.querySelectorAll('*').forEach(function(el){Array.from(el.attributes).forEach(function(a){
+    if(a.value.charAt(0)==='#'&&ids[a.value.slice(1)])el.setAttributeNS(a.namespaceURI,a.name,'#'+ids[a.value.slice(1)]);
+    else if(/url\(#/.test(a.value))el.setAttribute(a.name,a.value.replace(/url\(#([^)]*)\)/g,function(all,id){return ids[id]?'url(#'+ids[id]+')':all;}));
+  });});
+  document.body.appendChild(svg);
+  try{
+    var b=group.getBBox(),pad=0;
+    group.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon,text').forEach(function(el){
+      if(el.closest('defs'))return;
+      var cs=getComputedStyle(el);
+      if(cs.stroke==='none'||cs.stroke==='transparent'||Number(cs.strokeOpacity)===0)return;
+      // Conservative miter padding prevents cutting off visible line joins.
+      pad=Math.max(pad,_vtLaserStrokePadding(cs,el.getCTM()));
+    });
+    if(![b.x,b.y,b.width,b.height,pad].every(Number.isFinite))_vtLaserExportError('Laser-SVG abgebrochen: Ungültige sichtbare Abmessungen.');
+    return {x:b.x-pad,y:b.y-pad,w:b.width+2*pad,h:b.height+2*pad};
+  }finally{svg.remove();}
+}
+function _vtLaserMaskContours(mask,W,H) {
+  var stride=W+1,edges=[],starts=new Map();
+  function ink(x,y){return x>=0&&y>=0&&x<W&&y<H&&mask[y*W+x];}
+  function edge(x0,y0,x1,y1,dir){
+    if(edges.length>=500000)_vtLaserExportError('Laser-SVG abgebrochen: Textkonturen sind zu komplex. Bitte den Text auf mehrere Objekte aufteilen.');
+    var from=y0*stride+x0,id=edges.length;
+    edges.push({from:from,to:y1*stride+x1,dir:dir,used:false});
+    if(!starts.has(from))starts.set(from,[]);starts.get(from).push(id);
+  }
+  for(var y=0;y<H;y++)for(var x=0;x<W;x++)if(ink(x,y)){
+    if(!ink(x,y-1))edge(x,y,x+1,y,0);if(!ink(x+1,y))edge(x+1,y,x+1,y+1,1);
+    if(!ink(x,y+1))edge(x+1,y+1,x,y+1,2);if(!ink(x-1,y))edge(x,y+1,x,y,3);
+  }
+  var loops=[];
+  for(var i=0;i<edges.length;i++){
+    if(edges[i].used)continue;
+    var first=edges[i].from,current=i,loop=[],closed=false;
+    for(var guard=0;guard<=edges.length;guard++){
+      var e=edges[current];if(e.used)break;e.used=true;loop.push([e.from%stride,Math.floor(e.from/stride)]);
+      if(e.to===first){closed=true;break;}
+      var next=starts.get(e.to)||[],choice=-1,score=9;
+      for(var j=0;j<next.length;j++){
+        var c=edges[next[j]];if(c.used)continue;
+        var turn=(c.dir-e.dir+4)%4,rank=turn===1?0:turn===0?1:turn===3?2:3;
+        if(rank<score){score=rank;choice=next[j];}
+      }
+      if(choice<0)break;current=choice;
+    }
+    if(!closed)_vtLaserExportError('Laser-SVG abgebrochen: Eine Textkontur konnte nicht sicher geschlossen werden.');
+    var corners=loop.filter(function(b,k){var a=loop[(k+loop.length-1)%loop.length],c=loop[(k+1)%loop.length];return (b[0]-a[0])*(c[1]-b[1])!==(b[1]-a[1])*(c[0]-b[0]);});
+    if(corners.length>=3)loops.push(corners);
+  }
+  return loops;
+}
+async function _vtLaserTextContours(shape,markup,fontCss) {
+  var doc=new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'+markup+'</svg>','image/svg+xml');
+  var text=doc.querySelectorAll('text');
+  if(doc.querySelector('parsererror')||!text.length)_vtLaserExportError('Laser-SVG abgebrochen: Text oder zugehöriger Pfad konnte nicht gelesen werden.');
+  var color=text[0].getAttribute('fill')||'#000000';
+  if(color==='none'||color==='transparent')return '';
+  if(!/^(?:#[0-9a-f]{3,8}|[a-z]+|rgba?\([\d\s.,%]+\))$/i.test(color))_vtLaserExportError('Laser-SVG abgebrochen: Die Textfarbe wird nicht unterstützt.');
+  text.forEach(function(el){el.setAttribute('fill','#000000');el.setAttribute('stroke','none');});
+  var serializer=new XMLSerializer(),ink=Array.from(doc.documentElement.childNodes).map(function(n){return serializer.serializeToString(n);}).join('');
+  var b=_vtLaserMeasure(ink),scale=16,pad=2;
+  if(!(b.w>0&&b.h>0))_vtLaserExportError('Laser-SVG abgebrochen: Für einen sichtbaren Text wurden keine Konturen gefunden.');
+  var x=Math.floor((b.x-pad)*scale)/scale,y=Math.floor((b.y-pad)*scale)/scale;
+  var W=Math.ceil((b.x+b.w+pad-x)*scale),H=Math.ceil((b.y+b.h+pad-y)*scale);
+  if(W>16384||H>16384||W*H>24000000)_vtLaserExportError('Laser-SVG abgebrochen: Text ist für die sichere Konturauflösung zu gross. Bitte den Text auf mehrere Objekte aufteilen.');
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+W+'" height="'+H+'" viewBox="'+x+' '+y+' '+W/scale+' '+H/scale+'"><defs><style>'+fontCss+'</style></defs>'+ink+'</svg>';
+  var url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'})),image=new Image(),canvas=document.createElement('canvas');
+  try{
+    await _vtLaserWait(new Promise(function(resolve,reject){image.onload=resolve;image.onerror=function(){reject(new Error(window.t?window.t('Laser-SVG abgebrochen: Die Textvorschau konnte nicht gelesen werden.'):'Laser-SVG abgebrochen: Die Textvorschau konnte nicht gelesen werden.'));};image.src=url;}));
+    canvas.width=W;canvas.height=H;
+    var ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)_vtLaserExportError('Laser-SVG abgebrochen: Der Browser kann die Textkonturen nicht berechnen.');
+    ctx.drawImage(image,0,0,W,H);
+    var rgba=ctx.getImageData(0,0,W,H).data,mask=new Uint8Array(W*H),count=0;
+    for(var p=0;p<mask.length;p++)if(rgba[p*4+3]>=128){mask[p]=1;count++;}
+    if(!count)_vtLaserExportError('Laser-SVG abgebrochen: Für einen sichtbaren Text wurden keine Konturen gefunden.');
+    // No cropped fallback: the 2px margin must stay transparent on every side.
+    for(var xx=0;xx<W;xx++)if(mask[xx]||mask[(H-1)*W+xx])_vtLaserExportError('Laser-SVG abgebrochen: Textkonturen würden abgeschnitten.');
+    for(var yy=0;yy<H;yy++)if(mask[yy*W]||mask[yy*W+W-1])_vtLaserExportError('Laser-SVG abgebrochen: Textkonturen würden abgeschnitten.');
+    var loops=_vtLaserMaskContours(mask,W,H),d=loops.map(function(loop){return loop.map(function(pt,i){return (i?'L':'M')+(x+pt[0]/scale).toFixed(5)+','+(y+pt[1]/scale).toFixed(5);}).join('')+'Z';}).join('');
+    if(!d)_vtLaserExportError('Laser-SVG abgebrochen: Für einen sichtbaren Text wurden keine Konturen gefunden.');
+    return '<path data-vt-text-contours="raster-16x" d="'+d+'" fill="'+color+'" fill-rule="evenodd" stroke="none"/>';
+  }finally{image.onload=image.onerror=null;image.src='';URL.revokeObjectURL(url);canvas.width=canvas.height=0;}
+}
+async function buildExportLaserSVG() {
+  var source=activeCanvasState(),key=_puSerializeShapes(),list=_vtDeepClone(shapes),w=docW,h=docH;
+  var visible=list.filter(function(s){return s&&!s.hidden;});
+  if(!visible.length)_vtLaserExportError('Nichts zu exportieren.');
+  if(visible.some(function(s){return s.type==='image'||s.fillTexture||s.svgClipD;}))_vtLaserExportError('Laser-SVG abgebrochen: Bilder, Texturen oder Clips werden nicht unterstützt. Bitte zuerst in reine Vektorformen umwandeln.');
+  var css=await _vtLaserEnsureFonts(visible),fontRevision=window._vtFontRevision||0;
+  function current(){if(source!==activeCanvasState()||key!==_puSerializeShapes()||fontRevision!==(window._vtFontRevision||0))_vtLaserExportError('Laser-SVG abgebrochen: Das Projekt wurde während des Exports geändert. Bitte erneut versuchen.');}
+  current();
+  var parts=visible.map(function(s){delete s._editing;return {shape:s,markup:renderShapeExport(s)};}),out=[];
+  for(var i=0;i<parts.length;i++){
+    var item=parts[i];
+    if(item.shape.type==='text'&&!String(item.shape.text||'').trim())continue;
+    out.push(item.shape.type==='text'?await _vtLaserTextContours(item.shape,item.markup,css):item.markup);
+    current();
+  }
+  var content=out.join('\n');
+  if(!content.trim())_vtLaserExportError('Nichts zu exportieren.');
+  var parsed=new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'+content+'</svg>','image/svg+xml');
+  if(parsed.querySelector('parsererror,text,textPath,image,foreignObject,filter,mask,clipPath,pattern'))_vtLaserExportError('Laser-SVG abgebrochen: Die Grafik enthält nicht unterstützte Inhalte.');
+  var b=_vtLaserMeasure(content),x=Math.min(0,b.x),y=Math.min(0,b.y),right=Math.max(w,b.x+b.w),bottom=Math.max(h,b.y+b.h);
+  if(!(right>x&&bottom>y))_vtLaserExportError('Nichts zu exportieren.');
+  var expanded=x<0||y<0||right>w||bottom>h;
+  return {expanded:expanded,textCount:visible.filter(function(s){return s.type==='text'&&String(s.text||'').trim();}).length,
+    svg:'<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+px2mm(right-x)+'mm" height="'+px2mm(bottom-y)+'mm" viewBox="'+[x,y,right-x,bottom-y].join(' ')+'">\n<metadata>VectorTool Laser SVG: text contours approximated from browser rendering at 16 samples per px (0.01654 mm sample pitch); no editable project data; verify before manufacturing.</metadata>\n'+content+'\n</svg>'};
+}
+
 /* ===== [cnc-export v1] CNC-Export: DXF (mm) + Shaper Origin (Cut-Type-Farben) ===== */
 var SHAPER_CUT_COLORS = {
   exterior: { fill: '#000000', stroke: 'none' },     /* Aussenschnitt: schwarze Flaeche */
@@ -20297,6 +20520,18 @@ $('exportSvgBtn').addEventListener('click', function() {
   var portableSvg;
   try { portableSvg = buildExportSVG(); } catch (fontExportError) { return; }
   downloadBlob(new Blob([portableSvg], {type:'image/svg+xml'}), ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.svg'); /* [uxfix v1] Dokumentname im Dateinamen */
+});
+$('exportLaserSvgBtn').addEventListener('click',function(){
+  _vtCloseExportMenu(false);
+  var filename=((docName||'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'')||'vektortool-export')+'-laser.svg';
+  var run=async function(){
+    try{
+      var result=await buildExportLaserSVG();
+      downloadBlob(new Blob([result.svg],{type:'image/svg+xml'}),filename);
+      if(window._vtToast)window._vtToast(window.t(result.expanded?'Laser-SVG gespeichert. Der Export-Seitenrahmen wurde erweitert; das Projekt bleibt unverändert.':'Laser-SVG gespeichert. Text ist als angenäherte Konturen enthalten. Vor Fertigung im Zielprogramm prüfen.'));
+    }catch(error){if(window._vtToast)window._vtToast(error.message||String(error),'error');else alert(error.message||String(error));}
+  };
+  if(window._runWithOverlay)window._runWithOverlay(window.t('Laser-SVG wird berechnet …'),run);else run();
 });
 /* [uxfix v1] G8: DXF-Export verdrahtet (buildExportDXF war fertig, aber tot). Warnt vor
    nicht exportierbaren Elementen (Füllung/Text/Bild) via _cncSkipMsg, dann Download. */
@@ -21613,10 +21848,10 @@ function _updateRsidebarActions() {
       html += '</div>';
     }
     html += sep;
-    if (multiSel) { /* [uikonv v1] Gruppieren weiterhin nur bei Mehrfachauswahl */
+    if (multiSel || _selectionHasCompoundSvgPath()) {
     html += '<div style="'+lbl+'">Gruppieren</div>';
     html += '<div style="'+row+'">';
-    html += '<button style="'+bs+'" data-rs="group" title="Gruppieren (Ctrl+G)"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="6" height="6" rx="1" stroke-dasharray="1.5 1"/><rect x="7" y="7" width="6" height="6" rx="1" stroke-dasharray="1.5 1"/><rect x="3" y="3" width="10" height="10" rx="1"/></svg></button>';
+    if (multiSel) html += '<button style="'+bs+'" data-rs="group" title="Gruppieren (Ctrl+G)"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="6" height="6" rx="1" stroke-dasharray="1.5 1"/><rect x="7" y="7" width="6" height="6" rx="1" stroke-dasharray="1.5 1"/><rect x="3" y="3" width="10" height="10" rx="1"/></svg></button>';
     html += '<button style="'+bs+'" data-rs="ungroup" title="Aufl\u00f6sen (Ctrl+Shift+G)"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="8" y="8" width="6" height="6" rx="1"/></svg></button>';
     html += '</div>';
     html += sep;
@@ -26695,9 +26930,12 @@ function _tracerPrepareColorPixels(imageData, dropBackground) {
   }
   if (!dropBackground || !w || !h) return imageData;
 
-  /* Only a bright, border-connected background is removed. Interior white
-     details cannot seed a flood. Use the dominant bright border bucket rather
-     than an average contaminated by foreground touching the border. */
+  /* Only a background seeded by a bright border colour is removed. Interior
+     white details cannot seed a flood. Use the dominant bright border bucket
+     rather than an average contaminated by foreground touching the border.
+     During growth the RGB distance already bounds colour/darkness changes:
+     repeating the seed's absolute brightness cutoff would strand JPEG shadow
+     pixels (e.g. the Gecko's beige background at luminance 219) as tiny motifs. */
   var buckets = Object.create(null), best = null;
   function borderSample(p) {
     var j = p * 4;
@@ -26717,7 +26955,7 @@ function _tracerPrepareColorPixels(imageData, dropBackground) {
     if (seen[p]) return;
     seen[p] = 1;
     var j = p * 4, dr = data[j] - br, dg = data[j + 1] - bg, db = data[j + 2] - bb;
-    if (data[j + 3] && (data[j] * .2126 + data[j + 1] * .7152 + data[j + 2] * .0722 < 220 || dr*dr + dg*dg + db*db > 6000)) return;
+    if (data[j + 3] && dr*dr + dg*dg + db*db > 6000) return;
     queue[tail++] = p;
   }
   for (var x = 0; x < w; x++) { enqueue(x); enqueue((h - 1) * w + x); }
@@ -30476,7 +30714,7 @@ async function _tracerRunVectorize(keepGeneration) {
   }
 }
 
-async function _tracerLoadImage(dataUrl, name) {
+async function _tracerLoadImage(dataUrl, name, sourceKind) {
   /* Invalidate before decoding, not after: a pending old trace or slower older
      file decode must not publish while the new image is being loaded. */
   _tracerCancelWork();
@@ -30499,6 +30737,7 @@ async function _tracerLoadImage(dataUrl, name) {
       _tState.image = null;
       _tState.imageUrl = '';
       _tState.imageName = '';
+      _tState.imageSourceKind = '';
       _tState.svgMarkup = '';
       _tState.svgMarkupOriginal = '';
       _tState._lastStats = '';
@@ -30524,6 +30763,9 @@ async function _tracerLoadImage(dataUrl, name) {
   _tState.image = img;
   _tState.imageName = name;
   _tState.imageUrl = dataUrl;
+  // Explicit provenance, never a filename guess: an uploaded "Demo (Gecko)"
+  // remains the user's image. Only built-in demos follow the dialog mode.
+  _tState.imageSourceKind = sourceKind === 'demo-sw' || sourceKind === 'demo-color' ? sourceKind : 'user';
   _tState._silAutoThresh = true; /* [sw-tracer-otsu v3] frisches Bild: Auto-Schwellwert (Otsu, Motiv/Hintergrund) beim ersten Umriss-Trace */
   _tState.crop = null;
   _tState.detectedColors = []; /* Reset so preview uses k-means until new SVG is ready */
@@ -30591,6 +30833,11 @@ function _tracerRestoreFields(snap) {
     if ('checked' in snap[id]) el.checked = snap[id].checked; else el.value = snap[id].value;
   }
   return true;
+}
+
+function _tracerDemoNeedsModeChange(sourceKind, mode) {
+  return (sourceKind === 'demo-sw' && mode !== 'silhouette')
+    || (sourceKind === 'demo-color' && mode === 'silhouette');
 }
 
 function _openTracerModal(prevTool, requestedMode) {
@@ -30690,7 +30937,10 @@ function _openTracerModal(prevTool, requestedMode) {
   var overlay = _tEl('tracerOverlay');
   overlay.style.display = '';
 
-  /* If previous image still in state, just reopen — don't reset anything */
+  /* Built-in examples belong to their mode: SW opens Nautilus, colour opens
+     Gecko. Explicitly loaded images remain available for comparing modes. */
+  if (_tracerDemoNeedsModeChange(_tState.imageSourceKind, _tState.dialogMode)) _resetTracerState();
+  /* Reopening the same mode retains the source and its edits. */
   if (_tState.image) {
     _tracerSyncApplyState();
     if (!_tracerResultIsCurrent() && !_tState.busy && !_tState.loading) {
@@ -30727,7 +30977,7 @@ function _openTracerModal(prevTool, requestedMode) {
     var _demoLabel = _silMode ? 'Demo (Nautilus)' : 'Demo (Gecko)';
     var _loadDemo = function(dataUrl) {
       if (_tState.image) return;
-      _tracerLoadImage(dataUrl, _demoLabel).then(function(loaded) {
+      _tracerLoadImage(dataUrl, _demoLabel, _silMode ? 'demo-sw' : 'demo-color').then(function(loaded) {
         if (!loaded) return;
         _tracerSetStatus("Demo-Bild geladen. SVG wird erzeugt...");
         _tracerRunVectorize();
@@ -30766,6 +31016,7 @@ function _resetTracerState() {
   _tState.image = null;
   _tState.imageUrl = '';
   _tState.imageName = '';
+  _tState.imageSourceKind = '';
   _tState.svgMarkup = "";
   _tState.svgMarkupOriginal = "";
   _tEl('tracerPreview')._tracerFitScale = null;
@@ -31682,10 +31933,10 @@ function _silApplyExclusion() {
     var _testImg = (_swMode && typeof _TRACER_DEMO_IMG_SW === 'string' && _TRACER_DEMO_IMG_SW) ? _TRACER_DEMO_IMG_SW : _TRACER_DEMO_IMG;
     var _testLabel = _swMode ? 'Demo (Nautilus)' : 'Demo (Gecko)';
     if (typeof _testImg === 'string' && _testImg) {
-      _tracerLoadImage(_testImg, _testLabel).then(_afterTest);
+      _tracerLoadImage(_testImg, _testLabel, _swMode ? 'demo-sw' : 'demo-color').then(_afterTest);
     } else {
       fetch('Gr%C3%BCner%20Gecko%20auf%20neutralem%20Hintergrund.jpg').then(function(r){ if (!r.ok) throw new Error('not found'); return r.blob(); }).then(function(blob){
-        var reader = new FileReader(); reader.onload = function(ev){ _tracerLoadImage(ev.target.result, 'Demo (Gecko)').then(_afterTest); }; reader.readAsDataURL(blob);
+        var reader = new FileReader(); reader.onload = function(ev){ _tracerLoadImage(ev.target.result, 'Demo (Gecko)', 'demo-color').then(_afterTest); }; reader.readAsDataURL(blob);
       }).catch(function(){});
     }
   }
@@ -34214,7 +34465,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 244; /* Direction-aware, identified fill rows; recalculate pre-r5 stitch caches. */
+var _STITCH_CACHE_VERSION = 245; /* Retained short-row coverage and non-collapsing inset; refresh earlier stitch caches. */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -38595,21 +38846,43 @@ function _fillDropCoveredShortRows(segs, dirX, dirY, perpX, perpY, maxRowStepPx,
     proj[i] = { lo: Math.min(a, b), hi: Math.max(a, b) };
     perp[i] = ((segs[i].sx + segs[i].ex) / 2) * perpX + ((segs[i].sy + segs[i].ey) / 2) * perpY;
   }
-  var out = [];
-  for (var k = 0; k < n; k++) {
+  /* A discarded row cannot provide coverage for another discarded row.
+     Resolve witnesses longest-first; keep source order for the fill router.
+     This also makes adjacent equally short rows retain one real stitch row
+     instead of mutually deleting each other. */
+  var priority = Array.from({length:n}, function(_, i) { return i; });
+  priority.sort(function(a, b) {
+    return (proj[b].hi-proj[b].lo)-(proj[a].hi-proj[a].lo) ||
+      (segs[a].row-segs[b].row) || perp[a]-perp[b] || proj[a].lo-proj[b].lo || a-b;
+  });
+  var kept = new Set();
+  for (var ki = 0; ki < n; ki++) {
+    var k = priority[ki];
     var L = proj[k].hi - proj[k].lo;
-    if (L >= minLenPx) { out.push(segs[k]); continue; }
+    if (L >= minLenPx) { kept.add(k); continue; }
     var tol = Math.max(L * 0.1, 0.4);
     var covered = false;
     for (var j = 0; j < n; j++) {
-      if (j === k) continue;
+      if (!kept.has(j)) continue;
       if (Math.abs((segs[j].row | 0) - (segs[k].row | 0)) !== 1) continue;
       if (Math.abs(perp[j] - perp[k]) > maxRowStepPx) continue;
       if (proj[j].lo <= proj[k].lo + tol && proj[j].hi >= proj[k].hi - tol) { covered = true; break; }
     }
-    if (!covered) out.push(segs[k]);
+    if (!covered) kept.add(k);
   }
-  return out;
+  return segs.filter(function(_, i) { return kept.has(i); });
+}
+
+function _fillSafePullCompensation(pullComp, rowLength) {
+  if (!(pullComp < 0) || !(rowLength > 0)) return pullComp;
+  /* A negative inset must not turn a usable short row into a sub-needle
+     fragment that the later safety filter removes. Keep at least the user's
+     minimum stitch length, or the original length when already shorter.
+     No extra punctures, no geometry expansion and no change to long rows. */
+  var units = window._stitchGlobal && window._stitchGlobal.minStitchLenUnits;
+  var minMM = Number.isFinite(Number(units)) && units != null ? Number(units)/10 : 0.3;
+  var retained = Math.min(rowLength, _mm2px(Math.max(0.1, minMM)));
+  return Math.max(pullComp, -(rowLength-retained)/2);
 }
 
 function _calcFillStitchV7(shape, opts) {
@@ -38881,12 +39154,9 @@ function _calcFillStitchV7(shape, opts) {
         var pLen = Math.sqrt(pdx * pdx + pdy * pdy);
         if (pLen > 0) {
           var pnx = pdx / pLen, pny = pdy / pLen;
-          /* Bei negativem pullComp: shrink. Nur wenn pLen > 2*|pullComp|,
-             sonst würde die Row komplett verschwinden. */
-          if (pullComp >= 0 || pLen > 2 * (-pullComp)) {
-            start = { x: start.x - pnx * pullComp, y: start.y - pny * pullComp };
-            end = { x: end.x + pnx * pullComp, y: end.y + pny * pullComp };
-          }
+          var effectivePull = _fillSafePullCompensation(pullComp, pLen);
+          start = { x: start.x - pnx * effectivePull, y: start.y - pny * effectivePull };
+          end = { x: end.x + pnx * effectivePull, y: end.y + pny * effectivePull };
         }
       }
       var segLen = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
@@ -54776,6 +55046,129 @@ installBriefToolPreview();
     Object.keys(warning).forEach(function(key){Object.keys(warning[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=warning[key][lang];});});
   })();
   /* VT-NODE-DECOMPOSE-I18N-END */
+  /* VT-LIVE-UI-I18N: reuse existing translated control names and keep the
+     background decision explicit; no colour is discarded automatically. */
+  (function(){
+    DICT.de_fixes.Zeichenflaeche = 'Zeichenfläche';
+    var key='Hintergrund nicht übernehmen? Blende seine Farbgruppe mit dem Auge aus. Sichtbare Farben werden auch exportiert und gestickt.';
+    var notes={
+      en:'Exclude the background? Hide its colour group with the eye button. Visible colours are also exported and stitched.',
+      fr:'Exclure le fond ? Masquez son groupe de couleurs avec le bouton œil. Les couleurs visibles sont aussi exportées et brodées.',
+      it:'Escludere lo sfondo? Nascondi il suo gruppo di colori con il pulsante occhio. Anche i colori visibili vengono esportati e ricamati.',
+      es:'¿Excluir el fondo? Oculta su grupo de colores con el botón del ojo. Los colores visibles también se exportan y se bordan.',
+      pt:'Excluir o fundo? Oculte o seu grupo de cores com o botão do olho. As cores visíveis também são exportadas e bordadas.',
+      nl:'Achtergrond uitsluiten? Verberg de kleurgroep met de oogknop. Zichtbare kleuren worden ook geëxporteerd en geborduurd.',
+      pl:'Pominąć tło? Ukryj jego grupę kolorów przyciskiem oka. Widoczne kolory są także eksportowane i haftowane.',
+      cs:'Vynechat pozadí? Skryjte jeho skupinu barev tlačítkem oka. Viditelné barvy se také exportují a vyšívají.',
+      sk:'Vynechať pozadie? Skryte jeho skupinu farieb tlačidlom oka. Viditeľné farby sa aj exportujú a vyšívajú.',
+      ro:'Excludeți fundalul? Ascundeți grupul său de culori cu butonul ochi. Culorile vizibile sunt și exportate și brodate.',
+      hu:'Kihagyná a hátteret? Rejtse el a színcsoportját a szem gombbal. A látható színek is exportálódnak és hímzésre kerülnek.',
+      el:'Να εξαιρεθεί το φόντο; Κρύψτε την ομάδα χρωμάτων του με το κουμπί ματιού. Τα ορατά χρώματα εξάγονται και κεντιούνται επίσης.',
+      sv:'Utesluta bakgrunden? Dölj dess färggrupp med ögonknappen. Synliga färger exporteras och broderas också.',
+      da:'Udelad baggrunden? Skjul dens farvegruppe med øjeknappen. Synlige farver eksporteres og broderes også.',
+      no:'Utelate bakgrunnen? Skjul fargegruppen med øyeknappen. Synlige farger eksporteres og broderes også.',
+      fi:'Jätetäänkö tausta pois? Piilota sen väriryhmä silmäpainikkeella. Myös näkyvät värit viedään ja kirjotaan.',
+      ca:'Voleu excloure el fons? Amagueu-ne el grup de colors amb el botó de l’ull. Els colors visibles també s’exporten i es broden.',
+      tr:'Arka planı hariç tutmak mı istiyorsunuz? Göz düğmesiyle renk grubunu gizleyin. Görünür renkler de dışa aktarılır ve işlenir.',
+      ru:'Исключить фон? Скройте его цветовую группу кнопкой с глазом. Видимые цвета также экспортируются и вышиваются.',
+      uk:'Виключити тло? Приховайте його групу кольорів кнопкою з оком. Видимі кольори також експортуються та вишиваються.',
+      bg:'Да се изключи фонът? Скрийте цветовата му група с бутона око. Видимите цветове също се експортират и бродират.',
+      zh:'不需要背景？用眼睛按钮隐藏对应颜色组。可见颜色也会被导出并绣制。',
+      ja:'背景を除外しますか？目のボタンで背景の色グループを非表示にしてください。表示中の色は書き出しと刺繍にも含まれます。',
+      ko:'배경을 제외하려면 눈 모양 버튼으로 해당 색상 그룹을 숨기세요. 표시된 색상은 내보내기와 자수에도 포함됩니다.',
+      vi:'Không lấy nền? Ẩn nhóm màu của nền bằng nút hình con mắt. Các màu đang hiện cũng được xuất và thêu.',
+      th:'ไม่ต้องการพื้นหลังใช่ไหม? ซ่อนกลุ่มสีของพื้นหลังด้วยปุ่มรูปตา สีที่มองเห็นจะถูกส่งออกและปักด้วย',
+      id:'Tidak ingin menyertakan latar belakang? Sembunyikan kelompok warnanya dengan tombol mata. Warna yang terlihat juga diekspor dan disulam.',
+      hi:'पृष्ठभूमि नहीं चाहिए? आँख वाले बटन से उसका रंग-समूह छिपाएँ। दिखाई देने वाले रंग भी निर्यात और कढ़ाई में शामिल होते हैं।',
+      ar:'لا تريد تضمين الخلفية؟ أخفِ مجموعتها اللونية بزر العين. تُصدَّر الألوان الظاهرة وتُطرَّز أيضًا.',
+      he:'לא לכלול את הרקע? הסתירו את קבוצת הצבע שלו באמצעות כפתור העין. צבעים גלויים נכללים גם בייצוא וברקמה.',
+      fa:'پس‌زمینه را نمی‌خواهید؟ گروه رنگ آن را با دکمه چشم پنهان کنید. رنگ‌های قابل‌مشاهده نیز خروجی گرفته و گلدوزی می‌شوند.'
+    };
+    Object.keys(notes).forEach(function(lang){
+      if(!DICT[lang])DICT[lang]={};
+      DICT[lang][key]=notes[lang];
+      DICT[lang]['Projekt speichern oder Datei exportieren']=DICT[lang]['Speichern / Exportieren'];
+      DICT[lang]['Sprache / Language']=DICT[lang].Sprache;
+      DICT[lang]['Breite (mm)']=DICT[lang].Breite+' (mm)';
+      DICT[lang]['Höhe (mm)']=DICT[lang]['Höhe']+' (mm)';
+    });
+  })();
+  /* VT-LIVE-EXPORT-I18N: complete UI/error coverage for the explicit laser
+     export. Concise diagnostics retain each failure's cause and next action. */
+  (function(){
+    var reasons=['Schrift oder Vorschau antwortet nicht.','Schriften wurden während des Exports geändert. Bitte erneut versuchen.','Der Browser kann die Schriften nicht zuverlässig prüfen.','Eine verwendete Schrift ist nicht verfügbar. Bitte die Schrift erneut laden.','Ungültige sichtbare Abmessungen.','Textkonturen sind zu komplex. Bitte den Text auf mehrere Objekte aufteilen.','Eine Textkontur konnte nicht sicher geschlossen werden.','Text oder zugehöriger Pfad konnte nicht gelesen werden.','Die Textfarbe wird nicht unterstützt.','Für einen sichtbaren Text wurden keine Konturen gefunden.','Text ist für die sichere Konturauflösung zu gross. Bitte den Text auf mehrere Objekte aufteilen.','Die Textvorschau konnte nicht gelesen werden.','Der Browser kann die Textkonturen nicht berechnen.','Textkonturen würden abgeschnitten.','Bilder, Texturen oder Clips werden nicht unterstützt. Bitte zuerst in reine Vektorformen umwandeln.','Das Projekt wurde während des Exports geändert. Bitte erneut versuchen.','Die Grafik enthält nicht unterstützte Inhalte.'];
+    var errors={
+      en:['Laser SVG cancelled: ','Font or preview timed out.','Fonts changed during export. Try again.','This browser cannot reliably verify fonts.','A font is unavailable. Load it again.','Invalid visible bounds.','Text outlines are too complex. Split the text into several objects.','A text outline could not be safely closed.','Text or its path could not be read.','The text colour is unsupported.','No outlines were found for visible text.','Text is too large for safe outline tracing. Split it into several objects.','The text preview could not be read.','This browser cannot calculate text outlines.','Text outlines would be clipped.','Images, textures and clips are unsupported. Convert them to plain vector shapes first.','The project changed during export. Try again.','The artwork contains unsupported content.'],
+      fr:['SVG laser annulé : ','La police ou l’aperçu ne répond pas.','Polices modifiées pendant l’export. Réessayez.','Ce navigateur ne peut pas vérifier les polices.','Une police manque. Rechargez-la.','Dimensions visibles invalides.','Contours de texte trop complexes. Divisez le texte en plusieurs objets.','Impossible de fermer sûrement un contour de texte.','Impossible de lire le texte ou son chemin.','Couleur du texte non prise en charge.','Aucun contour trouvé pour le texte visible.','Texte trop grand pour un tracé sûr. Divisez-le en plusieurs objets.','Impossible de lire l’aperçu du texte.','Ce navigateur ne peut pas calculer les contours du texte.','Les contours du texte seraient coupés.','Images, textures et découpes non prises en charge. Convertissez-les en formes vectorielles simples.','Projet modifié pendant l’export. Réessayez.','Le dessin contient des éléments non pris en charge.'],
+      it:['SVG laser annullato: ','Il font o l’anteprima non risponde.','Font modificati durante l’esportazione. Riprova.','Il browser non può verificare i font.','Un font non è disponibile. Ricaricalo.','Dimensioni visibili non valide.','Contorni del testo troppo complessi. Dividi il testo in più oggetti.','Impossibile chiudere in sicurezza un contorno del testo.','Impossibile leggere il testo o il suo tracciato.','Colore del testo non supportato.','Nessun contorno trovato per il testo visibile.','Testo troppo grande per un tracciamento sicuro. Dividilo in più oggetti.','Impossibile leggere l’anteprima del testo.','Il browser non può calcolare i contorni del testo.','I contorni del testo verrebbero tagliati.','Immagini, texture e ritagli non supportati. Converti prima in semplici forme vettoriali.','Progetto modificato durante l’esportazione. Riprova.','Il disegno contiene elementi non supportati.'],
+      es:['SVG láser cancelado: ','La fuente o vista previa no responde.','Las fuentes cambiaron durante la exportación. Reinténtalo.','Este navegador no puede verificar las fuentes.','Una fuente no está disponible. Vuelve a cargarla.','Dimensiones visibles no válidas.','Contornos de texto demasiado complejos. Divide el texto en varios objetos.','No se pudo cerrar con seguridad un contorno de texto.','No se pudo leer el texto o su trazado.','Color de texto no compatible.','No se encontraron contornos para el texto visible.','Texto demasiado grande para un trazado seguro. Divídelo en varios objetos.','No se pudo leer la vista previa del texto.','El navegador no puede calcular los contornos del texto.','Se recortarían los contornos del texto.','Imágenes, texturas y recortes no compatibles. Conviértelos primero en formas vectoriales simples.','El proyecto cambió durante la exportación. Reinténtalo.','El dibujo contiene elementos no compatibles.'],
+      pt:['SVG laser cancelado: ','A fonte ou pré-visualização não responde.','As fontes mudaram durante a exportação. Tente novamente.','O navegador não pode verificar as fontes.','Uma fonte está indisponível. Carregue-a novamente.','Dimensões visíveis inválidas.','Contornos de texto demasiado complexos. Divida o texto em vários objetos.','Não foi possível fechar um contorno de texto com segurança.','Não foi possível ler o texto ou o seu caminho.','Cor do texto não suportada.','Não foram encontrados contornos para o texto visível.','Texto demasiado grande para traçado seguro. Divida-o em vários objetos.','Não foi possível ler a pré-visualização do texto.','O navegador não pode calcular os contornos do texto.','Os contornos do texto seriam cortados.','Imagens, texturas e recortes não suportados. Converta-os primeiro em formas vetoriais simples.','O projeto mudou durante a exportação. Tente novamente.','O desenho contém elementos não suportados.'],
+      nl:['Laser-SVG geannuleerd: ','Lettertype of voorbeeld reageert niet.','Lettertypen gewijzigd tijdens export. Probeer opnieuw.','Deze browser kan lettertypen niet controleren.','Een lettertype ontbreekt. Laad het opnieuw.','Ongeldige zichtbare afmetingen.','Tekstcontouren te complex. Verdeel de tekst over meerdere objecten.','Een tekstcontour kon niet veilig worden gesloten.','Tekst of het bijbehorende pad kon niet worden gelezen.','Tekstkleur niet ondersteund.','Geen contouren gevonden voor zichtbare tekst.','Tekst te groot voor veilige contouren. Verdeel deze over meerdere objecten.','Het tekstvoorbeeld kon niet worden gelezen.','Deze browser kan tekstcontouren niet berekenen.','Tekstcontouren zouden worden afgesneden.','Afbeeldingen, texturen en knippaden niet ondersteund. Zet ze eerst om in eenvoudige vectorvormen.','Project gewijzigd tijdens export. Probeer opnieuw.','De tekening bevat niet-ondersteunde inhoud.'],
+      pl:['Anulowano SVG dla lasera: ','Czcionka lub podgląd nie odpowiada.','Czcionki zmieniły się podczas eksportu. Spróbuj ponownie.','Przeglądarka nie może sprawdzić czcionek.','Czcionka jest niedostępna. Wczytaj ją ponownie.','Nieprawidłowe widoczne wymiary.','Kontury tekstu są zbyt złożone. Podziel tekst na kilka obiektów.','Nie można bezpiecznie zamknąć konturu tekstu.','Nie można odczytać tekstu lub jego ścieżki.','Nieobsługiwany kolor tekstu.','Brak konturów dla widocznego tekstu.','Tekst jest zbyt duży do bezpiecznego obrysowania. Podziel go na kilka obiektów.','Nie można odczytać podglądu tekstu.','Przeglądarka nie może obliczyć konturów tekstu.','Kontury tekstu zostałyby obcięte.','Obrazy, tekstury i przycięcia nie są obsługiwane. Najpierw zamień je na proste kształty wektorowe.','Projekt zmienił się podczas eksportu. Spróbuj ponownie.','Rysunek zawiera nieobsługiwaną zawartość.'],
+      cs:['Laserové SVG zrušeno: ','Písmo nebo náhled neodpovídá.','Písma se během exportu změnila. Zkuste to znovu.','Prohlížeč nemůže ověřit písma.','Písmo není dostupné. Načtěte je znovu.','Neplatné viditelné rozměry.','Obrysy textu jsou příliš složité. Rozdělte text do více objektů.','Obrys textu nelze bezpečně uzavřít.','Text nebo jeho cestu nelze přečíst.','Nepodporovaná barva textu.','Pro viditelný text nebyly nalezeny obrysy.','Text je příliš velký pro bezpečné obkreslení. Rozdělte jej do více objektů.','Náhled textu nelze přečíst.','Prohlížeč nemůže vypočítat obrysy textu.','Obrysy textu by byly oříznuty.','Obrázky, textury a ořezy nejsou podporovány. Nejprve je převeďte na jednoduché vektorové tvary.','Projekt se během exportu změnil. Zkuste to znovu.','Kresba obsahuje nepodporovaný obsah.'],
+      sk:['Laserové SVG zrušené: ','Písmo alebo náhľad neodpovedá.','Písma sa počas exportu zmenili. Skúste znova.','Prehliadač nemôže overiť písma.','Písmo nie je dostupné. Načítajte ho znova.','Neplatné viditeľné rozmery.','Obrysy textu sú príliš zložité. Rozdeľte text do viacerých objektov.','Obrys textu nemožno bezpečne uzavrieť.','Text alebo jeho cestu nemožno prečítať.','Nepodporovaná farba textu.','Pre viditeľný text sa nenašli obrysy.','Text je príliš veľký na bezpečné obkreslenie. Rozdeľte ho do viacerých objektov.','Náhľad textu nemožno prečítať.','Prehliadač nemôže vypočítať obrysy textu.','Obrysy textu by boli orezané.','Obrázky, textúry a orezy nie sú podporované. Najprv ich preveďte na jednoduché vektorové tvary.','Projekt sa počas exportu zmenil. Skúste znova.','Kresba obsahuje nepodporovaný obsah.'],
+      ro:['SVG laser anulat: ','Fontul sau previzualizarea nu răspunde.','Fonturile s-au schimbat în timpul exportului. Reîncercați.','Browserul nu poate verifica fonturile.','Un font nu este disponibil. Încărcați-l din nou.','Dimensiuni vizibile nevalide.','Contururile textului sunt prea complexe. Împărțiți textul în mai multe obiecte.','Un contur de text nu poate fi închis în siguranță.','Textul sau calea sa nu poate fi citit.','Culoarea textului nu este acceptată.','Nu s-au găsit contururi pentru textul vizibil.','Textul este prea mare pentru trasare sigură. Împărțiți-l în mai multe obiecte.','Previzualizarea textului nu poate fi citită.','Browserul nu poate calcula contururile textului.','Contururile textului ar fi tăiate.','Imaginile, texturile și decupajele nu sunt acceptate. Convertiți-le întâi în forme vectoriale simple.','Proiectul s-a schimbat în timpul exportului. Reîncercați.','Desenul conține elemente neacceptate.'],
+      hu:['Lézer-SVG megszakítva: ','A betűtípus vagy az előnézet nem válaszol.','A betűtípusok exportálás közben megváltoztak. Próbálja újra.','A böngésző nem tudja ellenőrizni a betűtípusokat.','Egy betűtípus nem érhető el. Töltse be újra.','Érvénytelen látható méretek.','A szövegkontúrok túl összetettek. Bontsa a szöveget több objektumra.','Egy szövegkontúr nem zárható biztonságosan.','A szöveg vagy útvonala nem olvasható.','Nem támogatott szövegszín.','A látható szöveghez nem találhatók kontúrok.','A szöveg túl nagy a biztonságos kontúrozáshoz. Bontsa több objektumra.','A szöveg előnézete nem olvasható.','A böngésző nem tudja kiszámítani a szövegkontúrokat.','A szövegkontúrok levágódnának.','Képek, textúrák és kivágások nem támogatottak. Előbb alakítsa őket egyszerű vektoros alakzatokká.','A projekt exportálás közben megváltozott. Próbálja újra.','A rajz nem támogatott tartalmat tartalmaz.'],
+      el:['Το SVG λέιζερ ακυρώθηκε: ','Η γραμματοσειρά ή η προεπισκόπηση δεν αποκρίνεται.','Οι γραμματοσειρές άλλαξαν κατά την εξαγωγή. Δοκιμάστε ξανά.','Ο φυλλομετρητής δεν μπορεί να ελέγξει τις γραμματοσειρές.','Μια γραμματοσειρά δεν είναι διαθέσιμη. Φορτώστε τη ξανά.','Μη έγκυρες ορατές διαστάσεις.','Πολύ σύνθετα περιγράμματα κειμένου. Χωρίστε το κείμενο σε αντικείμενα.','Ένα περίγραμμα κειμένου δεν μπορεί να κλείσει με ασφάλεια.','Δεν μπορεί να διαβαστεί το κείμενο ή η διαδρομή του.','Μη υποστηριζόμενο χρώμα κειμένου.','Δεν βρέθηκαν περιγράμματα για ορατό κείμενο.','Πολύ μεγάλο κείμενο για ασφαλή ιχνηλάτηση. Χωρίστε το σε αντικείμενα.','Δεν μπορεί να διαβαστεί η προεπισκόπηση κειμένου.','Ο φυλλομετρητής δεν μπορεί να υπολογίσει περιγράμματα κειμένου.','Τα περιγράμματα κειμένου θα αποκόπτονταν.','Εικόνες, υφές και αποκοπές δεν υποστηρίζονται. Μετατρέψτε πρώτα σε απλά διανυσματικά σχήματα.','Το έργο άλλαξε κατά την εξαγωγή. Δοκιμάστε ξανά.','Το σχέδιο περιέχει μη υποστηριζόμενο περιεχόμενο.'],
+      sv:['Laser-SVG avbruten: ','Typsnitt eller förhandsvisning svarar inte.','Typsnitten ändrades under exporten. Försök igen.','Webbläsaren kan inte kontrollera typsnitten.','Ett typsnitt saknas. Läs in det igen.','Ogiltiga synliga mått.','Textkonturerna är för komplexa. Dela texten i flera objekt.','En textkontur kan inte slutas säkert.','Texten eller dess bana kunde inte läsas.','Textfärgen stöds inte.','Inga konturer hittades för synlig text.','Texten är för stor för säker konturspårning. Dela den i flera objekt.','Textförhandsvisningen kunde inte läsas.','Webbläsaren kan inte beräkna textkonturer.','Textkonturerna skulle klippas.','Bilder, texturer och klipp stöds inte. Omvandla dem först till enkla vektorformer.','Projektet ändrades under exporten. Försök igen.','Teckningen innehåller innehåll som inte stöds.'],
+      da:['Laser-SVG annulleret: ','Skrifttypen eller forhåndsvisningen svarer ikke.','Skrifttyperne blev ændret under eksporten. Prøv igen.','Browseren kan ikke kontrollere skrifttyperne.','En skrifttype mangler. Indlæs den igen.','Ugyldige synlige mål.','Tekstkonturerne er for komplekse. Del teksten i flere objekter.','En tekstkontur kan ikke lukkes sikkert.','Teksten eller dens sti kunne ikke læses.','Tekstfarven understøttes ikke.','Ingen konturer fundet for synlig tekst.','Teksten er for stor til sikker konturtegning. Del den i flere objekter.','Tekstforhåndsvisningen kunne ikke læses.','Browseren kan ikke beregne tekstkonturer.','Tekstkonturerne ville blive beskåret.','Billeder, teksturer og klip understøttes ikke. Konvertér først til enkle vektorformer.','Projektet blev ændret under eksporten. Prøv igen.','Tegningen indeholder ikke-understøttet indhold.'],
+      no:['Laser-SVG avbrutt: ','Skriften eller forhåndsvisningen svarer ikke.','Skriftene ble endret under eksporten. Prøv igjen.','Nettleseren kan ikke kontrollere skrifter.','En skrift mangler. Last den inn igjen.','Ugyldige synlige mål.','Tekstkonturene er for komplekse. Del teksten i flere objekter.','En tekstkontur kan ikke lukkes sikkert.','Teksten eller banen kunne ikke leses.','Tekstfargen støttes ikke.','Ingen konturer funnet for synlig tekst.','Teksten er for stor for sikker konturtegning. Del den i flere objekter.','Tekstforhåndsvisningen kunne ikke leses.','Nettleseren kan ikke beregne tekstkonturer.','Tekstkonturene ville blitt beskåret.','Bilder, teksturer og klipp støttes ikke. Konverter først til enkle vektorformer.','Prosjektet ble endret under eksporten. Prøv igjen.','Tegningen inneholder innhold som ikke støttes.'],
+      fi:['Laser-SVG peruttu: ','Fontti tai esikatselu ei vastaa.','Fontit muuttuivat viennin aikana. Yritä uudelleen.','Selain ei voi tarkistaa fontteja.','Fontti puuttuu. Lataa se uudelleen.','Näkyvät mitat ovat virheelliset.','Tekstin ääriviivat ovat liian monimutkaiset. Jaa teksti useaan objektiin.','Tekstin ääriviivaa ei voida sulkea turvallisesti.','Tekstiä tai sen polkua ei voida lukea.','Tekstin väriä ei tueta.','Näkyvälle tekstille ei löytynyt ääriviivoja.','Teksti on liian suuri turvalliseen jäljitykseen. Jaa se useaan objektiin.','Tekstin esikatselua ei voida lukea.','Selain ei voi laskea tekstin ääriviivoja.','Tekstin ääriviivat leikkautuisivat.','Kuvia, tekstuureja ja leikkauksia ei tueta. Muunna ne ensin yksinkertaisiksi vektorimuodoiksi.','Projekti muuttui viennin aikana. Yritä uudelleen.','Piirros sisältää tukematonta sisältöä.'],
+      ca:['SVG làser cancel·lat: ','La font o la previsualització no respon.','Les fonts han canviat durant l’exportació. Torneu-ho a provar.','El navegador no pot verificar les fonts.','Una font no està disponible. Torneu-la a carregar.','Dimensions visibles no vàlides.','Contorns de text massa complexos. Dividiu el text en diversos objectes.','No es pot tancar amb seguretat un contorn de text.','No es pot llegir el text o el seu camí.','Color de text no admès.','No s’han trobat contorns per al text visible.','Text massa gran per a un traçat segur. Dividiu-lo en diversos objectes.','No es pot llegir la previsualització del text.','El navegador no pot calcular els contorns del text.','Els contorns del text quedarien retallats.','Imatges, textures i retalls no admesos. Convertiu-los primer en formes vectorials simples.','El projecte ha canviat durant l’exportació. Torneu-ho a provar.','El dibuix conté elements no admesos.'],
+      tr:['Lazer SVG iptal edildi: ','Yazı tipi veya önizleme yanıt vermiyor.','Yazı tipleri dışa aktarma sırasında değişti. Tekrar deneyin.','Tarayıcı yazı tiplerini doğrulayamıyor.','Bir yazı tipi kullanılamıyor. Yeniden yükleyin.','Görünür boyutlar geçersiz.','Metin konturları çok karmaşık. Metni birkaç nesneye bölün.','Bir metin konturu güvenle kapatılamadı.','Metin veya yolu okunamadı.','Metin rengi desteklenmiyor.','Görünür metin için kontur bulunamadı.','Metin güvenli kontur çıkarma için çok büyük. Birkaç nesneye bölün.','Metin önizlemesi okunamadı.','Tarayıcı metin konturlarını hesaplayamıyor.','Metin konturları kesilecekti.','Resim, doku ve kırpmalar desteklenmiyor. Önce basit vektör şekillerine dönüştürün.','Proje dışa aktarma sırasında değişti. Tekrar deneyin.','Çizim desteklenmeyen içerik barındırıyor.'],
+      ru:['Лазерный SVG отменён: ','Шрифт или предпросмотр не отвечает.','Шрифты изменились при экспорте. Повторите.','Браузер не может проверить шрифты.','Шрифт недоступен. Загрузите его снова.','Недопустимые видимые размеры.','Контуры текста слишком сложные. Разделите текст на несколько объектов.','Контур текста нельзя безопасно замкнуть.','Не удалось прочитать текст или его путь.','Цвет текста не поддерживается.','Контуры видимого текста не найдены.','Текст слишком большой для безопасной трассировки. Разделите его на несколько объектов.','Не удалось прочитать предпросмотр текста.','Браузер не может вычислить контуры текста.','Контуры текста были бы обрезаны.','Изображения, текстуры и обрезки не поддерживаются. Сначала преобразуйте их в простые векторные фигуры.','Проект изменился при экспорте. Повторите.','Рисунок содержит неподдерживаемые элементы.'],
+      uk:['Лазерний SVG скасовано: ','Шрифт або попередній перегляд не відповідає.','Шрифти змінилися під час експорту. Повторіть.','Браузер не може перевірити шрифти.','Шрифт недоступний. Завантажте його знову.','Недійсні видимі розміри.','Контури тексту надто складні. Розділіть текст на кілька об’єктів.','Контур тексту неможливо безпечно замкнути.','Не вдалося прочитати текст або його шлях.','Колір тексту не підтримується.','Контури видимого тексту не знайдені.','Текст завеликий для безпечного трасування. Розділіть його на кілька об’єктів.','Не вдалося прочитати попередній перегляд тексту.','Браузер не може обчислити контури тексту.','Контури тексту були б обрізані.','Зображення, текстури та обрізання не підтримуються. Спершу перетворіть їх на прості векторні фігури.','Проєкт змінився під час експорту. Повторіть.','Малюнок містить непідтримувані елементи.'],
+      bg:['Лазерният SVG е отменен: ','Шрифтът или прегледът не отговаря.','Шрифтовете са променени по време на експорта. Опитайте отново.','Браузърът не може да провери шрифтовете.','Шрифт не е достъпен. Заредете го отново.','Невалидни видими размери.','Контурите на текста са твърде сложни. Разделете текста на няколко обекта.','Контур на текста не може да бъде затворен безопасно.','Текстът или пътят му не може да бъде прочетен.','Цветът на текста не се поддържа.','Не са намерени контури за видимия текст.','Текстът е твърде голям за безопасно проследяване. Разделете го на няколко обекта.','Прегледът на текста не може да бъде прочетен.','Браузърът не може да изчисли контурите на текста.','Контурите на текста биха били отрязани.','Изображения, текстури и изрязвания не се поддържат. Първо ги превърнете в прости векторни форми.','Проектът е променен по време на експорта. Опитайте отново.','Рисунката съдържа неподдържани елементи.'],
+      zh:['激光 SVG 已取消：','字体或预览未响应。','导出期间字体发生变化，请重试。','此浏览器无法可靠验证字体。','有字体不可用，请重新加载。','可见尺寸无效。','文字轮廓过于复杂，请将文字拆分为多个对象。','无法安全闭合文字轮廓。','无法读取文字或其路径。','不支持此文字颜色。','未找到可见文字的轮廓。','文字过大，无法安全描摹轮廓，请拆分为多个对象。','无法读取文字预览。','此浏览器无法计算文字轮廓。','文字轮廓会被裁切。','不支持图片、纹理或裁剪，请先转换为纯矢量形状。','导出期间项目发生变化，请重试。','图形包含不支持的内容。'],
+      ja:['レーザーSVGを中止しました：','フォントまたはプレビューが応答しません。','書き出し中にフォントが変更されました。再試行してください。','このブラウザーではフォントを確実に検証できません。','使用フォントが利用できません。再読み込みしてください。','表示範囲の寸法が無効です。','文字の輪郭が複雑すぎます。文字を複数のオブジェクトに分割してください。','文字の輪郭を安全に閉じられませんでした。','文字またはそのパスを読み取れませんでした。','この文字色は未対応です。','表示されている文字の輪郭が見つかりません。','文字が大きすぎて安全に輪郭抽出できません。複数のオブジェクトに分割してください。','文字プレビューを読み取れませんでした。','このブラウザーでは文字の輪郭を計算できません。','文字の輪郭が切り取られるため中止しました。','画像、テクスチャ、クリップは未対応です。先に単純なベクター図形へ変換してください。','書き出し中にプロジェクトが変更されました。再試行してください。','図形に未対応の内容があります。'],
+      ko:['레이저 SVG 취소: ','글꼴 또는 미리보기가 응답하지 않습니다.','내보내기 중 글꼴이 변경되었습니다. 다시 시도하세요.','브라우저에서 글꼴을 안정적으로 확인할 수 없습니다.','글꼴을 사용할 수 없습니다. 다시 불러오세요.','표시 영역 크기가 유효하지 않습니다.','텍스트 윤곽선이 너무 복잡합니다. 텍스트를 여러 객체로 나누세요.','텍스트 윤곽선을 안전하게 닫을 수 없습니다.','텍스트 또는 경로를 읽을 수 없습니다.','지원하지 않는 텍스트 색상입니다.','표시된 텍스트의 윤곽선을 찾지 못했습니다.','텍스트가 너무 커서 안전하게 윤곽선을 추출할 수 없습니다. 여러 객체로 나누세요.','텍스트 미리보기를 읽을 수 없습니다.','브라우저에서 텍스트 윤곽선을 계산할 수 없습니다.','텍스트 윤곽선이 잘리게 됩니다.','이미지, 텍스처 및 클립은 지원하지 않습니다. 먼저 단순 벡터 도형으로 변환하세요.','내보내기 중 프로젝트가 변경되었습니다. 다시 시도하세요.','그림에 지원하지 않는 내용이 있습니다.'],
+      vi:['Đã hủy SVG laser: ','Phông chữ hoặc bản xem trước không phản hồi.','Phông chữ đổi trong khi xuất. Hãy thử lại.','Trình duyệt không thể xác minh phông chữ.','Một phông chữ không khả dụng. Hãy tải lại.','Kích thước hiển thị không hợp lệ.','Đường viền chữ quá phức tạp. Chia chữ thành nhiều đối tượng.','Không thể đóng đường viền chữ một cách an toàn.','Không thể đọc chữ hoặc đường dẫn của chữ.','Màu chữ không được hỗ trợ.','Không tìm thấy đường viền cho chữ đang hiển thị.','Chữ quá lớn để dò đường viền an toàn. Chia thành nhiều đối tượng.','Không thể đọc bản xem trước của chữ.','Trình duyệt không thể tính đường viền chữ.','Đường viền chữ sẽ bị cắt.','Không hỗ trợ ảnh, họa tiết và vùng cắt. Chuyển thành hình vector đơn giản trước.','Dự án đổi trong khi xuất. Hãy thử lại.','Bản vẽ chứa nội dung không được hỗ trợ.'],
+      th:['ยกเลิก SVG สำหรับเลเซอร์: ','แบบอักษรหรือภาพตัวอย่างไม่ตอบสนอง','แบบอักษรเปลี่ยนระหว่างส่งออก โปรดลองอีกครั้ง','เบราว์เซอร์ตรวจสอบแบบอักษรไม่ได้อย่างน่าเชื่อถือ','มีแบบอักษรที่ใช้งานไม่ได้ โปรดโหลดใหม่','ขนาดส่วนที่มองเห็นไม่ถูกต้อง','เส้นขอบข้อความซับซ้อนเกินไป โปรดแบ่งข้อความเป็นหลายวัตถุ','ปิดเส้นขอบข้อความอย่างปลอดภัยไม่ได้','อ่านข้อความหรือเส้นทางไม่ได้','ไม่รองรับสีข้อความนี้','ไม่พบเส้นขอบของข้อความที่มองเห็น','ข้อความใหญ่เกินกว่าจะสร้างเส้นขอบอย่างปลอดภัย โปรดแบ่งเป็นหลายวัตถุ','อ่านภาพตัวอย่างข้อความไม่ได้','เบราว์เซอร์คำนวณเส้นขอบข้อความไม่ได้','เส้นขอบข้อความจะถูกตัด','ไม่รองรับภาพ พื้นผิว หรือคลิป โปรดแปลงเป็นรูปทรงเวกเตอร์พื้นฐานก่อน','โครงการเปลี่ยนระหว่างส่งออก โปรดลองอีกครั้ง','ภาพมีเนื้อหาที่ไม่รองรับ'],
+      id:['SVG laser dibatalkan: ','Font atau pratinjau tidak merespons.','Font berubah selama ekspor. Coba lagi.','Browser tidak dapat memverifikasi font.','Font tidak tersedia. Muat ulang font.','Ukuran area terlihat tidak valid.','Kontur teks terlalu rumit. Bagi teks menjadi beberapa objek.','Kontur teks tidak dapat ditutup dengan aman.','Teks atau jalurnya tidak dapat dibaca.','Warna teks tidak didukung.','Kontur untuk teks yang terlihat tidak ditemukan.','Teks terlalu besar untuk penelusuran aman. Bagi menjadi beberapa objek.','Pratinjau teks tidak dapat dibaca.','Browser tidak dapat menghitung kontur teks.','Kontur teks akan terpotong.','Gambar, tekstur dan klip tidak didukung. Ubah dahulu menjadi bentuk vektor sederhana.','Proyek berubah selama ekspor. Coba lagi.','Gambar berisi konten yang tidak didukung.'],
+      hi:['लेज़र SVG रद्द: ','फ़ॉन्ट या पूर्वावलोकन प्रतिक्रिया नहीं दे रहा।','निर्यात के दौरान फ़ॉन्ट बदले। फिर कोशिश करें।','ब्राउज़र फ़ॉन्ट की विश्वसनीय जाँच नहीं कर सकता।','एक फ़ॉन्ट उपलब्ध नहीं है। उसे फिर लोड करें।','दृश्य आयाम अमान्य हैं।','पाठ की रूपरेखाएँ बहुत जटिल हैं। पाठ को कई ऑब्जेक्ट में बाँटें।','पाठ की रूपरेखा सुरक्षित रूप से बंद नहीं हो सकी।','पाठ या उसका पथ पढ़ा नहीं जा सका।','पाठ का रंग समर्थित नहीं है।','दृश्य पाठ की रूपरेखा नहीं मिली।','सुरक्षित रूपरेखा बनाने के लिए पाठ बहुत बड़ा है। उसे कई ऑब्जेक्ट में बाँटें।','पाठ का पूर्वावलोकन पढ़ा नहीं जा सका।','ब्राउज़र पाठ की रूपरेखाएँ नहीं बना सकता।','पाठ की रूपरेखाएँ कट जातीं।','चित्र, टेक्सचर और क्लिप समर्थित नहीं हैं। पहले उन्हें सरल वेक्टर आकृतियों में बदलें।','निर्यात के दौरान परियोजना बदली। फिर कोशिश करें।','चित्र में असमर्थित सामग्री है।'],
+      ar:['أُلغي SVG الليزر: ','الخط أو المعاينة لا يستجيب.','تغيّرت الخطوط أثناء التصدير. أعد المحاولة.','لا يستطيع المتصفح التحقق من الخطوط بشكل موثوق.','أحد الخطوط غير متاح. أعد تحميله.','الأبعاد المرئية غير صالحة.','محيطات النص معقدة جدًا. قسّم النص إلى عدة عناصر.','تعذّر إغلاق أحد محيطات النص بأمان.','تعذّرت قراءة النص أو مساره.','لون النص غير مدعوم.','لم يُعثر على محيطات للنص المرئي.','النص كبير جدًا لاستخراج محيطاته بأمان. قسّمه إلى عدة عناصر.','تعذّرت قراءة معاينة النص.','لا يستطيع المتصفح حساب محيطات النص.','ستُقتطع محيطات النص.','الصور والزخارف والقصاصات غير مدعومة. حوّلها أولًا إلى أشكال متجهية بسيطة.','تغيّر المشروع أثناء التصدير. أعد المحاولة.','يحتوي الرسم على عناصر غير مدعومة.'],
+      he:['ייצוא SVG ללייזר בוטל: ','הגופן או התצוגה המקדימה אינם מגיבים.','הגופנים השתנו במהלך הייצוא. נסו שוב.','הדפדפן אינו יכול לאמת את הגופנים.','גופן אינו זמין. טענו אותו שוב.','מידות גלויות לא תקינות.','קווי המתאר של הטקסט מורכבים מדי. פצלו את הטקסט למספר אובייקטים.','לא ניתן לסגור בבטחה קו מתאר של טקסט.','לא ניתן לקרוא את הטקסט או את הנתיב שלו.','צבע הטקסט אינו נתמך.','לא נמצאו קווי מתאר לטקסט הגלוי.','הטקסט גדול מדי לעקיבה בטוחה. פצלו אותו למספר אובייקטים.','לא ניתן לקרוא את התצוגה המקדימה של הטקסט.','הדפדפן אינו יכול לחשב קווי מתאר של טקסט.','קווי המתאר של הטקסט היו נחתכים.','תמונות, מרקמים וחיתוכים אינם נתמכים. המירו קודם לצורות וקטוריות פשוטות.','הפרויקט השתנה במהלך הייצוא. נסו שוב.','הציור מכיל תוכן שאינו נתמך.'],
+      fa:['SVG لیزر لغو شد: ','قلم یا پیش‌نمایش پاسخ نمی‌دهد.','قلم‌ها هنگام خروجی تغییر کردند. دوباره تلاش کنید.','مرورگر نمی‌تواند قلم‌ها را با اطمینان بررسی کند.','یک قلم در دسترس نیست. آن را دوباره بارگذاری کنید.','ابعاد قابل‌مشاهده نامعتبر است.','خط‌های دور متن بسیار پیچیده‌اند. متن را به چند شیء تقسیم کنید.','بستن ایمن خط دور متن ممکن نشد.','خواندن متن یا مسیر آن ممکن نشد.','رنگ متن پشتیبانی نمی‌شود.','برای متن قابل‌مشاهده خط دوری یافت نشد.','متن برای ترسیم ایمن بسیار بزرگ است. آن را به چند شیء تقسیم کنید.','خواندن پیش‌نمایش متن ممکن نشد.','مرورگر نمی‌تواند خط‌های دور متن را محاسبه کند.','خط‌های دور متن بریده می‌شدند.','تصویر، بافت و برش پشتیبانی نمی‌شوند. ابتدا به شکل‌های برداری ساده تبدیل کنید.','پروژه هنگام خروجی تغییر کرد. دوباره تلاش کنید.','طرح دارای محتوای پشتیبانی‌نشده است.']
+    };
+    Object.keys(errors).forEach(function(lang){reasons.forEach(function(reason,i){DICT[lang]['Laser-SVG abgebrochen: '+reason]=errors[lang][0]+errors[lang][i+1];});});
+  })();
+  (function(){
+    var keys=['SVG für Laser (Text als Konturen)','Schrift und Pfadtext werden als geschlossene Konturen angenähert (Raster-Abtastung 0,0166 mm), nicht als editierbarer Text. Der Seitenrahmen wird bei Bedarf erweitert, ohne das Projekt zu ändern. Keine Bilder, Texturen oder Clips. Vor dem Lasern im Zielprogramm prüfen.','Keine getrennten Flächen zum Auflösen. Löcher und überlappende Konturen bleiben zusammen.','Laser-SVG gespeichert. Der Export-Seitenrahmen wurde erweitert; das Projekt bleibt unverändert.','Laser-SVG gespeichert. Text ist als angenäherte Konturen enthalten. Vor Fertigung im Zielprogramm prüfen.','Laser-SVG wird berechnet …'];
+    var values={
+      en:['SVG for laser (text as outlines)','Text and text on paths are approximated as closed outlines (raster sampling 0.0166 mm), not editable text. The page expands if necessary without changing the project. No images, textures or clips. Check in the target program before laser cutting.','No separate areas to ungroup. Holes and overlapping outlines stay together.','Laser SVG saved. The export page was expanded; the project is unchanged.','Laser SVG saved. Text is included as approximate outlines. Check in the target program before manufacturing.','Calculating laser SVG …'],
+      fr:['SVG pour laser (texte en contours)','Texte et texte sur chemin convertis en contours fermés approximatifs (échantillonnage 0,0166 mm), non éditables comme texte. Page agrandie si nécessaire, projet inchangé. Sans images, textures ni découpes. Vérifiez dans le logiciel cible avant découpe.','Aucune zone distincte à dissocier. Les trous et contours superposés restent ensemble.','SVG laser enregistré. Page d’export agrandie ; projet inchangé.','SVG laser enregistré. Texte en contours approximatifs. Vérifiez dans le logiciel cible avant fabrication.','Calcul du SVG laser …'],
+      it:['SVG per laser (testo come contorni)','Testo e testo su tracciato approssimati come contorni chiusi (campionamento 0,0166 mm), non testo modificabile. Pagina ampliata se necessario, progetto invariato. Niente immagini, texture o ritagli. Verifica nel programma di destinazione prima del laser.','Nessuna area separata da dividere. Fori e contorni sovrapposti rimangono insieme.','SVG laser salvato. Pagina di esportazione ampliata; progetto invariato.','SVG laser salvato. Testo come contorni approssimati. Verifica nel programma di destinazione prima della produzione.','Calcolo SVG laser …'],
+      es:['SVG para láser (texto como contornos)','Texto y texto en trazado aproximados como contornos cerrados (muestreo 0,0166 mm), no texto editable. La página se amplía si hace falta sin cambiar el proyecto. Sin imágenes, texturas ni recortes. Comprueba en el programa de destino antes del láser.','No hay áreas separadas para desagrupar. Los huecos y contornos superpuestos permanecen unidos.','SVG láser guardado. Página de exportación ampliada; proyecto sin cambios.','SVG láser guardado. Texto con contornos aproximados. Comprueba en el programa de destino antes de fabricar.','Calculando SVG láser …'],
+      pt:['SVG para laser (texto em contornos)','Texto e texto em caminho aproximados como contornos fechados (amostragem 0,0166 mm), não texto editável. A página aumenta se necessário sem alterar o projeto. Sem imagens, texturas ou recortes. Verifique no programa de destino antes do laser.','Não há áreas separadas para desagrupar. Furos e contornos sobrepostos ficam juntos.','SVG laser guardado. Página de exportação ampliada; projeto inalterado.','SVG laser guardado. Texto em contornos aproximados. Verifique no programa de destino antes de fabricar.','A calcular SVG laser …'],
+      nl:['SVG voor laser (tekst als contouren)','Tekst en tekst op paden worden benaderd als gesloten contouren (rasterstap 0,0166 mm), niet als bewerkbare tekst. Pagina zo nodig vergroot, project ongewijzigd. Geen afbeeldingen, texturen of knippaden. Controleer vóór het laseren in het doelprogramma.','Geen losse vlakken om te splitsen. Gaten en overlappende contouren blijven samen.','Laser-SVG opgeslagen. Exportpagina vergroot; project ongewijzigd.','Laser-SVG opgeslagen. Tekst bevat benaderde contouren. Controleer vóór productie in het doelprogramma.','Laser-SVG berekenen …'],
+      pl:['SVG do lasera (tekst jako kontury)','Tekst i tekst na ścieżce jako przybliżone zamknięte kontury (próbkowanie 0,0166 mm), nie edytowalny tekst. Strona powiększa się w razie potrzeby bez zmiany projektu. Bez obrazów, tekstur i przycięć. Sprawdź w programie docelowym przed cięciem.','Brak oddzielnych obszarów do rozgrupowania. Otwory i nakładające się kontury pozostają razem.','Zapisano SVG do lasera. Powiększono stronę eksportu; projekt bez zmian.','Zapisano SVG do lasera. Tekst zawiera przybliżone kontury. Sprawdź w programie docelowym przed produkcją.','Obliczanie SVG do lasera …'],
+      cs:['SVG pro laser (text jako obrysy)','Text a text na cestě jako přibližné uzavřené obrysy (vzorkování 0,0166 mm), nikoli upravitelný text. Stránka se dle potřeby zvětší bez změny projektu. Bez obrázků, textur a ořezů. Před laserem ověřte v cílovém programu.','Žádné oddělené plochy k rozdělení. Otvory a překrývající se obrysy zůstávají společně.','Laserové SVG uloženo. Exportní stránka zvětšena; projekt beze změny.','Laserové SVG uloženo. Text je tvořen přibližnými obrysy. Před výrobou ověřte v cílovém programu.','Výpočet laserového SVG …'],
+      sk:['SVG pre laser (text ako obrysy)','Text a text na ceste ako približné uzavreté obrysy (vzorkovanie 0,0166 mm), nie upraviteľný text. Stránka sa podľa potreby zväčší bez zmeny projektu. Bez obrázkov, textúr a orezov. Pred laserom overte v cieľovom programe.','Žiadne oddelené plochy na rozdelenie. Otvory a prekrývajúce sa obrysy zostávajú spolu.','Laserové SVG uložené. Exportná stránka zväčšená; projekt bez zmeny.','Laserové SVG uložené. Text má približné obrysy. Pred výrobou overte v cieľovom programe.','Výpočet laserového SVG …'],
+      ro:['SVG pentru laser (text ca contururi)','Textul și textul pe cale devin contururi închise aproximative (eșantionare 0,0166 mm), nu text editabil. Pagina se extinde la nevoie fără a schimba proiectul. Fără imagini, texturi sau decupaje. Verificați în programul țintă înainte de laser.','Nu există zone separate de degrupat. Golurile și contururile suprapuse rămân împreună.','SVG laser salvat. Pagina exportată a fost extinsă; proiect neschimbat.','SVG laser salvat. Textul are contururi aproximative. Verificați în programul țintă înainte de producție.','Se calculează SVG laser …'],
+      hu:['SVG lézerhez (szöveg kontúrként)','Szöveg és görbén futó szöveg közelítő zárt kontúrként (0,0166 mm mintavétel), nem szerkeszthető szövegként. Szükség esetén az oldal bővül, a projekt nem változik. Képek, textúrák és kivágások nélkül. Lézerezés előtt ellenőrizze a célprogramban.','Nincsenek különálló területek a szétbontáshoz. A lyukak és átfedő kontúrok együtt maradnak.','Lézer-SVG mentve. Az exportoldal bővült; a projekt változatlan.','Lézer-SVG mentve. A szöveg közelítő kontúrokat tartalmaz. Gyártás előtt ellenőrizze a célprogramban.','Lézer-SVG számítása …'],
+      el:['SVG για λέιζερ (κείμενο ως περιγράμματα)','Κείμενο και κείμενο σε διαδρομή ως προσεγγιστικά κλειστά περιγράμματα (δειγματοληψία 0,0166 mm), όχι επεξεργάσιμο κείμενο. Η σελίδα επεκτείνεται αν χρειάζεται, το έργο μένει ίδιο. Χωρίς εικόνες, υφές ή αποκοπές. Ελέγξτε στο πρόγραμμα προορισμού πριν το λέιζερ.','Δεν υπάρχουν χωριστές περιοχές για αποομαδοποίηση. Οπές και επικαλυπτόμενα περιγράμματα μένουν μαζί.','Το SVG λέιζερ αποθηκεύτηκε. Η σελίδα εξαγωγής επεκτάθηκε· το έργο έμεινε ίδιο.','Το SVG λέιζερ αποθηκεύτηκε με προσεγγιστικά περιγράμματα κειμένου. Ελέγξτε στο πρόγραμμα προορισμού πριν την κατασκευή.','Υπολογισμός SVG λέιζερ …'],
+      sv:['SVG för laser (text som konturer)','Text och text på bana approximeras som slutna konturer (rastersampling 0,0166 mm), inte redigerbar text. Sidan utökas vid behov utan projektändring. Inga bilder, texturer eller klipp. Kontrollera i målprogrammet före laserskärning.','Inga separata ytor att dela upp. Hål och överlappande konturer hålls ihop.','Laser-SVG sparad. Exportsidan utökad; projektet är oförändrat.','Laser-SVG sparad. Text som ungefärliga konturer. Kontrollera i målprogrammet före tillverkning.','Beräknar laser-SVG …'],
+      da:['SVG til laser (tekst som konturer)','Tekst og tekst på sti tilnærmes som lukkede konturer (rasterprøve 0,0166 mm), ikke redigerbar tekst. Siden udvides om nødvendigt uden projektændring. Ingen billeder, teksturer eller klip. Kontrollér i målprogrammet før laserskæring.','Ingen separate flader at opdele. Huller og overlappende konturer forbliver sammen.','Laser-SVG gemt. Eksportsiden udvidet; projektet er uændret.','Laser-SVG gemt. Tekst som tilnærmede konturer. Kontrollér i målprogrammet før fremstilling.','Beregner laser-SVG …'],
+      no:['SVG for laser (tekst som konturer)','Tekst og tekst på bane tilnærmes som lukkede konturer (rasterprøve 0,0166 mm), ikke redigerbar tekst. Siden utvides ved behov uten prosjektendring. Ingen bilder, teksturer eller klipp. Kontroller i målprogrammet før laserskjæring.','Ingen separate flater å dele opp. Hull og overlappende konturer forblir samlet.','Laser-SVG lagret. Eksportsiden utvidet; prosjektet er uendret.','Laser-SVG lagret. Tekst som tilnærmede konturer. Kontroller i målprogrammet før produksjon.','Beregner laser-SVG …'],
+      fi:['SVG laserille (teksti ääriviivoina)','Teksti ja polkuteksti likimääräisinä suljettuina ääriviivoina (rasterinäyte 0,0166 mm), ei muokattavana tekstinä. Sivua laajennetaan tarvittaessa muuttamatta projektia. Ei kuvia, tekstuureja tai leikkauksia. Tarkista kohdeohjelmassa ennen laserleikkausta.','Ei erillisiä alueita purettavaksi. Reiät ja päällekkäiset ääriviivat pysyvät yhdessä.','Laser-SVG tallennettu. Vientisivua laajennettu; projekti ennallaan.','Laser-SVG tallennettu. Teksti likimääräisinä ääriviivoina. Tarkista kohdeohjelmassa ennen valmistusta.','Lasketaan laser-SVG:tä …'],
+      ca:['SVG per a làser (text com a contorns)','Text i text sobre camí aproximats com a contorns tancats (mostreig 0,0166 mm), no text editable. La pàgina s’amplia si cal sense canviar el projecte. Sense imatges, textures ni retalls. Comproveu al programa de destinació abans del làser.','No hi ha àrees separades per desagrupar. Els forats i contorns superposats romanen junts.','SVG làser desat. Pàgina d’exportació ampliada; projecte sense canvis.','SVG làser desat. Text amb contorns aproximats. Comproveu al programa de destinació abans de fabricar.','Calculant SVG làser …'],
+      tr:['Lazer için SVG (metin kontur olarak)','Metin ve yol üzerindeki metin, düzenlenebilir metin yerine yaklaşık kapalı konturlardır (0,0166 mm raster örnekleme). Sayfa gerekirse genişler, proje değişmez. Resim, doku veya kırpma yoktur. Lazerden önce hedef programda kontrol edin.','Grubu çözülecek ayrı alan yok. Delikler ve örtüşen konturlar birlikte kalır.','Lazer SVG kaydedildi. Dışa aktarma sayfası genişletildi; proje değişmedi.','Lazer SVG kaydedildi. Metin yaklaşık konturlar içerir. Üretimden önce hedef programda kontrol edin.','Lazer SVG hesaplanıyor …'],
+      ru:['SVG для лазера (текст в контурах)','Текст и текст по пути приближённо преобразуются в замкнутые контуры (шаг растра 0,0166 мм), не редактируемый текст. Страница при необходимости расширяется без изменения проекта. Без изображений, текстур и обрезок. Проверьте в целевой программе перед резкой.','Нет отдельных областей для разгруппировки. Отверстия и перекрывающиеся контуры остаются вместе.','Лазерный SVG сохранён. Страница экспорта расширена; проект не изменён.','Лазерный SVG сохранён с приближёнными контурами текста. Проверьте в целевой программе перед изготовлением.','Вычисление лазерного SVG …'],
+      uk:['SVG для лазера (текст у контурах)','Текст і текст на шляху наближено перетворюються на замкнені контури (крок растра 0,0166 мм), не редагований текст. Сторінка за потреби розширюється без зміни проєкту. Без зображень, текстур і обрізання. Перевірте в цільовій програмі перед різанням.','Немає окремих областей для розгрупування. Отвори та перекриті контури залишаються разом.','Лазерний SVG збережено. Сторінку експорту розширено; проєкт не змінено.','Лазерний SVG збережено з наближеними контурами тексту. Перевірте в цільовій програмі перед виготовленням.','Обчислення лазерного SVG …'],
+      bg:['SVG за лазер (текст като контури)','Текстът и текстът по път стават приблизителни затворени контури (растерна стъпка 0,0166 mm), не редактируем текст. Страницата се разширява при нужда без промяна на проекта. Без изображения, текстури и изрязвания. Проверете в целевата програма преди лазерно рязане.','Няма отделни области за разгрупиране. Отворите и припокриващите се контури остават заедно.','Лазерният SVG е запазен. Страницата за експорт е разширена; проектът не е променен.','Лазерният SVG е запазен с приблизителни контури на текста. Проверете в целевата програма преди изработка.','Изчисляване на лазерен SVG …'],
+      zh:['激光用 SVG（文字转轮廓）','文字及路径文字近似转换为闭合轮廓（栅格采样 0.0166 mm），不再是可编辑文字。必要时扩大页面，不修改项目。不含图片、纹理或裁剪。激光加工前请在目标程序中检查。','没有可拆分的独立区域。孔洞和重叠轮廓保持在一起。','激光 SVG 已保存。导出页面已扩大，项目未变。','激光 SVG 已保存，文字为近似轮廓。加工前请在目标程序中检查。','正在计算激光 SVG …'],
+      ja:['レーザー用SVG（文字を輪郭に変換）','文字とパス上の文字を閉じた輪郭として近似します（ラスタ標本間隔0.0166 mm）。編集可能な文字ではありません。必要に応じてページを拡張し、プロジェクトは変更しません。画像、テクスチャ、クリップは未対応です。レーザー加工前に使用先のソフトで確認してください。','分割できる独立領域はありません。穴と重なった輪郭は一体のまま保持します。','レーザーSVGを保存しました。書き出しページを拡張しましたが、プロジェクトは未変更です。','文字を近似輪郭にしたレーザーSVGを保存しました。加工前に使用先のソフトで確認してください。','レーザーSVGを計算中 …'],
+      ko:['레이저용 SVG (텍스트를 윤곽선으로)','일반 텍스트와 경로 텍스트를 닫힌 윤곽선으로 근사합니다(래스터 샘플링 0.0166 mm). 편집 가능한 텍스트가 아닙니다. 필요하면 페이지를 넓히며 프로젝트는 변경하지 않습니다. 이미지, 텍스처, 클립은 지원하지 않습니다. 레이저 가공 전에 대상 프로그램에서 확인하세요.','분리할 독립 영역이 없습니다. 구멍과 겹치는 윤곽선은 함께 유지됩니다.','레이저 SVG를 저장했습니다. 내보내기 페이지를 넓혔으며 프로젝트는 그대로입니다.','레이저 SVG를 저장했습니다. 텍스트는 근사 윤곽선입니다. 제작 전에 대상 프로그램에서 확인하세요.','레이저 SVG 계산 중 …'],
+      vi:['SVG cho laser (chữ thành đường viền)','Chữ và chữ trên đường dẫn được xấp xỉ bằng đường viền kín (lấy mẫu raster 0,0166 mm), không còn là chữ chỉnh sửa được. Trang mở rộng khi cần, dự án không đổi. Không hỗ trợ ảnh, họa tiết hay vùng cắt. Kiểm tra trong chương trình đích trước khi cắt laser.','Không có vùng riêng để tách nhóm. Lỗ và đường viền chồng nhau vẫn đi cùng nhau.','Đã lưu SVG laser. Trang xuất được mở rộng; dự án không đổi.','Đã lưu SVG laser với chữ là đường viền xấp xỉ. Kiểm tra trong chương trình đích trước khi sản xuất.','Đang tính SVG laser …'],
+      th:['SVG สำหรับเลเซอร์ (ข้อความเป็นเส้นขอบ)','ข้อความและข้อความตามเส้นทางจะแปลงโดยประมาณเป็นเส้นขอบปิด (สุ่มตัวอย่างราสเตอร์ 0.0166 mm) ไม่ใช่ข้อความที่แก้ไขได้ ขยายหน้าหากจำเป็นโดยไม่เปลี่ยนโครงการ ไม่รองรับภาพ พื้นผิว หรือคลิป ตรวจสอบในโปรแกรมปลายทางก่อนใช้เลเซอร์','ไม่มีพื้นที่แยกให้ยกเลิกกลุ่ม รูและเส้นขอบที่ทับกันจะคงอยู่ด้วยกัน','บันทึก SVG สำหรับเลเซอร์แล้ว ขยายหน้าส่งออกแล้ว โครงการไม่เปลี่ยนแปลง','บันทึก SVG สำหรับเลเซอร์แล้ว ข้อความเป็นเส้นขอบโดยประมาณ ตรวจสอบในโปรแกรมปลายทางก่อนผลิต','กำลังคำนวณ SVG สำหรับเลเซอร์ …'],
+      id:['SVG untuk laser (teks sebagai kontur)','Teks dan teks pada jalur diperkirakan sebagai kontur tertutup (sampel raster 0,0166 mm), bukan teks yang dapat diedit. Halaman diperluas jika perlu tanpa mengubah proyek. Tanpa gambar, tekstur atau klip. Periksa di program tujuan sebelum pemotongan laser.','Tidak ada area terpisah untuk diurai. Lubang dan kontur bertumpuk tetap bersama.','SVG laser disimpan. Halaman ekspor diperluas; proyek tidak berubah.','SVG laser disimpan. Teks berupa perkiraan kontur. Periksa di program tujuan sebelum produksi.','Menghitung SVG laser …'],
+      hi:['लेज़र हेतु SVG (पाठ रूपरेखाओं में)','पाठ और पथ पर पाठ को बंद रूपरेखाओं से अनुमानित किया जाता है (रास्टर नमूना 0.0166 mm), संपादन योग्य पाठ नहीं। ज़रूरत पर पृष्ठ बढ़ता है, परियोजना नहीं बदलती। चित्र, टेक्सचर या क्लिप नहीं। लेज़र से पहले लक्ष्य प्रोग्राम में जाँचें।','अलग करने के लिए स्वतंत्र क्षेत्र नहीं हैं। छेद और एक-दूसरे पर चढ़ी रूपरेखाएँ साथ रहेंगी।','लेज़र SVG सहेजा गया। निर्यात पृष्ठ बढ़ाया गया; परियोजना अपरिवर्तित है।','लेज़र SVG सहेजा गया। पाठ अनुमानित रूपरेखाओं में है। निर्माण से पहले लक्ष्य प्रोग्राम में जाँचें।','लेज़र SVG की गणना हो रही है …'],
+      ar:['SVG لليزر (النص كمحيطات)','يُقرَّب النص والنص على المسار بمحيطات مغلقة (أخذ عينات نقطية 0.0166 mm)، وليس كنص قابل للتحرير. تُوسَّع الصفحة عند الحاجة دون تغيير المشروع. لا صور أو زخارف أو قصاصات. تحقّق في البرنامج المستهدف قبل القطع بالليزر.','لا توجد مساحات منفصلة لفك تجميعها. تبقى الثقوب والمحيطات المتداخلة معًا.','حُفظ SVG الليزر. وُسِّعت صفحة التصدير؛ المشروع لم يتغير.','حُفظ SVG الليزر. النص مُمثَّل بمحيطات تقريبية. تحقّق في البرنامج المستهدف قبل التصنيع.','جارٍ حساب SVG الليزر …'],
+      he:['SVG ללייזר (טקסט כקווי מתאר)','טקסט וטקסט על נתיב מומרים בקירוב לקווי מתאר סגורים (דגימת רסטר 0.0166 mm), ולא לטקסט עריך. הדף מורחב לפי הצורך ללא שינוי הפרויקט. ללא תמונות, מרקמים או חיתוכים. בדקו בתוכנת היעד לפני חיתוך בלייזר.','אין אזורים נפרדים לפירוק. חורים וקווי מתאר חופפים נשארים יחד.','SVG ללייזר נשמר. דף הייצוא הורחב; הפרויקט לא השתנה.','SVG ללייזר נשמר. הטקסט כלול כקווי מתאר מקורבים. בדקו בתוכנת היעד לפני ייצור.','מחשב SVG ללייזר …'],
+      fa:['SVG برای لیزر (متن به‌صورت خط دور)','متن و متن روی مسیر با خط‌های دور بسته تقریب زده می‌شوند (نمونه‌برداری رستری 0.0166 mm)، نه متن قابل‌ویرایش. صفحه در صورت نیاز گسترش می‌یابد، پروژه تغییر نمی‌کند. بدون تصویر، بافت یا برش. پیش از لیزر در برنامه مقصد بررسی کنید.','ناحیه جداگانه‌ای برای بازکردن گروه وجود ندارد. سوراخ‌ها و خط‌های دور هم‌پوشان با هم می‌مانند.','SVG لیزر ذخیره شد. صفحه خروجی گسترش یافت؛ پروژه تغییر نکرد.','SVG لیزر ذخیره شد. متن به‌صورت خط‌های دور تقریبی است. پیش از ساخت در برنامه مقصد بررسی کنید.','در حال محاسبه SVG لیزر …']
+    };
+    Object.keys(values).forEach(function(lang){keys.forEach(function(key,i){DICT[lang][key]=values[lang][i];});});
+  })();
   var KNOWN = Object.create(null), REVERSE = Object.create(null);
   var TEMPLATE_RULES = [], RULES_BY_LANG = Object.create(null), MESSAGE_PREFIXES = [], i18nReady = false;
   var origTx = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -54902,7 +55295,9 @@ installBriefToolPreview();
     var els=root.matches&&root.matches('['+attr+']')?[root]:[];
     if(root.querySelectorAll)els=els.concat(Array.prototype.slice.call(root.querySelectorAll('['+attr+']')));
     els.forEach(function(el){
-      if(el.closest('svg,[data-vt-user-text],.font-btn[data-font]'))return;
+      // The editor SVG's own accessible name is UI; its drawing children are
+      // user artwork and must never be translated.
+      if(el.closest('svg,[data-vt-user-text],.font-btn[data-font]') && !(el.id==='mainSvg' && attr==='aria-label'))return;
       var value=el.getAttribute(attr);if(!value)return;
       var history=origAttrs&&origAttrs.get(el)||{},entry=history[attr];
       var source=entry&&entry.output===value?entry.source:sourceText(value);
@@ -54962,6 +55357,9 @@ installBriefToolPreview();
     document.documentElement.lang = (lang === "de") ? "de-CH" : lang;
     document.documentElement.dir = RTL[lang] ? "rtl" : "ltr";
     translateTree(document.body, lang);
+    [['canvasWrap','Zeichenflaeche'],['mainSvg','Zeichenflaeche'],['vtLanguageTrigger','Sprache']].forEach(function(item){
+      var el=document.getElementById(item[0]);if(el)setAttrIf(el,'aria-label',tr(item[1],lang));
+    });
     var sel = document.getElementById("vtLangSel");
     if(sel && sel.value !== mode) sel.value = mode;
     if(typeof window._vtRefreshStorageNotice==='function')window._vtRefreshStorageNotice();
@@ -55281,6 +55679,12 @@ installBriefToolPreview();
   (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){if(lang!=="de")VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(["Flutet die zusammenhängende sichtbare Farbe am Klickpunkt.","Farbtoleranz","0: nur gleiche Farbe. Höher: ähnliche Farben einbeziehen.","Erzeugt eine neue Vektorfläche. Originale bleiben unverändert. Offene Stellen lassen Farbe durch.","Raster und Auswahlhilfen zählen nicht als Grenze.","Sehr feine Details hängen von der Rasterauflösung ab.","Füllung wird berechnet …","Füllung abgebrochen: Zeichnung wurde inzwischen geändert.","Füllung nicht möglich: Zeichenfläche zu gross. Bitte eine kleinere Zeichenfläche verwenden.","Füllung nicht möglich: sichtbare Grafik konnte nicht zuverlässig gelesen werden.","Füllung zu detailreich. Bitte das Motiv vereinfachen.","Bitte eine sichtbare Füllfarbe wählen.","Klicke innerhalb der Zeichenfläche.","Die gewählte Farbe ist hier bereits vorhanden."],{"de":["Flutet die zusammenhängende sichtbare Farbe am Klickpunkt.","Farbtoleranz","0: nur gleiche Farbe. Höher: ähnliche Farben einbeziehen.","Erzeugt eine neue Vektorfläche. Originale bleiben unverändert. Offene Stellen lassen Farbe durch.","Raster und Auswahlhilfen zählen nicht als Grenze.","Sehr feine Details hängen von der Rasterauflösung ab.","Füllung wird berechnet …","Füllung abgebrochen: Zeichnung wurde inzwischen geändert.","Füllung nicht möglich: Zeichenfläche zu gross. Bitte eine kleinere Zeichenfläche verwenden.","Füllung nicht möglich: sichtbare Grafik konnte nicht zuverlässig gelesen werden.","Füllung zu detailreich. Bitte das Motiv vereinfachen.","Bitte eine sichtbare Füllfarbe wählen.","Klicke innerhalb der Zeichenfläche.","Die gewählte Farbe ist hier bereits vorhanden."],"en":["Flood-fills the contiguous visible colour region at the click point.","Colour tolerance","0: same colour only. Higher: include similar colours.","Creates a new vector shape. Originals remain unchanged. Open gaps let the colour through.","The drawing grid and selection guides do not count as boundaries.","Very fine details depend on the raster resolution.","Calculating fill …","Fill cancelled: the drawing has changed in the meantime.","Cannot fill: the canvas is too large. Please use a smaller canvas.","Cannot fill: the visible artwork could not be read reliably.","The fill is too detailed. Please simplify the design.","Please choose a visible fill colour.","Click inside the canvas.","The selected colour is already present here."],"fr":["Remplit la zone de couleur visible contiguë au point cliqué.","Tolérance de couleur","0 : même couleur uniquement. Plus élevé : inclure les couleurs proches.","Crée une nouvelle forme vectorielle. Les originaux restent inchangés. Les ouvertures laissent passer la couleur.","La grille de dessin et les repères de sélection ne constituent pas des limites.","Les détails très fins dépendent de la résolution de rastérisation.","Calcul du remplissage …","Remplissage annulé : le dessin a été modifié entre-temps.","Remplissage impossible : le plan de travail est trop grand. Veuillez utiliser un plan de travail plus petit.","Remplissage impossible : le graphisme visible n’a pas pu être lu de manière fiable.","Remplissage trop détaillé. Veuillez simplifier le motif.","Veuillez choisir une couleur de remplissage visible.","Cliquez à l’intérieur du plan de travail.","La couleur choisie est déjà présente ici."],"it":["Riempie la regione contigua del colore visibile nel punto selezionato.","Tolleranza colore","0: solo lo stesso colore. Più alta: include colori simili.","Crea una nuova forma vettoriale. Gli originali restano invariati. Le aperture lasciano passare il colore.","La griglia di disegno e le guide di selezione non costituiscono confini.","I dettagli molto fini dipendono dalla risoluzione raster.","Calcolo del riempimento …","Riempimento annullato: il disegno è stato modificato nel frattempo.","Riempimento impossibile: l’area di disegno è troppo grande. Usa un’area di disegno più piccola.","Riempimento impossibile: non è stato possibile leggere in modo affidabile la grafica visibile.","Il riempimento è troppo dettagliato. Semplifica il motivo.","Scegli un colore di riempimento visibile.","Fai clic all’interno dell’area di disegno.","Il colore scelto è già presente qui."],"es":["Rellena la región contigua del color visible en el punto pulsado.","Tolerancia de color","0: solo el mismo color. Más alta: incluye colores similares.","Crea una nueva forma vectorial. Los originales no cambian. Las aberturas dejan pasar el color.","La cuadrícula de dibujo y las guías de selección no cuentan como límites.","Los detalles muy finos dependen de la resolución de rasterización.","Calculando relleno …","Relleno cancelado: el dibujo ha cambiado mientras tanto.","No se puede rellenar: el lienzo es demasiado grande. Usa un lienzo más pequeño.","No se puede rellenar: no se pudo leer el gráfico visible de forma fiable.","El relleno tiene demasiados detalles. Simplifica el motivo.","Elige un color de relleno visible.","Haz clic dentro del lienzo.","El color elegido ya está presente aquí."],"pt":["Preenche a região contígua da cor visível no ponto clicado.","Tolerância de cor","0: apenas a mesma cor. Mais alta: inclui cores semelhantes.","Cria uma nova forma vetorial. Os originais ficam inalterados. As aberturas deixam passar a cor.","A grelha de desenho e as guias de seleção não contam como limites.","Os detalhes muito finos dependem da resolução raster.","A calcular o preenchimento …","Preenchimento cancelado: o desenho foi alterado entretanto.","Não é possível preencher: a área de desenho é demasiado grande. Utilize uma área de desenho mais pequena.","Não é possível preencher: não foi possível ler o gráfico visível de forma fiável.","O preenchimento tem demasiados detalhes. Simplifique o motivo.","Escolha uma cor de preenchimento visível.","Clique dentro da área de desenho.","A cor escolhida já está presente aqui."],"nl":["Vult het aaneengesloten zichtbare kleurgebied op het aangeklikte punt.","Kleurtolerantie","0: alleen dezelfde kleur. Hoger: ook vergelijkbare kleuren.","Maakt een nieuwe vectorvorm. Originelen blijven ongewijzigd. Openingen laten de kleur door.","Het tekenraster en selectiehulpen tellen niet als grenzen.","Zeer fijne details hangen af van de rasterresolutie.","Vulling berekenen …","Vulling afgebroken: de tekening is intussen gewijzigd.","Vullen niet mogelijk: het tekengebied is te groot. Gebruik een kleiner tekengebied.","Vullen niet mogelijk: de zichtbare afbeelding kon niet betrouwbaar worden gelezen.","De vulling bevat te veel details. Vereenvoudig het ontwerp.","Kies een zichtbare vulkleur.","Klik binnen het tekengebied.","De gekozen kleur is hier al aanwezig."],"pl":["Wypełnia spójny obszar widocznego koloru w klikniętym punkcie.","Tolerancja koloru","0: tylko ten sam kolor. Wyższa: uwzględnia podobne kolory.","Tworzy nowy kształt wektorowy. Oryginały pozostają bez zmian. Otwarte przerwy przepuszczają kolor.","Siatka rysowania i znaczniki zaznaczenia nie stanowią granic.","Bardzo drobne szczegóły zależą od rozdzielczości rasteryzacji.","Obliczanie wypełnienia …","Wypełnianie anulowane: rysunek został w międzyczasie zmieniony.","Nie można wypełnić: obszar rysowania jest zbyt duży. Użyj mniejszego obszaru.","Nie można wypełnić: nie udało się wiarygodnie odczytać widocznej grafiki.","Wypełnienie ma zbyt wiele szczegółów. Uprość wzór.","Wybierz widoczny kolor wypełnienia.","Kliknij wewnątrz obszaru rysowania.","Wybrany kolor jest już obecny w tym miejscu."],"cs":["Vyplní souvislou oblast viditelné barvy v místě kliknutí.","Barevná tolerance","0: pouze stejná barva. Vyšší: zahrnout podobné barvy.","Vytvoří nový vektorový tvar. Originály zůstanou beze změny. Otevřené mezery propouštějí barvu.","Kreslicí mřížka a pomůcky výběru se nepovažují za hranice.","Velmi jemné detaily závisí na rozlišení rastru.","Výpočet výplně …","Vyplnění zrušeno: kresba se mezitím změnila.","Nelze vyplnit: kreslicí plocha je příliš velká. Použijte menší kreslicí plochu.","Nelze vyplnit: viditelnou grafiku se nepodařilo spolehlivě načíst.","Výplň obsahuje příliš mnoho detailů. Zjednodušte motiv.","Vyberte viditelnou barvu výplně.","Klikněte uvnitř kreslicí plochy.","Vybraná barva je na tomto místě již přítomna."],"sk":["Vyplní súvislú oblasť viditeľnej farby v mieste kliknutia.","Farebná tolerancia","0: iba rovnaká farba. Vyššia: zahrnúť podobné farby.","Vytvorí nový vektorový tvar. Originály zostanú nezmenené. Otvorené medzery prepúšťajú farbu.","Kresliaca mriežka a pomôcky výberu sa nepovažujú za hranice.","Veľmi jemné detaily závisia od rozlíšenia rastra.","Výpočet výplne …","Vyplnenie zrušené: kresba sa medzitým zmenila.","Nedá sa vyplniť: kresliaca plocha je príliš veľká. Použite menšiu kresliacu plochu.","Nedá sa vyplniť: viditeľnú grafiku sa nepodarilo spoľahlivo načítať.","Výplň obsahuje príliš veľa detailov. Zjednodušte motív.","Vyberte viditeľnú farbu výplne.","Kliknite vnútri kresliacej plochy.","Vybraná farba je na tomto mieste už prítomná."],"ro":["Umple regiunea continuă de culoare vizibilă din punctul pe care faceți clic.","Toleranță de culoare","0: doar aceeași culoare. Mai mare: include culori similare.","Creează o formă vectorială nouă. Originalele rămân neschimbate. Golurile deschise lasă culoarea să treacă.","Grila de desen și ghidajele de selecție nu sunt considerate limite.","Detaliile foarte fine depind de rezoluția raster.","Se calculează umplerea …","Umplere anulată: desenul a fost modificat între timp.","Umplerea nu este posibilă: suprafața de desen este prea mare. Folosiți o suprafață mai mică.","Umplerea nu este posibilă: grafica vizibilă nu a putut fi citită în mod fiabil.","Umplerea conține prea multe detalii. Simplificați motivul.","Alegeți o culoare de umplere vizibilă.","Faceți clic în interiorul suprafeței de desen.","Culoarea aleasă este deja prezentă aici."],"hu":["Kitölti a kattintás helyén látható szín összefüggő területét.","Színtűrés","0: csak azonos szín. Magasabb: hasonló színeket is bevon.","Új vektoros alakzatot hoz létre. Az eredetik változatlanok maradnak. A nyitott réseken átfolyik a szín.","A rajzrács és a kijelölési segédvonalak nem számítanak határnak.","A nagyon finom részletek a raszterfelbontástól függenek.","Kitöltés számítása …","Kitöltés megszakítva: a rajz időközben megváltozott.","A kitöltés nem lehetséges: a rajzterület túl nagy. Használjon kisebb rajzterületet.","A kitöltés nem lehetséges: a látható grafikát nem sikerült megbízhatóan beolvasni.","A kitöltés túl részletgazdag. Egyszerűsítse a mintát.","Válasszon látható kitöltőszínt.","Kattintson a rajzterületen belül.","A kiválasztott szín itt már jelen van."],"el":["Γεμίζει τη συνδεδεμένη περιοχή ορατού χρώματος στο σημείο του κλικ.","Ανοχή χρώματος","0: μόνο το ίδιο χρώμα. Υψηλότερη: περιλαμβάνει παρόμοια χρώματα.","Δημιουργεί νέο διανυσματικό σχήμα. Τα αρχικά παραμένουν αμετάβλητα. Τα ανοιχτά κενά αφήνουν το χρώμα να περάσει.","Το πλέγμα σχεδίασης και οι οδηγοί επιλογής δεν αποτελούν όρια.","Οι πολύ λεπτές λεπτομέρειες εξαρτώνται από την ανάλυση ράστερ.","Υπολογισμός γεμίσματος …","Το γέμισμα ακυρώθηκε: το σχέδιο άλλαξε στο μεταξύ.","Αδύνατο το γέμισμα: ο καμβάς είναι πολύ μεγάλος. Χρησιμοποιήστε μικρότερο καμβά.","Αδύνατο το γέμισμα: τα ορατά γραφικά δεν μπόρεσαν να διαβαστούν αξιόπιστα.","Το γέμισμα έχει υπερβολικά πολλές λεπτομέρειες. Απλοποιήστε το σχέδιο.","Επιλέξτε ένα ορατό χρώμα γεμίσματος.","Κάντε κλικ μέσα στον καμβά.","Το επιλεγμένο χρώμα υπάρχει ήδη εδώ."],"sv":["Fyller det sammanhängande synliga färgområdet vid klickpunkten.","Färgtolerans","0: bara samma färg. Högre: ta med liknande färger.","Skapar en ny vektorform. Originalen förblir oförändrade. Öppna luckor släpper igenom färgen.","Ritnätet och markeringshjälpmedel räknas inte som gränser.","Mycket fina detaljer beror på rasterupplösningen.","Beräknar fyllning …","Fyllningen avbröts: teckningen ändrades under tiden.","Kan inte fylla: ritytan är för stor. Använd en mindre rityta.","Kan inte fylla: den synliga grafiken kunde inte läsas tillförlitligt.","Fyllningen är för detaljerad. Förenkla motivet.","Välj en synlig fyllningsfärg.","Klicka inom ritytan.","Den valda färgen finns redan här."],"da":["Udfylder det sammenhængende synlige farveområde ved klikpunktet.","Farvetolerance","0: kun samme farve. Højere: medtag lignende farver.","Opretter en ny vektorform. Originalerne forbliver uændrede. Åbne mellemrum lader farven passere.","Tegnegitteret og markeringshjælpemidler tæller ikke som grænser.","Meget fine detaljer afhænger af rasteropløsningen.","Beregner udfyldning …","Udfyldning afbrudt: tegningen er ændret i mellemtiden.","Kan ikke udfylde: tegnefladen er for stor. Brug en mindre tegneflade.","Kan ikke udfylde: den synlige grafik kunne ikke læses pålideligt.","Udfyldningen er for detaljeret. Forenkl motivet.","Vælg en synlig fyldfarve.","Klik inden for tegnefladen.","Den valgte farve findes allerede her."],"no":["Fyller det sammenhengende synlige fargeområdet ved klikkpunktet.","Fargetoleranse","0: bare samme farge. Høyere: ta med lignende farger.","Lager en ny vektorform. Originalene forblir uendret. Åpne mellomrom slipper fargen gjennom.","Tegnerutenettet og markeringshjelpemidler teller ikke som grenser.","Svært fine detaljer avhenger av rasteroppløsningen.","Beregner fylling …","Fyllingen ble avbrutt: tegningen er endret i mellomtiden.","Kan ikke fylle: tegneflaten er for stor. Bruk en mindre tegneflate.","Kan ikke fylle: den synlige grafikken kunne ikke leses pålitelig.","Fyllingen er for detaljert. Forenkle motivet.","Velg en synlig fyllfarge.","Klikk innenfor tegneflaten.","Den valgte fargen finnes allerede her."],"fi":["Täyttää napsautuskohdan näkyvän värin yhtenäisen alueen.","Väritoleranssi","0: vain sama väri. Suurempi: myös samankaltaiset värit.","Luo uuden vektorimuodon. Alkuperäiset säilyvät muuttumattomina. Avoimet raot päästävät värin läpi.","Piirtoruudukkoa ja valinnan apumerkkejä ei lasketa rajoiksi.","Hyvin hienot yksityiskohdat riippuvat rasteritarkkuudesta.","Lasketaan täyttöä …","Täyttö peruttu: piirrosta on muutettu sillä välin.","Täyttö ei onnistu: piirtoalue on liian suuri. Käytä pienempää piirtoaluetta.","Täyttö ei onnistu: näkyvää grafiikkaa ei voitu lukea luotettavasti.","Täytössä on liikaa yksityiskohtia. Yksinkertaista kuviota.","Valitse näkyvä täyttöväri.","Napsauta piirtoalueen sisällä.","Valittu väri on jo tässä kohdassa."],"ca":["Emplena la regió contigua del color visible al punt on es fa clic.","Tolerància de color","0: només el mateix color. Més alta: inclou colors semblants.","Crea una forma vectorial nova. Els originals no canvien. Les obertures deixen passar el color.","La graella de dibuix i les guies de selecció no compten com a límits.","Els detalls molt fins depenen de la resolució de rasterització.","S’està calculant el farciment …","Farciment cancel·lat: el dibuix ha canviat mentrestant.","No es pot emplenar: l’àrea de dibuix és massa gran. Feu servir una àrea de dibuix més petita.","No es pot emplenar: no s’ha pogut llegir el gràfic visible de manera fiable.","El farciment té massa detalls. Simplifiqueu el motiu.","Trieu un color de farciment visible.","Feu clic dins de l’àrea de dibuix.","El color triat ja és present aquí."],"tr":["Tıklanan noktadaki görünür rengin bağlantılı bölgesini doldurur.","Renk toleransı","0: yalnızca aynı renk. Daha yüksek: benzer renkleri de dahil et.","Yeni bir vektör şekli oluşturur. Özgün nesneler değişmez. Açık boşluklar rengin geçmesine izin verir.","Çizim ızgarası ve seçim yardımcıları sınır sayılmaz.","Çok ince ayrıntılar raster çözünürlüğüne bağlıdır.","Dolgu hesaplanıyor …","Dolgu iptal edildi: çizim bu sırada değiştirildi.","Dolgu yapılamıyor: çizim alanı çok büyük. Daha küçük bir çizim alanı kullanın.","Dolgu yapılamıyor: görünür grafik güvenilir biçimde okunamadı.","Dolgu çok ayrıntılı. Lütfen motifi sadeleştirin.","Lütfen görünür bir dolgu rengi seçin.","Çizim alanının içine tıklayın.","Seçilen renk burada zaten var."],"ru":["Заливает связную область видимого цвета в точке щелчка.","Допуск цвета","0: только тот же цвет. Выше: включать похожие цвета.","Создаёт новую векторную фигуру. Оригиналы остаются без изменений. Открытые разрывы пропускают цвет.","Сетка рисования и вспомогательные элементы выделения не считаются границами.","Очень мелкие детали зависят от разрешения растра.","Расчёт заливки …","Заливка отменена: рисунок был изменён во время расчёта.","Заливка невозможна: монтажная область слишком велика. Используйте меньшую монтажную область.","Заливка невозможна: не удалось надёжно прочитать видимую графику.","Заливка содержит слишком много деталей. Упростите рисунок.","Выберите видимый цвет заливки.","Щёлкните внутри монтажной области.","Выбранный цвет уже присутствует в этой точке."],"uk":["Заливає зв’язну область видимого кольору в точці клацання.","Допуск кольору","0: лише той самий колір. Вище: включати схожі кольори.","Створює нову векторну фігуру. Оригінали залишаються без змін. Відкриті розриви пропускають колір.","Сітка малювання та допоміжні елементи виділення не вважаються межами.","Дуже дрібні деталі залежать від роздільності растра.","Обчислення заливки …","Заливку скасовано: малюнок було змінено під час обчислення.","Заливка неможлива: область малювання завелика. Використайте меншу область.","Заливка неможлива: не вдалося надійно прочитати видиму графіку.","Заливка містить забагато деталей. Спростіть малюнок.","Виберіть видимий колір заливки.","Клацніть усередині області малювання.","Вибраний колір уже присутній у цій точці."],"bg":["Запълва свързаната област от видимия цвят в точката на щракване.","Цветови толеранс","0: само същият цвят. По-висок: включва подобни цветове.","Създава нова векторна форма. Оригиналите остават непроменени. Отворените пролуки пропускат цвета.","Мрежата за рисуване и помощните елементи за избор не се считат за граници.","Много фините детайли зависят от растерната резолюция.","Изчисляване на запълването …","Запълването е отменено: рисунката е променена междувременно.","Запълването е невъзможно: работната площ е твърде голяма. Използвайте по-малка работна площ.","Запълването е невъзможно: видимата графика не може да бъде прочетена надеждно.","Запълването има твърде много детайли. Опростете мотива.","Изберете видим цвят за запълване.","Щракнете вътре в работната площ.","Избраният цвят вече присъства тук."],"zh":["填充点击处相连的可见颜色区域。","颜色容差","0：仅相同颜色。调高：包含相近颜色。","创建新的矢量形状，原有对象保持不变。颜色会从未闭合的缺口流出。","绘图网格和选择辅助标记不作为边界。","非常精细的细节取决于栅格化分辨率。","正在计算填充 …","填充已取消：绘图在此期间发生了更改。","无法填充：画布过大。请使用较小的画布。","无法填充：无法可靠地读取可见图形。","填充细节过多。请简化图案。","请选择可见的填充颜色。","请在画布内点击。","此处已是所选颜色。"],"ja":["クリックした位置の、つながっている表示色の領域を塗りつぶします。","色の許容差","0：同じ色のみ。値を上げると似た色も含めます。","新しいベクター図形を作成します。元のオブジェクトは変更しません。開いた隙間があると色が漏れます。","描画グリッドと選択用の補助表示は境界になりません。","非常に細かな形状の再現は、ラスタライズ時の解像度に左右されます。","塗りつぶしを計算中 …","塗りつぶしを中止しました。計算中に描画が変更されました。","塗りつぶせません。描画領域が大きすぎます。小さい描画領域を使用してください。","塗りつぶせません。表示中のグラフィックを正しく読み取れませんでした。","塗りつぶしの細部が多すぎます。図柄を簡略化してください。","見える塗り色を選択してください。","描画領域の内側をクリックしてください。","この位置はすでに選択した色です。"],"ko":["클릭한 위치에서 서로 이어진 보이는 색상 영역을 채웁니다.","색상 허용 오차","0: 같은 색만 포함합니다. 값을 높이면 비슷한 색도 포함합니다.","새 벡터 도형을 만듭니다. 원본은 바뀌지 않습니다. 열린 틈으로는 색이 새어 나갑니다.","그리기 격자와 선택 보조 표시는 경계로 간주하지 않습니다.","아주 미세한 디테일은 래스터 해상도에 따라 달라집니다.","채우기 계산 중 …","채우기 취소: 계산 중 그림이 변경되었습니다.","채울 수 없습니다. 캔버스가 너무 큽니다. 더 작은 캔버스를 사용하세요.","채울 수 없습니다. 보이는 그래픽을 신뢰할 수 있게 읽지 못했습니다.","채우기의 디테일이 너무 많습니다. 도안을 단순화하세요.","눈에 보이는 채우기 색을 선택하세요.","캔버스 안쪽을 클릭하세요.","이 위치에는 이미 선택한 색이 있습니다."],"vi":["Tô vùng màu hiển thị liên thông tại điểm nhấp.","Dung sai màu","0: chỉ cùng màu. Cao hơn: bao gồm các màu tương tự.","Tạo một hình véc-tơ mới. Các bản gốc không thay đổi. Khe hở sẽ để màu tràn qua.","Lưới vẽ và dấu hỗ trợ chọn không được tính là ranh giới.","Các chi tiết rất nhỏ phụ thuộc vào độ phân giải raster.","Đang tính vùng tô …","Đã hủy tô màu: bản vẽ đã thay đổi trong lúc tính.","Không thể tô: vùng vẽ quá lớn. Hãy dùng vùng vẽ nhỏ hơn.","Không thể tô: không đọc được đồ họa hiển thị một cách đáng tin cậy.","Vùng tô quá nhiều chi tiết. Hãy đơn giản hóa họa tiết.","Hãy chọn màu tô nhìn thấy được.","Nhấp bên trong vùng vẽ.","Màu đã chọn đã có ở đây."],"th":["เติมสีในบริเวณสีที่มองเห็นและเชื่อมต่อกัน ณ จุดที่คลิก","ค่าความคลาดเคลื่อนของสี","0: เฉพาะสีเดียวกัน ค่าสูงขึ้น: รวมสีที่ใกล้เคียงกัน","สร้างรูปทรงเวกเตอร์ใหม่ ต้นฉบับไม่เปลี่ยน ช่องเปิดจะปล่อยให้สีไหลผ่าน","ตารางวาดและตัวช่วยเลือกไม่นับเป็นขอบเขต","รายละเอียดที่เล็กมากขึ้นอยู่กับความละเอียดในการแปลงเป็นภาพแรสเตอร์","กำลังคำนวณการเติมสี …","ยกเลิกการเติมสี: ภาพวาดถูกเปลี่ยนระหว่างการคำนวณ","เติมสีไม่ได้: พื้นที่วาดใหญ่เกินไป โปรดใช้พื้นที่วาดที่เล็กลง","เติมสีไม่ได้: ไม่สามารถอ่านกราฟิกที่มองเห็นได้อย่างเชื่อถือได้","พื้นที่เติมสีมีรายละเอียดมากเกินไป โปรดลดความซับซ้อนของลาย","โปรดเลือกสีเติมที่มองเห็นได้","คลิกภายในพื้นที่วาด","บริเวณนี้มีสีที่เลือกอยู่แล้ว"],"id":["Mengisi area warna terlihat yang saling terhubung di titik klik.","Toleransi warna","0: hanya warna yang sama. Lebih tinggi: sertakan warna serupa.","Membuat bentuk vektor baru. Objek asli tetap tidak berubah. Celah terbuka membiarkan warna mengalir lewat.","Kisi gambar dan penanda seleksi tidak dihitung sebagai batas.","Detail yang sangat halus bergantung pada resolusi raster.","Menghitung isian …","Pengisian dibatalkan: gambar telah berubah sementara itu.","Tidak dapat mengisi: kanvas terlalu besar. Gunakan kanvas yang lebih kecil.","Tidak dapat mengisi: grafis yang terlihat tidak dapat dibaca dengan andal.","Isian terlalu terperinci. Sederhanakan motif.","Pilih warna isian yang terlihat.","Klik di dalam kanvas.","Warna yang dipilih sudah ada di sini."],"hi":["क्लिक किए गए बिंदु पर दिखाई देने वाले रंग का जुड़ा हुआ क्षेत्र भरता है।","रंग सहनशीलता","0: केवल वही रंग। अधिक: मिलते-जुलते रंग भी शामिल करें।","नई वेक्टर आकृति बनाता है। मूल ऑब्जेक्ट नहीं बदलते। खुले हिस्सों से रंग बाहर जा सकता है।","ड्रॉइंग ग्रिड और चयन सहायक सीमाएँ नहीं माने जाते।","बहुत बारीक विवरण रास्टर रिज़ॉल्यूशन पर निर्भर करते हैं।","भराव की गणना हो रही है …","भराव रद्द: इस दौरान चित्र बदल दिया गया है।","भरना संभव नहीं: कैनवस बहुत बड़ा है। कृपया छोटा कैनवस इस्तेमाल करें।","भरना संभव नहीं: दिखाई देने वाली ग्राफ़िक को भरोसेमंद तरीके से पढ़ा नहीं जा सका।","भराव में बहुत अधिक विवरण हैं। कृपया डिज़ाइन सरल करें।","कृपया दिखाई देने वाला भराव रंग चुनें।","कैनवस के अंदर क्लिक करें।","चुना गया रंग यहाँ पहले से मौजूद है।"],"ar":["يملأ منطقة اللون المرئي المتصلة عند نقطة النقر.","تسامح اللون","0: اللون نفسه فقط. قيمة أعلى: تضمين الألوان المشابهة.","ينشئ شكلًا متجهيًا جديدًا. تبقى العناصر الأصلية دون تغيير. تسمح الفجوات المفتوحة بمرور اللون.","لا تُعدّ شبكة الرسم وعلامات المساعدة على التحديد حدودًا.","تعتمد التفاصيل الدقيقة جدًا على دقة التنقيط.","جارٍ حساب التعبئة …","أُلغيت التعبئة: تغيّر الرسم أثناء الحساب.","التعبئة غير ممكنة: مساحة الرسم كبيرة جدًا. يرجى استخدام مساحة رسم أصغر.","التعبئة غير ممكنة: تعذّرت قراءة الرسومات الظاهرة بشكل موثوق.","تحتوي التعبئة على تفاصيل كثيرة جدًا. يرجى تبسيط التصميم.","يرجى اختيار لون تعبئة مرئي.","انقر داخل مساحة الرسم.","اللون المختار موجود هنا بالفعل."],"he":["ממלא את אזור הצבע הגלוי והרציף בנקודת הלחיצה.","סבילות צבע","0: רק אותו צבע. ערך גבוה יותר: כולל צבעים דומים.","יוצר צורה וקטורית חדשה. פריטי המקור נשארים ללא שינוי. פתחים מאפשרים לצבע לעבור.","רשת הציור וסימוני העזר לבחירה אינם נחשבים לגבולות.","פרטים עדינים מאוד תלויים ברזולוציית הרסטר.","מחשב מילוי …","המילוי בוטל: הציור השתנה בינתיים.","לא ניתן למלא: משטח הציור גדול מדי. יש להשתמש במשטח קטן יותר.","לא ניתן למלא: לא ניתן היה לקרוא את הגרפיקה הגלויה באופן מהימן.","המילוי מפורט מדי. יש לפשט את העיצוב.","יש לבחור צבע מילוי גלוי.","לחצו בתוך משטח הציור.","הצבע שנבחר כבר קיים כאן."],"fa":["ناحیهٔ پیوستهٔ رنگ قابل مشاهده در محل کلیک را پُر می‌کند.","تلورانس رنگ","0: فقط همان رنگ. بیشتر: رنگ‌های مشابه را هم شامل می‌شود.","یک شکل برداری جدید می‌سازد. نسخه‌های اصلی بدون تغییر می‌مانند. شکاف‌های باز رنگ را عبور می‌دهند.","شبکهٔ ترسیم و نشانه‌های کمکی انتخاب، مرز محسوب نمی‌شوند.","جزئیات بسیار ریز به وضوح رستری وابسته‌اند.","در حال محاسبهٔ پُرکردن …","پُرکردن لغو شد: طرح در این فاصله تغییر کرده است.","پُرکردن ممکن نیست: بوم بیش از حد بزرگ است. لطفاً از بوم کوچک‌تری استفاده کنید.","پُرکردن ممکن نیست: گرافیک قابل مشاهده به‌طور قابل اعتماد خوانده نشد.","جزئیات ناحیهٔ پُرشدنی بیش از حد زیاد است. لطفاً طرح را ساده کنید.","لطفاً رنگ پُرکردن قابل مشاهده‌ای انتخاب کنید.","داخل بوم کلیک کنید.","رنگ انتخاب‌شده از قبل در این نقطه وجود دارد."]});
   /* Distinct F/P/C gesture hints. */
   (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){if(lang!=="de")VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(["Gedrückt halten und zeichnen","Punkte klicken · Enter beendet","Klicken setzt Punkte · Ziehen formt die Kurve"],{"de":["Gedrückt halten und zeichnen","Punkte klicken · Enter beendet","Klicken setzt Punkte · Ziehen formt die Kurve"],"en":["Press and hold to draw","Click to place points · Enter finishes","Click to place points · Drag to shape the curve"],"fr":["Maintenez appuyé pour dessiner","Cliquez pour placer des points · Entrée termine","Cliquez pour placer des points · Faites glisser pour former la courbe"],"it":["Tieni premuto e disegna","Clicca per posizionare punti · Invio termina","Clicca per posizionare punti · Trascina per modellare la curva"],"es":["Mantén pulsado y dibuja","Haz clic para colocar puntos · Intro termina","Haz clic para colocar puntos · Arrastra para dar forma a la curva"],"pt":["Mantenha premido e desenhe","Clique para colocar pontos · Enter termina","Clique para colocar pontos · Arraste para moldar a curva"],"nl":["Houd ingedrukt en teken","Klik om punten te plaatsen · Enter rondt af","Klik om punten te plaatsen · Sleep om de curve te vormen"],"pl":["Przytrzymaj i rysuj","Klikaj, aby dodawać punkty · Enter kończy","Klikaj, aby dodawać punkty · Przeciągaj, aby kształtować krzywą"],"cs":["Držte stisknuté a kreslete","Klikáním přidávejte body · Enter dokončí","Klikáním přidávejte body · Tažením tvarujte křivku"],"sk":["Držte stlačené a kreslite","Klikaním pridávajte body · Enter dokončí","Klikaním pridávajte body · Ťahaním tvarujte krivku"],"ro":["Ține apăsat și desenează","Clic pentru a plasa puncte · Enter finalizează","Clic pentru a plasa puncte · Trage pentru a modela curba"],"hu":["Tartsd lenyomva, és rajzolj","Kattintással helyezz el pontokat · Enter: befejezés","Kattintással helyezz el pontokat · Húzással formáld a görbét"],"el":["Κράτα πατημένο και σχεδίασε","Κλικ για τοποθέτηση σημείων · Enter για ολοκλήρωση","Κλικ για τοποθέτηση σημείων · Σύρε για να διαμορφώσεις την καμπύλη"],"sv":["Håll ned och rita","Klicka för att placera punkter · Enter avslutar","Klicka för att placera punkter · Dra för att forma kurvan"],"da":["Hold nede og tegn","Klik for at placere punkter · Enter afslutter","Klik for at placere punkter · Træk for at forme kurven"],"no":["Hold inne og tegn","Klikk for å plassere punkter · Enter avslutter","Klikk for å plassere punkter · Dra for å forme kurven"],"fi":["Pidä painettuna ja piirrä","Lisää pisteitä napsauttamalla · Enter viimeistelee","Lisää pisteitä napsauttamalla · Muotoile käyrää vetämällä"],"ca":["Mantén premut i dibuixa","Fes clic per col·locar punts · Retorn acaba","Fes clic per col·locar punts · Arrossega per donar forma a la corba"],"tr":["Basılı tutarak çiz","Nokta yerleştirmek için tıkla · Enter ile bitir","Nokta yerleştirmek için tıkla · Eğriyi şekillendirmek için sürükle"],"ru":["Нажмите и удерживайте, чтобы рисовать","Щёлкайте, чтобы ставить точки · Enter завершает","Щёлкайте, чтобы ставить точки · Тяните, чтобы придать форму кривой"],"uk":["Натисніть і утримуйте, щоб малювати","Клацайте, щоб ставити точки · Enter завершує","Клацайте, щоб ставити точки · Тягніть, щоб надати форму кривій"],"bg":["Задръжте натиснато и рисувайте","Щраквайте за поставяне на точки · Enter завършва","Щраквайте за поставяне на точки · Плъзгайте, за да оформите кривата"],"zh":["按住并绘制","单击放置点 · 按 Enter 完成","单击放置点 · 拖动调整曲线"],"ja":["押したまま描く","クリックで点を置く · Enterで完了","クリックで点を置く · ドラッグで曲線を調整"],"ko":["누른 채로 그리기","클릭하여 점 배치 · Enter로 완료","클릭하여 점 배치 · 드래그하여 곡선 모양 조정"],"vi":["Nhấn giữ và vẽ","Nhấp để đặt điểm · Enter để hoàn tất","Nhấp để đặt điểm · Kéo để tạo dáng đường cong"],"th":["กดค้างไว้แล้ววาด","คลิกเพื่อวางจุด · กด Enter เพื่อจบ","คลิกเพื่อวางจุด · ลากเพื่อปรับรูปทรงเส้นโค้ง"],"id":["Tekan dan tahan untuk menggambar","Klik untuk menempatkan titik · Enter untuk selesai","Klik untuk menempatkan titik · Seret untuk membentuk kurva"],"hi":["दबाए रखकर चित्र बनाएँ","बिंदु रखने के लिए क्लिक करें · Enter से पूरा करें","बिंदु रखने के लिए क्लिक करें · वक्र को आकार देने के लिए खींचें"],"ar":["اضغط باستمرار وارسم","انقر لوضع النقاط · Enter للإنهاء","انقر لوضع النقاط · اسحب لتشكيل المنحنى"],"he":["לחצו והחזיקו כדי לצייר","לחצו להצבת נקודות · Enter לסיום","לחצו להצבת נקודות · גררו לעיצוב העקומה"],"fa":["فشار دهید، نگه دارید و رسم کنید","برای گذاشتن نقطه کلیک کنید · Enter برای پایان","برای گذاشتن نقطه کلیک کنید · برای شکل دادن به منحنی بکشید"]});
+  /* Selection UI needs a numeric template so counts also update when the
+     language changes without changing the selection. */
+  (function(){
+    var values={en:['Object actions','Objects: {count}'],fr:['Actions des objets','Objets : {count}'],it:['Azioni degli oggetti','Oggetti: {count}'],es:['Acciones de objetos','Objetos: {count}'],pt:['Ações dos objetos','Objetos: {count}'],nl:['Objectacties','Objecten: {count}'],pl:['Działania na obiektach','Obiekty: {count}'],cs:['Akce objektů','Objekty: {count}'],sk:['Akcie objektov','Objekty: {count}'],ro:['Acțiuni pentru obiecte','Obiecte: {count}'],hu:['Objektumműveletek','Objektumok: {count}'],el:['Ενέργειες αντικειμένων','Αντικείμενα: {count}'],sv:['Objektåtgärder','Objekt: {count}'],da:['Objekthandlinger','Objekter: {count}'],no:['Objekthandlinger','Objekter: {count}'],fi:['Objektitoiminnot','Objekteja: {count}'],ca:['Accions dels objectes','Objectes: {count}'],tr:['Nesne işlemleri','Nesneler: {count}'],ru:['Действия с объектами','Объекты: {count}'],uk:['Дії з об’єктами','Об’єкти: {count}'],bg:['Действия с обекти','Обекти: {count}'],zh:['对象操作','对象：{count}'],ja:['オブジェクト操作','オブジェクト数：{count}'],ko:['객체 작업','객체 수: {count}'],vi:['Thao tác đối tượng','Đối tượng: {count}'],th:['การทำงานกับวัตถุ','วัตถุ: {count}'],id:['Tindakan objek','Objek: {count}'],hi:['ऑब्जेक्ट क्रियाएँ','ऑब्जेक्ट: {count}'],ar:['إجراءات العناصر','العناصر: {count}'],he:['פעולות אובייקטים','אובייקטים: {count}'],fa:['عملیات اشیا','اشیا: {count}']};
+    ['Objektaktionen','{count} Objekt(e)'].forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});
+  })();
   Object.keys(VT_RELEASE_CATALOG).forEach(function(key){Object.keys(VT_RELEASE_CATALOG[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=VT_RELEASE_CATALOG[key][lang];});});
   /* Alias existing Swiss spelling; do not invent a fallback translation. */
   Object.keys(DICT).forEach(function(lang){if(DICT[lang]["Schliessen"]!=null&&DICT[lang]["Schließen"]==null)DICT[lang]["Schließen"]=DICT[lang]["Schliessen"];});
@@ -55422,7 +55826,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     sel.__vtlDone=true;
     var wrap=document.createElement('span'); wrap.className='vtl-wrap';
     sel.parentNode.insertBefore(wrap, sel.nextSibling);   /* nach dem (versteckten) select, im tb-stack + zwischen den SEL-Markern */
-    var trig=document.createElement('button'); trig.type='button';trig.tabIndex=0;trig.className='vtl-trigger'; trig.id='vtLanguageTrigger';trig.setAttribute('aria-label','Sprache / Language'); trig.setAttribute('aria-haspopup','listbox');trig.setAttribute('aria-controls','vtLanguageList');trig.setAttribute('aria-expanded','false');
+    var trig=document.createElement('button'); trig.type='button';trig.tabIndex=0;trig.className='vtl-trigger'; trig.id='vtLanguageTrigger';trig.setAttribute('aria-label','Sprache'); trig.setAttribute('aria-haspopup','listbox');trig.setAttribute('aria-controls','vtLanguageList');trig.setAttribute('aria-expanded','false');
     var list=document.createElement('div'); list.className='vtl-list';list.id='vtLanguageList';list.setAttribute('role','listbox');list.setAttribute('aria-labelledby',trig.id);
     wrap.appendChild(trig); wrap.appendChild(list);
     function build(){ list.innerHTML='';
@@ -56028,6 +56432,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-02', t:'VT-20261002-local-r14', c:null},
+    {d:'2026-10-02', t:'VT-20261002-local-r13', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r12', c:null},
     {d:'2026-10-01', t:'VT-20261001-local-r7', c:null},
     {d:'2026-10-01', t:'VT-20261001-local-r6', c:null},

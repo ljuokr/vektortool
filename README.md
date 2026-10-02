@@ -10,11 +10,18 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 2 October 2026 release uses the tested `VT-20261002-local-r12` build.
-Remaining validation: actual project-SVG downloads and reopening, final Safari
-and Firefox checks, and a cold offline session. Recent automated checks do not
-replace these browser checks or physical machine/material trials. Back up
-important work and verify exported files in the intended target application.
+The 2 October 2026 release uses the tested `VT-20261002-local-r14` build
+(the local build identifier is retained to keep the tested application bytes unchanged).
+It includes SVG component splitting, a combined selection frame, laser SVG text
+outlines, and fixes for background remnants and empty embroidery fill results.
+Actual project-SVG, laser-SVG, DST and PES downloads have been independently
+inspected. The Gecko tracing-to-embroidery flow was checked in Chromium-based
+browsers. Remaining validation includes full project reopen round trips, final
+Safari/Firefox and cold-offline checks, LightBurn, and physical machine/material
+trials. Back up important work and verify exports in the intended target application.
+Existing traces keep their stored background fragments: retrace the original
+image to use the improved background removal. Very light foreground edges may
+also be removed; small embroidery details still require care.
 Pushing `main` automatically deploys `vektortool.html` to GitHub Pages.
 
 ## What it does
