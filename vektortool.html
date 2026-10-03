@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261002-local-r18 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261003-r19 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -1530,9 +1530,9 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 #tracerProgress .tp-bar > i { display:block; height:100%; width:0%; border-radius:var(--radius-pill); background:var(--ac); transition:width 0.25s ease; }
 #tracerProgress .tp-pct { font-size:12px; font-weight:700; color:var(--ac); font-variant-numeric:tabular-nums; }
 @media (prefers-reduced-motion: reduce) { #tracerProgress .tp-ring { animation-duration:2s; } }
-/* One restrained snap acknowledgement; no scale, halo, or repeated flashing. */
-@keyframes vt-snap-confirm { 0% { opacity:.25; } 18% { opacity:.6; } 100% { opacity:0; } }
-.vt-snap-confirm { animation:vt-snap-confirm 360ms ease-out both; pointer-events:none; }
+/* One brief bright acknowledgement, then a soft fade; no scale or repeat. */
+@keyframes vt-snap-confirm { 0% { opacity:.65; } 14% { opacity:1; } 28% { opacity:.9; } 100% { opacity:0; } }
+.vt-snap-confirm { animation:vt-snap-confirm 520ms ease-out both; pointer-events:none; }
 @media (prefers-reduced-motion: reduce) { .vt-snap-confirm { animation:none; opacity:.45; } }
 @keyframes tp-spin { to { transform:rotate(360deg); } }
 .tracer-topbar { grid-column:1 / span 2; grid-row:1; display:flex; align-items:center; justify-content:space-between; gap:var(--space-6); padding:var(--space-5) var(--space-8); background:var(--white); border-bottom:1px solid var(--border); }
@@ -2033,7 +2033,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   <div class="stitch-workspace-head"><span>Einstellungen</span></div>
   <!-- [stickclose v1] Schliessen-Knopf oben rechts im Stickmodul-Panel (Header-Balken liegt nur ueber der
        Vorschau, darum braucht das Panel einen eigenen X). Per CSS nur im merged Modus sichtbar; delegiert ans bestehende DST-Schliessen. -->
-  <button id="stitchPanelCloseX" type="button" title="Stickerei schliessen" aria-label="Schliessen">&times;</button>
+  <button id="stitchPanelCloseX" type="button" title="Stickerei schliessen" aria-label="Schliessen"><span aria-hidden="true">&times;</span> <span>Schliessen</span></button>
   <div class="stitch-panel-head">
     <div class="stitch-panel-topline">
       <span class="stitch-panel-title">
@@ -12927,7 +12927,7 @@ function _confirmDrawSnap(snap) {
   _clearDrawSnapConfirmation();
   if (!snap || !snap.point || !Number.isFinite(snap.point.x) || !Number.isFinite(snap.point.y)) return;
   var marker = _drawSnapConfirm = {
-    x:snap.point.x, y:snap.point.y, started:Date.now(), duration:360,
+    x:snap.point.x, y:snap.point.y, started:Date.now(), duration:520,
     tool:tool, canvasId:canvasTabs[activeTabIdx] && canvasTabs[activeTabIdx].id
   };
   _drawSnapConfirmTimer = setTimeout(function() {
@@ -34460,14 +34460,14 @@ var _STITCH_LEGACY_PARAMS = {
    v26 stickt eine senkrechte Unterlage vor der sichtbaren Füllung,
    so dass Stabilisierungs-Stiche hinter der Hauptstickerei sitzen.        */
 var _STITCH_TYPE_PRESETS = {
-  fill:   { angle: 0, rowSpacing: 0.3, stitchLength: 3.0, pullCompensation: -0.1, underlay: true, underlayAngle: 90, underlaySpacing: 4.5, underlayStitchLength: 2.5, adjustLastStitch: true, outline: false, outlineStitchLength: 2.5 }, /* [rs-default-03 v1] rs 0.45->0.3 (Lukas 2026-06-12, dichtere Standard-Fuellung; dense-Schwelle ist seit dense-presets v3 flaechenadaptiv 2.0) */
+  fill:   { angle: 0, rowSpacing: 0.3, stitchLength: 3.0, pullCompensation: -0.1, underlay: true, underlayAngle: 90, underlaySpacing: 4.5, underlayStitchLength: 2.5, adjustLastStitch: true, outline: false, outlineScope: 'outer', outlineStitchLength: 2.5 }, /* [rs-default-03 v1] rs 0.45->0.3 (Lukas 2026-06-12, dichtere Standard-Fuellung; dense-Schwelle ist seit dense-presets v3 flaechenadaptiv 2.0) */
   running:{ stitchLength: 2.5 },
   bean:   { stitchLength: 2.5, beanRepeat: 3 },
   satin:  { zigzagWidth: 2.5, stitchLength: 0.4 },
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 246; /* Refresh cached diagnostics for the explicit micro-fill recovery. */
+var _STITCH_CACHE_VERSION = 247; /* Material-boundary finishing, including native curves and edge scope. */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -34478,7 +34478,7 @@ Object.freeze(_STITCH_TYPE_DEFAULTS);
 function _stitchDefaults() {
   return {
     type: 'none',
-    params: { angle: 0, rowSpacing: 0.3, stitchLength: 3.0, pullCompensation: -0.1, underlay: true, underlayAngle: 90, underlaySpacing: 4.5, underlayStitchLength: 2.5, beanRepeat: 3, zigzagWidth: 2.5, adjustLastStitch: true, outline: false, outlineStitchLength: 2.5 }, /* [rs-default-03 v1] rs wie Preset (0.3) */
+    params: { angle: 0, rowSpacing: 0.3, stitchLength: 3.0, pullCompensation: -0.1, underlay: true, underlayAngle: 90, underlaySpacing: 4.5, underlayStitchLength: 2.5, beanRepeat: 3, zigzagWidth: 2.5, adjustLastStitch: true, outline: false, outlineScope: 'outer', outlineStitchLength: 2.5 }, /* [rs-default-03 v1] rs wie Preset (0.3) */
     order: 0,
     needlePoints: [],
     color: null,
@@ -35206,6 +35206,8 @@ function _stitchCacheKey(shape, st) {
       params.underlaySpacing || 3,
       params.underlayStitchLength || 2.5,
       params.outline === true ? 1 : 0,
+      params.outlineScope === 'all' ? 'all' : 'outer',
+      !!_stitchOutlineColorFor(shape),
       params.outlineStitchLength || 2.5,
       /* [satin-dichte-fix v2] rimDensity (Umriss-Satinband-Dichte) MUSS in den Key, sonst wirkt der Regler
          nicht: gefuellte Form mit andersfarbigem Umriss bekommt ein Satin-Rand-Band, dessen Dichte = rimDensity. */
@@ -35240,6 +35242,10 @@ function _stitchCacheKey(shape, st) {
     ].join('|');
   }
   var geomKey = _stitchGeometryCacheKey(shape);
+  /* A finishing edge can touch an UNDER-shape as well as an overlay. Its
+     visibility/owner must invalidate even when the usual fill is unchanged. */
+  if (st.type === 'fill' && params.outline === true)
+    geomKey += '|finish:' + _stitchFinishNeighbourKey(shape);
   /* Include an overlay fingerprint so edits to ON-TOP shapes correctly
      invalidate the cache of the UNDER-shape (whose fill has holes punched
      for the overlays). Without this, moving the eye wouldn't re-calc the
@@ -41407,9 +41413,9 @@ function _calcTextSatinOnPath(shape, opts, bowlFill) {
   for (var ci = 0; ci < lay.length; ci++) {
     var c = lay[ci];
     if (!c || !c.ch || !String(c.ch).trim()) continue;
-    var raw = null;
-    try { raw = window.VTSatinEngine.textToStitches({ text: c.ch, fontFamily: fontFamily, fontSizePx: fontSize, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p, densityMM: _p, bowlFill: bowlFill || 'satin' }); }
-    catch (e) { continue; }
+    /* A failed glyph must block the whole word, never silently disappear
+       from an otherwise successful embroidery export. */
+    var raw = window.VTSatinEngine.textToStitches({ text: c.ch, fontFamily: fontFamily, fontSizePx: fontSize, bold: !!shape.bold, italic: !!shape.italic, pitchMM: _p, densityMM: _p, bowlFill: bowlFill || 'satin' });
     if (!raw || !raw.length) continue;
     var loops = _stitchCharLocalLoops(c.ch, fontStr, fontSize, 4, pad);
     var lMinX = 1e9, lMinY = 1e9, li, pi;
@@ -41421,7 +41427,7 @@ function _calcTextSatinOnPath(shape, opts, bowlFill) {
     var rr = (c.rot || 0) * Math.PI / 180, co = Math.cos(rr), si = Math.sin(rr);
     for (k = 0; k < raw.length; k++) {
       var lxp = raw[k].x + dx, lyp = raw[k].y + dy;
-      out.push({ x: c.x + lxp * co - lyp * si, y: c.y + lxp * si + lyp * co, jump: !!raw[k].jump });
+      out.push(Object.assign({}, raw[k], { x: c.x + lxp * co - lyp * si, y: c.y + lxp * si + lyp * co, jump: !!raw[k].jump }));
     }
   }
   return out;
@@ -42320,11 +42326,146 @@ function _stitchSvgOutlineFallback(shape, lenMM, adjustLast) {
   return out;
 }
 
+function _stitchFinishActiveFill(shape) {
+  return !!(shape && !(shape.mirrorIndex > 0) && shape.stitch &&
+    shape.stitch.type === 'fill' && _stitchExportEligibility(shape).main);
+}
+
+function _stitchFinishNeighbourKey(shape) {
+  var ss=window.shapes||[],parts=['self:'+ss.indexOf(shape)+':'+(shape.stitch&&shape.stitch.order)];
+  for(var i=0;i<ss.length;i++){
+    var other=ss[i];if(other===shape||!_stitchFinishActiveFill(other))continue;
+    var st=other.stitch,p=st.params||{};
+    parts.push([other.id,i,st.order,_stitchGeometryCacheKey(other),p.outline===true,
+      p.outlineScope==='all'?'all':'outer',!!_stitchOutlineColorFor(other),other.type==='text'?other.textStitch:''].join(':'));
+  }
+  return parts.join(';');
+}
+
+/* Immutable raw neighbour geometry: do not recursively ask for its cleaned
+   fill (which depends on this shape). Locking does not hide material. */
+function _stitchFinishRawGeometry(shape) {
+  if(!window._vtStitchFinishRawCache)window._vtStitchFinishRawCache=new WeakMap();
+  var key=_stitchGeometryCacheKey(shape),cached=window._vtStitchFinishRawCache.get(shape);
+  if(cached&&cached.key===key)return cached;
+  var rings=_stitchSampleWorldRings(shape);
+  if(!rings||!rings.length)throw new Error('Stickfläche kann nicht gegen ihre Materialgrenze geprüft werden.');
+  var rule=shape.svgFillRule||((shape.type==='freehand'||shape.type==='path'||shape.type==='line'||shape.type==='arrow'||shape.type==='text')?'evenodd':'nonzero');
+  var d=_stitchMultiPolyToPathD([rings]),hit=_vtStitchBuildIndexedHit(d,rule),edges=[],grid=new Map(),cell=_mm2px(3),entries=0;
+  var bb={l:Infinity,r:-Infinity,t:Infinity,b:-Infinity};
+  for(var ri=0;ri<rings.length;ri++)for(var i=1;i<rings[ri].length;i++){
+    _vtStitchCheckpoint();
+    var a=rings[ri][i-1],b=rings[ri][i],edge={ax:a[0],ay:a[1],bx:b[0],by:b[1]},id=edges.length;
+    if(![edge.ax,edge.ay,edge.bx,edge.by].every(Number.isFinite))throw new Error('Nicht-endliche Stickkontur.');
+    edges.push(edge);bb.l=Math.min(bb.l,a[0],b[0]);bb.r=Math.max(bb.r,a[0],b[0]);bb.t=Math.min(bb.t,a[1],b[1]);bb.b=Math.max(bb.b,a[1],b[1]);
+    for(var y=Math.floor(Math.min(a[1],b[1])/cell);y<=Math.floor(Math.max(a[1],b[1])/cell);y++)
+      for(var x=Math.floor(Math.min(a[0],b[0])/cell);x<=Math.floor(Math.max(a[0],b[0])/cell);x++){
+        if(++entries>2000000)throw new Error('Zu komplexe Kontur für indizierte Flächenprüfung.');
+        var cellKey=x+','+y,list=grid.get(cellKey);if(!list){list=[];grid.set(cellKey,list);}list.push(id);
+      }
+  }
+  cached={key:key,rings:rings,hit:hit,edges:edges,grid:grid,cell:cell,bb:bb};
+  window._vtStitchFinishRawCache.set(shape,cached);return cached;
+}
+
+/* The optional finish follows the SAME visible material boundary that the
+   final safety gate certifies. The old native running-stitch sampler used
+   different curve chords and consequently broke organic rims into jumps.
+   Free means the boundary of the union of active fills, INCLUDING free hole
+   rims. All additionally includes interfaces. If both sides request All,
+   the later stitch object owns their interface (never two finish passes). */
+function _stitchFinishContours(shape) {
+  var geom=_stitchResolveFillGeometry(shape);
+  if(shape._stitchCleanD==='')return [];
+  if(!geom||!geom.outline||geom.outline.length<3)throw new Error('Stickfläche kann nicht gegen ihre Materialgrenze geprüft werden.');
+  var rings=_stitchOutlineToRings(geom.outline),ss=window.shapes||[],neighbours=[],params=shape.stitch&&shape.stitch.params||{},all=params.outlineScope==='all';
+  var myOrder=shape.stitch&&isFinite(shape.stitch.order)?shape.stitch.order:999999,myIndex=ss.indexOf(shape),bb=geom.bb;
+  for(var ni=0;ni<ss.length;ni++){
+    var other=ss[ni];if(other===shape||!_stitchFinishActiveFill(other))continue;
+    _vtStitchCheckpoint();
+    var raw=_stitchFinishRawGeometry(other),ob=raw.bb;
+    if(bb&&(ob.r<bb.x||ob.l>bb.x+bb.w||ob.b<bb.y||ob.t>bb.y+bb.h))continue;
+    var op=other.stitch.params||{},order=isFinite(other.stitch.order)?other.stitch.order:999999;
+    neighbours.push({raw:raw,owns:op.outline===true&&op.outlineScope==='all'&&!_stitchOutlineColorFor(other)&&
+      !(other.type==='text'&&(other.textStitch==='satin'||other.textStitch==='laengs'))&&
+      (order>myOrder||(order===myOrder&&ni>myIndex))});
+  }
+  var ownHit=neighbours.length?_vtStitchBuildIndexedHit(_stitchMultiPolyToPathD([rings]),shape._stitchCleanActive?'evenodd':(shape.svgFillRule||((shape.type==='text'||shape.type==='path'||shape.type==='freehand')?'evenodd':'nonzero'))):null;
+  var out=[],checks=0,probe=_mm2px(0.00001),epsilon=1e-8;
+  function same(a,b){return Math.hypot(a.x-b.x,a.y-b.y)<epsilon;}
+  function point(a,b,t){return{x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t};}
+  function finish(run){if(run&&run.length>1)out.push({pts:run,closed:same(run[0],run[run.length-1])});}
+  for(var ri=0;ri<rings.length;ri++){
+    var ring=rings[ri],run=null,firstRun=out.length;
+    for(var i=1;i<ring.length;i++){
+      _vtStitchCheckpoint();
+      var a=ring[i-1],b=ring[i],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy);if(length<epsilon)continue;
+      var cuts=[0,1];
+      for(var ni=0;ni<neighbours.length;ni++){
+        var raw=neighbours[ni].raw,seen=new Set(),cell=raw.cell;
+        for(var gy=Math.floor(Math.min(a[1],b[1])/cell);gy<=Math.floor(Math.max(a[1],b[1])/cell);gy++)
+          for(var gx=Math.floor(Math.min(a[0],b[0])/cell);gx<=Math.floor(Math.max(a[0],b[0])/cell);gx++){
+            var candidates=raw.grid.get(gx+','+gy)||[];
+            for(var ei=0;ei<candidates.length;ei++){
+              var id=candidates[ei];if(seen.has(id))continue;seen.add(id);
+              if(++checks>2000000)throw new Error('Berechnungsgrenze erreicht. Motiv vereinfachen oder einzelne Farben/Bereiche bewusst ausblenden. Es wird keine unvollständige Stickdatei ausgegeben.');
+              var e=raw.edges[id],ex=e.bx-e.ax,ey=e.by-e.ay,den=dx*ey-dy*ex;
+              if(Math.abs(den)>1e-12){
+                var t=((e.ax-a[0])*ey-(e.ay-a[1])*ex)/den,u=((e.ax-a[0])*dy-(e.ay-a[1])*dx)/den;
+                if(t>0&&t<1&&u>=-epsilon&&u<=1+epsilon)cuts.push(t);
+              }else if(Math.abs((e.ax-a[0])*dy-(e.ay-a[1])*dx)<=epsilon*length){
+                var ll=length*length,t0=((e.ax-a[0])*dx+(e.ay-a[1])*dy)/ll,t1=((e.bx-a[0])*dx+(e.by-a[1])*dy)/ll;
+                if(t0>0&&t0<1)cuts.push(t0);if(t1>0&&t1<1)cuts.push(t1);
+              }
+            }
+          }
+      }
+      cuts.sort(function(a,b){return a-b;});
+      for(var ci=1;ci<cuts.length;ci++){
+        var lo=cuts[ci-1],hi=cuts[ci];if((hi-lo)*length<epsilon)continue;
+        var p=point(a,b,lo),q=point(a,b,hi),mid=point(a,b,(lo+hi)/2),nx=-dy/length*probe,ny=dx/length*probe,keep=true;
+        if(neighbours.length){
+          var left=ownHit.contains(mid.x+nx,mid.y+ny),right=ownHit.contains(mid.x-nx,mid.y-ny);
+          if(left===right){
+            /* A ring inside solid nonzero material is not a material edge. */
+            keep=false;
+          }else{
+            var outsideX=mid.x+(left?-nx:nx),outsideY=mid.y+(left?-ny:ny);
+            for(var ni=0;ni<neighbours.length;ni++){
+              var n=neighbours[ni];
+              if(n.raw.hit.contains(outsideX,outsideY)&&(!all||n.owns)){keep=false;break;}
+            }
+          }
+        }
+        if(keep){if(!run)run=[p];else if(!same(run[run.length-1],p)){finish(run);run=[p];}run.push(q);}
+        else{finish(run);run=null;}
+      }
+    }
+    finish(run);
+    /* A gap can split one ring across its arbitrary source start. Rejoin
+       only identical endpoints; never bridge separate parts or holes. */
+    if(out.length-firstRun>1){
+      var first=out[firstRun],last=out[out.length-1];
+      if(same(last.pts[last.pts.length-1],first.pts[0])){
+        first.pts=last.pts.concat(first.pts.slice(1));first.closed=same(first.pts[0],first.pts[first.pts.length-1]);out.pop();
+      }
+    }
+  }
+  for(var oi=0;oi<out.length;oi++){
+    var pts=out[oi].pts;if(out[oi].closed)pts.pop();
+    /* Preserve genuine corners while allowing bounded chords on smooth rims. */
+    for(var pi=0;pi<pts.length;pi++){
+      var p=pts[pi],a=pts[(pi+pts.length-1)%pts.length],b=pts[(pi+1)%pts.length],ax=p.x-a.x,ay=p.y-a.y,bx=b.x-p.x,by=b.y-p.y;
+      p._contourAnchor=(!out[oi].closed&&(pi===0||pi===pts.length-1))||ax*bx+ay*by<Math.cos(Math.PI/12)*Math.hypot(ax,ay)*Math.hypot(bx,by);
+    }
+  }
+  return out;
+}
+
 /* Only the optional equal-color finish uses bounded chords. Separate colored
    outlines retain the strict vertex-preserving fallback above unchanged. */
 function _stitchSvgFinishOutline(shape, lenMM, adjustLast) {
-  var sourceD=typeof window._getRenderableSvgPathD==='function'?window._getRenderableSvgPathD(shape):shape.svgD;
-  var contours=_stitchFlattenContours(sourceD||'',_stitchSvgSourceMatrix(shape),true);
+  var contours=_stitchFinishContours(shape);
   var step=_mm2px(Math.min(2.5,lenMM>0?lenMM:2.5)),tolerance=_mm2px(0.025),planned=[],spans=[],checks=0;
   function limit(){throw new Error('Berechnungsgrenze erreicht. Motiv vereinfachen oder einzelne Farben/Bereiche bewusst ausblenden. Es wird keine unvollständige Stickdatei ausgegeben.');}
   function append(p,span,jump){
@@ -42333,8 +42474,11 @@ function _stitchSvgFinishOutline(shape, lenMM, adjustLast) {
   }
   for(var si=0;si<contours.length;si++){
     _vtStitchCheckpoint();
-    var contour=contours[si],rotated=_stitchRotatePoints(shape,contour.pts),raw=[];
-    for(var ri=0;ri<rotated.length;ri++)raw.push({x:rotated[ri].x,y:rotated[ri].y,_contourAnchor:!!contour.pts[ri]._contourAnchor});
+    var contour=contours[si],raw=contour.pts.slice();
+    if(contours.length===1&&contour.closed&&raw.length){
+      var bottom=0;for(var bi=1;bi<raw.length;bi++)if(raw[bi].y>raw[bottom].y)bottom=bi;
+      raw=raw.slice(bottom).concat(raw.slice(0,bottom));
+    }
     if(raw.length<2)continue;
     if(contour.closed)raw.push({x:raw[0].x,y:raw[0].y,_contourAnchor:true});
     var dense=[raw[0]];
@@ -42370,12 +42514,15 @@ function _stitchSvgFinishOutline(shape, lenMM, adjustLast) {
     }
   }
   if(planned.length<2)return planned;
-  /* The actual material guard certifies each replacement chord. Probe on a
-     temporary shape to avoid leaking diagnostics from rejected candidates.
+  /* The actual material guard certifies each replacement chord. Use the real
+     identity: a proxy absent from shapes would see the original as an overlay.
+     Restore diagnostics after probing rejected candidates.
      A concave/hole chord with any outside portion restores its original
      strict span, rather than introducing a visible gap or bypassing safety. */
-  var guardShape=Object.create(shape);guardShape.stitch=Object.assign({},shape.stitch||{});
-  var guarded=_fillFinalizeMaterialSegments(guardShape,planned,{pullCompensation:0}),rejected=new Set(),pending=1;
+  var st=shape.stitch,hadInfo=st&&Object.prototype.hasOwnProperty.call(st,'_materialGuardInfo'),savedInfo=st&&st._materialGuardInfo,guarded;
+  try{guarded=_fillFinalizeMaterialSegments(shape,planned,{pullCompensation:0});}
+  finally{if(st){if(hadInfo)st._materialGuardInfo=savedInfo;else delete st._materialGuardInfo;}}
+  var rejected=new Set(),pending=1;
   for(var gi=1;gi<guarded.length;gi++){
     var gp=guarded[gi];
     if(gp.jump&&spans[pending]&&!spans[pending].move)rejected.add(pending);
@@ -42402,6 +42549,9 @@ function _calcFillOutlineStitch(shape, optionalFinish) {
   var params = (st && st.params) || {};
   var lenMM = isFinite(params.outlineStitchLength) ? Number(params.outlineStitchLength) : 2.5;
   if (!(lenMM > 0)) lenMM = 2.5;
+  /* All fill finishes share one topology-preserving material path. General
+     running stitches remain unchanged, as do explicit coloured outlines. */
+  if (optionalFinish) return _stitchSvgFinishOutline(shape,lenMM,true);
   /* SVG outlines use explicit world-space contour vertices below. The general
      running stitch intentionally allows small chords and material bridges;
      those are not valid substitutes for a separate, possibly narrow outline.
@@ -44357,7 +44507,8 @@ function _stitchOpenGearPopover(sid, anchorEl, pending) {
     + '</div>';
 
   pop.innerHTML = hdr + ctrl + body;
-  document.body.appendChild(pop);
+  var workspaceModal = document.getElementById('dstvModal');
+  (workspaceModal && workspaceModal.classList.contains('open') ? workspaceModal : document.body).appendChild(pop);
 
   /* Position: rechts neben/unter dem Anchor, im Viewport halten */
   var r = anchorEl.getBoundingClientRect();
@@ -47076,12 +47227,12 @@ window.__LINEA_DEBUG__ = {
 
 <div id="dstvModal">
   <div class="dstv-top">
-    <!-- VT-STICK-KOPFZEILE v1 --><!-- VT-STICK-TITEL-EMOJI v1 --><div class="dstv-title">&#x1F9F5; Stickerei</div><!-- [ux-feinschliff v1] Lukas: kurzer Titel -->
-    <div class="dstv-filename" id="dstvFilename" role="status" aria-live="polite">Stickerei</div>
+    <div class="dstv-title">Ansicht</div>
+    <div class="dstv-filename" id="dstvFilename" role="status" aria-live="polite"></div>
     <div class="dstv-spacer"></div>
     <div class="dstv-group-btns" id="dstvViewModeGroup">
       <button data-mode="2d" class="dstv-active">2D Linien</button><!-- VT-STICKBEGRIFFE v1: deutsche, laienverstaendliche Ansichts-Labels -->
-      <button data-mode="3d">3D Garn</button>
+      <button data-mode="3d" title="Schematische Garnansicht; Fadendicke und Stoffwirkung können abweichen.">3D Garn</button>
     </div>
     <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nadelbewegungen, keine Garantie für einen Fadenschnitt."><input type="checkbox" id="dstvShowJumps" checked style="accent-color:var(--ac);margin:0;"> Sprünge</label>
     <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Jeden Stich als Punkt markieren"><input type="checkbox" id="dstvShowDots" checked style="accent-color:var(--ac);margin:0;"> Stich-Punkte</label>
@@ -47258,8 +47409,13 @@ window.__LINEA_DEBUG__ = {
             <input id="dgpOutline" type="checkbox" aria-describedby="dgpOutlineHelp dgpOutlineScope" style="cursor:pointer;">
             <span>Konturabschluss</span>
           </label>
-          <p id="dgpOutlineHelp" style="margin:4px 0 0 24px;font-size:var(--fs-xs);color:var(--fg2);">Gleichfarbiger Laufstich nach der Füllung; kein Satinband.</p>
-          <p id="dgpOutlineScope" style="margin:3px 0 0 24px;font-size:var(--fs-xs);color:var(--fg2);">Für sichtbare, ungesperrte Füllflächen ohne andersfarbige Kontur; nicht für Text.</p>
+          <div id="dgpOutlineScopeOptions" role="group" aria-label="Konturabschluss" aria-describedby="dgpOutlineModeHelp" hidden>
+            <label><input type="radio" name="dgpOutlineMode" value="outer" checked><span>Freie Kanten</span></label>
+            <label><input type="radio" name="dgpOutlineMode" value="all"><span>Alle Kanten</span></label>
+          </div>
+          <p id="dgpOutlineHelp" hidden>Gleichfarbiger Laufstich nach der Füllung; kein Satinband.</p>
+          <p id="dgpOutlineScope" hidden>Für sichtbare, ungesperrte Füllflächen ohne andersfarbige Kontur; nicht für Text.</p>
+          <p id="dgpOutlineModeHelp" hidden>Freie Kanten umfassen Aussen- und Lochränder ohne angrenzende Füllfläche. Alle Kanten ergänzen gemeinsame Flächenkanten.</p>
         </div>
         <!-- [tip-always v3] Spitzen-Dropdown entfernt (Lukas): im Hintergrund fest auf "Verjuengt (spitz)" -->
       </div>
@@ -47875,10 +48031,9 @@ window.__LINEA_DEBUG__ = {
     var mode3d = _dstvState.viewMode === '3d';
     var lw2 = Math.max(0.5, 0.4 * Math.pow(_dstvState.zoom, 0.6));
     var lw3 = Math.max(1.0, 1.6 * Math.pow(_dstvState.zoom, 0.6));
-    /* 3D-Faden: normale Stickgarn-Stärke ~0.4mm (40er Garn). 1 DST-Unit = 0.1mm,
-       zoom = Bildschirm-px pro Unit → 0.4mm = 4 Units × zoom. Min damit beim
-       Auszoomen sichtbar. */
-    var thread3d = Math.max(1.2, 4.0 * _dstvState.zoom);
+    /* Schematic display strand, not a calibrated material/thread simulation.
+       Match drawReal's nominal width; 1 DST unit = 0.1 mm. */
+    var thread3d = Math.max(1.0, 2.8 * _dstvState.zoom);
     /* [VT-REALBILD v1] Realistischer Faden-Render (aus Font-Builder portiert) statt der
        einfachen Linsen-Geometrie: pro Farbblock EIN drawReal-Aufruf (fuer Twist-
        Kontinuitaet). Faellt auf die Inline-Linse zurueck, falls die Engine fehlt. */
@@ -47929,7 +48084,7 @@ window.__LINEA_DEBUG__ = {
           if (mode3d && !_realbild) {
             /* Realistischer Faden als LINSE: in der Mitte volle Stärke, an den Stich-
                Endpunkten eingeschnürt = die EINSTICHE (Nadel taucht ins Material).
-               Canvas-Farbe, ~0.4mm. Gezeichnet in Stickreihenfolge → die deckende
+               Canvas-Farbe, nominale Ansichtsbreite. Gezeichnet in Stickreihenfolge → die deckende
                Top-Füllung überdeckt Underlay/Travel, die nur sichtbar bleiben, wo sie
                NICHT überdeckt sind. */
             var dx = s.x - prevS.x, dy = s.y - prevS.y, len = Math.hypot(dx, dy);
@@ -48585,6 +48740,7 @@ window.__LINEA_DEBUG__ = {
      Toggelt body.dstv-with-stitch UND verschiebt physisch die dstv-side
      in den stitchPanel-Body damit beide Seitenleisten visuell zu EINER
      verschmolzen werden. Restore-Position wird gespeichert für Cleanup. */
+  var _v44StitchPanelHome = null;
   function _v44SyncStitchPanelInModal() {
     var modal = document.getElementById('dstvModal');
     var sp = document.getElementById('stitchPanel');
@@ -48592,7 +48748,21 @@ window.__LINEA_DEBUG__ = {
     var globals = document.getElementById('dstvGlobalParams');
     var globalsH3 = side ? side.querySelector('h3') : null;  /* "Globale Parameter" h3 */
     var both = modal && modal.classList.contains('open') && sp && sp.style.display !== 'none';
+    /* Modern modal and legacy all-sections layout must never coexist. */
+    if (both) document.body.classList.remove('stick-mode');
     document.body.classList.toggle('dstv-with-stitch', !!both);
+    /* aria-modal must contain the real settings controls. aria-owns alone is
+       not consistently exposed by platform accessibility trees. Restore the
+       same node after closing; its listeners and editor references survive. */
+    if (both && sp.parentElement !== modal) {
+      if (!_v44StitchPanelHome) {
+        _v44StitchPanelHome = document.createComment('stitch-panel-home');
+        sp.parentNode.insertBefore(_v44StitchPanelHome, sp);
+      }
+      modal.appendChild(sp);
+    } else if (!both && sp && sp.parentElement === modal && _v44StitchPanelHome && _v44StitchPanelHome.parentNode) {
+      _v44StitchPanelHome.parentNode.insertBefore(sp, _v44StitchPanelHome);
+    }
 
     /* v44 (endgültig): Globale Parameter (h3 + Box) werden EINMALIG und
        DAUERHAFT an den Anfang des stitch-panel-body verschoben — egal ob
@@ -48606,6 +48776,9 @@ window.__LINEA_DEBUG__ = {
         spBody.insertBefore(globals, spBody.firstChild);
         if (globalsH3) spBody.insertBefore(globalsH3, globals);
       }
+      var workspaceHead = sp.querySelector('.stitch-workspace-head');
+      var headActions = document.getElementById('dstvGpHeadActions');
+      if (workspaceHead && headActions && headActions.parentElement !== workspaceHead) workspaceHead.appendChild(headActions);
     }
 
     /* nach Layout-Wechsel: DST-Canvas neu vermessen damit das verkleinerte
@@ -48919,7 +49092,9 @@ window.__LINEA_DEBUG__ = {
     return job;
   };
   /* Auch direkter Trigger-Hook für Force-Refresh nach Param-Change */
-  window._dstvReloadFromLinea = function() {
+  window._dstvReloadFromLinea = function(options) {
+    // A newly generated card is a different design; ordinary parameter recalcs keep the view.
+    if (options && options.fitNewDesign === true) _dstvState.fitDone = false;
     _dstvStopScheduled('superseded');
     var revision=++window._dstvPreviewRevision;
     _dstvPreviewStatus('pending','Neuberechnung vorgemerkt…',revision);
@@ -49629,6 +49804,15 @@ window.__LINEA_DEBUG__ = {
         dgpOutline.disabled = !targets.length;
         dgpOutline.checked = !!targets.length && enabled === targets.length;
         dgpOutline.indeterminate = enabled > 0 && enabled < targets.length;
+        var options = document.getElementById('dgpOutlineScopeOptions');
+        if (options) {
+          options.hidden = !enabled;
+          var outlined = targets.filter(function(s) { return s.stitch.params.outline === true; });
+          options.querySelectorAll('input[type="radio"]').forEach(function(radio) {
+            radio.disabled = !enabled;
+            radio.checked = !!outlined.length && outlined.every(function(s) { return (s.stitch.params.outlineScope === 'all' ? 'all' : 'outer') === radio.value; });
+          });
+        }
       };
       function _dgpApplyOutline(enabled) {
         var targets = _dgpOutlineTargets().filter(function(s) { return (s.stitch.params.outline === true) !== enabled; });
@@ -49649,6 +49833,24 @@ window.__LINEA_DEBUG__ = {
           _dgpApplyOutline(this.checked);
         });
       }
+      var dgpOutlineModes = document.getElementById('dgpOutlineScopeOptions');
+      if (dgpOutlineModes) dgpOutlineModes.addEventListener('change', function(e) {
+        var radio = e.target;
+        if (!radio || !radio.checked || radio.name !== 'dgpOutlineMode' || !/^(outer|all)$/.test(radio.value)) return;
+        var targets = _dgpOutlineTargets().filter(function(s) {
+          return (s.stitch.params.outlineScope === 'all' ? 'all' : 'outer') !== radio.value;
+        });
+        if (!targets.length) return;
+        if (typeof window.pu === 'function') window.pu('Konturabschluss');
+        targets.forEach(function(s) {
+          s.stitch.params.outlineScope = radio.value;
+          s.stitch._needleCacheKey = '';
+          s.stitch.needlePoints = [];
+        });
+        window._dgpSyncOutline();
+        if (typeof window._dstvScheduleAutoRecalc === 'function') window._dstvScheduleAutoRecalc();
+        else if (typeof window._vtScheduleProjectSave === 'function') window._vtScheduleProjectSave();
+      });
       /* [satin-dichte v1] Satin-Dichte der LINIEN (gezeichnete Linie/Kontur als Satin) -> Param satinPitch */
       var dgpSatP = document.getElementById('dgpSatinPitch');
       var dgpSatPV = document.getElementById('dgpSatinPitchVal');
@@ -49839,12 +50041,20 @@ window.__LINEA_DEBUG__ = {
           soBox.style.display = collapsed ? 'none' : '';
           if (soCaret) soCaret.style.transform = collapsed ? 'rotate(-90deg)' : '';
         }
-        /* [stickorder v2] Stickreihenfolge standardmaessig OFFEN starten (frueher eingeklappten
-           localStorage-Zustand beim Oeffnen NICHT mehr laden; Toggle bleibt in der Session moeglich). */
-        applyCollapsed(false);
+        /* Keep the advanced sequence quiet at startup; opening is explicit. */
+        applyCollapsed(true);
+        soTitle.setAttribute('role', 'button');
+        soTitle.tabIndex = 0;
+        soTitle.setAttribute('aria-controls', 'stitchOrder');
+        soTitle.setAttribute('aria-expanded', 'false');
+        soTitle.addEventListener('keydown', function(e) {
+          if (e.target !== soTitle || (e.key !== 'Enter' && e.key !== ' ')) return;
+          e.preventDefault(); soTitle.click();
+        });
         soTitle.addEventListener('click', function() {
           var nowCollapsed = soBox.style.display !== 'none';
           applyCollapsed(nowCollapsed);
+          soTitle.setAttribute('aria-expanded', String(!nowCollapsed));
           try { localStorage.setItem('linea_order_collapsed', nowCollapsed ? '1' : '0'); } catch(e){console.warn('[vt:swallowed]',e)}
           /* [stickreihenfolge-refresh v1] Beim AUFKLAPPEN die Liste sicher neu aufbauen, damit sie
              nie leer/veraltet bleibt (Selbstheilung gegen "Reihenfolge auf/zu -> kommt nichts mehr";
@@ -54352,6 +54562,9 @@ _boxBtnEl.addEventListener('click', function() {
         }
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'Tab' || !active) return;
+          /* The test-card dialog has its own trap above this workspace. */
+          var testDialog = document.getElementById('stitchTestDlg');
+          if (testDialog && visible(testDialog)) return;
           var f = foc(active); if (!f.length) { e.preventDefault(); return; }
           var index = f.indexOf(document.activeElement);
           var next = index < 0 ? (e.shiftKey ? f.length - 1 : 0) : (index + (e.shiftKey ? -1 : 1) + f.length) % f.length;
@@ -54522,6 +54735,13 @@ installBriefToolPreview();
       if (box) {
         var on = window._vtTestCardActive();
         box.classList.toggle('vt-testcard-lock', on);
+        /* Lock keyboard edits as well as pointer edits. Header calculation
+           actions remain usable; resetting would destroy the test matrix. */
+        ['dgpAreaSection', 'dgpLineSection', 'dgpTextSection'].forEach(function(id) {
+          var section = document.getElementById(id); if (section) section.inert = on;
+        });
+        var resetButton = document.getElementById('dstvResetView');
+        if (resetButton) resetButton.disabled = on;
         var hint = document.getElementById('vtTestCardHint');
         if (on && !hint) {
           hint = document.createElement('div');
@@ -54596,17 +54816,16 @@ installBriefToolPreview();
     if (v == null || !isFinite(v)) return (v == null ? '' : String(v));
     return (Math.round(v * 1000) / 1000).toString();
   }
-  /* Grobe Textbreite in mm (fuer Zentrierung + gedrehten Y-Titel). Render UND Stich
-     drehen um dasselbe (geschaetzte) Zentrum -> Vorschau und Stickerei bleiben deckungs-
-     gleich, egal wie genau die Schaetzung ist. */
-  function estW(text, hMm) { return String(text).length * hMm * 0.6; }
-  /* [testkarte-schrift v1] Exakte Auto-Width des Text-RENDERERS in mm: der
-     Renderer setzt bei wFixed:false s.w = max(10, len*fs*0.55+4) px bei jedem
-     render() neu. Nur mit identischem w bleibt das Rotationszentrum
-     (s.x+s.w/2) des gedrehten Y-Titels stabil (sonst rutscht der gestickte
-     Streifen textlaengenabhaengig nach links, beim langen Satin-Titel bis
-     ueber den Dokumentrand). */
-  function renderW(text, hMm) { return Math.max(10, String(text).length * mm(hMm) * 0.55 + 4) / mm(1); }
+  /* Use the same measured text box as drawing and embroidery. A historical
+     character-count estimate changed the rotation centre on the first render. */
+  function estW(text, hMm) { return renderW(text, hMm); }
+  function renderW(text, hMm, font) {
+    if (typeof window._vtTextLayout === 'function') {
+      var label = { text: String(text), fontSize: mm(hMm), fontFamily: font || 'Arial', wFixed: false };
+      return window._vtTextLayout(label).width / mm(1);
+    }
+    return Math.max(10, String(text).length * mm(hMm) * 0.6 + 4) / mm(1);
+  }
 
   /* Layout-Margins (mm) + Positionen der Kopf-/Seiten-Beschriftung. buildCard UND
      sizeHint nutzen dieselbe Funktion, damit die Vorschau-Groesse exakt stimmt.
@@ -54631,11 +54850,47 @@ installBriefToolPreview();
     var xLabelY = xTitleY + axisTitleH + 1.2;
     var T = xLabelY + labelH + 1.5;
     var yTitleX = 1.0;
-    var yLabelX = hasY ? (yTitleX + axisTitleH + 1.0) : 1.5;
+    var yLabelX = hasY ? (yTitleX + axisTitleH * 1.2 + 1.0) : 1.5;
     var yLabelW = Math.max(labelH, yValW || labelH * 1.8);
     var L = hasY ? (yLabelX + yLabelW + 1.5) : Math.max(8, labelH * 1.6);
     return { L: L, T: T, titleY: titleY, titleH: titleH, xTitleY: xTitleY, xLabelY: xLabelY,
              yTitleX: yTitleX, yLabelX: yLabelX, axisTitleH: axisTitleH };
+  }
+
+  /* Shared layout envelope for the dialog and the generated card, including
+     measured labels. Do not call a long heading or a rotated title "fits" on
+     the strength of the cell grid alone. The envelope is not a stitch proof. */
+  function cardLayout(cfg) {
+    var xs = cfg.axisX.values, hasY = !!cfg.axisY.param, ys = hasY ? cfg.axisY.values : [null];
+    var nx = xs.length, ny = ys.length, yValW = 0;
+    if (cfg.labels && hasY) ys.forEach(function(v) { yValW = Math.max(yValW, estW(fmt(v), cfg.labelH)); });
+    var M = cardMargins(cfg.labels, cfg.labelH, hasY, yValW);
+    var gridW = nx * cfg.cell + (nx - 1) * cfg.gap;
+    var gridH = ny * cfg.cell + (ny - 1) * cfg.gap;
+    var yTitleW = hasY ? renderW(shortName(cfg.mode, cfg.axisY.param), M.axisTitleH) : 0;
+    if (cfg.labels && hasY) M.T += Math.max(0, (yTitleW - gridH) / 2);
+    var bounds = { minX: M.L, minY: M.T, maxX: M.L + gridW, maxY: M.T + gridH };
+    function add(x, y, w, h) {
+      bounds.minX = Math.min(bounds.minX, x); bounds.minY = Math.min(bounds.minY, y);
+      bounds.maxX = Math.max(bounds.maxX, x + w); bounds.maxY = Math.max(bounds.maxY, y + h);
+    }
+    if (cfg.labels) {
+      var modeLabel = cfg.mode === 'fill' ? 'Fuellstich' : (cfg.mode === 'satin' ? 'Satin-Band' : 'Laufstich');
+      add(M.L, M.titleY, renderW('Stich-Test: ' + modeLabel, M.titleH), M.titleH * 1.2);
+      add(M.L, M.xTitleY, renderW(shortName(cfg.mode, cfg.axisX.param), M.axisTitleH), M.axisTitleH * 1.2);
+      xs.forEach(function(v, i) {
+        var w = estW(fmt(v), cfg.labelH), mid = M.L + i * (cfg.cell + cfg.gap) + cfg.cell / 2;
+        add(mid - w / 2, M.xLabelY, w, cfg.labelH * 1.2);
+      });
+      if (hasY) {
+        ys.forEach(function(v, i) {
+          var w = estW(fmt(v), cfg.labelH);
+          add(M.L - 1.5 - w, M.T + i * (cfg.cell + cfg.gap) + cfg.cell / 2 - cfg.labelH / 2, w, cfg.labelH * 1.2);
+        });
+        add(M.yTitleX, M.T + gridH / 2 - yTitleW / 2, M.axisTitleH * 1.2, yTitleW);
+      }
+    }
+    return { margins: M, bounds: bounds };
   }
 
   /* ---- Shape-Bausteine ---------------------------------------------------- */
@@ -54652,6 +54907,8 @@ installBriefToolPreview();
       adjustLastStitch: true, outline: false, outlineStitchLength: 2.5, zigzagWidth: 3
     } };
     st.type = type;
+    st.needlePoints = [];
+    st._needleCacheKey = '';
     st.commands = { lockStart: true, lockEnd: true, trimAfter: !!trimAfter, stopAfter: false, ignore: false };
     /* [stitchtest-density v1] Migrations-Flags setzen, damit exakte rowSpacing-Werte
        (auch 0.2/0.25/0.3) NICHT durch die Default-Migrationskette auf 0.35 gezogen werden. */
@@ -54676,7 +54933,7 @@ installBriefToolPreview();
     var s;
     if (cfg.mode === 'fill') {
       s = { type: 'rect', x: x, y: y, w: mm(cellMm), h: mm(cellMm),
-            fill: '#dfeaf2', fillEnabled: true, stroke: ACCENT, strokeWidth: mm(0.3), rotation: 0, rx: 0 };
+            fill: ACCENT, fillEnabled: true, stroke: 'none', strokeWidth: 0, rotation: 0, rx: 0 };
     } else if (cfg.mode === 'satin') {
       var bw = (cfg.axisX.param === 'zigzagWidth') ? xVal
              : (cfg.axisY.param === 'zigzagWidth') ? yVal : 3;
@@ -54699,11 +54956,12 @@ installBriefToolPreview();
   function buildLabel(text, x, y, hMm, opts) {
     opts = opts || {};
     var rot = opts.rotation || 0;
-    var wPx = rot ? mm((opts.w != null) ? opts.w : estW(text, hMm)) : 0;
+    var wPx = mm((opts.w != null) ? opts.w : renderW(text, hMm, opts.font));
     var hPx = mm(hMm) * 1.2;
     var s = { type: 'text', text: String(text), x: x, y: y, w: wPx, h: hPx,
               wFixed: false, fontFamily: opts.font || 'Arial', fontSize: mm(hMm),
               fill: opts.color || '#11324a', fillEnabled: true, textColor: opts.color || '#11324a',
+              stroke: 'none', strokeWidth: 0, // Labels must not inherit an unrelated drawing contour.
               rotation: rot };
     finishShape(s);
     s.stitch = newStitch('fill', true);
@@ -54722,10 +54980,7 @@ installBriefToolPreview();
     var nx = xs.length, ny = ys.length;
     if (!nx) { alert('Stich-Test: Keine gültigen Werte für Achse X.'); return; }
 
-    /* [testkarte-schrift v1] breitester Zeilenwert -> Y-Spaltenbreite */
-    var yValW = 0;
-    if (cfg.labels && hasY) for (var yvi = 0; yvi < ys.length; yvi++) yValW = Math.max(yValW, estW(fmt(ys[yvi]), cfg.labelH));
-    var M = cardMargins(cfg.labels, cfg.labelH, hasY, yValW);
+    var M = cardLayout(cfg).margins;
     var marginL = M.L, marginT = M.T;
     var arr = [];
 
@@ -54761,15 +55016,11 @@ installBriefToolPreview();
       if (hasY) {
         var gridTop = marginT, gridBot = marginT + ny * cfg.cell + (ny - 1) * cfg.gap;
         var cYmm = (gridTop + gridBot) / 2;
-        var cXmm = M.yTitleX + M.axisTitleH / 2;
+        var cXmm = M.yTitleX + M.axisTitleH * 1.2 / 2;
         var yt = shortName(cfg.mode, cfg.axisY.param);
-        /* [testkarte-schrift v1] w mit der Renderer-Formel (renderW) statt estW,
-           sonst verschiebt das erste render() das Rotationszentrum. Zusaetzlich
-           sitzen die Glyphen unter der Mitte der 1.2*fs-Textbox -> der gestickte
-           Streifen liegt konstant ~0.19*labelH links des Zentrums (an Nadel-
-           punkten gemessen, textunabhaengig); Zentrum darum +0.2*labelH. */
+        /* Place the measured, rotated text box inside its reserved strip. */
         var ytWmm = renderW(yt, M.axisTitleH), ytHmm = M.axisTitleH * 1.2;
-        arr.push(buildLabel(yt, mm(cXmm + cfg.labelH * 0.2 - ytWmm / 2), mm(cYmm - ytHmm / 2), M.axisTitleH,
+        arr.push(buildLabel(yt, mm(cXmm - ytWmm / 2), mm(cYmm - ytHmm / 2), M.axisTitleH,
                             { color: '#11324a', rotation: 90, w: ytWmm }));
       }
     }
@@ -54814,12 +55065,7 @@ installBriefToolPreview();
     if (window.render) window.render();
     if (window.updateRightPanel) window.updateRightPanel();
     showInStickMode();   /* Karte direkt als Stickerei-Vorschau zeigen */
-    /* [testkarte-integration v1] (1) offenes Stick-Modal sofort aus den Linea-Shapes
-       neu laden (kein manuelles Neu berechnen mehr) + (3) Sperre direkt anwenden. */
-    try {
-      var _dm = document.getElementById('dstvModal');
-      if (_dm && _dm.classList.contains('open') && typeof window._dstvReloadFromLinea === 'function') window._dstvReloadFromLinea();
-    } catch (e) {}
+    /* showInStickMode schedules exactly one modern preview; no legacy toggle. */
     try { if (typeof window._vtTestCardLockApply === 'function') window._vtTestCardLockApply(); } catch (e) {}
     closeDialog();
   }
@@ -54830,19 +55076,23 @@ installBriefToolPreview();
      selbst NICHT). */
   function showInStickMode() {
     try {
-      if (!document.body.classList.contains('stick-mode')) {
-        var tg = document.getElementById('stickModeToggle');
-        if (tg) { tg.click(); return; }
+      document.body.classList.remove('stick-mode');
+      var panel = document.getElementById('stitchPanel');
+      var modal = document.getElementById('dstvModal');
+      if (panel && panel.style.display === 'none') {
+        var openButton = document.getElementById('stitchBtn');
+        if (openButton) { openButton.click(); return; }
       }
-      var D = window.__LINEA_DEBUG__;
-      if (D && D._stitchRefreshAllTabsForStickMode) { try { D._stitchRefreshAllTabsForStickMode(); } catch (e) {} }
-      if (D && D._stitchRenderPreview) { try { D._stitchRenderPreview(); } catch (e) {} }
-    } catch (e) {}
+      if (modal && modal.classList.contains('open')) {
+        if (typeof window._v44SyncStitchPanelInModal === 'function') window._v44SyncStitchPanelInModal();
+        if (typeof window._dstvReloadFromLinea === 'function') window._dstvReloadFromLinea({ fitNewDesign: true });
+      } else if (typeof window._dstvOpenAndLoadFromLinea === 'function') window._dstvOpenAndLoadFromLinea();
+    } catch (e) { console.warn('[vt:test-card-ui]', e); }
   }
 
   /* ---- Dialog-UI ---------------------------------------------------------- */
 
-  var dlg = null;
+  var dlg = null, dialogReturnFocus = null;
 
   function optionsFor(mode, includeNone) {
     var list = AXES[mode] || [];
@@ -54859,14 +55109,18 @@ installBriefToolPreview();
   var INP = 'style="padding:var(--space-3) var(--space-4);border:1px solid #c7d2dc;border-radius:5px;font-size:var(--fs-md);font-family:inherit;"';
 
   function openDialog() {
-    if (dlg) { dlg.style.display = 'flex'; return; }
+    dialogReturnFocus = document.activeElement;
+    if (dlg) { dlg.style.display = 'flex'; var first = dlg.querySelector('#stHoop'); if (first) first.focus(); return; }
     dlg = document.createElement('div');
     dlg.id = 'stitchTestDlg';
+    dlg.setAttribute('role', 'dialog');
+    dlg.setAttribute('aria-modal', 'true');
+    dlg.setAttribute('aria-labelledby', 'stDlgTitle');
     dlg.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(20,30,40,.45);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
     dlg.innerHTML =
       '<div style="background:#fff;border-radius:var(--radius-lg);box-shadow:var(--shadow-4);width:430px;max-width:94vw;max-height:92vh;overflow:auto;padding:var(--space-10) var(--space-10);">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
-          '<h2 style="margin:0;font-size:var(--fs-xl);color:#11324a;">&#x229E; Stich-Test-Karte</h2>' +
+          '<h2 id="stDlgTitle" style="margin:0;font-size:var(--fs-xl);color:#11324a;">&#x229E; Stich-Test-Karte</h2>' +
           '<button id="stDlgX" title="Schliessen" style="border:none;background:none;font-size:20px;color:#9aa7b2;cursor:pointer;line-height:1;">&times;</button>' +
         '</div>' +
         '<p style="margin:0 0 var(--space-6);font-size:var(--fs-sm);color:#6b7280;line-height:1.45;">Wie eine Laser-Speed/Power-Matrix: je Feld variieren zwei Parameter. Einmal auf dem Zielstoff ausnähen, bestes Feld ablesen. Spalten- und Zeilen-Titel werden mitgenäht (X waagrecht oben, Y gedreht links). Lädt in einen neuen Tab und zeigt direkt die Stickerei-Vorschau.</p>' +
@@ -54920,13 +55174,14 @@ installBriefToolPreview();
       var ny = hasY ? (parseList($('stValY').value).length || 1) : 1;
       var labels = $('stLabels').checked;
       var labelH = parseFloat($('stLabelH').value) || 5;
-      var yValW = 0;
-      if (labels && hasY) parseList($('stValY').value).forEach(function (v) { yValW = Math.max(yValW, estW(fmt(v), labelH)); });
-      var M = cardMargins(labels, labelH, hasY, yValW);
-      var w = M.L + nx * cell + (nx - 1) * gap;
-      var h = M.T + ny * cell + (ny - 1) * gap;
+      var xValues = parseList($('stValX').value), yValues = parseList($('stValY').value);
+      var envelope = cardLayout({ mode: $('stMode').value, cell: cell, gap: gap, labels: labels, labelH: labelH,
+        axisX: { param: $('stAxX').value, values: xValues.length ? xValues : [0] },
+        axisY: { param: $('stAxY').value, values: yValues.length ? yValues : [0] } }).bounds;
+      var w = envelope.maxX - Math.min(0, envelope.minX);
+      var h = envelope.maxY - Math.min(0, envelope.minY);
       var hoop = $('stHoop').value.split('x').map(Number);
-      var fits = (w <= hoop[0] && h <= hoop[1]);
+      var fits = (envelope.minX >= 0 && envelope.minY >= 0 && envelope.maxX <= hoop[0] && envelope.maxY <= hoop[1]);
       $('stSizeHint').innerHTML = 'Raster ' + nx + ' &times; ' + ny + '  &rarr;  ca. ' + Math.round(w) + ' &times; ' + Math.round(h) + ' mm. ' +
         (fits ? '<span style="color:#6a994e;">passt in den Rahmen.</span>' : '<span style="color:#e76f51;font-weight:700;">grösser als der Rahmen - Feldgrösse/Abstand verkleinern.</span>');
     }
@@ -54954,9 +55209,14 @@ installBriefToolPreview();
        dauerhaft und prüft die Sichtbarkeit. Capture + stopPropagation: nur die oberste
        Ebene schliesst, der Stick-Viewer darunter bleibt offen. */
     document.addEventListener('keydown', function (e) {
-      if (e.key !== 'Escape' || !dlg || dlg.style.display === 'none') return;
-      e.stopPropagation(); e.preventDefault();
-      closeDialog();
+      if (!dlg || dlg.style.display === 'none') return;
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); e.preventDefault(); closeDialog(); return; }
+      if (e.key === 'Tab') {
+        var controls = Array.from(dlg.querySelectorAll('button,input,select,[tabindex="0"]')).filter(function(el) { return !el.disabled && el.getClientRects().length; });
+        var first = controls[0], last = controls[controls.length - 1];
+        if (first && e.shiftKey && (document.activeElement === first || !dlg.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (last && !e.shiftKey && (document.activeElement === last || !dlg.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
     }, true);
     $('stGo').addEventListener('click', function () {
       var mode = $('stMode').value;
@@ -54979,9 +55239,13 @@ installBriefToolPreview();
     $('stAxY').value = 'rowSpacing';
     sizeHint();
     dlg.style.display = 'flex';
+    $('stHoop').focus();
   }
 
-  function closeDialog() { if (dlg) dlg.style.display = 'none'; }
+  function closeDialog() {
+    if (dlg) dlg.style.display = 'none';
+    if (dialogReturnFocus && dialogReturnFocus.isConnected && typeof dialogReturnFocus.focus === 'function') dialogReturnFocus.focus();
+  }
 
   /* ---- Button ins Stichpanel einhaengen ----------------------------------- */
 
@@ -56115,6 +56379,50 @@ installBriefToolPreview();
   VT_RELEASE_CATALOG["Konturabschluss"]={"en":"Finishing outline","fr":"Contour de finition","it":"Contorno finale","es":"Contorno de cierre","pt":"Contorno final","nl":"Afsluitcontour","pl":"Kontur końcowy","cs":"Ukončovací kontura","sk":"Uzatváracia kontúra","ro":"Contur de finalizare","hu":"Záró kontúr","el":"Περίγραμμα τελειώματος","sv":"Avslutningskontur","da":"Afslutningskontur","no":"Avslutningskontur","fi":"Lopetusääriviiva","ca":"Contorn final","tr":"Bitiş konturu","ru":"Завершающий контур","uk":"Завершальний контур","bg":"Завършващ контур","zh":"封边轮廓","ja":"仕上げ輪郭","ko":"마감 윤곽선","vi":"Đường viền kết thúc","th":"เส้นขอบปิดท้าย","id":"Kontur penutup","hi":"अंतिम रूपरेखा","ar":"محيط الإنهاء","he":"מתאר סיום","fa":"خط پایانی"};
   VT_RELEASE_CATALOG["Gleichfarbiger Laufstich nach der Füllung; kein Satinband."]={"en":"Same-colour running stitch after the fill; not a satin band.","fr":"Point droit de la même couleur après le remplissage ; pas une bande de satin.","it":"Punto filza dello stesso colore dopo il riempimento; non una fascia satin.","es":"Pespunte del mismo color después del relleno; no es una banda de satén.","pt":"Ponto corrido da mesma cor após o preenchimento; não é uma faixa de cetim.","nl":"Rijgsteek in dezelfde kleur na de vulling; geen satijnband.","pl":"Ścieg stębnowy w tym samym kolorze po wypełnieniu; nie jest to pas satynowy.","cs":"Rovný steh stejné barvy po výplni; nejde o saténový pás.","sk":"Rovný steh rovnakej farby po výplni; nejde o saténový pás.","ro":"Cusătură liniară de aceeași culoare după umplere; nu este o bandă de satin.","hu":"Azonos színű futóöltés a kitöltés után; nem szaténsáv.","el":"Ευθεία βελονιά ίδιου χρώματος μετά το γέμισμα· όχι λωρίδα σατέν.","sv":"Raksöm i samma färg efter fyllningen; inget satinband.","da":"Ligesting i samme farve efter fyldet; ikke et satinbånd.","no":"Rettsøm i samme farge etter fyllet; ikke et satengbånd.","fi":"Samanvärinen suoraommel täytön jälkeen; ei satiininauha.","ca":"Punt de repunt del mateix color després del farciment; no és una banda de setí.","tr":"Dolgudan sonra aynı renkte düz dikiş; saten şerit değildir.","ru":"Строчка того же цвета после заполнения; не сатиновая полоса.","uk":"Строчка того самого кольору після заповнення; не сатинова смуга.","bg":"Прав бод в същия цвят след запълването; не е сатенена лента.","zh":"填充后添加同色平针轮廓；不是缎面针迹带。","ja":"塗りつぶしの後に同色のランニングステッチを追加します。サテンの帯ではありません。","ko":"채움 후 같은 색의 러닝 스티치를 추가합니다. 새틴 띠가 아닙니다.","vi":"Mũi chạy cùng màu sau phần thêu phủ; không phải dải mũi satin.","th":"ปักเดินเส้นสีเดียวกันหลังการปักเติม ไม่ใช่แถบปักซาติน","id":"Tusuk jelujur dengan warna yang sama setelah isian; bukan pita satin.","hi":"भराई के बाद उसी रंग की रनिंग स्टिच; सैटिन पट्टी नहीं।","ar":"غرزة مستقيمة باللون نفسه بعد التعبئة؛ وليست شريط ساتان.","he":"תפר ישר באותו צבע לאחר המילוי; לא רצועת סאטן.","fa":"دوخت سادهٔ هم‌رنگ پس از پرکردن؛ نه نوار ساتن."};
   VT_RELEASE_CATALOG["Für sichtbare, ungesperrte Füllflächen ohne andersfarbige Kontur; nicht für Text."]={"en":"For visible, unlocked fill shapes without an outline in a different colour; not for text.","fr":"Pour les surfaces remplies visibles et déverrouillées sans contour d’une autre couleur ; pas pour le texte.","it":"Per forme riempite visibili e sbloccate senza contorno di un altro colore; non per il testo.","es":"Para formas rellenas visibles y desbloqueadas sin contorno de otro color; no para texto.","pt":"Para formas preenchidas visíveis e desbloqueadas sem contorno de outra cor; não se aplica a texto.","nl":"Voor zichtbare, ontgrendelde gevulde vormen zonder contour in een andere kleur; niet voor tekst.","pl":"Dla widocznych, odblokowanych wypełnionych kształtów bez konturu w innym kolorze; nie dla tekstu.","cs":"Pro viditelné odemčené vyplněné tvary bez obrysu jiné barvy; nikoli pro text.","sk":"Pre viditeľné odomknuté vyplnené tvary bez obrysu inej farby; nie pre text.","ro":"Pentru forme umplute vizibile și deblocate, fără contur de altă culoare; nu pentru text.","hu":"Látható, nem zárolt kitöltött alakzatokhoz, eltérő színű körvonal nélkül; szöveghez nem.","el":"Για ορατά, ξεκλείδωτα γεμισμένα σχήματα χωρίς περίγραμμα άλλου χρώματος· όχι για κείμενο.","sv":"För synliga, olåsta fyllda former utan kontur i en annan färg; inte för text.","da":"Til synlige, ulåste udfyldte former uden kontur i en anden farve; ikke til tekst.","no":"For synlige, ulåste fylte former uten kontur i en annen farge; ikke for tekst.","fi":"Näkyville, lukitsemattomille täytetyille muodoille, joilla ei ole eriväristä ääriviivaa; ei tekstille.","ca":"Per a formes plenes visibles i desbloquejades sense contorn d’un altre color; no per a text.","tr":"Farklı renkte konturu olmayan, görünür ve kilidi açık dolgulu şekiller için; metin için değil.","ru":"Для видимых незаблокированных фигур с заливкой без контура другого цвета; не для текста.","uk":"Для видимих незаблокованих фігур із заливкою без контуру іншого кольору; не для тексту.","bg":"За видими, отключени запълнени форми без контур в друг цвят; не за текст.","zh":"适用于可见、未锁定且没有异色轮廓的填充形状；不适用于文字。","ja":"表示中でロックされておらず、異なる色の輪郭がない塗りつぶし図形が対象です。テキストは対象外です。","ko":"표시되어 있고 잠금 해제된 채움 도형 중 다른 색의 윤곽선이 없는 도형에 적용됩니다. 텍스트에는 적용되지 않습니다.","vi":"Dành cho hình thêu phủ đang hiển thị, không khóa và không có đường viền khác màu; không áp dụng cho văn bản.","th":"สำหรับรูปทรงเติมที่มองเห็นได้ ไม่ได้ล็อก และไม่มีเส้นขอบต่างสี ไม่ใช้กับข้อความ","id":"Untuk bentuk berisi yang terlihat, tidak terkunci, dan tanpa kontur berwarna lain; bukan untuk teks.","hi":"दिखाई देने वाली, अनलॉक की गई भरी आकृतियों के लिए, जिनकी रूपरेखा अलग रंग की न हो; टेक्स्ट के लिए नहीं।","ar":"للأشكال المعبأة الظاهرة وغير المقفلة، من دون محيط بلون مختلف؛ لا ينطبق على النص.","he":"לצורות ממולאות גלויות ולא נעולות, ללא מתאר בצבע אחר; לא לטקסט.","fa":"برای شکل‌های پرشدهٔ قابل‌مشاهده و قفل‌نشده، بدون خط پیرامونی با رنگ متفاوت؛ نه برای متن."};
+  /* Night embroidery UI: free/shared boundaries and schematic thread preview. */
+  (function(keys, values) {
+    keys.forEach(function(key, i) {
+      VT_RELEASE_CATALOG[key] = {};
+      Object.keys(values).forEach(function(lang) { VT_RELEASE_CATALOG[key][lang] = values[lang][i]; });
+    });
+  })([
+    'Freie Kanten',
+    'Alle Kanten',
+    'Freie Kanten umfassen Aussen- und Lochränder ohne angrenzende Füllfläche. Alle Kanten ergänzen gemeinsame Flächenkanten.',
+    'Schematische Garnansicht; Fadendicke und Stoffwirkung können abweichen.'
+  ], {
+    en: ['Free edges', 'All edges', 'Free edges include outer and hole boundaries without an adjacent filled area. All edges also include boundaries shared by filled areas.', 'Schematic thread preview; thread thickness and the appearance on fabric may differ.'],
+    fr: ['Bords libres', 'Tous les bords', 'Les bords libres comprennent les contours extérieurs et les bords des trous sans surface remplie adjacente. Tous les bords incluent aussi les limites communes entre surfaces remplies.', 'Aperçu schématique du fil ; son épaisseur et le rendu sur le tissu peuvent différer.'],
+    it: ['Bordi liberi', 'Tutti i bordi', 'I bordi liberi comprendono i contorni esterni e i bordi dei fori senza un’area riempita adiacente. Tutti i bordi includono anche i confini condivisi tra aree riempite.', 'Anteprima schematica del filo; lo spessore del filo e l’aspetto sul tessuto possono differire.'],
+    es: ['Bordes libres', 'Todos los bordes', 'Los bordes libres incluyen los contornos exteriores y de los huecos sin un área rellena adyacente. Todos los bordes incluyen también los límites compartidos entre áreas rellenas.', 'Vista esquemática del hilo; su grosor y el aspecto sobre la tela pueden variar.'],
+    pt: ['Bordas livres', 'Todas as bordas', 'As bordas livres incluem os contornos externos e dos orifícios sem uma área preenchida adjacente. Todas as bordas incluem também os limites partilhados entre áreas preenchidas.', 'Pré-visualização esquemática do fio; a espessura do fio e a aparência no tecido podem variar.'],
+    nl: ['Vrije randen', 'Alle randen', 'Vrije randen omvatten buitenranden en randen van gaten zonder aangrenzend gevuld vlak. Alle randen omvatten ook gedeelde grenzen tussen gevulde vlakken.', 'Schematische garenweergave; de draaddikte en het uiterlijk op stof kunnen afwijken.'],
+    pl: ['Wolne krawędzie', 'Wszystkie krawędzie', 'Wolne krawędzie obejmują brzegi zewnętrzne i brzegi otworów bez sąsiedniego wypełnionego obszaru. Wszystkie krawędzie obejmują również wspólne granice wypełnionych obszarów.', 'Schematyczny podgląd nici; grubość nici i wygląd na tkaninie mogą się różnić.'],
+    cs: ['Volné okraje', 'Všechny okraje', 'Volné okraje zahrnují vnější okraje a okraje otvorů bez sousední vyplněné plochy. Všechny okraje zahrnují také společné hranice vyplněných ploch.', 'Schematický náhled nitě; tloušťka nitě a vzhled na látce se mohou lišit.'],
+    sk: ['Voľné okraje', 'Všetky okraje', 'Voľné okraje zahŕňajú vonkajšie okraje a okraje otvorov bez susednej vyplnenej plochy. Všetky okraje zahŕňajú aj spoločné hranice vyplnených plôch.', 'Schematický náhľad nite; hrúbka nite a vzhľad na látke sa môžu líšiť.'],
+    ro: ['Margini libere', 'Toate marginile', 'Marginile libere includ contururile exterioare și marginile golurilor fără o zonă umplută alăturată. Toate marginile includ și limitele comune dintre zonele umplute.', 'Previzualizare schematică a firului; grosimea firului și aspectul pe material pot diferi.'],
+    hu: ['Szabad szélek', 'Összes szél', 'A szabad szélek a külső és a lyukak körüli szélek, amelyek mellett nincs szomszédos kitöltött terület. Az összes szél a kitöltött területek közös határait is tartalmazza.', 'Sematikus fonalnézet; a szálvastagság és az anyagon megjelenő hatás eltérhet.'],
+    el: ['Ελεύθερα όρια', 'Όλα τα όρια', 'Τα ελεύθερα όρια περιλαμβάνουν τα εξωτερικά όρια και τα όρια οπών χωρίς γειτονική γεμισμένη περιοχή. Όλα τα όρια περιλαμβάνουν επίσης τα κοινά όρια μεταξύ γεμισμένων περιοχών.', 'Σχηματική προεπισκόπηση νήματος· το πάχος του νήματος και η όψη πάνω στο ύφασμα μπορεί να διαφέρουν.'],
+    sv: ['Fria kanter', 'Alla kanter', 'Fria kanter omfattar ytterkanter och hålkanter utan angränsande fylld yta. Alla kanter omfattar även gemensamma gränser mellan fyllda ytor.', 'Schematisk trådvisning; trådtjockleken och utseendet på tyget kan avvika.'],
+    da: ['Frie kanter', 'Alle kanter', 'Frie kanter omfatter yderkanter og hulkanter uden et tilstødende udfyldt område. Alle kanter omfatter også fælles grænser mellem udfyldte områder.', 'Skematisk trådvisning; trådtykkelsen og udseendet på stoffet kan afvige.'],
+    no: ['Frie kanter', 'Alle kanter', 'Frie kanter omfatter ytterkanter og hullkanter uten et tilstøtende fylt område. Alle kanter omfatter også felles grenser mellom fylte områder.', 'Skjematisk trådvisning; trådtykkelsen og utseendet på stoffet kan avvike.'],
+    fi: ['Vapaat reunat', 'Kaikki reunat', 'Vapaat reunat sisältävät ulko- ja aukkoreunat, joiden vieressä ei ole täytettyä aluetta. Kaikki reunat sisältävät myös täytettyjen alueiden yhteiset rajat.', 'Kaaviomainen lankojen esikatselu; langan paksuus ja ulkonäkö kankaalla voivat poiketa.'],
+    ca: ['Vores lliures', 'Totes les vores', 'Les vores lliures inclouen els contorns exteriors i dels forats sense una àrea emplenada adjacent. Totes les vores inclouen també els límits compartits entre àrees emplenades.', 'Vista esquemàtica del fil; el gruix del fil i l’aspecte sobre la tela poden variar.'],
+    tr: ['Serbest kenarlar', 'Tüm kenarlar', 'Serbest kenarlar, bitişiğinde dolgulu alan bulunmayan dış sınırları ve delik sınırlarını kapsar. Tüm kenarlar, dolgulu alanlar arasındaki ortak sınırları da kapsar.', 'Şematik iplik önizlemesi; iplik kalınlığı ve kumaş üzerindeki görünüm farklı olabilir.'],
+    ru: ['Свободные края', 'Все края', 'Свободные края включают внешние границы и границы отверстий без соседней заполненной области. Все края также включают общие границы заполненных областей.', 'Схематический вид нитей; толщина нитей и внешний вид на ткани могут отличаться.'],
+    uk: ['Вільні краї', 'Усі краї', 'Вільні краї охоплюють зовнішні межі та межі отворів без сусідньої заповненої області. Усі краї також охоплюють спільні межі заповнених областей.', 'Схематичний вигляд ниток; товщина ниток і вигляд на тканині можуть відрізнятися.'],
+    bg: ['Свободни ръбове', 'Всички ръбове', 'Свободните ръбове включват външните граници и границите на отворите без съседна запълнена област. Всички ръбове включват и общите граници на запълнените области.', 'Схематичен изглед на конците; дебелината на конците и изгледът върху плата може да се различават.'],
+    zh: ['自由边缘', '所有边缘', '自由边缘包括没有相邻填充区域的外边界和孔洞边界。所有边缘还包括填充区域之间的公共边界。', '绣线示意预览；实际线粗和在织物上的效果可能不同。'],
+    ja: ['独立した境界', 'すべての境界', '独立した境界には、塗りつぶし領域が隣接していない外周と穴の縁が含まれます。「すべての境界」には、塗りつぶし領域間の共有境界も含まれます。', '糸の模式的なプレビューです。糸の太さや布上での見え方は実際と異なる場合があります。'],
+    ko: ['자유 경계', '모든 경계', '자유 경계에는 인접한 채움 영역이 없는 외곽 경계와 구멍 경계가 포함됩니다. 모든 경계에는 채움 영역 사이의 공통 경계도 포함됩니다.', '실의 개략적인 미리보기입니다. 실 두께와 천 위에서의 모습은 실제와 다를 수 있습니다.'],
+    vi: ['Cạnh tự do', 'Tất cả cạnh', 'Cạnh tự do gồm biên ngoài và biên lỗ không có vùng tô liền kề. Tất cả cạnh còn gồm các đường biên chung giữa các vùng tô.', 'Bản xem trước sợi chỉ mang tính minh họa; độ dày chỉ và hình thức trên vải có thể khác thực tế.'],
+    th: ['ขอบอิสระ', 'ขอบทั้งหมด', 'ขอบอิสระรวมขอบนอกและขอบรูที่ไม่มีพื้นที่เติมติดกัน ขอบทั้งหมดรวมขอบร่วมระหว่างพื้นที่เติมด้วย', 'ภาพตัวอย่างเส้นด้ายแบบแผนผัง ความหนาของด้ายและลักษณะบนผ้าอาจแตกต่างจากภาพ'],
+    id: ['Tepi bebas', 'Semua tepi', 'Tepi bebas mencakup batas luar dan batas lubang tanpa area isian yang bersebelahan. Semua tepi juga mencakup batas bersama antararea isian.', 'Pratinjau benang skematis; ketebalan benang dan tampilan pada kain dapat berbeda.'],
+    hi: ['मुक्त किनारे', 'सभी किनारे', 'मुक्त किनारों में बाहरी सीमाएँ और छेदों की वे सीमाएँ शामिल हैं जिनके बगल में कोई भरा हुआ क्षेत्र नहीं है। सभी किनारों में भरे हुए क्षेत्रों के बीच की साझा सीमाएँ भी शामिल हैं।', 'धागे का सांकेतिक पूर्वावलोकन; धागे की मोटाई और कपड़े पर उसका रूप अलग हो सकता है।'],
+    ar: ['الحواف الحرة', 'كل الحواف', 'تشمل الحواف الحرة الحدود الخارجية وحدود الفتحات التي لا تجاور منطقة تعبئة. وتشمل كل الحواف أيضًا الحدود المشتركة بين مناطق التعبئة.', 'معاينة تخطيطية للخيط؛ قد يختلف سُمك الخيط ومظهره على القماش.'],
+    he: ['קצוות חופשיים', 'כל הקצוות', 'קצוות חופשיים כוללים גבולות חיצוניים וגבולות של חורים שאין לידם אזור מילוי סמוך. כל הקצוות כוללים גם גבולות משותפים בין אזורי מילוי.', 'תצוגה סכמטית של החוט; עובי החוט והמראה על הבד עשויים להיות שונים.'],
+    fa: ['لبه‌های آزاد', 'همهٔ لبه‌ها', 'لبه‌های آزاد شامل مرزهای بیرونی و مرز سوراخ‌هایی هستند که ناحیهٔ پُرشده‌ای در کنارشان نیست. همهٔ لبه‌ها، مرزهای مشترک بین نواحی پُرشده را نیز شامل می‌شوند.', 'پیش‌نمایش شماتیک نخ؛ ضخامت نخ و ظاهر آن روی پارچه ممکن است متفاوت باشد.']
+  });
   /* Brackets laser-cut geometry: all offered locales, including safety notes. */
   (function(keys,values){
     keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){if(lang!=='de')VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});
@@ -56398,10 +56706,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     if (!src) return;
     pop.innerHTML = '';
     var _cl = src.cloneNode(true);
-    if (card === 'verbindung') { /* [VT-UIFIX v1] Verbindung-(i): nur Text als Karte (Lukas "reicht der text, bitte als karte") - Diagramm raus, schmal; Original-SVG bleibt fuer die Radio-Kacheln (cardSvg) erhalten */
-      _cl.classList.remove('vth-wide');
-      var _cs = _cl.querySelector('svg'); if (_cs) _cs.remove();
-    }
+    /* Illustrations live in the information card, not in the parameter radios. */
     pop.appendChild(_cl);
     ov.classList.add('vth-pop');
     ov.hidden = false;
@@ -56474,8 +56779,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     if (sp) sp.insertAdjacentElement('afterend', mkBtn(card));
     lb.removeAttribute('title'); el.removeAttribute('title');
   }
-  /* [stilverb-radio v3] Stil + Verbindung KEINE i-Verweise mehr (Lukas): Stil-Grafik ist
-     selbsterklaerend; bei Verbindung steht die Erklaerung dauerhaft unter den Radios. */
+  afterPrevLabel('dgpFillStyle', 'stil');
+  /* Keep the precise outline limitations in its explicit information popover. */
+  (function() {
+    var card = ov.querySelector('.vth-card[data-card="abschlusskontur"]');
+    if (!card) return;
+    var title = card.querySelector('.vth-t'); if (title) title.textContent = 'Konturabschluss';
+    var old = card.querySelector('.vth-s'); if (old) old.remove();
+    ['dgpOutlineHelp', 'dgpOutlineScope', 'dgpOutlineModeHelp'].forEach(function(id) {
+      var source = document.getElementById(id); if (!source) return;
+      var p = document.createElement('p'); p.className = 'vth-s'; p.textContent = source.textContent; card.appendChild(p);
+    });
+  })();
   afterPrevLabel('dgpAngle', 'winkel');
   afterPrevLabel('dgpRowSpacing', 'reihe');
   afterPrevLabel('dgpStitchLength', 'stich');
@@ -56515,8 +56830,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 <script>
-/* VT-STILVERB-RADIO v1: Stil + Verbindung als Radiobuttons mit den Grafiken aus den
-   Hilfekarten (Lukas 2026-06-12). Die <select> bleiben versteckt als Source-of-Truth
+/* VT-STILVERB-RADIO v2: Simple native radios; illustrations stay in help cards.
+   Die <select> bleiben versteckt als Source-of-Truth
    (alle bestehenden change-Handler greifen), die Radios fuettern sie + feuern 'change'. */
 (function(){
   var help = document.getElementById('vtHelp');
@@ -56546,21 +56861,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       '.dgp-radio svg .r{stroke:var(--red);fill:none;stroke-width:1.6;}';
     document.head.appendChild(st);
   }
-  function cardSvg(card, viewBox){
-    var src = help && help.querySelector('.vth-card[data-card="'+card+'"] svg');
-    if (!src) return null;
-    var svg = src.cloneNode(true);
-    svg.removeAttribute('width'); svg.removeAttribute('height');
-    svg.setAttribute('viewBox', viewBox);
-    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-    return svg;
-  }
   function build(selId, name, opts){
     var sel = document.getElementById(selId);
     if (!sel || sel.dataset.dgpRadio) return;
     sel.dataset.dgpRadio = '1';
     var wrap = document.createElement('div');
     wrap.className = 'dgp-radio';
+    wrap.setAttribute('role','group');
+    wrap.setAttribute('aria-label', window.t ? window.t(name==='dgpRStyle'?'Stil':'Verbindung') : (name==='dgpRStyle'?'Stil':'Verbindung'));
     sel.parentNode.insertBefore(wrap, sel);  /* Wrap an die Grid-Position des Selects */
     wrap.appendChild(sel);                    /* Select als versteckte Source-of-Truth hinein */
     sel.style.display = 'none';
@@ -56571,10 +56879,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       inp.type='radio'; inp.name=name; inp.value=o.v;
       if (sel.value === o.v) { inp.checked = true; lab.classList.add('sel'); }
       lab.appendChild(inp);
-      var g = cardSvg(o.card, o.viewBox);
-      if (g) { var ill=document.createElement('span'); ill.className='dgp-rill'; ill.appendChild(g); lab.appendChild(ill); }
       var t=document.createElement('span'); t.className='dgp-rlbl'; t.textContent=o.label; lab.appendChild(t);
-      if (o.sub) { var sb=document.createElement('span'); sb.className='dgp-rsub'; sb.textContent=o.sub; lab.appendChild(sb); }
       inp.addEventListener('change', function(){
         if (!inp.checked) return;
         wrap.querySelectorAll('.dgp-rtile').forEach(function(x){x.classList.remove('sel');});
@@ -56584,6 +56889,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       /* [stilverb-radio v3] kein Hover-Popover mehr (Lukas): Stil selbsterklaerend,
          Verbindung-Erklaerung steht dauerhaft als Untertext (o.sub) in der Kachel. */
       wrap.appendChild(lab);
+    });
+    sel.addEventListener('change', function() {
+      wrap.querySelectorAll('.dgp-rtile').forEach(function(lab) {
+        var radio = lab.querySelector('input[type="radio"]');
+        if (radio) { radio.checked = radio.value === sel.value; lab.classList.toggle('sel', radio.checked); }
+      });
     });
   }
   build('dgpFillStyle','dgpRStyle',[
@@ -56882,6 +57193,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-03', t:'VT-20261003-r19', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r18', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r15', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r14', c:null},
@@ -57539,8 +57851,15 @@ function _pairTurningSatinContinuous(rail1, rail2, peakSpacingPx, opts){
   if(rail1.length<2 || rail2.length<2) return {stitches:[], rungs:[]};
   var cum1=_arcCum(rail1), cum2=_arcCum(rail2);
   var L1=cum1[cum1.length-1], L2=cum2[cum2.length-1], Llong=Math.max(L1,L2)||1;
-  var halfStep=Math.max(_mm2px(0.10), peakSpacingPx*0.5);   /* Stationsschritt = halbe Peak-Spacing */
-  var N=Math.max(3, Math.round(Llong/halfStep));
+  /* Match sectioned Satin: requested spacing (minimum 0.15 mm) is the
+     maximum advance between two penetrations on the same rail. Alternate
+     rails at half that step; rounding up never makes the result sparser. */
+  var halfStep=Math.max(_mm2px(0.15), peakSpacingPx)*0.5;
+  var N=Math.max(3, Math.ceil(Llong/halfStep-1e-9));
+  /* Tighten sampling without flipping the exit rail: downstream routing
+     joins the next stroke at that established endpoint. */
+  var oldEndSide=Math.max(3,Math.round(Llong/Math.max(_mm2px(0.10),peakSpacingPx*0.5)))&1;
+  if((N&1)!==oldEndSide)N++;
   var pts=[], rungs=[], k;
   for(k=0;k<=N;k++){
     var u=k/N;
@@ -57789,6 +58108,12 @@ function _pairContourFlowFill(rail1, rail2, opts){
   var inset=_mm2px(0.05);
   /* Phase 1: Runs sammeln (zusammenhaengende In-Ink-Stuecke pro Reihe). */
   var runs=[], rowIdx, dir=1, oi, run=[];
+  /* A longitudinal row may taper at the edge, but cannot be squeezed onto
+     another row. Clamping every offset to a narrowing rail sewed the same
+     edge repeatedly (e.g. seven rows at only three positions). End rows
+     once they no longer fit; allow at most half a spacing of edge taper.
+     Unpaired legacy / Satin callers retain their established geometry. */
+  var trimRows=!!shared && typeof window!=='undefined' && window._bowlFill==='laengs', trimmedRows=false;
   /* [VT-LAENGS-STAGGER v1] Reihen-VERSATZ entlang dem Strich: ohne Versatz liegen die Stich-
      Endpunkte aller Reihen auf derselben Querlinie (sichtbare "Tramlines", Nadelloecher in einer
      Spalte). Pro Reihe wird die Laengs-Sampling-Phase um ph*stitchLen verschoben (Brick-Muster,
@@ -57811,7 +58136,7 @@ function _pairContourFlowFill(rail1, rail2, opts){
       var ax=c0.a.x+(c1.a.x-c0.a.x)*tt, ay=c0.a.y+(c1.a.y-c0.a.y)*tt;
       var bx=c0.b.x+(c1.b.x-c0.b.x)*tt, by=c0.b.y+(c1.b.y-c0.b.y)*tt;
       var cw=Math.hypot(bx-ax, by-ay), half=cw*0.5;
-      if(cw>2*inset){
+      if(cw>2*inset && (!trimRows || Math.abs(offset)<=half-inset+rowSpacing*0.5+1e-9)){
         var off2=Math.max(-(half-inset), Math.min(half-inset, offset));   /* an die KANTE klemmen (Reihe bleibt durchgehend) */
         var v=0.5 + off2/cw;
         var rp={x:ax+(bx-ax)*v, y:ay+(by-ay)*v};
@@ -57827,7 +58152,7 @@ function _pairContourFlowFill(rail1, rail2, opts){
           if(found)rp=found;else{if(run.length){runs.push(run);run=[];}continue;}
         }
         run.push(rp);
-      } else if(run.length){ runs.push(run); run=[]; }
+      } else { if(trimRows&&cw>2*inset)trimmedRows=true; if(run.length){ runs.push(run); run=[]; } }
     }
     if(run.length){ runs.push(run); run=[]; }
     dir=-dir;   /* Boustrophedon entlang dem Strich */
@@ -57835,6 +58160,23 @@ function _pairContourFlowFill(rail1, rail2, opts){
   /* Phase 2: Runs verketten. KURZER Verbinder (Reihen-Wende ~rowSpacing) bleibt regulaer = Teil der
      Fuellung; LANGER Verbinder (Reihen-Bruch / Auge-Querung) wird SPRUNG (nicht gezeichnet) -> die
      Verbinder-Faeden verdecken die Stiche nicht mehr (Lukas „travels verdecken stiche"). */
+  /* A tapered row can leave two runs at opposite ends of the stroke. Sew
+     nearby row ends first instead of jumping back and forth across every
+     narrowing. This reorders existing runs only; no new fill geometry.
+     Prefer a short in-ink transition and never sew across a counter. */
+  if(trimmedRows&&opts.segmentInside&&runs.length>1){
+    var pending=runs.slice(1),ordered=[runs[0]];
+    while(pending.length){
+      var last=ordered[ordered.length-1],tail=last[last.length-1],best=0,flip=false,bestSafe=false,bestDist=Infinity;
+      for(var pi=0;pi<pending.length;pi++)for(var rv=0;rv<2;rv++){
+        var candidate=pending[pi],head=candidate[rv?candidate.length-1:0],distance=Math.hypot(head.x-tail.x,head.y-tail.y);
+        var safe=distance<=_mm2px(3.5)&&opts.segmentInside(tail,head);
+        if((safe&&!bestSafe)||(safe===bestSafe&&distance<bestDist-1e-9)){best=pi;flip=!!rv;bestSafe=safe;bestDist=distance;}
+      }
+      var next=pending.splice(best,1)[0];if(flip)next.reverse();ordered.push(next);
+    }
+    runs=ordered;
+  }
   var pts=[], ri, gapTravel=_mm2px(0.9), gapJump=_mm2px(3.5);
   for(ri=0; ri<runs.length; ri++){ var rn=_simplifyFlowRun(runs[ri],stitchLen,opts.segmentInside);
     rn[0].textAnchor=true; rn[rn.length-1].textAnchor=true;
@@ -58652,6 +58994,7 @@ function _flowGapFill(cov, grid, flowSegments, inInk){
   }
   var fillRuns=[];
   for(var y=1;y<H-1;y++) for(var x=1;x<W-1;x++){
+    if(x===1&&grid.deadlineMs&&Date.now()>grid.deadlineMs)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
     if(cov[y*W+x]) continue;
     var seed={x:ox+x*cell,y:oy+y*cell}; if(!inInk(seed.x,seed.y)) continue;
     var fine=trace(seed,-1).reverse().concat([seed],trace(seed,1));
@@ -58682,6 +59025,7 @@ function _flowGapFill(cov, grid, flowSegments, inInk){
   }
   if(remaining.length) emitRun(remaining.shift(),false);
   while(remaining.length){
+    if(grid.deadlineMs&&Date.now()>grid.deadlineMs)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
     var last=add[add.length-1],best=-1,bestReverse=false,bestSafe=false,bestDistance=Infinity;
     for(var ri=0;ri<remaining.length;ri++){
       var candidate=remaining[ri];
@@ -58697,14 +59041,39 @@ function _flowGapFill(cov, grid, flowSegments, inInk){
   }
   return add;
 }
-function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord){
+function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord, flowTile, flowDeadlineMs){
   if(!loops||!loops.length||!stitches.length) return [];
+  var repairDeadline=flowTile&&flowTile.deadlineMs||flowDeadlineMs||0;
   var segs=[],i; for(i=1;i<stitches.length;i++){ var a=stitches[i-1],b=stitches[i]; if(b.jump||b.travel) continue; segs.push([a.x,a.y,b.x,b.y]); }
   if(!segs.length) return [];
   var xs=[],ys=[]; loops.forEach(function(lp){ lp.forEach(function(p){ xs.push(p.x); ys.push(p.y); }); });
   var minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs),minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  if(flowTile){minY=flowTile.minY;maxY=flowTile.maxY;}
   var spacing=_mm2px(Math.max(0.15,state.textDensityMM||0.3));
   var cell=Math.min(_mm2px(0.1),spacing/3), gw=Math.ceil((maxX-minX)/cell)+2, gh=Math.ceil((maxY-minY)/cell)+2;
+  /* Large longitudinal glyphs need the same complete coverage check as
+     small ones. Previously this returned [] above200k cells and silently
+     left junction holes. Reuse the existing bounded backstop per row tile;
+     one-cell overlap and prior repair coverage keep tile seams continuous.
+     Geometry stays on the original global grid, never a resized mask. */
+  if(flowSegments&&flowSegments.length&&!flowTile&&gw*gh>200000){
+    if(!Number.isFinite(gw*gh)||gw>5000||gh>5000||gw*gh>2000000)
+      throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+    var flowDeadline=flowDeadlineMs||Date.now()+5000,tileRows=Math.max(1,Math.floor(180000/gw)-4),repair=[],coveredStitches=stitches.slice();
+    for(var fy=0;fy<gh-1;fy+=tileRows){
+      if(Date.now()>flowDeadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+      var low=Math.max(minY,minY+(fy-1)*cell),high=Math.min(maxY,minY+(fy+tileRows+1)*cell);
+      if(high<=low)continue;
+      var tileInk=(function(lo,hi){return function(x,y){return y>=lo&&y<=hi&&inInk(x,y);};})(low,high);
+      var part=_coverageBackstop(coveredStitches,loops,tileInk,flowSegments,false,{minY:low,maxY:high,deadlineMs:flowDeadline});
+      if(Date.now()>flowDeadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+      if(part.length){
+        part[0]=Object.assign({},part[0],{jump:true});
+        for(var fi=0;fi<part.length;fi++){repair.push(part[fi]);coveredStitches.push(part[fi]);}
+      }
+    }
+    return repair;
+  }
   if(gw*gh>200000&&!tileWord) return [];   /* Existing glyph-sized callers. */
   if(tileWord&&(!Number.isFinite(gw*gh)||gw*gh>20000000))throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
   /* Whole lines may exceed a glyph-sized bitmap. Partition storage, not the
@@ -58717,6 +59086,7 @@ function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord){
   function coverTile(start){
   tileStart=start;tileEnd=Math.min(gh,start+tileHeight);cov=new Uint8Array(gw*(tileEnd-tileStart));
   for(var i=0;i<segs.length;i++){ var s=segs[i], dx=s[2]-s[0], dy=s[3]-s[1], L=Math.hypot(dx,dy), n=Math.max(1,Math.ceil(L/cell)), k;
+    if((i&127)===0&&repairDeadline&&Date.now()>repairDeadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
     for(k=0;k<=n;k++){ var t=k/n, gx=Math.round((s[0]+dx*t-minX)/cell), gy=Math.round((s[1]+dy*t-minY)/cell), ax,ay;
       for(ay=-reach;ay<=reach;ay++) for(ax=-reach;ax<=reach;ax++){ var ix=gx+ax,iy=gy+ay;
         if(ix<0||ix>=gw||iy<tileStart||iy>=tileEnd||cov[(iy-tileStart)*gw+ix]) continue;
@@ -58726,7 +59096,7 @@ function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord){
       } } }
   }
   coverTile(0);
-  if(flowSegments&&flowSegments.length) return _flowGapFill(cov,{x:minX,y:minY,w:gw,h:gh,cell:cell,radius:radius,spacing:spacing},flowSegments,inInk);
+  if(flowSegments&&flowSegments.length) return _flowGapFill(cov,{x:minX,y:minY,w:gw,h:gh,cell:cell,radius:radius,spacing:spacing,deadlineMs:repairDeadline},flowSegments,inInk);
   var add=[], dir=1, lastP=null, step=_mm2px(2.0), gapJ=_mm2px(1.6), gy2, rowStep=Math.max(1,Math.round(spacing/cell));
   for(gy2=rowStep;gy2<gh-1;gy2+=rowStep){ var wy=minY+gy2*cell, runs=[], inRun=false, rs=0, gx2;
     if(gy2>=tileEnd)coverTile(Math.floor(gy2/tileHeight)*tileHeight);
@@ -58834,6 +59204,7 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
   if(!segs||(!segs.length&&!(window._bowlFill==='satin'&&detailAxes&&detailAxes.length))) return [];
   var _ink=inInk||function(x,y){ return _pointInLoops(x,y,contour); };
   var _flowMode=(typeof window!=='undefined'&&window._bowlFill==='laengs');
+  var flowDeadlineMs=_flowMode?Date.now()+5000:0;
   function segEnds(s){ if(s.kind==='dot') return [{x:s.cx,y:s.cy},{x:s.cx,y:s.cy}]; var a=s.center; return [{x:a[0].x,y:a[0].y},{x:a[a.length-1].x,y:a[a.length-1].y}]; }
   function segLen(s){ if(s.kind==='dot') return 0; var a=s.center,t=0,i; for(i=1;i<a.length;i++) t+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y); return t; }
   /* Greedy Nearest-Endpoint-Kette statt reinem minX-Sort: minimiert die Connector-Wege. Kurze
@@ -59053,6 +59424,7 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
   var branchPrimaries=[];
   var out=[],prevEnd=null,oi, runLen=_mm2px(2.0), scLen=Math.max(0.1, pitchMM/2), scInset=0.15;
   for(oi=0;oi<order.length;oi++){ var sg=order[oi].seg, rev=order[oi].rev, segPts=[];
+    if(flowDeadlineMs&&Date.now()>flowDeadlineMs)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
     if(sg.kind==='dot'){
       var r=sg.r;segPts=_astSatinFromRail([{x:sg.cx-r,y:sg.cy},{x:sg.cx+r,y:sg.cy}],[r,r],_mm2px(scLen),0.1);
       /* Tiny serifs can collapse to a dot in the skeleton. Its estimated
@@ -59120,7 +59492,8 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
     for(var kk=0;kk<segPts.length;kk++) out.push(segPts[kk]);
     prevEnd=segPts[segPts.length-1]; }
   /* COVERAGE-BACKSTOP: unbedeckte Innenflaeche (Script-Loop-/Cap-Luecken) mit Fuell-Stichen schliessen. */
-  if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null); if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
+  if(flowDeadlineMs&&Date.now()>flowDeadlineMs)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+  if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null, false, null, flowDeadlineMs); if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
   /* Preserve primary Satin and its existing routing. Add only uncovered fine
      axis seams before it, retaining the original endpoint for the next glyph. */
   if(!_flowMode && window._bowlFill==='satin'){
@@ -59148,7 +59521,10 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
     }
     if(!routeSafe)return segsToStitches(segs,pitchMM,contour,inInk,startPos,detailAxes,true);
   }
-  return out;
+  /* Re-check the assembled longitudinal path, including coverage repairs
+     and joins. Row endings at a taper must not create even a small sewn
+     chord outside the glyph; clipping preserves holes and existing jumps. */
+  return _flowMode?_flowClipToInk(out,_ink):out;
 }
 
 /* Einfache Scanline-Fuellung (fuer Version B Stichart=Fuellung). */
@@ -59576,7 +59952,7 @@ function wordStitches(){
    opts={color:'#hex' | rgb:[r,g,b], canvasPxPerMm}. === */
 var _RT_NA=32, _RT_TILEMM=8, _RT_NTILE=2, _RT_PPMM=8;
 var _RT_LIGHT={x:-0.70,y:-0.71};
-var _RT_cache={};
+var _RT_cache={}, _RT_cacheOrder=[], _RT_cachePixels=0;
 function _rtClamp(v){ v=v|0; return v<0?0:v>255?255:v; }
 function _rtMixW(c,t){ return [c[0]+(255-c[0])*t, c[1]+(255-c[1])*t, c[2]+(255-c[2])*t]; }
 function _rtScale(c,f){ return [c[0]*f, c[1]*f, c[2]*f]; }
@@ -59592,18 +59968,18 @@ function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
   function R(v){ return _rtClamp(v*lit); }
   var g=o.createLinearGradient(0, cy-hw, 0, cy+hw);
   function cs(off, base){ g.addColorStop(Math.max(0,Math.min(1,off)), 'rgb('+R(base[0])+','+R(base[1])+','+R(base[2])+')'); }
-  cs(0.00, _rtScale(C,0.82));
+  cs(0.00, _rtScale(C,0.88));
   cs(ridge-0.34, C);
   /* Matter Garn-Glanz: besonders Schwarz soll nicht wie Chrom aussehen. */
-  cs(ridge-0.16, _rtMixW(C,0.09));
-  cs(ridge,      _rtMixW(C,0.18));
-  cs(ridge+0.18, _rtMixW(C,0.07));
-  cs(ridge+0.38, _rtScale(C,0.92));
-  cs(1.00, _rtScale(C,0.76));
+  cs(ridge-0.16, _rtMixW(C,0.035));
+  cs(ridge,      _rtMixW(C,0.085));
+  cs(ridge+0.18, _rtMixW(C,0.025));
+  cs(ridge+0.38, _rtScale(C,0.96));
+  cs(1.00, _rtScale(C,0.86));
   o.fillStyle=g; o.fillRect(0, cy-hw, W, tw);
   var shadeTop=ndl<0;
   var sg=o.createLinearGradient(0, shadeTop?cy-hw:cy+hw, 0, shadeTop?cy-hw+tw*0.42:cy+hw-tw*0.42);
-  sg.addColorStop(0,'rgba(18,8,4,0.12)'); sg.addColorStop(1,'rgba(18,8,4,0)');
+  sg.addColorStop(0,'rgba(18,8,4,0.06)'); sg.addColorStop(1,'rgba(18,8,4,0)');
   o.fillStyle=sg; o.fillRect(0, cy-hw, W, tw);
   o.save(); o.beginPath(); o.rect(0, cy-hw, W, tw); o.clip(); o.globalCompositeOperation='overlay';
   var slope=Math.tan(27*Math.PI/180), dxOverH=tw*slope, step=Math.max(2.0, tilePx/32), off=(phase||0)*step*0.5, s;
@@ -59615,7 +59991,7 @@ function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
   o.restore();
   o.globalCompositeOperation='source-over';
   var ry=cy-hw+ridge*tw;
-  o.strokeStyle='rgba(255,250,240,0.035)'; o.lineWidth=Math.max(0.5, tw*0.06);
+  o.strokeStyle='rgba(255,250,240,0.018)'; o.lineWidth=Math.max(0.5, tw*0.06);
   o.beginPath(); o.moveTo(0, ry-tw*0.04); o.lineTo(W, ry-tw*0.04); o.stroke();
   o.strokeStyle='rgba(8,5,2,0.06)'; o.lineWidth=Math.max(0.5, tw*0.06);
   var gy=cy-hw+Math.min(0.92, ridge+0.40)*tw;
@@ -59624,18 +60000,33 @@ function _rtBakeSprite(a, tw, tilePx, ppx, phase, C){
 }
 function _rtEnsure(tw, colorKey, C){
   var k=Math.round(tw*4)+'|'+colorKey;
-  if(_RT_cache[k]) return _RT_cache[k];
+  if(_RT_cache[k]){
+    var oldIndex=_RT_cacheOrder.indexOf(k);
+    if(oldIndex>=0) _RT_cacheOrder.splice(oldIndex,1);
+    _RT_cacheOrder.push(k); return _RT_cache[k];
+  }
   var tilePx=Math.max(12, Math.round(_RT_TILEMM*_RT_PPMM)), ppx=tilePx/_RT_TILEMM, sprites=[], a;
   for(a=0; a<_RT_NA; a++){ sprites.push(_rtBakeSprite((a/_RT_NA)*6.283185, tw, tilePx, ppx, a, C)); }
-  var RT={ tw:tw, sprites:sprites, tilePx:tilePx, ppx:ppx, W:tilePx*_RT_NTILE };
-  _RT_cache[k]=RT; return RT;
+  var RT={ tw:tw, sprites:sprites, tilePx:tilePx, ppx:ppx, W:tilePx*_RT_NTILE,
+    pixels:sprites.reduce(function(n,s){return n+s.cv.width*s.cv.height;},0) };
+  _RT_cache[k]=RT; _RT_cacheOrder.push(k); _RT_cachePixels+=RT.pixels;
+  /* Zooming/colour changes must not retain an unbounded collection of canvases.
+     Keep the current set even if an extreme zoom alone exceeds the pixel cap. */
+  while(_RT_cacheOrder.length>1&&(_RT_cacheOrder.length>12||_RT_cachePixels>2000000)){
+    var evict=_RT_cacheOrder.shift(); _RT_cachePixels-=_RT_cache[evict].pixels;
+    delete _RT_cache[evict];
+  }
+  return RT;
 }
 function drawReal(ctx, pts, fit, opts){
   opts=opts||{};
   var C=opts.rgb || _rtHexRgb(opts.color || '#b01e1a');
   var colorKey=(C[0]|0)+'_'+(C[1]|0)+'_'+(C[2]|0);
   var ppmm=opts.canvasPxPerMm || (_mm2px(1)*(fit.k||1));
-  var tw=Math.max(2.0, 0.40*ppmm), hw=tw*0.5, i, p, x, y, prev;
+  /* Nominal DISPLAY width, not a prediction of a particular thread/material.
+     A 0.4 mm opaque tube hid gaps in small lettering. A finer matte strand
+     keeps neighbouring stitch rows distinguishable without changing any move. */
+  var tw=Math.max(1.0, 0.28*ppmm), hw=tw*0.5, i, p, x, y, prev;
   var RT=_rtEnsure(tw, colorKey, C), sp=RT.sprites, NA=_RT_NA, spW=RT.W, ppmmSrc=RT.ppx;
   var srcPerCanvasPx=ppmmSrc/ppmm;
   ctx.save();
@@ -59649,18 +60040,17 @@ function drawReal(ctx, pts, fit, opts){
        later stitch caps. Jumps only skip their incoming move; their target
        remains the start of the next stitch. No sewn DST move is hidden. */
     if(prev&&!p.jump&&!p.travel){ var dx=x-prev.x,dy=y-prev.y,len=Math.hypot(dx,dy);
-      ctx.beginPath(); ctx.moveTo(prev.x,prev.y); ctx.lineTo(x,y); ctx.stroke();
-      if(len>0.25){ var ang=Math.atan2(dy,dx), bk=((Math.round(ang/6.283185*NA)%NA)+NA)%NA, spr=sp[bk], H=spr.h, srcW=len*srcPerCanvasPx, u0=uOff%spW; if(u0<0)u0+=spW;
+      if(len>1e-7){ var ang=Math.atan2(dy,dx), bk=((Math.round(ang/6.283185*NA)%NA)+NA)%NA, spr=sp[bk], H=spr.h, srcW=len*srcPerCanvasPx, u0=uOff%spW; if(u0<0)u0+=spW;
         ctx.save();
         ctx.translate(prev.x,prev.y); ctx.rotate(ang);
-        /* Shade the existing round caps too; the former flat sprite ended at
-           each needle and left a dark bead. The capsule is the SAME footprint
-           as the original round base stroke, not a wider coverage mask. */
+        /* Keep continuous round joins at the real needle positions. Artificial
+           tapered endpoints made short stitches look detached. Only nominal
+           strand width and sheen change; no segment or connection is hidden. */
         ctx.beginPath();
         ctx.moveTo(0,-hw); ctx.lineTo(len,-hw);
         ctx.arc(len,0,hw,-Math.PI/2,Math.PI/2);
         ctx.lineTo(0,hw); ctx.arc(0,0,hw,Math.PI/2,Math.PI*1.5);
-        ctx.closePath(); ctx.clip();
+        ctx.closePath(); ctx.fillStyle=ctx.strokeStyle; ctx.fill(); ctx.clip();
         /* Auch lange importierte Stiche duerfen beliebig viele Kacheln nutzen.
            Kein Quellrechteck darf ueber den Sprite-Rand hinausreichen. */
         var remainingSrc=(len+tw)*srcPerCanvasPx, sourceX=u0, destX=-hw;
@@ -60051,6 +60441,48 @@ body.dstv-with-stitch #dstvInfoPanel { top: calc(var(--stitch-ui-top) + 8px); ri
   body.dstv-with-stitch #dstvModal #dstvSpeed { grid-column: 2; grid-row: 2; }
   body.dstv-with-stitch #dstvModal #dstvScrub { grid-column: 3; grid-row: 2; }
   body.dstv-with-stitch #dstvModal #dstvScrubCounter { grid-column: 4; grid-row: 2; text-align: right; font-size: var(--fs-xs); }
+}
+/* Night UI repair: one persistent settings head; native compact choices. */
+body.dstv-with-stitch #stitchPanel .stitch-workspace-head {
+  display: block; flex: 0 0 auto; padding: 10px 12px 8px;
+}
+body.dstv-with-stitch #stitchPanel .stitch-workspace-head > span {
+  display: block; min-height: 30px; padding-right: 108px; line-height: 30px;
+}
+body.dstv-with-stitch #stitchPanel #stitchPanelCloseX {
+  top: 10px; right: 12px; width: auto; height: 30px; padding: 3px 9px;
+  gap: 5px; border: 1px solid var(--ac); background: var(--white);
+  color: var(--ac); font-size: var(--fs-sm); font-weight: 700;
+}
+body.dstv-with-stitch #stitchPanel #stitchPanelCloseX > span:first-child { font-size: 20px; }
+#stitchPanel .stitch-workspace-head #dstvGpHeadActions {
+  margin: 5px 0 0 !important; padding: 0 !important;
+  background: transparent !important; border-bottom: 0 !important;
+}
+body.dstv-with-stitch #stitchPanel .stitch-panel-body > .stitch-content { flex: 0 0 auto !important; }
+body.dstv-with-stitch #stitchPanel .stitch-content::before { display: none !important; }
+#stitchPanel #dstvGlobalParams .dgp-radio { grid-column: 2 / -1; gap: 10px; flex-wrap: wrap; }
+#stitchPanel #dstvGlobalParams .dgp-radio .dgp-rtile {
+  display: inline-flex; flex: 0 1 auto; flex-direction: row; align-items: center;
+  min-height: 28px; padding: 3px 0; gap: 6px; border: 0;
+  background: transparent; box-shadow: none; text-align: left;
+}
+#stitchPanel #dstvGlobalParams .dgp-radio .dgp-rtile input {
+  position: static; opacity: 1; width: 14px; height: 14px; margin: 0;
+  pointer-events: auto; accent-color: var(--ac); flex: 0 0 auto;
+}
+#stitchPanel #dstvGlobalParams .dgp-radio .dgp-rlbl { font-size: var(--fs-sm); font-weight: 600; }
+#stitchPanel #dgpOutlineScopeOptions { margin: 4px 0 0 23px; }
+#stitchPanel #dgpOutlineScopeOptions label { display: inline-flex; align-items: center; gap: 4px; margin-right: 9px; font-size: var(--fs-sm); }
+#stitchPanel #dgpOutlineScopeOptions input { accent-color: var(--ac); margin: 0; }
+#stitchPanel #dgpOutlineScopeOptions[hidden] { display: none; }
+#stitchTestDlg > div { min-width: 0; overscroll-behavior: contain; }
+#stitchTestDlg label, #stitchTestDlg label > :is(input,select,span) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+#stitchTestDlg :is(input,select,button):focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+#stitchTestDlg #stGo { min-width: 0; white-space: normal; }
+@media (max-width: 480px) {
+  #stitchTestDlg > div { padding: 16px !important; }
+  #stitchTestDlg > div > div:has(> label #stHoop) { grid-template-columns: minmax(0,1fr) !important; }
 }
 </style>
 </body>
