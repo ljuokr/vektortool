@@ -1,5 +1,34 @@
 # Changelog
 
+## 3 October 2026 — r22
+
+Release build `VT-20261003-local-r22`, byte-identical to the tested local file.
+Includes the preceding local r20/r21 tracer and palette-interface work.
+
+- Keep the final assigned tracer pixels in an owned buffer instead of re-reading the display canvas. Controlled one-unit RGB readback differences no longer create extra islands; automatic colour merging and intentional one-pixel features remain supported.
+- Preserve the geometry of tiny closed running-stitch contours with size-dependent simplification. Ordinary contours and open paths keep their previous rules. This can create more micro-stitches, not necessarily better sew-outs.
+- Do not exempt an entire micro-stitch-only run from the quality warning as if it consisted solely of tie stitches.
+- Use the existing 0.001-pixel source-frame minimum consistently in SVG rendering, node editing, separation and stitch mapping. Valid source frames below 0.5 pixels no longer shrink again or shift incorrectly.
+- Include texture pattern definitions and rotated bounds in copied/selection SVG. Keep existing clipboard MIME fallbacks; replace universal compatibility claims with a short translated file-export shortcut hint.
+- Stitch cache version 249.
+
+Verified on the integrated build: 1,522 stitch/geometry regressions, 11 tracer
+readback/worker checks, 41 automatic-merge checks, 55 crop/scale/alpha checks,
+28 selection-SVG checks and 32 clipboard API checks. The broader tracer quality
+suite remains 318/322, with the same four existing quantisation deviations.
+Additional project/export checks and 19 independently decoded saved DST files
+passed. Machine files from isolated encoder checks are not browser downloads.
+
+The real-browser fresh Gecko workflow (automatic merge, background removal,
+apply, embroidery preview) completed without hiding micro-objects. DST export
+was triggered, but its saved browser file was not independently confirmed.
+Direct paste into the tested macOS Inkscape 1.2.1 remains unresolved. Complex
+motifs still meet calculation limits; complete browser round trips, cold-offline,
+final cross-browser, target-program and machine/material checks remain open.
+Other geometries collapsing below the machine format's 0.1-mm grid still need
+a general post-quantisation export guard. Existing projects are not silently
+rewritten. No general error-free or manufacturing approval is implied.
+
 ## 2 October 2026 — r16
 
 - Keep the routine storage notice closed even when archived conflict backups exist. Backup details remain available through the status bar.

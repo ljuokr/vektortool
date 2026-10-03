@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261003-r19 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261003-local-r22 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -1657,10 +1657,10 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 .tracer-presort-note { font-size:var(--fs-xs); color:var(--fg3); line-height:1.35; margin:2px 0 7px; }
 .tracer-detail-scale { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-top:2px; color:var(--fg3); font-size:var(--fs-xs); }
 .tracer-detail-scale .tracer-step-btn { flex-shrink:0; }
-.tracer-color-actions { display:flex; gap:var(--space-2); margin-top:4px; }
-.tracer-color-actions button { font-size:var(--fs-xs); padding:var(--space-1) var(--space-4); cursor:pointer; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); color:var(--fg2); }
-.tracer-color-actions button:hover { background:var(--bg2); }
-.tracer-color-actions button:disabled { opacity:0.3; cursor:default; }
+.tracer-color-actions { display:flex; align-items:center; gap:var(--space-2); margin-top:4px; }
+.tracer-color-actions button:not(.vt-cardlink) { font-size:var(--fs-xs); padding:var(--space-1) var(--space-4); cursor:pointer; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); color:var(--fg2); }
+.tracer-color-actions button:not(.vt-cardlink):hover { background:var(--bg2); }
+.tracer-color-actions button:not(.vt-cardlink):disabled { opacity:0.3; cursor:default; }
 .tracer-status { font-size:var(--fs-xs); color:var(--fg3); min-height:14px; padding:var(--space-1) 0; }
 .tracer-stats { font-size:var(--fs-xs); color:var(--fg2); padding:var(--space-2) 0; }
 .tracer-footer { display:flex; gap:var(--space-4); padding-top:6px; border-top:1px solid var(--border); margin-top:auto; }
@@ -1962,7 +1962,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
        buildExportSVG3D + window-Expose bleiben (Goldentests/3D-Pipeline); bei Bedarf Button aus Backup zurueck. -->
   <button id="exportDxfBtn" title="DXF für CAD/CNC/Laser (LibreCAD, Fusion, LightBurn). Offline-Testexport: Kurven und Materialkonturen inklusive Löcher in echten mm. Sichtbare gesperrte Formen sind enthalten. Nicht unterstützte Formen brechen den Export ab. Vor Fertigung im Zielprogramm prüfen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2,8h12M8,2v12M4,4l8,8M12,4l-8,8"/></svg>DXF (CAD/CNC)</button><!-- [uxfix v1] G8: buildExportDXF() war fertig, aber ohne Aufrufer; Header versprach DXF -->
   <div class="exp-sep"></div>
-  <button id="exportClipBtn" title="Aktuelle Zeichnung als SVG in die Zwischenablage, direkt in anderen Programmen einfügbar."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M3,11V3h8"/></svg>SVG kopieren</button>
+  <button id="exportClipBtn" title="SVG kopieren · Ctrl/⌘+Shift+C → .svg"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M3,11V3h8"/></svg>SVG kopieren</button>
 </div>
 <div id="rsidebar">
   <div class="rsb-sep"></div>
@@ -2684,17 +2684,14 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 
       <div class="tracer-section" id="tracerColorSection" style="display:none;">
         <div class="tracer-section-title">Farben gruppieren und ausblenden <span id="tracerColorInfo" style="font-weight:normal;font-size:var(--fs-xs);color:var(--fg3);"></span></div>
-        <label class="tracer-check"><input type="checkbox" id="tracerAutoMerge" checked aria-describedby="tracerAutoMergeNote"><span>Ähnliche Farben automatisch zusammenführen</span></label>
+        <label class="tracer-check"><input type="checkbox" id="tracerAutoMerge" checked><span>Ähnliche Farben automatisch zusammenführen</span></label>
         <div class="tracer-row"><label for="tracerGroupCount">Sichtbare Zielfarben</label><button type="button" id="tracerGroupCountMinus" class="tracer-step-btn" aria-label="−">−</button><input type="range" id="tracerGroupCount" min="1" max="24" value="4" step="1"><button type="button" id="tracerGroupCountPlus" class="tracer-step-btn" aria-label="+">+</button><span class="tval" id="tracerGroupCountVal">4</span></div>
-        <div class="tracer-color-actions"><button type="button" id="tracerAutoMergeAgain">Automatisch neu zusammenführen</button></div>
-        <div id="tracerAutoMergeNote" class="tracer-presort-note">Farben zusammenführen – rückgängig möglich.</div>
-        <div id="tracerBackgroundNote" class="tracer-presort-note">Hintergrund ausblenden: Auge anklicken.</div>
-        <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg" aria-describedby="tracerBackgroundNote">Hintergrund entfernen</label>
+        <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg">Hintergrund entfernen</label>
         <!-- Optional arrangement never replaces the actual automatic output merge. -->
         <details><summary>Farben automatisch vorsortieren</summary><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farben automatisch vorsortieren</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Bis zu 4 Farbfamilien – nur angeordnet, keine Farbe verändert.</div></details>
         <div id="tracerSwatches" class="tracer-swatches" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-8) 13px;align-items:center;padding:var(--space-2) var(--space-1);"></div>
-        <div id="tracerGroupHint" class="tracer-group-hint"></div>
-        <div class="tracer-color-actions">
+        <div id="tracerGroupHint" class="tracer-group-hint" role="status" hidden></div>
+        <div class="tracer-color-actions" id="tracerColorActions">
           <button id="tracerColorUndo" type="button" title="Letzte Farbänderung rückgängig" aria-label="Farbänderung rückgängig" disabled>&#x21A9;</button>
           <button id="tracerColorRedo" type="button" title="Farbänderung wiederholen" aria-label="Farbänderung wiederholen" disabled>&#x21AA;</button>
           <button id="tracerColorReset" type="button" title="Alle Farbmerges lösen und alle Farben wieder einblenden">Farben zurücksetzen</button>
@@ -8360,13 +8357,13 @@ function _enableSvgPathNodeEditing(s) {
     return false;
   }
   if (!sourceSubpaths.length) return false;
-  // Match the existing renderer's tiny-source-box fallback as well. Do not
+  // Match the renderer's missing/degenerate-source-box fallback as well. Do not
   // change the general mapper or the shape until conversion has succeeded.
   var mappingShape = s;
-  if (exact && (s.svgOrigW < 0.5 || s.svgOrigH < 0.5)) {
+  if (exact && (s.svgOrigW < 0.001 || s.svgOrigH < 0.001)) {
     mappingShape = Object.assign({}, s);
-    if (s.svgOrigW < 0.5) { mappingShape.svgOrigX=s.x||0; mappingShape.svgOrigW=Math.max(Math.abs(s.w||1),1); }
-    if (s.svgOrigH < 0.5) { mappingShape.svgOrigY=s.y||0; mappingShape.svgOrigH=Math.max(Math.abs(s.h||1),1); }
+    if (s.svgOrigW < 0.001) { mappingShape.svgOrigX=s.x||0; mappingShape.svgOrigW=Math.max(Math.abs(s.w||1),1); }
+    if (s.svgOrigH < 0.001) { mappingShape.svgOrigY=s.y||0; mappingShape.svgOrigH=Math.max(Math.abs(s.h||1),1); }
   }
   var flatPoints = [];
   var metas = [];
@@ -10814,8 +10811,11 @@ function _renderSvgPath(s, sc, sw, fc, rot) {
   var origY = (s.svgOrigY != null) ? s.svgOrigY : 0;
   var rawOrigW = Math.abs(s.svgOrigW != null ? s.svgOrigW : 0);
   var rawOrigH = Math.abs(s.svgOrigH != null ? s.svgOrigH : 0);
-  if (rawOrigW < 0.5) { origX = s.x || 0; rawOrigW = Math.max(Math.abs(s.w || 1), 1); }
-  if (rawOrigH < 0.5) { origY = s.y || 0; rawOrigH = Math.max(Math.abs(s.h || 1), 1); }
+  /* Valid source frames use the same 0.001 px minimum as the point mapper.
+     Small does not mean missing: the old 0.5 px fallback shrank real details
+     again and displaced their source origin. Keep the legacy zero fallback. */
+  if (rawOrigW < 0.001) { origX = s.x || 0; rawOrigW = Math.max(Math.abs(s.w || 1), 1); }
+  if (rawOrigH < 0.001) { origY = s.y || 0; rawOrigH = Math.max(Math.abs(s.h || 1), 1); }
   var origW = rawOrigW;
   var origH = rawOrigH;
   var curW = Math.max(Math.abs(s.w || origW), 0.001);
@@ -16341,10 +16341,9 @@ document.addEventListener('keydown', function(e) {
     _smoothSelectedPaths();
   }
 
-  /* Cmd+Shift+C → reliable file-based fallback for Inkscape on macOS.
-     Chrome's clipboard write of image/svg+xml is silently sanitised/dropped
-     in many setups, so the selection is exported as an .svg file the user
-     can drag straight into Inkscape. No server, no plugin. */
+  /* Cmd/Ctrl+Shift+C exports selected artwork as a standalone SVG file.
+     Clipboard interoperability depends on browser, OS and target application;
+     a file import is an alternative independent of clipboard flavours. */
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && k === 'c' && selId) {
     e.preventDefault();
     var toFile=[]; selIds.forEach(function(id){var s2=findShape(id);if(s2)toFile.push(s2);}); if(toFile.length===0){var s3=findShape(selId);if(s3)toFile.push(s3);}
@@ -17192,9 +17191,9 @@ function _planSvgPathSeparation(s) {
     mapping.svgOrigY = s.svgOrigY != null ? s.svgOrigY : 0;
     mapping.svgOrigW = Math.abs(s.svgOrigW || 0);
     mapping.svgOrigH = Math.abs(s.svgOrigH || 0);
-    // Keep the existing renderer's tiny-box fallback exactly, including flips.
-    if (mapping.svgOrigW < 0.5) { mapping.svgOrigX=s.x||0; mapping.svgOrigW=Math.max(Math.abs(s.w||1),1); }
-    if (mapping.svgOrigH < 0.5) { mapping.svgOrigY=s.y||0; mapping.svgOrigH=Math.max(Math.abs(s.h||1),1); }
+    // Keep the renderer's missing/degenerate-box fallback, including flips.
+    if (mapping.svgOrigW < 0.001) { mapping.svgOrigX=s.x||0; mapping.svgOrigW=Math.max(Math.abs(s.w||1),1); }
+    if (mapping.svgOrigH < 0.001) { mapping.svgOrigY=s.y||0; mapping.svgOrigH=Math.max(Math.abs(s.h||1),1); }
     subs.forEach(function(sub) {
       sub.points = sub.points.map(function(p) {
         var q = _mapSvgPathPointFromSource(mapping, p.x, p.y);
@@ -18826,10 +18825,27 @@ function buildSvgForShapes(shapeList) {
   var copyFonts = Object.create(null);
   shapeList.forEach(function(s) { if (s && s.type === 'text' && !s.hidden) copyFonts[s.fontFamily || 'Nunito'] = true; });
   var copyFontCss = buildGoogleFontsImport(Object.keys(copyFonts), true);
+  /* A copied document has no access to the editor's global pattern defs. */
+  var copyTextures = Object.create(null);
+  shapeList.forEach(function(s) {
+    if (!s || s.hidden || !s.fillTexture || !s.fillEnabled || !s.fill || s.fill === 'none') return;
+    var size = s.fillTextureSize || 20, angle = s.fillTextureAngle || 0;
+    var id = buildTexturePatternId(s.fillTexture, s.fill, size, angle);
+    if (!copyTextures[id]) copyTextures[id] = buildTexturePatternDef(s.fillTexture, s.fill, size, angle);
+  });
+  var copyDefs = (copyFontCss ? '<style>' + copyFontCss + '</style>' : '') + Object.keys(copyTextures).map(function(id) { return copyTextures[id]; }).join('');
   var bb = null;
   for (var j = 0; j < shapeList.length; j++) {
-    var sb = shapeBBox(shapeList[j]);
+    var item = shapeList[j];
+    if (!item || item.hidden) continue;
+    var sb = shapeBBox(item);
     if (!sb) continue;
+    /* shapeBBox is unrotated; use the renderer's rotation centre and the
+       existing point rotation helper to enclose the exported artwork. */
+    if (item.rotation) {
+      var centre = item.x != null && item.w != null ? {x:item.x + item.w/2,y:item.y + (item.h || 0)/2} : {x:sb.x + sb.w/2,y:sb.y + sb.h/2};
+      sb = vertsBBox(rotatePts([{x:sb.x,y:sb.y},{x:sb.x+sb.w,y:sb.y},{x:sb.x+sb.w,y:sb.y+sb.h},{x:sb.x,y:sb.y+sb.h}], centre.x, centre.y, item.rotation));
+    }
     if (!bb) { bb = {x:sb.x,y:sb.y,w:sb.w,h:sb.h}; }
     else {
       var x2 = Math.max(bb.x+bb.w, sb.x+sb.w), y2 = Math.max(bb.y+bb.h, sb.y+sb.h);
@@ -18848,18 +18864,13 @@ function buildSvgForShapes(shapeList) {
     + ' data-vt-copy-id="' + _vtClipboardStamp + '"'
     + ' width="'+wmm+'mm" height="'+hmm+'mm"'
     + ' viewBox="'+(bb.x-pad)+' '+(bb.y-pad)+' '+(bb.w+pad*2)+' '+(bb.h+pad*2)+'"'
-    + '>' + (copyFontCss ? '<defs><style>' + copyFontCss + '</style></defs>' : '')
+    + '>' + (copyDefs ? '<defs>' + copyDefs + '</defs>' : '')
     + svgParts + '</svg>';
 }
 
-/* Write SVG to the clipboard in the widest-compatible way without a helper.
-   Chrome maps image/svg+xml auf die UTI public.svg-image - die liest auf macOS
-   aber nachweislich kein Desktop-Programm. Der Träger, den Figma, Sketch,
-   Affinity Designer 2 und Illustrator beim Einfügen tatsächlich parsen, ist
-   SVG-Markup als text/plain ([clipboard-interop v1], Audit 2026-07-10).
-   Safari kennt kein image/svg+xml in ClipboardItem -> zweites Bundle ohne.
-   Inkscape auf macOS liest gar keine Browser-Flavors (GitLab #4392),
-   dafür gibt es Cmd+Shift+C (.svg-Datei). */
+/* Offer SVG, HTML and plain text, with fallbacks for unsupported clipboard
+   formats. Acceptance by the browser does not prove support in the receiving
+   application. Cmd/Ctrl+Shift+C provides a standalone-file alternative. */
 async function _writeClipboardSvg(svgStr) {
   if (!navigator.clipboard || typeof navigator.clipboard.write !== 'function' || typeof ClipboardItem === 'undefined') {
     console.info('[Vektortool copy] Async Clipboard API not available.');
@@ -18899,8 +18910,7 @@ async function _writeClipboardSvg(svgStr) {
   for (var i = 0; i < attempts.length; i++) {
     try {
       await navigator.clipboard.write([new ClipboardItem(attempts[i].item)]);
-      console.info('[Vektortool copy] \u2713', attempts[i].label, 'akzeptiert.'
-        + ' Wichtig: Inkscape auf macOS kann diese UTIs nicht lesen — nutze Cmd+Shift+C für .svg-Datei.');
+      console.info('[Vektortool copy] \u2713', attempts[i].label, 'vom Browser akzeptiert. Einfügen hängt vom Zielprogramm ab; Alternative: Ctrl/⌘+Shift+C für eine SVG-Datei.');
       return true;
     } catch (err) {
       console.warn('[Vektortool copy] abgelehnt:', attempts[i].label, err && err.message);
@@ -18910,12 +18920,9 @@ async function _writeClipboardSvg(svgStr) {
   return false;
 }
 
-/* [clipboard-interop v1] text/plain wird jetzt bewusst MITgeschrieben (sync und async):
-   Figma, Sketch, Affinity Designer 2 und Illustrator parsen beim Einfügen genau diesen
-   SVG-Klartext, Chromes image/svg+xml liest auf macOS dagegen kein Desktop-Programm.
-   Das alte Gegenargument (Inkscape fügt Klartext als Textobjekt ein) trifft kaum noch:
-   Inkscape auf macOS liest gar keine Browser-Flavors, und auf Linux/Windows gewinnt
-   der parallel geschriebene image/svg+xml-Flavor gegen den Text. */
+/* Plain text is deliberately included alongside SVG/HTML in both native
+   copy events and asynchronous writes. The receiving application chooses
+   which representation it can read; no universal interop guarantee. */
 /* [uxfix v1] B01: copy/cut im Eingabefeld gehören dem Browser. Ohne Guard konnte ein
    hängengebliebenes _pendingSvgCopy den Text-Kopiervorgang kapern (SVG statt Text in
    der Zwischenablage) bzw. deleteSelected() die Form löschen. */
@@ -23952,6 +23959,7 @@ var _tracerRequestedMode = 'trace';
 
 var _tState = {
   image: null, imageName:"", imageUrl:"", originalWidth:0, originalHeight:0,
+  processedImageData: null,
   svgMarkup:"", exportSvgMarkup:"", exportNeedsDisjoint:false,
   stats:null, busy:false, pendingRerender:false, renderTimer:null,
   hiddenColors: [],
@@ -27391,6 +27399,7 @@ function _tracerRenderProcessedAsync() {
 function _tracerRenderProcessed(asyncColor) {
   var img = _tState.image;
   if (!img) return;
+  _tState.processedImageData = null;
   if (_tState.fringeWorkerCancel) _tState.fringeWorkerCancel();
   var rasterSerial = _tState.rasterSerial = (_tState.rasterSerial || 0) + 1;
   var rasterGen = _tState.settingsGen || 0;
@@ -27598,7 +27607,11 @@ function _tracerRenderProcessed(asyncColor) {
      The immutable source palette is never overwritten by cleanup or merges. */
   _tState.fringeDiagnostics = null;
   if (mode !== 'monochrome' && cleanFringes) {
-    var fringeInput = ctx.getImageData(0, 0, w, h), fringePalette = [], fringeSeen = {};
+    // Keep the assigned colour labels in memory. Canvas readback may perturb
+    // RGB by one unit (colour conversion/privacy noise), inventing islands and
+    // matching holes in an otherwise solid material. Display pixels are not
+    // input to cleanup or tracing once this palette has been assigned.
+    var fringeInput = imgData, fringePalette = [], fringeSeen = {};
     Object.keys(replacement).forEach(function(key) {
       var rgb = replacement[key], colorKey = rgb.join(',');
       if (!fringeSeen[colorKey]) { fringeSeen[colorKey] = true; fringePalette.push(rgb); }
@@ -27642,15 +27655,16 @@ function _tracerRenderProcessed(asyncColor) {
 
   function finishProcessed() {
   _tState.processedCanvas = canvas;
+  _tState.processedImageData = {width:w,height:h,data:new Uint8ClampedArray(imgData.data)};
   _tState.processedSourceImage = img;
   // SW auto-threshold changes its control synchronously during this call.
   // A colour worker must instead commit exactly the key captured at start.
   _tState.processedRasterKey = mode === 'monochrome' ? _tracerRasterKey() : rasterKey;
   _tState._needsReprocess = false;
 
-  /* Count actual unique colors on the processed canvas (post-merge) */
+  /* Count actual assigned colours after merge/cleanup, not display readback. */
   var _procUniqueColors = {};
-  var _procData = ctx.getImageData(0, 0, w, h).data;
+  var _procData = imgData.data;
   for (var _pci = 0; _pci < _procData.length; _pci += 4) {
     if (_procData[_pci + 3] === 0) continue;
     _procUniqueColors[_procData[_pci] + ',' + _procData[_pci+1] + ',' + _procData[_pci+2]] = 1;
@@ -30030,17 +30044,23 @@ function _tracerComputeColorGroupMap(sourceColors, targetGroups, mode, sourceCou
   return newMap;
 }
 
-/* [VT-AUTO-MERGE v1] Conservative colour-family reduction, not raw LAB
+/* [VT-AUTO-MERGE v2] Conservative colour-family reduction, not raw LAB
    k-means. Compress chroma above 32 so saturation shades do not consume all
    groups; retain hue direction, chromatic/neutral contrast and lightness.
    Complete-link clustering cannot chain a series of intermediate shades
    across distant colours. Counts choose an ORIGINAL representative, never a
    fabricated centroid. Rare contrasting accents are not area-pruned.
-   Pure, deterministic, <=24 colours; no image-specific colours or names. */
+   Strong chromatic contrast has priority over extra neutral lightness bands.
+   Only genuinely chromatic palettes get that extra weight: muted photographs
+   and greyscale keep their established lightness balance. This protects a
+   small saturated accent without privileging a named colour or pixel area.
+   K remains an exact user-selected limit: fewer groups than distinct colour
+   families must still lose distinctions. Pure, deterministic, <=24 colours. */
 function _tracerComputeAutoMergeMap(sourceColors, targetGroups, sourceCounts) {
   var colors = Array.from(new Set(sourceColors || [])).sort();
   var k = Math.max(1, Math.min(colors.length, Math.floor(Number(targetGroups) || 4)));
   if (colors.length <= k) return {};
+  var peakChroma = 0;
   function feature(hex) {
     var rgb = [1,3,5].map(function(i) {
       var c = parseInt(hex.slice(i,i+2),16) / 255;
@@ -30051,13 +30071,20 @@ function _tracerComputeAutoMergeMap(sourceColors, targetGroups, sourceCounts) {
     var y=f(rgb[0]*0.2126+rgb[1]*0.7152+rgb[2]*0.0722);
     var z=f((rgb[0]*0.0193+rgb[1]*0.1192+rgb[2]*0.9505)/1.08883);
     var l=116*y-16, a=500*(x-y), b=200*(y-z), c=Math.hypot(a,b);
+    peakChroma=Math.max(peakChroma,c);
     /* Near-white weak chroma represents tinted highlights/paper, not a
        saturated hue anchor. Smooth ramps avoid a hard colour-name boundary. */
     var nearWhite=Math.max(0,Math.min(1,(l-70)/20))*Math.max(0,Math.min(1,(30-c)/20));
     var saturation=Math.min(1,c/32)*(1-0.9*nearWhite), scale=c > 1e-9 ? 45*saturation/c : 0;
     return [0.6*l,a*scale,b*scale,20*saturation];
   }
-  var features=colors.map(feature), distances=features.map(function(a) {
+  var features=colors.map(feature);
+  /* Smoothly increase hue/chroma contrast above the existing chroma-32 knee;
+     at 64 the colour axes have three times their muted-palette weight. Counts
+     still choose only the representative, never whether an accent survives. */
+  var chromaWeight=1+2*Math.max(0,Math.min(1,(peakChroma-32)/32));
+  features.forEach(function(p){p[1]*=chromaWeight;p[2]*=chromaWeight;});
+  var distances=features.map(function(a) {
     return features.map(function(b) { return a.reduce(function(sum,v,j){return sum+(v-b[j])*(v-b[j]);},0); });
   });
   var clusters=colors.map(function(_c,i){return [i];});
@@ -30422,6 +30449,7 @@ function _tracerRenderSwatches() {
   /* Gruppier-Hinweis + Drop-Ziel-Vorschau je nach Auswahlzustand */
   var _hintEl = _tEl('tracerGroupHint');
   if (_hintEl) {
+    _hintEl.hidden = !_selectedSwatch;
     if (_selectedSwatch) {
       container.classList.add('picking');
       _hintEl.classList.add('picking');
@@ -30429,7 +30457,7 @@ function _tracerRenderSwatches() {
     } else {
       container.classList.remove('picking');
       _hintEl.classList.remove('picking');
-      _hintEl.innerHTML = 'Farbe auf eine andere ziehen = zusammenfassen. Auge = ausblenden.';
+      _hintEl.textContent = '';
     }
   }
 }
@@ -30485,7 +30513,7 @@ async function _tracerRunVectorize(keepGeneration) {
     /* [tracer-defaults v1] _needsReprocess: nach Rueckwechsel aus dem Silhouette-
        Modus ist der Canvas binarisiert - auch bei Merges frisch rendern (die
        Merges rettet der Merge-Retrace-Pfad ueber die forcePalette). */
-    if (_tState._needsReprocess || _tState.processedSourceImage !== _tState.image || _tState.processedRasterKey !== _tracerRasterKey()) {
+    if (_tState._needsReprocess || !_tState.processedImageData || _tState.processedSourceImage !== _tState.image || _tState.processedRasterKey !== _tracerRasterKey()) {
       if (_tracerProcTimer) { clearTimeout(_tracerProcTimer); _tracerProcTimer = null; }
       var processedReady = await _tracerRenderProcessedAsync();
       if (processedReady === false || !currentJob()) return;
@@ -30530,24 +30558,19 @@ async function _tracerRunVectorize(keepGeneration) {
       _tState._mergeExpectedColors = null;
     }
 
-    /* For the tracer engine, use original pixels (crop+blur only, no color quantization)
-       so ImageTracer gets maximum color information. The processed canvas is only for UI preview. */
+    /* Trace the exact owned labels committed by preprocessing. Never round-trip
+       palette colours through drawImage/getImageData: tiny readback changes
+       become separate components and leave holes when the main shape moves. */
     var srcCanvas = _tEl('tracerProcessedCanvas');
-    if (!srcCanvas || srcCanvas.width === 0) {
+    var preparedRaster = _tState.processedImageData;
+    if (!srcCanvas || !preparedRaster || preparedRaster.width !== srcCanvas.width || preparedRaster.height !== srcCanvas.height) {
       _tracerSetStatus('Vorschau nicht bereit.');
       return;
     }
-    var prepCanvas = document.createElement('canvas');
-    prepCanvas.width = srcCanvas.width;
-    prepCanvas.height = srcCanvas.height;
-    prepCanvas.naturalWidth = srcCanvas.width;
-    prepCanvas.naturalHeight = srcCanvas.height;
-    var prepCtx = prepCanvas.getContext('2d');
-    prepCtx.drawImage(srcCanvas, 0, 0);
     _tracerSetStatus("Raster wird vorbereitet...");
     _tracerSetProgress(0.03, "Raster wird vorbereitet\u2026"); /* TRACER-PROGRESS v1 */
-    var _directData = prepCtx.getImageData(0, 0, prepCanvas.width, prepCanvas.height);
-    var _directW = prepCanvas.width, _directH = prepCanvas.height;
+    var _directData = {width:preparedRaster.width,height:preparedRaster.height,data:new Uint8ClampedArray(preparedRaster.data)};
+    var _directW = _directData.width, _directH = _directData.height;
     var result = null;
 
     if (_tracerIsSilhouetteMode()) {
@@ -30744,6 +30767,7 @@ async function _tracerLoadImage(dataUrl, name, sourceKind) {
       _tState.svgMarkupOriginal = '';
       _tState._lastStats = '';
       _tState.quantizedImageData = null;
+      _tState.processedImageData = null;
       _tState.detectedColors = [];
       _tEl('tracerNavWrap').style.display = 'none';
       _tEl('tracerProcWrap').style.display = 'none';
@@ -31012,6 +31036,7 @@ function _resetTracerState() {
   _tracerCancelWork();
   _tracerInvalidateResult();
   _tracerResetColorWorkflow();
+  _tState.processedImageData = null;
   _tState.quantizedImageData = null;
   _tState.quantizedPalette = null;
   _tState.quantizedSourceImage = null;
@@ -32634,9 +32659,6 @@ function _silApplyExclusion() {
      and the checkbox are undoable alongside membership and visibility. */
   _tEl('tracerAutoMerge').addEventListener('change', function() {
     _tracerSetAutomaticColorGroups(this.checked, _tState.autoMergeGroups || 4);
-  });
-  _tEl('tracerAutoMergeAgain').addEventListener('click', function() {
-    _tracerSetAutomaticColorGroups(true, (_tEl('tracerGroupCount') || {}).value || 4);
   });
   function _tracerRegroup() {
     _tracerSetAutomaticColorGroups(true, (_tEl('tracerGroupCount') || {}).value || 4);
@@ -34467,7 +34489,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 247; /* Material-boundary finishing, including native curves and edge scope. */
+var _STITCH_CACHE_VERSION = 249; /* Preserve tiny closed contours and valid small SVG source frames. */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -36852,9 +36874,29 @@ function _stitchRingsToPolys(rings, fillRule) {
   if (!rings || !rings.length) return [];
   if (rings.length === 1) return [[rings[0]]];
   var boxes=new WeakMap();
-  function pip(pt, ring) {
+  function boxFor(ring) {
     var box=boxes.get(ring);
     if(!box){box=[Infinity,Infinity,-Infinity,-Infinity];for(var bi=0;bi<ring.length;bi++){box[0]=Math.min(box[0],ring[bi][0]);box[1]=Math.min(box[1],ring[bi][1]);box[2]=Math.max(box[2],ring[bi][0]);box[3]=Math.max(box[3],ring[bi][1]);}boxes.set(ring,box);}
+    return box;
+  }
+  function ringTree(items) {
+    var node={box:[Infinity,Infinity,-Infinity,-Infinity]};
+    for(var i=0;i<items.length;i++){var b=items[i].box;node.box[0]=Math.min(node.box[0],b[0]);node.box[1]=Math.min(node.box[1],b[1]);node.box[2]=Math.max(node.box[2],b[2]);node.box[3]=Math.max(node.box[3],b[3]);}
+    if(items.length<=12){node.items=items;return node;}
+    var axis=node.box[2]-node.box[0]>=node.box[3]-node.box[1]?0:1;
+    items.sort(function(a,b){return (a.box[axis]+a.box[axis+2])-(b.box[axis]+b.box[axis+2])||a.index-b.index;});
+    var mid=items.length>>>1;node.left=ringTree(items.slice(0,mid));node.right=ringTree(items.slice(mid));return node;
+  }
+  function makeTree(){return ringTree(rings.map(function(r,index){return {box:boxFor(r),index:index};}));}
+  var tree=makeTree();
+  function containing(pt) {
+    var found=[],stack=[tree];
+    function includes(b){return pt[0]>=b[0]&&pt[1]>=b[1]&&pt[0]<=b[2]&&pt[1]<=b[3];}
+    while(stack.length){var node=stack.pop();if(!includes(node.box))continue;if(node.items){for(var i=0;i<node.items.length;i++)if(includes(node.items[i].box))found.push(node.items[i].index);}else{stack.push(node.right);stack.push(node.left);}}
+    found.sort(function(a,b){return a-b;});return found;
+  }
+  function pip(pt, ring) {
+    var box=boxFor(ring);
     if(pt[0]<box[0]||pt[1]<box[1]||pt[0]>box[2]||pt[1]>box[3])return false;
     var inside = false;
     for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -36867,13 +36909,16 @@ function _stitchRingsToPolys(rings, fillRule) {
      solid material, not holes. Retain only boundaries where fill changes. */
   if(fillRule==='nonzero'){
     var winding=rings.map(function(r){var a=0;for(var i=1;i<r.length;i++)a+=r[i-1][0]*r[i][1]-r[i][0]*r[i-1][1];return a>=0?1:-1;});
-    rings=rings.filter(function(r,idx){var outside=0;for(var k=0;k<rings.length;k++)if(k!==idx&&pip(r[0],rings[k]))outside+=winding[k];return (outside!==0)!==(outside+winding[idx]!==0);});
+    rings=rings.filter(function(r,idx){var outside=0,candidates=containing(r[0]);for(var j=0;j<candidates.length;j++){var k=candidates[j];if(k!==idx&&pip(r[0],rings[k]))outside+=winding[k];}return (outside!==0)!==(outside+winding[idx]!==0);});
     if(!rings.length)return [];
+    tree=makeTree();
   }
   /* Schachtelungstiefe je Ring: gerade = Outer (Flaeche), ungerade = Loch. */
   var depth = rings.map(function (r, idx) {
     var cnt = 0;
-    for (var k = 0; k < rings.length; k++) {
+    var candidates=containing(r[0]);
+    for (var j = 0; j < candidates.length; j++) {
+      var k=candidates[j];
       if (k === idx || rings[k].length < 3) continue;
       if (pip(r[0], rings[k])) cnt++;
     }
@@ -36975,8 +37020,8 @@ function _stitchSvgSourceMatrix(shape) {
   if (shape.svgEditable && shape.points && shape.svgNodeSubpaths && shape.svgNodeSubpaths.length) return [1,0,0,1,0,0];
   var ox=shape.svgOrigX!=null?shape.svgOrigX:0, oy=shape.svgOrigY!=null?shape.svgOrigY:0;
   var ow=Math.abs(shape.svgOrigW!=null?shape.svgOrigW:0), oh=Math.abs(shape.svgOrigH!=null?shape.svgOrigH:0);
-  if(ow<0.5){ox=shape.x||0;ow=Math.max(Math.abs(shape.w||1),1);}
-  if(oh<0.5){oy=shape.y||0;oh=Math.max(Math.abs(shape.h||1),1);}
+  if(ow<0.001){ox=shape.x||0;ow=Math.max(Math.abs(shape.w||1),1);}
+  if(oh<0.001){oy=shape.y||0;oh=Math.max(Math.abs(shape.h||1),1);}
   var sx=Math.max(Math.abs(shape.w||ow),0.001)/ow, sy=Math.max(Math.abs(shape.h||oh),0.001)/oh;
   var fx=shape.flipX?-1:1, fy=shape.flipY?-1:1;
   var matrix=[sx*fx,0,0,sy*fy,(shape.x||0)+sx*((shape.flipX?ow:0)-fx*ox),(shape.y||0)+sy*((shape.flipY?oh:0)-fy*oy)];
@@ -37487,7 +37532,8 @@ function _stitchPointInsideFill(px, py, hasSVGPath, outline, nEdges) {
 function _fillPointInsideShape(shape, px, py, hasSVGPath, outline, nEdges) {
   var inside;
   if (hasSVGPath) {
-    inside = _stitchPointInsideFill(px, py, true, outline, nEdges);
+    /* The SVG oracle already subtracts these same active overlays. */
+    return _stitchPointInsideFill(px, py, true, outline, nEdges);
   } else {
     var renderHitTest = window._svgPathHitTest;
     if (shape && shape.type === 'svgpath' && typeof renderHitTest === 'function') {
@@ -37992,9 +38038,32 @@ function _buildGloballyPhasedFillRowV7(start, end, dirX, dirY, stitchLen) {
    Reuse aus v27 für Eulerian-Auto-Fill (Travel zwischen Reihen entlang
    der Shape-Kante, vom Fill darüber verdeckt).
    ───────────────────────────────────────────────────────────────────────── */
-function _outlineTravelStitches(shape, fromPt, toPt) {
-  var geom;
-  try { geom = _stitchResolveFillGeometry(shape); } catch(e) { return null; }
+function _vtFillOutlineSampleIndex(outline) {
+  if (!window._vtFillOutlineSampleCache) window._vtFillOutlineSampleCache = new WeakMap();
+  var cached = window._vtFillOutlineSampleCache.get(outline);
+  if (cached) return cached;
+  var avgStep = 0, stepCount = 0, points = [];
+  for (var i = 0; i < outline.length; i++) {
+    points.push({x:outline[i].x,y:outline[i].y,index:i});
+    if (i) { var d = Math.hypot(outline[i].x-outline[i-1].x,outline[i].y-outline[i-1].y); if (d > 0.01) { avgStep += d; stepCount++; } }
+  }
+  var phantomThreshold = Math.max((stepCount ? avgStep/stepCount : 1)*6,_mm2px(2));
+  var starts = [0];
+  for (var j = 1; j < outline.length; j++) {
+    if (Math.hypot(outline[j].x-outline[j-1].x,outline[j].y-outline[j-1].y) > phantomThreshold) starts.push(j);
+  }
+  function build(items) {
+    var node={l:Infinity,t:Infinity,r:-Infinity,b:-Infinity};
+    for(var k=0;k<items.length;k++){var p=items[k];node.l=Math.min(node.l,p.x);node.t=Math.min(node.t,p.y);node.r=Math.max(node.r,p.x);node.b=Math.max(node.b,p.y);}
+    if(items.length<=12){node.points=items;return node;}
+    var axis=node.r-node.l>=node.b-node.t?'x':'y';items.sort(function(a,b){return a[axis]-b[axis]||a.index-b.index;});
+    var mid=items.length>>>1;node.left=build(items.slice(0,mid));node.right=build(items.slice(mid));return node;
+  }
+  cached={starts:starts,tree:build(points)};window._vtFillOutlineSampleCache.set(outline,cached);return cached;
+}
+function _outlineTravelStitches(shape, fromPt, toPt, resolvedGeometry) {
+  var geom = resolvedGeometry;
+  try { if (!geom) geom = _stitchResolveFillGeometry(shape); } catch(e) { return null; }
   if (!geom || !geom.outline || geom.outline.length < 3) return null;
   var outline = geom.outline;
   var n = outline.length;
@@ -38006,20 +38075,10 @@ function _outlineTravelStitches(shape, fromPt, toPt) {
      statt der Außen-Outline walken → "Innenform wird abgefahren wie
      Außenform" Bug. Fix: detektiere Phantom-Edges via auffälliger Sample-
      Distanz, splitte in Subpaths, walk nur innerhalb desselben Subpaths. */
-  var avgStep = 0, stepCount = 0;
-  for (var sai = 1; sai < n; sai++) {
-    var sd = Math.hypot(outline[sai].x - outline[sai-1].x, outline[sai].y - outline[sai-1].y);
-    if (sd > 0.01) { avgStep += sd; stepCount++; }
-  }
-  avgStep = stepCount > 0 ? avgStep / stepCount : 1;
-  var phantomThreshold = Math.max(avgStep * 6, _mm2px(2));
+  var sampleIndex = _vtFillOutlineSampleIndex(outline);
   /* Subpath-Start-Indices ermitteln: subpathStarts[0] = 0, danach jede
      Position nach einer Phantom-Edge. */
-  var subpathStarts = [0];
-  for (var sbi = 1; sbi < n; sbi++) {
-    var sbd = Math.hypot(outline[sbi].x - outline[sbi-1].x, outline[sbi].y - outline[sbi-1].y);
-    if (sbd > phantomThreshold) subpathStarts.push(sbi);
-  }
+  var subpathStarts = sampleIndex.starts;
   /* Für jedes Sample: in welchem Subpath liegt es? */
   function subpathOf(idx) {
     var s = 0;
@@ -38037,10 +38096,15 @@ function _outlineTravelStitches(shape, fromPt, toPt) {
   /* closest Sample-Index, eingeschränkt auf ALLE Subpaths (gibt auch Subpath-Idx zurück). */
   function closestIdx(pt) {
     var best = 0, bestD = Infinity;
-    for (var i = 0; i < n; i++) {
-      var dx = outline[i].x - pt.x, dy = outline[i].y - pt.y;
-      var d = dx*dx + dy*dy;
-      if (d < bestD) { bestD = d; best = i; }
+    var stack = [sampleIndex.tree];
+    function lower(node) { var dx=Math.max(node.l-pt.x,0,pt.x-node.r),dy=Math.max(node.t-pt.y,0,pt.y-node.b);return dx*dx+dy*dy; }
+    while (stack.length) {
+      var node = stack.pop(); if (lower(node) > bestD) continue;
+      if (node.points) {
+        for (var k=0;k<node.points.length;k++) {var p=node.points[k],dx=p.x-pt.x,dy=p.y-pt.y,d=dx*dx+dy*dy;if(d<bestD||(d===bestD&&p.index<best)){bestD=d;best=p.index;}}
+      } else {
+        var near=node.left,far=node.right;if(lower(far)<lower(near)){near=node.right;far=node.left;}stack.push(far);stack.push(near);
+      }
     }
     return best;
   }
@@ -38338,18 +38402,26 @@ function _planAutoFillEuler(allSegments, shape, hasSVGPath, outline, nEdges, fil
     var rows = [];
     for (i = 0; i < allSegments.length; i++) { var s = allSegments[i]; if ((s.ex - s.sx) * (s.ex - s.sx) + (s.ey - s.sy) * (s.ey - s.sy) < 0.25) continue; rows.push({ a: { x: s.sx, y: s.sy }, b: { x: s.ex, y: s.ey }, row: (s.row != null ? s.row : 0) }); }
     if (rows.length < 3) return null;
-    /* Outline in Ringe (an _subpathBreak) + Bogenlängen. */
-    var rings = [], cur = [];
+    /* Every disjoint region uses the same immutable resolved outline.
+       Reuse only its geometric ring/projection index, never graph state or
+       sewn masks. The WeakMap releases it with the geometry cache. */
+    if (!window._vtFillEulerOutlineCache) window._vtFillEulerOutlineCache = new WeakMap();
+    var outlineIndex = window._vtFillEulerOutlineCache.get(outline);
+    var rings = outlineIndex ? outlineIndex.rings : [], cur = [];
+    if (!outlineIndex) {
     for (i = 0; i < outline.length; i++) { if (outline[i]._subpathBreak && cur.length) { rings.push(cur); cur = []; } cur.push({ x: outline[i].x, y: outline[i].y }); }
     if (cur.length) rings.push(cur);
     for (var ri = 0; ri < rings.length; ri++) { var rg = rings[ri]; rg.cum = [0]; var L = 0; for (k = 1; k < rg.length; k++) { L += Math.hypot(rg[k].x - rg[k - 1].x, rg[k].y - rg[k - 1].y); rg.cum.push(L); } rg.len = L + Math.hypot(rg[0].x - rg[rg.length - 1].x, rg[0].y - rg[rg.length - 1].y); }
+    }
     function segT(px, py, ax, ay, bx, by) { var dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy; if (L2 < 1e-6) return 0; var t = ((px - ax) * dx + (py - ay) * dy) / L2; return t < 0 ? 0 : (t > 1 ? 1 : t); }
     /* Exact nearest-segment BVH: same projection and original tie order,
        but distant contours need not be rescanned for every row endpoint. */
     var projectionEdges=[];
+    if (!outlineIndex) {
     for(var r=0;r<rings.length;r++)for(var j=0;j<rings[r].length;j++){
       var a=rings[r][j],b=rings[r][(j+1)%rings[r].length];
       projectionEdges.push({a:a,b:b,r:r,j:j,rank:projectionEdges.length,l:Math.min(a.x,b.x),t:Math.min(a.y,b.y),rr:Math.max(a.x,b.x),bb:Math.max(a.y,b.y)});
+    }
     }
     function projectionTree(items){
       var node={l:Infinity,t:Infinity,rr:-Infinity,bb:-Infinity};
@@ -38359,7 +38431,8 @@ function _planAutoFillEuler(allSegments, shape, hasSVGPath, outline, nEdges, fil
       items.sort(function(a,b){return axis==='x'?(a.l+a.rr)-(b.l+b.rr):(a.t+a.bb)-(b.t+b.bb);});
       var mid=items.length>>>1;node.left=projectionTree(items.slice(0,mid));node.right=projectionTree(items.slice(mid));return node;
     }
-    var projectionRoot=projectionTree(projectionEdges);
+    var projectionRoot=outlineIndex ? outlineIndex.root : projectionTree(projectionEdges);
+    if (!outlineIndex) window._vtFillEulerOutlineCache.set(outline, {rings:rings,root:projectionRoot});
     function project(p){
       var bR=0,bPos=0,bd=Infinity,bRank=Infinity,stack=[projectionRoot];
       function lower(n){var dx=Math.max(n.l-p.x,0,p.x-n.rr),dy=Math.max(n.t-p.y,0,p.y-n.bb);return dx*dx+dy*dy;}
@@ -38381,7 +38454,20 @@ function _planAutoFillEuler(allSegments, shape, hasSVGPath, outline, nEdges, fil
     for (i = 0; i < rows.length; i++) { rows[i].na = nodeOf(rows[i].a); rows[i].nb = nodeOf(rows[i].b); var seid = addEdge(rows[i].na, rows[i].nb, 'seg', null); if (seid >= 0) edges[seid].rowVal = rows[i].row; }
     /* Kontur-Kanten je Ring: Knoten nach Position sortieren, Nachbarn verbinden,
        jede zweite verdoppeln (→ alle Grade gerade, eulerisierbar). */
-    function arcBetween(g, posU, posV) { var out = [], len = g.len; var fwd = posV - posU; if (fwd < 0) fwd += len; var target = posU + fwd; for (var j = 0; j < g.length; j++) { var pp = g.cum[j]; if (pp < posU) pp += len; if (pp > posU + 0.01 && pp < target - 0.01) out.push({ x: g[j].x, y: g[j].y }); } return out; }
+    function arcBetween(g, posU, posV) {
+      var out=[],len=g.len,fwd=posV-posU;if(fwd<0)fwd+=len;var target=posU+fwd;
+      /* cum is monotone. Visit just the two possible arc ranges, in the
+         original vertex order (including coincident end vertices). */
+      function range(lo,hi,wrap) {
+        var a=0,b=g.length;while(a<b){var m=(a+b)>>>1;if(g.cum[m]<=lo)a=m+1;else b=m;}
+        for(var j=a;j<g.length&&g.cum[j]<hi;j++){
+          var pp=g.cum[j];if((pp<posU)!==wrap)continue;
+          if(wrap)pp+=len;
+          if(pp>posU+0.01&&pp<target-0.01)out.push({x:g[j].x,y:g[j].y});
+        }
+      }
+      range(posU+0.01-len,target-0.01-len,true);range(posU+0.01,target-0.01,false);return out;
+    }
     var ringNodes = {}; for (i = 0; i < nodes.length; i++) { (ringNodes[nodes[i].ring] = ringNodes[nodes[i].ring] || []).push(i); }
     for (var rkey in ringNodes) { var list = ringNodes[rkey]; if (list.length < 2) continue; var g2 = rings[rkey]; list.sort(function (a, b) { return nodes[a].pos - nodes[b].pos; }); for (var c = 0; c < list.length; c++) { var u = list[c], v = list[(c + 1) % list.length]; if (u === v) continue; var arc = arcBetween(g2, nodes[u].pos, nodes[v].pos); var meta = { arc: arc, du: nodes[u].pos }; addEdge(u, v, 'cont', meta); if (c % 2 === 0 && list.length > 2) addEdge(u, v, 'cont', meta); } }
     /* Restliche ungerade Knoten greedy nach Nähe paaren. */
@@ -38393,15 +38479,22 @@ function _planAutoFillEuler(allSegments, shape, hasSVGPath, outline, nEdges, fil
     while (stack.length && g3++ < lim) { var top = stack[stack.length - 1]; var pe = takeEdge(top.node); if (pe) { edges[pe.eid].used = true; stack.push({ node: pe.to, via: pe.eid }); } else { circuit.push(stack.pop()); } }
     circuit.reverse();
     if (circuit.length < rows.length) return null;
-    var router = _buildInteriorTravelRouter(pInside, outline);
+    /* A circuit made entirely of fill rows and boundary arcs never needs
+       an interior grid. Keep its prior rows only until a real pair edge
+       requests that grid; then replay the identical sewn mask once. */
+    var router = null, pendingRows = [];
+    function interiorRouter() {
+      if(!router){router=_buildInteriorTravelRouter(pInside,outline);for(var i=0;i<pendingRows.length;i++){var row=pendingRows[i];router.markStitched(row[0],row[1],row[2],row[3]);}pendingRows=null;}
+      return router;
+    }
     var out = [], runIdx = 0, jumps = 0;
     function emitStraight(p0, p1, runI) { var d = Math.hypot(p1.x - p0.x, p1.y - p0.y); if (d < 0.4) return; var n = Math.max(1, Math.ceil(d / mm(12))); for (var sg = 1; sg <= n; sg++) out.push({ sx: p0.x + (p1.x - p0.x) * ((sg - 1) / n), sy: p0.y + (p1.y - p0.y) * ((sg - 1) / n), ex: p0.x + (p1.x - p0.x) * (sg / n), ey: p0.y + (p1.y - p0.y) * (sg / n), row: -1, _directStitch: true, _runIdx: runI }); }
     for (var ci = 1; ci < circuit.length; ci++) {
       var e = edges[circuit[ci].via]; if (!e) continue;
       var fromN = circuit[ci - 1].node, toN = circuit[ci].node, pf = nodes[fromN], pt = nodes[toN];
-      if (e.type === 'seg') { out.push({ sx: pf.x, sy: pf.y, ex: pt.x, ey: pt.y, row: (e.rowVal != null ? e.rowVal : 0), _runIdx: runIdx }); router.markStitched(pf.x, pf.y, pt.x, pt.y); }
+      if (e.type === 'seg') { out.push({ sx: pf.x, sy: pf.y, ex: pt.x, ey: pt.y, row: (e.rowVal != null ? e.rowVal : 0), _runIdx: runIdx }); if(router)router.markStitched(pf.x,pf.y,pt.x,pt.y);else pendingRows.push([pf.x,pf.y,pt.x,pt.y]); }
       else if (e.type === 'cont') { var pts = (e.meta && e.meta.arc) ? e.meta.arc.slice() : []; if (e.meta && fromN !== e.u) pts.reverse(); var prev = pf; for (var ap = 0; ap < pts.length; ap++) { emitStraight(prev, pts[ap], runIdx); prev = pts[ap]; } emitStraight(prev, pt, runIdx); }
-      else { var rt = router.routeTravel(pf.x, pf.y, pt.x, pt.y, mm(160)); if (rt && rt.length >= 2) { var prev2 = pf; for (var rp = 1; rp < rt.length; rp++) { emitStraight(prev2, rt[rp], runIdx); prev2 = rt[rp]; } } else { out.push({ sx: pf.x, sy: pf.y, ex: pt.x, ey: pt.y, row: -1, _isJump: true, _runIdx: runIdx }); runIdx++; jumps++; } }
+      else { var rt = interiorRouter().routeTravel(pf.x, pf.y, pt.x, pt.y, mm(160)); if (rt && rt.length >= 2) { var prev2 = pf; for (var rp = 1; rp < rt.length; rp++) { emitStraight(prev2, rt[rp], runIdx); prev2 = rt[rp]; } } else { out.push({ sx: pf.x, sy: pf.y, ex: pt.x, ey: pt.y, row: -1, _isJump: true, _runIdx: runIdx }); runIdx++; jumps++; } }
     }
     try { window.__eulerDbg = { rows: rows.length, nodes: nodes.length, edges: edges.length, rings: rings.length, circuit: circuit.length, jumps: jumps, oddLeft: odd.length }; } catch(e){console.warn('[vt:swallowed]',e)}
     return out.length ? out : null;
@@ -38760,6 +38853,14 @@ function _planAutoFill(allSegments, shape, hasSVGPath, outline, nEdges, fillAngl
   var ang = fillAngleRad || 0, ux = Math.cos(ang), uy = Math.sin(ang), rows = [];
   for (var i = 0; i < allSegments.length; i++) { var s = allSegments[i]; if ((s.ex - s.sx) * (s.ex - s.sx) + (s.ey - s.sy) * (s.ey - s.sy) < 0.09) continue; rows.push({ sx: s.sx, sy: s.sy, ex: s.ex, ey: s.ey, row: (s.row != null ? s.row : 0), used: false }); }
   if (!rows.length) return [];
+  /* No connector or later row exists for a singleton. The ordinary loop
+     only emits this row, then needlessly builds the full object's travel
+     raster in markStitched. Traced motifs may contain thousands of these. */
+  if (rows.length === 1) {
+    var only = rows[0], forward = only.sx * ux + only.sy * uy <= only.ex * ux + only.ey * uy;
+    return [{sx:forward?only.sx:only.ex,sy:forward?only.sy:only.ey,
+      ex:forward?only.ex:only.sx,ey:forward?only.ey:only.sy,row:only.row,_runIdx:0}];
+  }
   var out = [], runIdx = 0, curX = null, curY = null, remaining = rows.length;
   var COVER = mm(15), COVER2 = COVER * COVER;
   while (remaining > 0) {
@@ -38987,20 +39088,24 @@ function _fillDropCoveredShortRows(segs, dirX, dirY, perpX, perpY, maxRowStepPx,
     return (proj[b].hi-proj[b].lo)-(proj[a].hi-proj[a].lo) ||
       (segs[a].row-segs[b].row) || perp[a]-perp[b] || proj[a].lo-proj[b].lo || a-b;
   });
-  var kept = new Set();
+  var kept = new Set(), keptByRow = new Map();
+  function retain(index) {
+    kept.add(index); var row=segs[index].row|0,list=keptByRow.get(row);
+    if(!list){list=[];keptByRow.set(row,list);}list.push(index);
+  }
   for (var ki = 0; ki < n; ki++) {
     var k = priority[ki];
     var L = proj[k].hi - proj[k].lo;
-    if (L >= minLenPx) { kept.add(k); continue; }
+    if (L >= minLenPx) { retain(k); continue; }
     var tol = Math.max(L * 0.1, 0.4);
     var covered = false;
-    for (var j = 0; j < n; j++) {
-      if (!kept.has(j)) continue;
-      if (Math.abs((segs[j].row | 0) - (segs[k].row | 0)) !== 1) continue;
+    var row=segs[k].row|0,candidates=(keptByRow.get(row-1)||[]).concat(keptByRow.get(row+1)||[]);
+    for (var candidate = 0; candidate < candidates.length; candidate++) {
+      var j=candidates[candidate];
       if (Math.abs(perp[j] - perp[k]) > maxRowStepPx) continue;
       if (proj[j].lo <= proj[k].lo + tol && proj[j].hi >= proj[k].hi - tol) { covered = true; break; }
     }
-    if (!covered) kept.add(k);
+    if (!covered) retain(k);
   }
   return segs.filter(function(_, i) { return kept.has(i); });
 }
@@ -39359,7 +39464,7 @@ function _calcFillStitchV7(shape, opts) {
              Faden walkt entlang der Boundary zwischen den Segmenten. Sparse
              Step (1.5 mm) sodass keine Über-Stickung. Fallback JUMP nur wenn
              outline-travel echt unmöglich (verschiedene Subpaths). */
-          var travelPts = _outlineTravelStitches(shape, { x: lastEndX, y: lastEndY }, { x: firstPt.x, y: firstPt.y });
+          var travelPts = _outlineTravelStitches(shape, { x: lastEndX, y: lastEndY }, { x: firstPt.x, y: firstPt.y }, geom);
           if (travelPts && travelPts.length > 0) {
             for (var tpi = 0; tpi < travelPts.length; tpi++) {
               var tp = travelPts[tpi];
@@ -41323,8 +41428,9 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     if(outline[i]._subpathBreak)continue;
     var a=outline[i-1],b=outline[i];
     if(![a.x,a.y,b.x,b.y].every(Number.isFinite))throw new Error('Nicht-endliche Stickkontur.');
-    if(Math.hypot(b.x-a.x,b.y-a.y)<epsilon)continue;
-    var edge={a:a,b:b,l:Math.min(a.x,b.x),r:Math.max(a.x,b.x),t:Math.min(a.y,b.y),btt:Math.max(a.y,b.y)};
+    var edx=b.x-a.x,edy=b.y-a.y,edgeLength=Math.hypot(edx,edy);
+    if(edgeLength<epsilon)continue;
+    var edge={a:a,b:b,dx:edx,dy:edy,boundaryEpsilon:epsilon*Math.max(1,edgeLength),l:Math.min(a.x,b.x),r:Math.max(a.x,b.x),t:Math.min(a.y,b.y),btt:Math.max(a.y,b.y)};
     var ei=edges.length;edges.push(edge);
     var x0=Math.floor(edge.l/cell),x1=Math.floor(edge.r/cell),y0=Math.floor(edge.t/cell),y1=Math.floor(edge.btt/cell);
     if((x1-x0+1)*(y1-y0+1)>100000)throw new Error('Stickkontur zu groß für sichere Materialprüfung.');
@@ -41335,8 +41441,8 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
   function inside(x,y){
     var list=rows.get(Math.floor(y/cell))||[],winding=0,parity=false;
     for(var j=0;j<list.length;j++){
-      var e=edges[list[j]],a=e.a,b=e.b,dx=b.x-a.x,dy=b.y-a.y,cross=dx*(y-a.y)-dy*(x-a.x);
-      if(Math.abs(cross)<=epsilon*Math.max(1,Math.hypot(dx,dy))&&x>=e.l-epsilon&&x<=e.r+epsilon&&y>=e.t-epsilon&&y<=e.btt+epsilon)return true;
+      var e=edges[list[j]],a=e.a,b=e.b,dx=e.dx,dy=e.dy,cross=dx*(y-a.y)-dy*(x-a.x);
+      if(x>=e.l-epsilon&&x<=e.r+epsilon&&y>=e.t-epsilon&&y<=e.btt+epsilon&&Math.abs(cross)<=e.boundaryEpsilon)return true;
       if((a.y>y)!==(b.y>y)&&x<a.x+(y-a.y)*dx/dy)parity=!parity;
       if(a.y<=y&&b.y>y&&cross>0)winding++;else if(a.y>y&&b.y<=y&&cross<0)winding--;
     }
@@ -41678,33 +41784,23 @@ function _calcClosedSatinFill(shape) {
 function _calcRunningStitch(shape) {
   var pts = [];
   var st = shape.stitch;
-  var stitchLen = _mm2px((st && st.params && st.params.stitchLength) || 3);
+  var stitchLen = _mm2px(Math.max(0.1, Math.min(STITCH_LIMITS.jumpSafetyMM, Number(st && st.params && st.params.stitchLength) || 3)));
   var adjustLast = !(st && st.params && st.params.adjustLastStitch === false);
   var subPaths = null;
 
   if (shape.type === 'svgpath') {
     var d = _stitchBuildShapePathD(shape);
-    var subDs = d ? d.match(/[Mm][^Mm]*/g) : null;
-    if (subDs && subDs.length && _setupFillPath(shape)) {
-      var helper = _ensureFillPathHelper();
-      var fullD = d;
-      subPaths = [];
-      for (var spi = 0; spi < subDs.length; spi++) {
-        var subD = (subDs[spi] || '').trim();
-        if (!subD) continue;
-        helper.path.setAttribute('d', subD);
-        var subLen = 0;
-        try { subLen = helper.path.getTotalLength(); } catch (e) { subLen = 0; }
-        if (subLen < 0.5) continue;
-        var numSamples = Math.max(40, Math.min(3000, Math.ceil(subLen / Math.max(0.5, stitchLen * 0.25))));
-        var subSamples = [];
-        for (var si = 0; si <= numSamples; si++) {
-          var p = helper.path.getPointAtLength(Math.min(si * subLen / numSamples, subLen));
-          subSamples.push(_fillPathLocalToWorld(p.x, p.y));
-        }
-        subPaths.push(subSamples);
-      }
-      helper.path.setAttribute('d', fullD);
+    if (d) {
+      /* Preserve the production flattener's real vertices (0.01 mm curve
+         bound). Uniform getPointAtLength sampling used to erase fine corners
+         BEFORE the adaptive stitch pass, and its 3000-point cap made long
+         motifs still coarser. Parse all subpaths together so relative moves
+         retain their source origin. Rotation is applied only after flattening. */
+      subPaths = _stitchFlattenContours(d).map(function(sub) {
+        var path = sub.pts.slice();
+        if (sub.closed && path.length) path.push({x:path[0].x,y:path[0].y});
+        return _stitchRotatePoints(shape, path);
+      });
     }
   }
   if (!subPaths || !subPaths.length) {
@@ -41713,126 +41809,93 @@ function _calcRunningStitch(shape) {
     subPaths = [fb];
   }
 
-  /* Merge subpaths separated by small/medium gaps into "groups". Each group is one
-     continuous polyline to stitch over. Only really large gaps (where a bridge stitch
-     would go clearly outside the figure) become pen-up jumps.
-     [VT-STITCH-F4 v1] Schwelle von max(8×Stichlänge, 15mm) (= 20 mm bei Default
-     2.5 mm) auf fix ~5 mm gesenkt UND mit Material-Validierung versehen: Eine
-     Brücke wird nur dann durchgehend gestickt, wenn die Verbindungsstrecke
-     mehrheitlich (>= ~70 %) im Material liegt (Sampling per _fillPointInsideShape),
-     sonst Jump. Verhindert sichtbaren Oberfaden zwischen getrennten Konturteilen
-     (z. B. Ringe eines traceten Logos). Fällt die Geometrie aus, gilt die reine
-     Distanzschwelle als Rückfall.
-     [VT-STITCH-O10 v1] Sampling auf die gemeinsame Material-Validierung
-     (_stitchBridgeInsideFrac) umgestellt; Schwellen aus STITCH_LIMITS
-     (runBridgeMM / runBridgeInsideFrac / runBridgeMaxFactor). */
-  var jumpThreshold = _mm2px(STITCH_LIMITS.runBridgeMM);
-  var _f4geom = null;
-  try { _f4geom = _stitchResolveFillGeometry(shape); } catch (e4) { _f4geom = null; }
-  function _f4bridgeInside(a, b) {
-    return _stitchBridgeInsideFrac(shape, _f4geom, a.x, a.y, b.x, b.y, STITCH_LIMITS.bridgeSampleStepMM);
-  }
-  var groups = [];
-  var currentGroup = null;
-  for (var sp = 0; sp < subPaths.length; sp++) {
-    var src = subPaths[sp];
-    if (src.length < 2) continue;
-    if (!currentGroup) {
-      currentGroup = src.slice();
-      groups.push(currentGroup);
-      continue;
-    }
-    var lastPt = currentGroup[currentGroup.length - 1];
-    var dx = src[0].x - lastPt.x, dy = src[0].y - lastPt.y;
-    var gap = Math.sqrt(dx * dx + dy * dy);
-    /* Default: Distanzschwelle. Liegt die Brücke aber überwiegend im Material,
-       darf sie auch über die Schwelle hinaus durchgehend gestickt werden;
-       liegt sie überwiegend draussen, wird schon unter der Schwelle gesprungen. */
-    var insideFrac = _f4bridgeInside(lastPt, src[0]);
-    var bridge;
-    if (insideFrac === null) {
-      bridge = (gap <= jumpThreshold);
-    } else {
-      bridge = (insideFrac >= STITCH_LIMITS.runBridgeInsideFrac) && (gap <= jumpThreshold * STITCH_LIMITS.runBridgeMaxFactor); /* [VT-STITCH-O15 v1] */
-    }
-    if (!bridge) {
-      currentGroup = src.slice();
-      groups.push(currentGroup);
-    } else {
-      for (var si2 = 0; si2 < src.length; si2++) currentGroup.push(src[si2]);
-    }
-  }
-
-  /* Adaptive placement: walk the polyline samples, extending each stitch as far
-     as possible while keeping chord deviation below `tolerance`. This makes
-     straight parts use the full user stitchLen while curves automatically get
-     shorter stitches that hug the curve. */
-  var tolerance = _mm2px(0.2);
+  /* A source pen-up is not a drawn line, even when most of the gap lies in a
+     filled region. Keep explicit subpaths separate: no new sewn bridges over
+     holes, between whiskers, or through otherwise blank material. */
+  var groups = subPaths;
+  /* Simplify only within 0.2 mm of the real contour, then split straight
+     spans at the chosen maximum length. Thus straight sections keep long
+     stitches while local corners/curves retain detail; no global reduction
+     of the user's stitch length. Non-collinear short corner anchors remain
+     intentional (also during export), not a promise that every micro-detail
+     can be sewn safely on every fabric. */
+  var tolerance = _mm2px(0.2), tolerance2 = tolerance * tolerance;
+  var minUnits = window._stitchGlobal && Number(window._stitchGlobal.minStitchLenUnits);
+  var minLen = _mm2px(Math.min(1, Math.max(0.1, (Number.isFinite(minUnits) ? minUnits : 3) / 10)));
+  var microTolerance2 = Math.pow(_mm2px(0.2), 2);
   for (var gi = 0; gi < groups.length; gi++) {
     var group = groups[gi];
     if (group.length < 2) continue;
-
-    var segLens = [];
-    var total = 0;
-    for (var gii = 1; gii < group.length; gii++) {
-      var gdx = group[gii].x - group[gii - 1].x, gdy = group[gii].y - group[gii - 1].y;
-      var l = Math.sqrt(gdx * gdx + gdy * gdy);
-      segLens.push(l);
-      total += l;
+    /* A fixed 0.2 mm tolerance can erase an entire small closed ring. Bound
+       simplification relative to that ring instead; it may still need very
+       short stitches and does not imply machine/fabric suitability. Open
+       paths and ordinary-sized contours retain their previous behaviour. */
+    var groupTolerance2 = tolerance2, groupMicroTolerance2 = microTolerance2;
+    if (group.length > 3 && Math.hypot(group[0].x-group[group.length-1].x,group[0].y-group[group.length-1].y) < 1e-9) {
+      var loopRadius=0,loopFar=0;
+      for (var li=0;li<group.length-1;li++) {
+        var loopDistance=Math.hypot(group[li].x-group[0].x,group[li].y-group[0].y);
+        if(loopDistance>loopRadius){loopRadius=loopDistance;loopFar=li;}
+      }
+      if (loopRadius > 1e-9 && loopRadius <= tolerance*Math.SQRT2*1.5+1e-8) {
+        var loopDX=group[loopFar].x-group[0].x,loopDY=group[loopFar].y-group[0].y,loopWidth=0;
+        for(var lj=1;lj<group.length-1;lj++)loopWidth=Math.max(loopWidth,Math.abs(loopDX*(group[lj].y-group[0].y)-loopDY*(group[lj].x-group[0].x))/loopRadius);
+        if(loopWidth>1e-9)groupTolerance2=groupMicroTolerance2=Math.pow(Math.min(loopRadius*0.05,loopWidth*0.25),2);
+      }
     }
-    if (total < 0.1) continue;
-
+    var keep = new Uint8Array(group.length), stack = [[0, group.length - 1]];
+    keep[0] = keep[group.length - 1] = 1;
+    while (stack.length) {
+      var range = stack.pop(), lo = range[0], hi = range[1];
+      var a = group[lo], b = group[hi], dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+      var far = -1, maxDev2 = groupTolerance2;
+      for (var j = lo + 1; j < hi; j++) {
+        if ((j & 255) === 0 && typeof _vtStitchCheckpoint === 'function') _vtStitchCheckpoint();
+        var q = group[j], t = len2 ? Math.max(0, Math.min(1, ((q.x-a.x)*dx+(q.y-a.y)*dy)/len2)) : 0;
+        var ex = q.x-a.x-t*dx, ey = q.y-a.y-t*dy, dev2 = ex*ex+ey*ey;
+        if (dev2 > maxDev2) { maxDev2 = dev2; far = j; }
+      }
+      if (far >= 0) { keep[far] = 1; stack.push([lo, far], [far, hi]); }
+    }
+    /* Raster stairs can otherwise turn a more faithful contour into hundreds
+       of sub-minimum stitches. Relax only these tiny neighbours, never beyond
+       the previous 0.2 mm contour tolerance, and validate against ALL original
+       vertices between the retained anchors (not just the removed point).
+       Real narrow spikes that cannot meet both constraints stay explicit. */
+    var anchors = [];
+    for (var ai = 0; ai < group.length; ai++) if (keep[ai]) anchors.push(ai);
+    for (var ai2 = 1; ai2 < anchors.length - 1; ai2++) {
+      var ia = anchors[ai2-1], ib = anchors[ai2], ic = anchors[ai2+1];
+      var pa = group[ia], pb = group[ib], pc = group[ic];
+      if (Math.min(Math.hypot(pb.x-pa.x,pb.y-pa.y),Math.hypot(pc.x-pb.x,pc.y-pb.y)) >= minLen) continue;
+      var vx = pc.x-pa.x, vy = pc.y-pa.y, vl2 = vx*vx+vy*vy, safe = vl2 > 1e-12;
+      for (var mi = ia+1; safe && mi < ic; mi++) {
+        if ((mi & 255) === 0 && typeof _vtStitchCheckpoint === 'function') _vtStitchCheckpoint();
+        var mp = group[mi], mt = Math.max(0,Math.min(1,((mp.x-pa.x)*vx+(mp.y-pa.y)*vy)/vl2));
+        var mx = mp.x-pa.x-mt*vx, my = mp.y-pa.y-mt*vy;
+        if (mx*mx+my*my > groupMicroTolerance2) safe = false;
+      }
+      if (safe) { keep[ib]=0; anchors.splice(ai2,1); ai2=Math.max(0,ai2-2); }
+    }
     if (pts.length === 0) {
       pts.push({ x: group[0].x, y: group[0].y });
     } else {
       pts.push({ x: group[0].x, y: group[0].y, jump: true });
     }
-
-    var endIdx = group.length - 1;
-    var idx = 0;
-    while (idx < endIdx) {
-      var startX = group[idx].x, startY = group[idx].y;
-      var accArc = 0;
-      var bestJ = idx + 1;
-      for (var j = idx + 1; j <= endIdx; j++) {
-        accArc += segLens[j - 1];
-        if (j > idx + 1) {
-          var candX = group[j].x, candY = group[j].y;
-          var maxDev = 0;
-          for (var kk = idx + 1; kk < j; kk++) {
-            var pdx = candX - startX, pdy = candY - startY;
-            var len2 = pdx * pdx + pdy * pdy;
-            var distFromLine;
-            if (len2 < 1e-10) {
-              distFromLine = Math.hypot(group[kk].x - startX, group[kk].y - startY);
-            } else {
-              var tt = ((group[kk].x - startX) * pdx + (group[kk].y - startY) * pdy) / len2;
-              tt = Math.max(0, Math.min(1, tt));
-              var qx = startX + pdx * tt, qy = startY + pdy * tt;
-              distFromLine = Math.hypot(group[kk].x - qx, group[kk].y - qy);
-            }
-            if (distFromLine > maxDev) maxDev = distFromLine;
-            if (maxDev > tolerance) break;
-          }
-          if (maxDev > tolerance) {
-            bestJ = j - 1;
-            break;
-          }
-        }
-        bestJ = j;
-        if (accArc >= stitchLen) break;
+    var prev = group[0];
+    for (var k = 1; k < group.length; k++) {
+      if (!keep[k]) continue;
+      var next = group[k], span = Math.hypot(next.x-prev.x,next.y-prev.y);
+      if (span < 1e-9) { prev = next; continue; }
+      var count = Math.max(1, Math.ceil(span/stitchLen));
+      for (var si = 1; si <= count; si++) {
+        var distance = adjustLast ? span*si/count : Math.min(si*stitchLen,span);
+        if (!adjustLast && k === group.length-1 && si === count && span-(si-1)*stitchLen < stitchLen*0.5) break;
+        var f = distance/span;
+        pts.push({x:prev.x+(next.x-prev.x)*f,y:prev.y+(next.y-prev.y)*f});
+        if (pts.length > 300000) throw new Error('Zu viele Laufstiche. Motiv aufteilen oder vereinfachen.');
       }
-      if (bestJ <= idx) bestJ = idx + 1;
-
-      /* adjustLast=false: if the final stitch would be much shorter than stitchLen,
-         skip it and leave the remainder as an intentional gap. */
-      if (!adjustLast && bestJ === endIdx) {
-        var lastX = pts[pts.length - 1].x, lastY = pts[pts.length - 1].y;
-        var finalDist = Math.hypot(group[endIdx].x - lastX, group[endIdx].y - lastY);
-        if (finalDist < stitchLen * 0.5) break;
-      }
-      idx = bestJ;
-      pts.push({ x: group[idx].x, y: group[idx].y });
+      prev = next;
     }
   }
   return pts;
@@ -44895,7 +44958,7 @@ function _dstPointToSegDist(pt, a, b) {
   return Math.hypot(pt.x - px, pt.y - py);
 }
 
-function _dstCleanupQuantizedRun(qRun, preserveGeometry) {
+function _dstCleanupQuantizedRun(qRun, preserveGeometry, maxStitchUnits) {
   if (!qRun || qRun.length < 3) return qRun ? qRun.slice() : [];
   var out = [qRun[0]];
   for (var i = 1; i < qRun.length - 1; i++) {
@@ -44923,7 +44986,14 @@ function _dstCleanupQuantizedRun(qRun, preserveGeometry) {
        Ersetzt den frueheren cosTurn-Knick-Pfad, der die Ecke je nach Run-Reihenfolge im
        Export faelschlich als sanften Knick (cosTurn > 0.5) ausduennte. Round-13-Schutz
        bleibt: Reihen-Ende-Ecken (perp >= Reihen-Schritt > 0.75, langer Arm) bleiben. */
-    if (isMicro && dDirect <= 35 && (nearLine || (!preserveGeometry && dDirect <= minU * 2))) {
+    /* A minimum-length cleanup must not override an explicit maximum.
+       Running/bean pass that physical limit below. Existing quantization
+       rounding on either source segment is allowed, but merging must never
+       create a longer rounded stitch than both the limit and those segments.
+       In a min > max conflict the user's maximum wins; keep short stitches. */
+    var withinMax = !(Number.isFinite(maxStitchUnits) && maxStitchUnits > 0) ||
+      dDirect <= Math.max(maxStitchUnits, dPrev, dNext) + 1e-8;
+    if (isMicro && withinMax && dDirect <= 35 && (nearLine || (!preserveGeometry && dDirect <= minU * 2))) {
       continue;
     }
     out.push(cur);
@@ -45461,8 +45531,11 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
       var tail = run[run.length - 1];
       var head = run[0];
       if (!tail || !head || tail.jump || head.jump) return false;
-      var seam = Math.hypot(tail.x - head.x, tail.y - head.y);
-      return seam < _mm2px(0.3);
+      /* Only a duplicated seam can be rotated. Endpoint proximity is not
+         closure: an intentional 0.2 mm opening must remain open even when
+         another object makes seam rotation attractive. Numerical epsilon is
+         in canvas pixels, many orders below the 0.1 mm file resolution. */
+      return Math.abs(tail.x-head.x) <= 1e-8 && Math.abs(tail.y-head.y) <= 1e-8;
     }
 
     /* [polygon-naht-schliessen v1] Rotation eines GESCHLOSSENEN Umriss-Runs
@@ -45575,11 +45648,16 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
       var run = es.runs[ri];
       if (!run || !run.length) continue;
       var isTextRun=es.shape && es.shape.type==='text';
-      /* The material guard has already certified these segments. Removing
-         non-collinear boundary anchors or inventing rectangular corners here
-         would invalidate that check (notably Gecko toes and small holes). */
-      var preserveMaterial=isTextRun||!!(es.shape&&es.shape.stitch&&['fill','satin','satincol'].indexOf(es.shape.stitch.type)>=0);
-      var qRun=_dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY),preserveMaterial);
+      /* The material guard has already certified fill segments; running/bean
+         supply source-contour anchors. Removing non-collinear anchors or
+         inventing rectangular corners would invalidate either geometry
+         (notably Gecko toes, small holes and fine traced line-art). */
+      var preserveMaterial=isTextRun||!!(es.shape&&es.shape.stitch&&['fill','satin','satincol','running','bean'].indexOf(es.shape.stitch.type)>=0);
+      var lineStitch=es.shape&&es.shape.stitch, maxRunUnits=undefined;
+      if(lineStitch && (lineStitch.type==='running'||lineStitch.type==='bean')) {
+        maxRunUnits=10*Math.max(0.1,Math.min(STITCH_LIMITS.jumpSafetyMM,Number(lineStitch.params&&lineStitch.params.stitchLength)||3));
+      }
+      var qRun=_dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY),preserveMaterial,maxRunUnits);
       if(!preserveMaterial) qRun=_dstReinsertShallowRowCorners(qRun);
       if (!qRun.length) continue;
       var firstQ = qRun[0];
@@ -47020,6 +47098,10 @@ window.__LINEA_DEBUG__ = {
     align-items: center; justify-content: center; gap: var(--space-6); color: var(--dstv-muted); }
   #dstvModal .dstv-empty .dstv-e-title { font-size: var(--fs-xl); color: var(--dstv-text); }
   #dstvModal .dstv-empty .dstv-e-hint { font-size: var(--fs-base); max-width: 360px; text-align: center; }
+  #dstvModal .dstv-preview-stale canvas { opacity: .16; filter: grayscale(1); }
+  #dstvModal .dstv-preview-stale .dstv-empty { padding: 20px; gap: 12px; }
+  #dstvModal .dstv-preview-stale .dstv-e-title { font-weight: 700; }
+  #dstvModal .dstv-preview-stale .dstv-e-hint { max-width: min(560px, 100%); max-height: 45%; overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--white); overflow-wrap: anywhere; }
 
   /* v44: #dstvSide ist KEINE eigene Spalte mehr — globale Parameter leben
      dauerhaft im stitchPanel, Stats im Info-Panel. Die leere Hülle wird hart
@@ -47766,10 +47848,16 @@ window.__LINEA_DEBUG__ = {
         var lastMicro0 = microRun0[microRun0.length - 1], nextMicro0 = run0[mi0];
         if (nextMicro0.x !== lastMicro0.x || nextMicro0.y !== lastMicro0.y) microRun0.push(nextMicro0);
       }
+      /* A run consisting entirely of micro-stitches is not just a pair of
+         tie-in/tie-off stitches. In particular, tiny closed details must not
+         receive an "ok / 0" result simply because all four edges are near
+         the start or end. Keep the existing exemptions for ordinary runs. */
+      var hasOrdinaryStitch0=false;
+      for(var oi0=1;oi0<microRun0.length;oi0++)if(Math.hypot(microRun0[oi0].x-microRun0[oi0-1].x,microRun0[oi0].y-microRun0[oi0-1].y)>=3){hasOrdinaryStitch0=true;break;}
       for (var m0 = 1; m0 < microRun0.length; m0++) {
         var md0 = Math.hypot(microRun0[m0].x - microRun0[m0 - 1].x, microRun0[m0].y - microRun0[m0 - 1].y);
         if (md0 > 0 && md0 < 3) {
-          if (m0 <= 2 || m0 >= microRun0.length - 2) continue;
+          if (hasOrdinaryStitch0 && (m0 <= 2 || m0 >= microRun0.length - 2)) continue;
           if (isBenignTurnMicro(microRun0, m0 - 1) || isBenignTurnMicro(microRun0, m0)) continue;
           micro++;
         }
@@ -48821,7 +48909,7 @@ window.__LINEA_DEBUG__ = {
     // Never turn a missing parse into a success indication. A previous valid
     // parse remains on screen during pending/error states, explicitly stale.
     if((phase==='done'||phase==='loaded')&&!hasPreview){title='Noch keine Stickerei';hint='Neu berechnen';}
-    return {title:title,hint:hint,busy:busy,stale:stale,showEmpty:!hasPreview,showAction:!hasPreview&&!busy};
+    return {title:title,hint:hint,busy:busy,stale:stale,showEmpty:!hasPreview,showAction:(!hasPreview||stale)&&!busy};
   }
   function _dstvPresentPreviewState(phase,message,emptyContext) {
     var parsed=_dstvState.parsed;
@@ -48830,14 +48918,19 @@ window.__LINEA_DEBUG__ = {
     var T=function(s){return window.t?window.t(s):s;};
     var empty=document.getElementById('dstvEmpty'),view=document.getElementById('dstvView');
     if(empty){
-      empty.style.display=ui.showEmpty?'':'none';
+      // A previous successful design is evidence of that design only. Keep its
+      // geometry, but visibly veil it until the current calculation succeeds.
+      empty.style.display=ui.showEmpty||ui.stale?'':'none';
       empty.setAttribute('data-preview-phase',phase);
       empty.setAttribute('aria-busy',String(ui.busy));
       var title=empty.querySelector('.dstv-e-title'),hint=empty.querySelector('.dstv-e-hint');
       if(title)title.textContent=T(ui.title);
       if(hint)hint.textContent=T(ui.hint);
     }
-    if(view)view.setAttribute('aria-busy',String(ui.busy));
+    if(view){
+      view.setAttribute('aria-busy',String(ui.busy));
+      view.classList.toggle('dstv-preview-stale',ui.stale&&hasPreview);
+    }
     var action=document.getElementById('dstvEmptyRecalc');
     if(action){action.hidden=!ui.showAction;action.disabled=ui.busy;}
     if(typeof window._vtStitchMicroFillRecovery==='function')window._vtStitchMicroFillRecovery(empty,'dstvMicroFillRecovery',phase==='error'&&!hasPreview);
@@ -56444,6 +56537,8 @@ installBriefToolPreview();
     ['Objektaktionen','{count} Objekt(e)'].forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});
   })();
   Object.keys(VT_RELEASE_CATALOG).forEach(function(key){Object.keys(VT_RELEASE_CATALOG[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=VT_RELEASE_CATALOG[key][lang];});});
+  /* Keep the existing translated label; the file shortcut is language-neutral. */
+  Object.keys(DICT).forEach(function(lang){if(DICT[lang]['SVG kopieren'])DICT[lang]['SVG kopieren · Ctrl/⌘+Shift+C → .svg']=DICT[lang]['SVG kopieren']+' · Ctrl/⌘+Shift+C → .svg';});
   /* Alias existing Swiss spelling; do not invent a fallback translation. */
   Object.keys(DICT).forEach(function(lang){if(DICT[lang]["Schliessen"]!=null&&DICT[lang]["Schließen"]==null)DICT[lang]["Schließen"]=DICT[lang]["Schliessen"];});
   refreshKnown();
@@ -56978,10 +57073,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
              echten Tokens, ein Farbpunkt wandert animiert vom linken in den rechten Kreis (Spur +
              Pfeil bleiben statisch sichtbar - auch bei prefers-reduced-motion). -->
         <div class="vth-ill"><svg viewBox="0 0 84 44" width="84" height="44" aria-hidden="true"><circle class="b" cx="21" cy="25" r="14.5"/><circle class="b" cx="63" cy="25" r="14.5"/><circle class="af" cx="15" cy="21" r="4"/><circle class="af" cx="25" cy="31" r="4"/><circle class="af" cx="67" cy="30" r="4" opacity="0.55"/><path class="b" stroke-dasharray="3 3" fill="none" d="M27,13 Q42,3 57,13"/><path class="af" d="M58.5,14.5 l-6.2,-1.2 3.4,-4.6 Z"/><circle class="af vth-cgdot" cx="21" cy="15" r="4.5"/></svg></div>
-        <p class="vth-t">Farbgruppen <small>Vorsortierung an</small></p>
-        <p class="vth-s">Bis zu 4 Farbfamilien – nur angeordnet, keine Farbe verändert.</p>
-        <p class="vth-s" style="margin-top:2px;">Farbe auf eine andere ziehen = zusammenfassen. Auge = ausblenden.</p>
-        <p class="vth-tip"><b>Tipp</b> Auge = ausblenden. Rückgängig und Farben zurücksetzen lösen bewusste Änderungen.</p>
+        <p class="vth-t">Farbgruppen</p>
+        <p class="vth-s">Farbe auf eine andere ziehen = zusammenfassen. Auge = ausblenden.</p>
       </div>
     </div>
 
@@ -57159,7 +57252,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   (function () { var t = document.getElementById('tracerTitle'); if (t) t.appendChild(mkBtn('umrissfarbe')); })();
   rowLabel('tracerColors', 'farben');
   ownLabel('tracerDropBg', 'hintergrund');
-  (function () { var s = document.getElementById('tracerColorSection'); var t = s && s.querySelector('.tracer-section-title'); if (t) t.appendChild(mkBtn('farbgruppen')); })();
+  (function () { var a = document.getElementById('tracerColorActions'); if (a) a.appendChild(mkBtn('farbgruppen')); })();
   rowLabel('tracerThreshold', 'schwellwert');
   ownLabel('tracerSilhouetteKeepInner', 'innenformen');
   ownLabel('tracerSilhouetteFilled', 'gefuellt');
