@@ -1,5 +1,38 @@
 # Changelog
 
+## 4 October 2026 — r26
+
+Release build `VT-20261004-local-r26`, byte-identical to the tested local file
+(SHA-256 `fedad10331bf614c0cd02cae95700543de1725d43d08e8d63fd3f9c4027f879b`).
+Includes the preceding local r23-r25 interface and contour-preview changes.
+
+- Keep test-card embroidery and parameter locks scoped to the active canvas. Do not change other canvases' persistent stitch visibility; do not blindly unhide previously saved objects.
+- Reject an active export object if all its sewn movement disappears after actual 0.1-mm machine-grid quantisation. Report the object ID and an explanation; applies to DST/PES/PEC/EXP.
+- Improve lengthwise lettering against the shaped whole-word contour while preserving existing main rows. Connect compact repair runs only through checked material, preserve holes, and decline reordering that increases remaining jump distance. Add bounded reference-word caching and computation limits. Stitch cache version 251.
+- Add an optional blue finishing-contour display guide for internal previews. It does not add stitches and is hidden for stale/error previews, external files and partial playback.
+- Restore consistent round, contrasting help buttons and organise area settings.
+- Refresh canvas dimensions without stitch data and suppress frame warnings based on a previous drawing's stale bounding box.
+- Complete 31 targeted UI/message keys in all 31 non-German languages, including dynamic text controls, export warnings and help. Fix the desktop RTL preview/header column placement.
+- Update version notes and stop presenting unresolved historical symbolic identifiers as GitHub commit links.
+
+Verified: real-browser Gecko/test-card/return/reload, imported micro-object error
+handling, Pacifico in three sizes, DE/EN/AR views and a mobile layout. Targeted
+source tests include 28 test-card checks, 56 export-guard cases, 40 text cases,
+eight text safety checks and translation/syntax regressions. Twenty regular
+exports remain byte-identical; 160 additional saved text files were independently
+decoded with matching ordered stitch geometry across all four formats. Twenty
+Satin text cases retain their previous point arrays. These counts are bounded
+tests, not complete end-to-end coverage.
+
+Remaining limitations: fine lettering still has short detail stitches and jumps;
+large lengthwise words can take longer. Whole-word coverage improved in 17/20
+measured lengthwise cases, not every possible font or design. Tiny subpaths inside
+otherwise valid compound objects can still collapse. Machine-grid rounding can
+slightly exceed a nominal stitch-length setting (observed Satin maximum 7.052 mm
+for a nominal 7 mm). Actual browser-download round trips, cold-offline and final
+cross-browser/target-application checks, and physical sew-outs remain incomplete.
+No general error-free or manufacturing approval is implied.
+
 ## 3 October 2026 — r22
 
 Release build `VT-20261003-local-r22`, byte-identical to the tested local file.

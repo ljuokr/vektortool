@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261003-local-r22 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261004-local-r26 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -2549,7 +2549,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 <button id="stickModeToggle" title="Stick-Modus: kombinierte Preview + Settings Ansicht">&#x25A6; Stick-Modus</button>
 
 <div id="statusbar">
-  <button id="infoBtn" title="Info">i</button>
+  <button id="infoBtn" title="Info" aria-label="Info"></button>
   <button id="shortcutsBtn" title="Tastenkürzel" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);padding:var(--space-1) var(--space-3);cursor:pointer;color:var(--fg2);font-family:monospace">?</button>
   <span id="stDrawSize"></span>
   <span id="stTool">Auswahl</span>
@@ -34489,7 +34489,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 249; /* Preserve tiny closed contours and valid small SVG source frames. */
+var _STITCH_CACHE_VERSION = 251; /* Rebuild Längs word coverage and bounded in-material repair routing. */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -41487,6 +41487,7 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     for(var ci=0;ci<intervals.length;ci++){
       var part=intervals[ci],atEnd=part.hi>=1-1e-12;
       var point=atEnd?Object.assign({},p):{x:q.x+dx*part.hi,y:q.y+dy*part.hi};
+      if(p._finishOutline)point._finishOutline=true;
       if(!part.material){point.jump=true;outsideCount++;clippedMM+=_px2mm(len*(part.hi-part.lo));}
       else delete point.jump;
       out.push(point);
@@ -42715,6 +42716,7 @@ function _withFillOutline(shape, mainPts) {
   if (!mainPts) mainPts = [];
   var outlinePts = _calcFillOutlineStitch(shape, true);
   if (!outlinePts || outlinePts.length < 2) return mainPts;
+  outlinePts=outlinePts.map(function(p){return Object.assign({},p,{_finishOutline:true});});
   if (!mainPts.length) return outlinePts;
   var out = mainPts.slice();
   /* Uebergang vom Fill-Ende zum Kontur-Start: als Jump markieren, damit der
@@ -42725,6 +42727,8 @@ function _withFillOutline(shape, mainPts) {
   if (last && Math.hypot(first.x - last.x, first.y - last.y) > 0.05) {
     out.push({ x: first.x, y: first.y, jump: true });
   }
+  /* Mark destinations for an optional display overlay. These flags never
+     alter coordinates, sequencing, density or machine-format encoding. */
   for (var i = 1; i < outlinePts.length; i++) out.push(outlinePts[i]);
   return out;
 }
@@ -45385,6 +45389,7 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
      centerPx-Normalisierung wie die echten DST-Records, damit Koords matchen. */
   window._dstvShapeBBoxes = {};
   window._dstvShapePoints = {};   /* [fadenbruch-zonen v2] Stich-Einstiche je Shape in DST-Koords (flach [x0,y0,...]) fuer rote Punkte im Viewer */
+  window._dstvFinishGuide = [];
   for (var bi = 0; bi < ss.length; bi++) {
     var bsh = ss[bi];
     var bnps = (bsh.stitch && bsh.stitch.needlePoints) || [];
@@ -45401,6 +45406,10 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
       if (bdy < sMinY) sMinY = bdy;
       if (bdy > sMaxY) sMaxY = bdy;
       if (!bp.jump) { _spts.push(bdx, bdy); }   /* [fadenbruch-zonen v2] nur echte Einstiche, keine Spruenge */
+      if(bj>0 && bp._finishOutline && !bp.jump && _stitchExportEligibility(bsh).main){
+        var bprev=bnps[bj-1],bx0=_dstPxToUnits(bprev.x-centerPxX),by0=-_dstPxToUnits(bprev.y-centerPxY);
+        if(bx0!==bdx||by0!==bdy)window._dstvFinishGuide.push([bx0,by0,bdx,bdy]);
+      }
     }
     if (isFinite(sMinX)) {
       window._dstvShapeBBoxes[bsh.id] = { minX: sMinX, minY: sMinY, maxX: sMaxX, maxY: sMaxY };
@@ -45435,6 +45444,16 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
      Tie-offs are decided when the next transition is known, then merged at
      their inset anchor in one linear pass (no repeated whole-plan splices). */
   var threadNeedsTieIn = true, pendingTieOff = null, tieOffInsertions = [];
+  function requireQuantizedSewnMovement(es, sewn) {
+    if (sewn) return;
+    /* Never emit a successful empty file or silently omit an active object
+       that collapses on the shared 0.1 mm machine grid. Locks and travel
+       cannot substitute for a genuine needle-down movement of that object. */
+    var message = 'Nach der Rundung auf 0,1 mm bleiben für dieses Objekt keine stickbaren Bewegungen. Motiv vergrössern oder das Objekt bewusst vom Sticken ausblenden.';
+    if (typeof window.t === 'function') message = window.t(message);
+    window._lastExportData = null;
+    throw new Error('Stickexport gesperrt: #' + (es.shape && es.shape.id != null ? es.shape.id : '?') + ' ' + message);
+  }
   function finishThreadSection() {
     if (pendingTieOff) {
       var lock = _dstMakeLockStitches(pendingTieOff.x, pendingTieOff.y,
@@ -45616,7 +45635,8 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
      die Luft quer über das Bild. */
   for (var esi = 0; esi < exportShapes.length; esi++) {
     var es = exportShapes[esi];
-    if (!es.runs || !es.runs.length) continue;
+    var shapeSewn = false;
+    requireQuantizedSewnMovement(es, es.runs && es.runs.length);
     /* Forward-/Reverse-Wahl: minimiere Distanz von letzter Position zum
        Start der neuen Shape — UNABHÄNGIG von Color (auch bei Color-Change!).
        Standard-Optimierung: Start/End jeder Shape so anordnen dass
@@ -45754,12 +45774,13 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
             dx: _pL.x - qp.x, dy: _pL.y - qp.y, isText: isTextRun };
         }
       }
-      if (runSewn) { threadNeedsTieIn = false; pendingTieOff = runTieOff; }
+      if (runSewn) { shapeSewn = true; threadNeedsTieIn = false; pendingTieOff = runTieOff; }
       /* Letzte Stitch-Position in Pixeln tracken für Coverage-Test des
          nächsten Inter-Run/Inter-Shape Übergangs */
       var lastP = run[run.length - 1];
       if (lastP) { lastStitchPxX = lastP.x; lastStitchPxY = lastP.y; }
     }
+    requireQuantizedSewnMovement(es, shapeSewn);
     lastColor = es.color;
   }
   finishThreadSection();
@@ -47071,11 +47092,11 @@ window.__LINEA_DEBUG__ = {
   #dstvModal .dstv-filename { color: var(--dstv-text2); font-family: "SF Mono", Menlo, monospace; font-size: var(--fs-md);
     max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #dstvModal .dstv-spacer { flex: 1; }
-  #dstvModal button {
+  #dstvModal button:where(:not(.vt-cardlink):not(#dstvInfoBtn)) {
     font: inherit; border: 1px solid var(--dstv-border); background: var(--white); color: var(--dstv-text);
     padding: var(--space-3) var(--space-6); border-radius: var(--radius-xs); cursor: pointer;
   }
-  #dstvModal button:hover { background: var(--dstv-hover); }
+  #dstvModal button:where(:not(.vt-cardlink):not(#dstvInfoBtn)):hover { background: var(--dstv-hover); }
   #dstvModal button.dstv-primary { background: var(--dstv-primary); color: var(--white); border-color: var(--dstv-primary); }
   #dstvModal button.dstv-primary:hover { background: var(--dstv-primary-hover); }
   #dstvModal button.dstv-active { background: var(--dstv-text); color: var(--white); border-color: var(--dstv-text); }
@@ -47319,7 +47340,7 @@ window.__LINEA_DEBUG__ = {
     <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nadelbewegungen, keine Garantie für einen Fadenschnitt."><input type="checkbox" id="dstvShowJumps" checked style="accent-color:var(--ac);margin:0;"> Sprünge</label>
     <label style="display:inline-flex;align-items:center;gap:var(--space-2);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;white-space:nowrap;" title="Jeden Stich als Punkt markieren"><input type="checkbox" id="dstvShowDots" checked style="accent-color:var(--ac);margin:0;"> Stich-Punkte</label>
     <!-- [stickui-dots v1] "Reset" (Ansicht zuruecksetzen) aus der Topbar in den Sidebar-Kopf (#dstvGpHeadActions) verschoben - Lukas: zuruecksetzen oben in sidebar. -->
-    <button id="dstvInfoBtn" title="Design-Statistiken (I)" style="font-weight:700;">&#x2139; Info</button>
+    <button id="dstvInfoBtn" title="Design-Statistiken (I)" aria-label="Design-Statistiken (I)"></button>
     <!-- VT-STICKBEGRIFFE v1: "Datei laden" entfernt (Lukas: braucht es nicht; externe .dst weiterhin per Drag&Drop, dstvFileInput bleibt) -->
     <!-- [stickui-b v1] #dstvLoadLineaBtn entfernt (redundant zu Auto-Recalc + Neu berechnen) -->
     <!-- [stickui-topbar v1] vtHelpBtn(?) entfernt; dstvCloseBtn versteckt - Schliessen nur noch ueber stitchPanelCloseX (oben rechts bei Einstellungen), das an dstvCloseBtn.click() delegiert -->
@@ -47371,7 +47392,7 @@ window.__LINEA_DEBUG__ = {
         <!-- [VT-CAT-SEKTIONEN v2] dgpAreaBody = Wrapper (Lukas: "all das gehoert zu Flaechen"):
              3 Grund-Slider PLUS der fruehere Gemeinsam-Block. Linien + Text stehen darunter. -->
         <div id="dgpAreaBody">
-          <div style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
+          <div id="dgpAreaMainGrid" class="dgp-area-grid">
           <!-- [VT-CAT-SEKTIONEN v3] Stil wieder ganz oben (Lukas) -->
           <label style="font-weight:600;">Stil</label>
           <select id="dgpFillStyle" style="font-size:var(--fs-sm);padding:var(--space-1) var(--space-2);border:1px solid var(--border-strong);border-radius:var(--radius-xs);color:var(--fg);background:var(--white);">
@@ -47403,7 +47424,7 @@ window.__LINEA_DEBUG__ = {
       </div>
       <!-- [VT-CAT-SEKTIONEN v3] leerer Trenn-Balken entfernt (Lukas). -->
       <!-- Grid: label | input | value -->
-      <div style="display:grid;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);">
+      <div id="dgpAreaConnectionGrid" class="dgp-area-grid">
 
         <!-- Verbindung: wie Sprünge/Übergänge zwischen Bereichen geführt werden.
              [kontur-connect-sichtbar v1] immer sichtbar (Lukas 2026-06-10);
@@ -47418,15 +47439,13 @@ window.__LINEA_DEBUG__ = {
         </div><!-- /dgpFillConnectRow -->
 
         <!-- [VT-TOPBAND v1] Zurücksetzen/Neu berechnen/Auto ins Top-Band ganz oben verschoben (Lukas). -->
-        <div style="grid-column:1 / -1;height:0;"></div>
-
         <!-- [VT-CAT-SEKTIONEN v1] Abstand zwischen Reihen / Stichen / Winkel in die Flaechen-Sektion oben
              verschoben (wirken nur auf Flaechen). Pull bleibt gemeinsam. -->
 
         <!-- [VT-UIFIX v1] Pull-Kompensation: Label "Pull" mit EINEM Zahnrad + (i); Schieber (wie Stich) erst auf Zahnrad-Klick (Lukas) -->
         <label id="dgpPullLabel" title="Beim Sticken zieht der Faden den Stoff zusammen. Plus-Werte machen die Fläche leicht grösser (weiche Stoffe), Minus-Werte kleiner. Standard -0,1 mm." style="font-weight:600;display:flex;align-items:center;gap:var(--space-2);">
           <span>Zugausgleich (Pull)</span>
-          <button id="dgpPullGear" type="button" title="Pull-Kompensation ein-/ausklappen" aria-label="Pull-Kompensation ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
+          <button id="dgpPullGear" class="dgp-detail-toggle" type="button" title="Pull-Kompensation ein-/ausklappen" aria-label="Pull-Kompensation ein-/ausklappen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
         </label>
         <input id="dgpPullComp" class="dgpPullSlider" type="range" min="-0.3" max="0.5" value="-0.1" step="0.01" style="display:none;accent-color:var(--fg);"><!-- [stickui-pull v1] min auf -0.3: der echte Default ist -0.1 (Kanten-Spikes/Halo + Dichte), der war mit min=0 unsichtbar -->
         <span id="dgpPullCompVal" class="dgpPullSlider" style="display:none;font-family:'SF Mono',Menlo,monospace;text-align:right;font-weight:700;">-0.10 mm</span>
@@ -47437,17 +47456,17 @@ window.__LINEA_DEBUG__ = {
       </div>
 
       <!-- [VT-UIFIX v1] Stick-Optionen GESTAPELT (Lukas: "untereinander"), eine Trennlinie + einheitliche Abstaende (var(--space-3)); je Toggle ggf. Sub eingerueckt darunter. -->
-      <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:var(--space-3);">
+      <div id="dgpAreaOptions">
         <!-- Underlay -->
-        <div>
-          <div style="display:flex;align-items:center;gap:var(--space-2);">
+        <div class="dgp-area-option">
+          <div class="dgp-option-row">
             <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;">
               <input id="dgpUnderlay" type="checkbox" checked style="cursor:pointer;">
               <span>Unterlage</span>
               <!-- "Rand anpassen" (adjustLastStitch) aus dem UI entfernt — bleibt intern auf an (Default). -->
               <input id="dgpAdjustLast" type="checkbox" checked style="display:none;">
             </label>
-            <button id="dgpUnderlayGear" type="button" title="Unterlage-Einstellungen ein-/ausklappen" aria-label="Unterlage-Einstellungen ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
+            <button id="dgpUnderlayGear" class="dgp-detail-toggle" type="button" title="Unterlage-Einstellungen ein-/ausklappen" aria-label="Unterlage-Einstellungen ein-/ausklappen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
           </div>
           <!-- [underlay-neutral v1] Underlay-Sub neutral; [VT-UIFIX v1] eingeklappt, Zahnrad oeffnet -->
           <div id="dgpUnderlaySub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
@@ -47465,13 +47484,13 @@ window.__LINEA_DEBUG__ = {
           </div>
         </div>
         <!-- Faden trimmen -->
-        <div>
-          <div style="display:flex;align-items:center;gap:var(--space-2);">
+        <div class="dgp-area-option">
+          <div class="dgp-option-row">
             <label style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Lange Sprünge werden geschnitten, sofern die Maschine dies unterstützt. (Sprünge länger als die Schwelle werden beim Export geschnitten, kein Faden quer über die Form; aus = lange Verbindungsfäden bleiben.)">
               <input id="toplineTrim" type="checkbox" style="cursor:pointer;">
-              <span>✂ Faden trimmen</span>
+              <span>Faden trimmen</span>
             </label>
-            <button id="dgpTrimGear" type="button" title="Trim-Schwelle ein-/ausklappen" aria-label="Trim-Schwelle ein-/ausklappen" style="border:none;background:none;cursor:pointer;color:var(--fg2);font-size:var(--fs-base);line-height:1;padding:2px 4px;">⚙</button>
+            <button id="dgpTrimGear" class="dgp-detail-toggle" type="button" title="Trim-Schwelle ein-/ausklappen" aria-label="Trim-Schwelle ein-/ausklappen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
           </div>
           <!-- [VT-UIFIX v1] Faden-trimmen Schwellen-Sub (per #dgpTrimGear) -->
           <div id="dgpTrimSub" style="display:none;grid-template-columns:auto 1fr 70px;gap:var(--space-2) var(--space-4);align-items:center;font-size:var(--fs-sm);color:var(--fg);padding-left:18px;margin-top:var(--space-2);">
@@ -47495,6 +47514,7 @@ window.__LINEA_DEBUG__ = {
             <label><input type="radio" name="dgpOutlineMode" value="outer" checked><span>Freie Kanten</span></label>
             <label><input type="radio" name="dgpOutlineMode" value="all"><span>Alle Kanten</span></label>
           </div>
+          <div id="dgpOutlineHighlightRow" hidden><label title="Blaue Anzeigehilfe für den berechneten Abschluss. Keine zusätzlichen Stiche; während der Wiedergabe ausgeblendet."><input id="dgpOutlineHighlight" type="checkbox" checked><span>Kontur hervorheben (nur Ansicht)</span></label></div>
           <p id="dgpOutlineHelp" hidden>Gleichfarbiger Laufstich nach der Füllung; kein Satinband.</p>
           <p id="dgpOutlineScope" hidden>Für sichtbare, ungesperrte Füllflächen ohne andersfarbige Kontur; nicht für Text.</p>
           <p id="dgpOutlineModeHelp" hidden>Freie Kanten umfassen Aussen- und Lochränder ohne angrenzende Füllfläche. Alle Kanten ergänzen gemeinsame Flächenkanten.</p>
@@ -48070,6 +48090,16 @@ window.__LINEA_DEBUG__ = {
       _dstvCtx.font = '10px -apple-system, system-ui, sans-serif';
       _dstvCtx.fillText('Grid: ' + fineMm + ' mm / ' + coarseMm + ' mm', 8, 13);
     }
+    /* The active canvas can have no stitch data. Refresh its size and clear
+       the previous canvas's warning before the no-data return as well. */
+    var _viewHoop = typeof window._currentHoopShape === 'function' ? window._currentHoopShape() : null;
+    var _viewSize = document.getElementById('dstvHoopSize');
+    if (_viewSize) _viewSize.textContent = _viewHoop && _viewHoop.wMM > 0 && _viewHoop.hMM > 0
+      ? window.t('Fläche') + ': ' + Math.round(_viewHoop.wMM) + ' \u00d7 ' + Math.round(_viewHoop.hMM) + ' mm' : '\u2014';
+    var _viewWarn = document.getElementById('dstvHoopWarn');
+    if (_viewWarn) { _viewWarn.style.display = 'none'; _viewWarn.title = ''; }
+    var _viewWarnText = document.getElementById('dstvHoopWarnTxt');
+    if (_viewWarnText) _viewWarnText.textContent = '';
     if (!_dstvState.parsed) { _dstvCtx.restore(); return; }
     /* stickerei-vorschau v1: Rahmen-Overlay (Stickrahmen als Form im Hintergrund,
        hinter den Stichen) + Groesse/Warnung unten links aktualisieren. */
@@ -48089,7 +48119,11 @@ window.__LINEA_DEBUG__ = {
         hc = _dstvState._hoopCheckCache = { records: _dstvState.parsed.records, key: hk,
           result: window._stitchHoopCheck(_dstvState.parsed.records, hoop, 10) };
       }
-      var tooSmall = hc.result.available && !hc.result.ok;
+      /* A failed/recalculating preview may retain the last valid drawing.
+         Its old bounding box must not warn about the new canvas's size. */
+      var _hoopPhaseNode = document.getElementById('dstvFilename');
+      var _hoopPhase = _hoopPhaseNode && _hoopPhaseNode.getAttribute('data-preview-phase');
+      var tooSmall = (!_hoopPhase || _hoopPhase === 'done' || _hoopPhase === 'loaded') && hc.result.available && !hc.result.ok;
       _dstvCtx.save();
       _dstvCtx.beginPath();
       if (rr > 0 && _dstvCtx.roundRect) _dstvCtx.roundRect(tl.x, tl.y, w, h, rr);
@@ -48101,8 +48135,6 @@ window.__LINEA_DEBUG__ = {
       _dstvCtx.strokeStyle = tooSmall ? 'rgba(231,111,81,0.85)' : 'rgba(120,120,120,0.5)';
       _dstvCtx.stroke();
       _dstvCtx.restore();
-      var si = document.getElementById('dstvHoopSize');
-      if (si) si.textContent = window.t('Fläche') + ': ' + Math.round(hoop.wMM) + ' \u00d7 ' + Math.round(hoop.hMM) + ' mm'; /* [stickui-klar v1] ehrlich: Zeichenflaeche, kein Geraete-Rahmen */
       var wn = document.getElementById('dstvHoopWarn');
       if (wn) {
         wn.style.display = tooSmall ? '' : 'none';
@@ -48210,6 +48242,19 @@ window.__LINEA_DEBUG__ = {
       }
       prevS = s;
       prevR = r;
+    }
+    /* Explicit diagnostic overlay of the final material-guarded finish. It is
+       bound to the loaded internal preview, not live geometry; external files,
+       stale calculations and partial playback must never inherit this guide. */
+    var finishHighlight=document.getElementById('dgpOutlineHighlight');
+    var finishPhase=document.getElementById('dstvFilename').getAttribute('data-preview-phase');
+    if(finishHighlight&&finishHighlight.checked&&!_dstvState.externalFile&&
+       (finishPhase==='done'||finishPhase==='loaded')&&limit===recs.length&&_dstvState.finishGuide){
+      _dstvCtx.save();_dstvCtx.setLineDash([]);_dstvCtx.lineCap='round';_dstvCtx.lineJoin='round';
+      _dstvCtx.beginPath();
+      _dstvState.finishGuide.forEach(function(seg){var a=_dstvW2S(seg[0],seg[1]),b=_dstvW2S(seg[2],seg[3]);_dstvCtx.moveTo(a.x,a.y);_dstvCtx.lineTo(b.x,b.y);});
+      _dstvCtx.strokeStyle='rgba(255,255,255,0.85)';_dstvCtx.lineWidth=3.5;_dstvCtx.stroke();
+      _dstvCtx.strokeStyle='#087caa';_dstvCtx.lineWidth=1.7;_dstvCtx.stroke();_dstvCtx.restore();
     }
     /* v44: Stich-Punkte — NUR wenn Toggle (window._stitchShowAllDots) an ist.
        Vorher gab es zwei Blöcke: einen toggle-gesteuerten + einen der IMMER
@@ -48651,6 +48696,7 @@ window.__LINEA_DEBUG__ = {
     /* A direct editor export has trusted provenance even when its document
        name is e.g. "A4 quer.dst". File-picker loads never pass this option. */
     var sourceFromEditor = !!(loadOptions && loadOptions.internalSource === true);
+    _dstvState.finishGuide=sourceFromEditor?(window._dstvFinishGuide||[]).map(function(seg){return seg.slice();}):null;
     _dstvState.lineaColors = (sourceFromEditor && window._lastExportData && window._lastExportData.colors) ? window._lastExportData.colors : null;
     /* [uxfix v1] B15: Fremd-Stickdatei = reine Ansicht. Flag setzen (schützt vor dem
        Auto-Recalc, der die Ansicht sonst still durch das Canvas-Design ersetzte) und
@@ -48949,6 +48995,7 @@ window.__LINEA_DEBUG__ = {
     _dstvPresentPreviewState(phase,message,emptyContext);
     if(typeof window._dstvSetPreviewProgress==='function')window._dstvSetPreviewProgress(phase,phase==='done'?100:undefined,message);
     else{var el=document.getElementById('dgpApplyStatus');if(el)el.textContent=message||'';}
+    if(typeof _dstvRender==='function')_dstvRender();
   }
   function _dstvStopScheduled(status){
     if(_dstvScheduledTimer!==null)clearTimeout(_dstvScheduledTimer);
@@ -49576,7 +49623,7 @@ window.__LINEA_DEBUG__ = {
           input.setAttribute('aria-valuetext',isMixed?'gemischt':first+unit);
           input.setAttribute('aria-label',(prop==='angle'?'Tatami-Winkel':prop==='stitchLength'?'Tatami-Stichlänge':'Text-Reihenabstand')+' · alle '+targets.length+' Texte');
           label.dataset.mixed=isMixed?'true':'false';
-          if(document.activeElement!==label)label.textContent=isMixed?'gemischt':(unit==='°'?String(first):first.toFixed(2))+unit;
+          if(document.activeElement!==label)label.textContent=isMixed?window.t('gemischt'):(unit==='°'?String(first):first.toFixed(2))+unit;
         }
         syncField('dgpTextDensity','rowSpacing',texts,0.30,' mm');
         syncField('dgpTextAngle','angle',tatamiTexts,0,'°');
@@ -49898,6 +49945,8 @@ window.__LINEA_DEBUG__ = {
         dgpOutline.checked = !!targets.length && enabled === targets.length;
         dgpOutline.indeterminate = enabled > 0 && enabled < targets.length;
         var options = document.getElementById('dgpOutlineScopeOptions');
+        var highlightRow = document.getElementById('dgpOutlineHighlightRow');
+        if(highlightRow)highlightRow.hidden=!enabled;
         if (options) {
           options.hidden = !enabled;
           var outlined = targets.filter(function(s) { return s.stitch.params.outline === true; });
@@ -49927,6 +49976,7 @@ window.__LINEA_DEBUG__ = {
         });
       }
       var dgpOutlineModes = document.getElementById('dgpOutlineScopeOptions');
+      document.getElementById('dgpOutlineHighlight').addEventListener('change',function(){_dstvRender();});
       if (dgpOutlineModes) dgpOutlineModes.addEventListener('change', function(e) {
         var radio = e.target;
         if (!radio || !radio.checked || radio.name !== 'dgpOutlineMode' || !/^(outer|all)$/.test(radio.value)) return;
@@ -49985,6 +50035,8 @@ window.__LINEA_DEBUG__ = {
       function _updateTrimSubVisibility() {
         var sub = document.getElementById('dgpTrimSub');
         if (sub) sub.style.display = (sub.dataset.open === '1') ? 'grid' : 'none';
+        var toggle = document.getElementById('dgpTrimGear');
+        if (toggle) { toggle.setAttribute('aria-controls', 'dgpTrimSub'); toggle.setAttribute('aria-expanded', String(!!sub && sub.dataset.open === '1')); }
       }
       var dgpTrimGear = document.getElementById('dgpTrimGear');
       if (dgpTrimGear) dgpTrimGear.addEventListener('click', function() {
@@ -50004,6 +50056,7 @@ window.__LINEA_DEBUG__ = {
         if (sl) sl.style.display = open ? '' : 'none';
         /* _dgpEnableManualEntry erzwingt das Wertfeld auf inline-block -> hier explizit ueberschreiben (Lukas: Balken erschien ohne Klick) */
         if (vl) vl.style.display = open ? 'inline-block' : 'none';
+        if (dgpPullGear) { dgpPullGear.setAttribute('aria-controls', 'dgpPullComp dgpPullCompVal'); dgpPullGear.setAttribute('aria-expanded', String(!!open)); }
       }
       if (dgpPullGear) dgpPullGear.addEventListener('click', function(e) {
         e.preventDefault();
@@ -50053,6 +50106,8 @@ window.__LINEA_DEBUG__ = {
       function _updateUnderlaySubVisibility() {
         var sub = document.getElementById('dgpUnderlaySub');
         if (sub) sub.style.display = (sub.dataset.open === '1') ? 'grid' : 'none';
+        var toggle = document.getElementById('dgpUnderlayGear');
+        if (toggle) { toggle.setAttribute('aria-controls', 'dgpUnderlaySub'); toggle.setAttribute('aria-expanded', String(!!sub && sub.dataset.open === '1')); }
       }
       var dgpUlGear = document.getElementById('dgpUnderlayGear');
       if (dgpUlGear) dgpUlGear.addEventListener('click', function() {
@@ -54849,6 +54904,9 @@ installBriefToolPreview();
       }
     } catch (e) {}
   };
+  /* Lock only the active test-card canvas, including empty canvases where
+     no stitch-statistics update is produced. */
+  window.addEventListener('vt:canvas-context', window._vtTestCardLockApply);
   try {
     var _tcCss = document.createElement('style');
     _tcCss.id = 'vtTestCardLockCss';
@@ -55118,26 +55176,9 @@ installBriefToolPreview();
       }
     }
 
-    /* [testkarte-integration v1] (2) Karten-Shapes markieren + bestehende Stickerei
-       ausblenden: erst frueher versteckte wieder einblenden (neue Karte loest die alte
-       Sperre ab), dann alle Nicht-Karten-Shapes mit aktivem Stich ueber alle Tabs auf
-       stitch.hidden=true (VT-STITCHHIDE: _stitchOrderedShapes filtert sie aus
-       Export/Vorschau). Referenzen auf window._vtTestCardHidden (Session-lokal). */
+    /* A test card has its own canvas. Export/preview already read only that
+       canvas; never change another canvas's persistent stitch visibility. */
     for (var _fi = 0; _fi < arr.length; _fi++) arr[_fi].isTestCard = true;
-    try {
-      (window._vtTestCardHidden || []).forEach(function (_hs) { try { if (_hs && _hs.stitch) _hs.stitch.hidden = false; } catch (e) {} });
-      window._vtTestCardHidden = [];
-      var _scan = [window.shapes || []];
-      (window.canvasTabs || []).forEach(function (_t) { if (_t && _t.shapes) _scan.push(_t.shapes); });
-      for (var _sc = 0; _sc < _scan.length; _sc++) for (var _si = 0; _si < _scan[_sc].length; _si++) {
-        var _hsx = _scan[_sc][_si];
-        if (!_hsx || _hsx.isTestCard || !_hsx.stitch) continue;
-        if (_hsx.stitch.type && _hsx.stitch.type !== 'none' && !_hsx.stitch.disabled && !_hsx.stitch.hidden) {
-          _hsx.stitch.hidden = true;
-          window._vtTestCardHidden.push(_hsx);
-        }
-      }
-    } catch (e) {}
     var tab = window.createTabState('Stich-Test');
     tab.name = 'Stich-Test ' + cfg.mode;
     tab.shapes = arr;
@@ -56134,7 +56175,7 @@ installBriefToolPreview();
     if(!root)return;
     if(root.nodeType===3){if(!skipText(root.parentNode))translateTextNode(root,lang);return;}
     if(root.nodeType!==1)return;
-    eachAttr(root,'title','vtT',lang);eachAttr(root,'aria-label','vtA',lang);
+    eachAttr(root,'title','vtT',lang);eachAttr(root,'aria-label','vtA',lang);eachAttr(root,'aria-valuetext','vtV',lang);
     eachAttr(root,'placeholder','vtP',lang);eachAttr(root,'data-section-label','vtS',lang);
     walkText(root,lang);
   }
@@ -56170,6 +56211,7 @@ installBriefToolPreview();
     var sel = document.getElementById("vtLangSel");
     if(sel && sel.value !== mode) sel.value = mode;
     if(typeof window._vtRefreshStorageNotice==='function')window._vtRefreshStorageNotice();
+    if(typeof window._dgpSyncTextStitch==='function')window._dgpSyncTextStitch();
   }
   var mo = null;
   function startObserver(){
@@ -56186,7 +56228,7 @@ installBriefToolPreview();
         }
       }
     });
-    mo.observe(document.body, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:["title","aria-label","placeholder","data-section-label"]});
+    mo.observe(document.body, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:["title","aria-label","aria-valuetext","placeholder","data-section-label"]});
   }
   window.VT_I18N = { apply: apply, t: function(de,params){ return tr(de, cur, params); }, langs: LANGS, detect: detectBrowserLang, get lang(){ return cur; } };
   window.t = window.VT_I18N.t;
@@ -56536,6 +56578,420 @@ installBriefToolPreview();
     var values={en:['Object actions','Objects: {count}'],fr:['Actions des objets','Objets : {count}'],it:['Azioni degli oggetti','Oggetti: {count}'],es:['Acciones de objetos','Objetos: {count}'],pt:['Ações dos objetos','Objetos: {count}'],nl:['Objectacties','Objecten: {count}'],pl:['Działania na obiektach','Obiekty: {count}'],cs:['Akce objektů','Objekty: {count}'],sk:['Akcie objektov','Objekty: {count}'],ro:['Acțiuni pentru obiecte','Obiecte: {count}'],hu:['Objektumműveletek','Objektumok: {count}'],el:['Ενέργειες αντικειμένων','Αντικείμενα: {count}'],sv:['Objektåtgärder','Objekt: {count}'],da:['Objekthandlinger','Objekter: {count}'],no:['Objekthandlinger','Objekter: {count}'],fi:['Objektitoiminnot','Objekteja: {count}'],ca:['Accions dels objectes','Objectes: {count}'],tr:['Nesne işlemleri','Nesneler: {count}'],ru:['Действия с объектами','Объекты: {count}'],uk:['Дії з об’єктами','Об’єкти: {count}'],bg:['Действия с обекти','Обекти: {count}'],zh:['对象操作','对象：{count}'],ja:['オブジェクト操作','オブジェクト数：{count}'],ko:['객체 작업','객체 수: {count}'],vi:['Thao tác đối tượng','Đối tượng: {count}'],th:['การทำงานกับวัตถุ','วัตถุ: {count}'],id:['Tindakan objek','Objek: {count}'],hi:['ऑब्जेक्ट क्रियाएँ','ऑब्जेक्ट: {count}'],ar:['إجراءات العناصر','العناصر: {count}'],he:['פעולות אובייקטים','אובייקטים: {count}'],fa:['عملیات اشیا','اشیا: {count}']};
     ['Objektaktionen','{count} Objekt(e)'].forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});
   })();
+/* Insert INSIDE VT-I18N's existing IIFE, immediately before the final
+   Object.keys(VT_RELEASE_CATALOG) -> DICT merge. No new global API is needed.
+   German is the source language; these are the 31 supported foreign locales. */
+(function () {
+  var keys = [
+    'Kontur hervorheben (nur Ansicht)',
+    'Blaue Anzeigehilfe für den berechneten Abschluss. Keine zusätzlichen Stiche; während der Wiedergabe ausgeblendet.'
+  ];
+  var values = {
+    en: ['Highlight outline (view only)', 'Blue visual guide for the calculated finishing outline. No additional stitches; hidden during playback.'],
+    fr: ['Mettre le contour en évidence (affichage uniquement)', 'Repère bleu pour le contour de finition calculé. Aucun point supplémentaire ; masqué pendant la lecture.'],
+    it: ['Evidenzia contorno (solo visualizzazione)', 'Guida visiva blu per il contorno di finitura calcolato. Nessun punto aggiuntivo; nascosta durante la riproduzione.'],
+    es: ['Resaltar contorno (solo visualización)', 'Guía visual azul para el contorno de acabado calculado. No añade puntadas; se oculta durante la reproducción.'],
+    pt: ['Realçar contorno (apenas visualização)', 'Guia visual azul para o contorno de acabamento calculado. Sem pontos adicionais; oculto durante a reprodução.'],
+    nl: ['Contour markeren (alleen weergave)', 'Blauwe weergavehulp voor de berekende afwerkingscontour. Geen extra steken; verborgen tijdens het afspelen.'],
+    pl: ['Wyróżnij kontur (tylko widok)', 'Niebieska pomoc wizualna dla obliczonego konturu wykończeniowego. Bez dodatkowych ściegów; ukryta podczas odtwarzania.'],
+    cs: ['Zvýraznit obrys (pouze zobrazení)', 'Modrá vizuální pomůcka pro vypočtený dokončovací obrys. Žádné další stehy; během přehrávání je skrytá.'],
+    sk: ['Zvýrazniť obrys (iba zobrazenie)', 'Modrá vizuálna pomôcka pre vypočítaný dokončovací obrys. Žiadne ďalšie stehy; počas prehrávania je skrytá.'],
+    ro: ['Evidențiază conturul (doar afișare)', 'Ghid vizual albastru pentru conturul de finisare calculat. Fără cusături suplimentare; ascuns în timpul redării.'],
+    hu: ['Kontúr kiemelése (csak megjelenítés)', 'Kék vizuális segédlet a kiszámított befejező kontúrhoz. Nem ad hozzá öltéseket; lejátszás közben rejtett.'],
+    el: ['Επισήμανση περιγράμματος (μόνο προβολή)', 'Μπλε οπτικός οδηγός για το υπολογισμένο περίγραμμα φινιρίσματος. Χωρίς πρόσθετες βελονιές· αποκρύπτεται κατά την αναπαραγωγή.'],
+    sv: ['Markera kontur (endast visning)', 'Blå visuell hjälp för den beräknade avslutningskonturen. Inga extra stygn; dold under uppspelning.'],
+    da: ['Fremhæv kontur (kun visning)', 'Blå visuel hjælp til den beregnede afslutningskontur. Ingen ekstra sting; skjult under afspilning.'],
+    no: ['Fremhev kontur (kun visning)', 'Blå visuell hjelp for den beregnede avslutningskonturen. Ingen ekstra sting; skjult under avspilling.'],
+    fi: ['Korosta ääriviivaa (vain näkymä)', 'Sininen näyttöapu lasketulle viimeistelyääriviivalle. Ei lisäpistoja; piilotettu toiston aikana.'],
+    ca: ['Ressalta el contorn (només visualització)', 'Guia visual blava per al contorn d’acabat calculat. No afegeix puntades; s’amaga durant la reproducció.'],
+    tr: ['Konturu vurgula (yalnızca görünüm)', 'Hesaplanan bitiş konturu için mavi görsel kılavuz. Ek dikiş oluşturmaz; oynatma sırasında gizlenir.'],
+    ru: ['Выделить контур (только отображение)', 'Синяя подсказка для рассчитанного завершающего контура. Дополнительные стежки не создаются; во время воспроизведения скрыта.'],
+    uk: ['Виділити контур (лише відображення)', 'Синя візуальна підказка для розрахованого завершального контуру. Без додаткових стібків; прихована під час відтворення.'],
+    bg: ['Открояване на контура (само изглед)', 'Син визуален ориентир за изчисления завършващ контур. Без допълнителни бодове; скрит по време на възпроизвеждане.'],
+    zh: ['高亮轮廓（仅显示）', '用蓝色辅助显示计算出的收边轮廓。不增加针迹；播放时隐藏。'],
+    ja: ['輪郭を強調（表示のみ）', '計算された仕上げ輪郭を青色で表示します。針目は追加されず、再生中は非表示になります。'],
+    ko: ['윤곽 강조 (표시만)', '계산된 마무리 윤곽을 파란색으로 표시합니다. 땀을 추가하지 않으며 재생 중에는 숨겨집니다.'],
+    vi: ['Làm nổi bật đường viền (chỉ hiển thị)', 'Đường dẫn màu xanh lam hiển thị đường viền hoàn thiện đã tính. Không thêm mũi thêu; ẩn khi phát mô phỏng.'],
+    th: ['เน้นเส้นขอบ (แสดงผลเท่านั้น)', 'เส้นช่วยแสดงผลสีน้ำเงินสำหรับเส้นขอบเก็บงานที่คำนวณแล้ว ไม่เพิ่มฝีเข็ม และซ่อนระหว่างการเล่นภาพจำลอง'],
+    id: ['Sorot kontur (hanya tampilan)', 'Panduan visual biru untuk kontur akhir yang telah dihitung. Tidak menambah tusukan; disembunyikan selama pemutaran.'],
+    hi: ['रूपरेखा उभारें (केवल दृश्य)', 'गणना की गई अंतिम रूपरेखा के लिए नीली दृश्य सहायता। कोई अतिरिक्त टाँके नहीं; प्लेबैक के दौरान छिपी रहती है।'],
+    ar: ['إبراز المحيط (للعرض فقط)', 'دليل مرئي أزرق لمحيط التشطيب المحسوب. لا يضيف غرزًا؛ ويُخفى أثناء التشغيل.'],
+    he: ['הדגשת קו מתאר (תצוגה בלבד)', 'עזר חזותי כחול לקו מתאר הגימור המחושב. ללא תכים נוספים; מוסתר במהלך ההפעלה.'],
+    fa: ['برجسته‌سازی خط دور (فقط نمایش)', 'راهنمای دیداری آبی برای خط دور پایانی محاسبه‌شده. بخیه‌ای اضافه نمی‌کند؛ هنگام پخش پنهان است.']
+  };
+  keys.forEach(function (key, i) {
+    VT_RELEASE_CATALOG[key] = {};
+    Object.keys(values).forEach(function (lang) {
+      VT_RELEASE_CATALOG[key][lang] = values[lang][i];
+    });
+  });
+})();
+/* VT-EMBROIDERY-UI-I18N-20261004: exact visible keys and parameterised labels.
+   Register inside the existing I18N IIFE before the final catalog merge.
+   No settings, geometry, styles or user-authored text are changed here. */
+(function () {
+  var keys = [
+    'Ansicht',
+    'Parameter zurücksetzen',
+    '(werden mit Füllstich gestickt)',
+    '(Satin für Linien und Konturen)',
+    '(Satin, Tatami oder Längs)',
+    'Alle Texte',
+    'Probe-Muster (Test-Karte)',
+    'Nach der Rundung auf 0,1 mm bleiben für dieses Objekt keine stickbaren Bewegungen. Motiv vergrössern oder das Objekt bewusst vom Sticken ausblenden.',
+    'Stickparameter aller Texte, Linien und Flächen sowie globale Exportparameter zurücksetzen; Reihenfolge, Sichtbarkeit und Farbgruppen bleiben erhalten (kein Undo). Nur Zoom: Taste R'
+  ];
+  // Last field is the translated mixed-state suffix, used only by the templates.
+  var values = {
+    en: ['View','Reset parameters','(embroidered with fill stitches)','(satin for lines and outlines)','(satin, tatami or lengthwise)','All text','Test pattern (test card)','After rounding to 0.1 mm, this object has no sewable movements. Enlarge the design or deliberately exclude the object from embroidery.','Reset embroidery parameters for all text, lines and areas, and global export parameters; order, visibility and colour groups are preserved (no Undo). Zoom only: press R','mixed'],
+    fr: ['Vue','Réinitialiser les paramètres','(brodées au point de remplissage)','(satin pour les lignes et les contours)','(satin, tatami ou longitudinal)','Tous les textes','Motif d’essai (carte de test)','Après arrondi à 0,1 mm, cet objet ne contient plus de mouvements pouvant être brodés. Agrandissez le motif ou excluez volontairement cet objet de la broderie.','Réinitialiser les paramètres de broderie de tous les textes, lignes et surfaces, ainsi que les paramètres globaux d’export ; l’ordre, la visibilité et les groupes de couleurs sont conservés (sans annulation). Zoom uniquement : touche R','mixte'],
+    it: ['Vista','Ripristina parametri','(ricamate con punti di riempimento)','(satin per linee e contorni)','(satin, tatami o longitudinale)','Tutti i testi','Motivo di prova (scheda test)','Dopo l’arrotondamento a 0,1 mm, questo oggetto non contiene movimenti ricamabili. Ingrandire il disegno oppure escludere consapevolmente l’oggetto dal ricamo.','Ripristina i parametri di ricamo di tutti i testi, le linee e le aree e i parametri globali di esportazione; ordine, visibilità e gruppi di colori restano invariati (non annullabile). Solo zoom: tasto R','misto'],
+    es: ['Vista','Restablecer parámetros','(bordadas con puntadas de relleno)','(satén para líneas y contornos)','(satén, tatami o longitudinal)','Todos los textos','Patrón de prueba (tarjeta de prueba)','Tras redondear a 0,1 mm, este objeto no contiene movimientos que se puedan bordar. Amplía el diseño o excluye deliberadamente el objeto del bordado.','Restablece los parámetros de bordado de todos los textos, líneas y áreas, y los parámetros globales de exportación; conserva el orden, la visibilidad y los grupos de colores (sin Deshacer). Solo zoom: tecla R','mixto'],
+    pt: ['Vista','Repor parâmetros','(bordadas com pontos de preenchimento)','(cetim para linhas e contornos)','(cetim, tatami ou longitudinal)','Todos os textos','Padrão de teste (cartão de teste)','Após o arredondamento para 0,1 mm, este objeto não contém movimentos que possam ser bordados. Aumente o desenho ou exclua deliberadamente o objeto do bordado.','Repõe os parâmetros de bordado de todos os textos, linhas e áreas e os parâmetros globais de exportação; mantém a ordem, a visibilidade e os grupos de cores (sem anulação). Apenas zoom: tecla R','misto'],
+    nl: ['Weergave','Parameters herstellen','(geborduurd met vulsteken)','(satijn voor lijnen en contouren)','(satijn, tatami of lengterichting)','Alle teksten','Proefpatroon (testkaart)','Na afronding op 0,1 mm bevat dit object geen naai­bare bewegingen meer. Vergroot het ontwerp of sluit het object bewust uit van het borduren.','Herstel borduurparameters voor alle teksten, lijnen en vlakken en de algemene exportparameters; volgorde, zichtbaarheid en kleurgroepen blijven behouden (niet ongedaan te maken). Alleen zoomen: toets R','gemengd'],
+    pl: ['Widok','Resetuj parametry','(haftowane ściegiem wypełniającym)','(satyna dla linii i konturów)','(satyna, tatami lub wzdłużny)','Wszystkie teksty','Wzór próbny (karta testowa)','Po zaokrągleniu do 0,1 mm obiekt nie zawiera ruchów, które można wyhaftować. Powiększ wzór lub świadomie wyłącz obiekt z haftowania.','Resetuje parametry haftu wszystkich tekstów, linii i obszarów oraz globalne parametry eksportu; kolejność, widoczność i grupy kolorów pozostają zachowane (bez cofania). Tylko powiększenie: klawisz R','mieszane'],
+    cs: ['Zobrazení','Obnovit parametry','(vyšívané výplňovým stehem)','(satén pro čáry a obrysy)','(satén, tatami nebo podélný steh)','Všechny texty','Zkušební vzor (testovací karta)','Po zaokrouhlení na 0,1 mm objekt neobsahuje pohyby, které lze vyšít. Zvětšete motiv nebo objekt vědomě vyřaďte z vyšívání.','Obnoví parametry vyšívání všech textů, čar a ploch i globální parametry exportu; pořadí, viditelnost a skupiny barev zůstanou zachovány (nelze vrátit zpět). Pouze přiblížení: klávesa R','smíšené'],
+    sk: ['Zobrazenie','Obnoviť parametre','(vyšívané výplňovým stehom)','(satén pre čiary a obrysy)','(satén, tatami alebo pozdĺžny steh)','Všetky texty','Skúšobný vzor (testovacia karta)','Po zaokrúhlení na 0,1 mm objekt neobsahuje pohyby, ktoré možno vyšiť. Zväčšite motív alebo objekt vedome vyraďte z vyšívania.','Obnoví parametre vyšívania všetkých textov, čiar a plôch aj globálne parametre exportu; poradie, viditeľnosť a skupiny farieb zostanú zachované (nemožno vrátiť späť). Iba priblíženie: kláves R','zmiešané'],
+    ro: ['Vizualizare','Resetează parametrii','(brodate cu puncte de umplere)','(satin pentru linii și contururi)','(satin, tatami sau longitudinal)','Toate textele','Model de probă (fișă de test)','După rotunjirea la 0,1 mm, acest obiect nu mai conține mișcări care pot fi brodate. Mărește modelul sau exclude în mod deliberat obiectul de la brodare.','Resetează parametrii de broderie pentru toate textele, liniile și suprafețele și parametrii globali de export; ordinea, vizibilitatea și grupurile de culori se păstrează (fără anulare). Doar zoom: tasta R','mixt'],
+    hu: ['Nézet','Paraméterek visszaállítása','(kitöltőöltéssel hímezve)','(szatén vonalakhoz és kontúrokhoz)','(szatén, tatami vagy hosszirányú)','Minden szöveg','Próbaminta (tesztkártya)','A 0,1 mm-re kerekítés után az objektumban nem marad kihímezhető mozgás. Nagyítsa fel a mintát, vagy tudatosan zárja ki az objektumot a hímzésből.','Visszaállítja minden szöveg, vonal és terület hímzési paramétereit, valamint a globális exportparamétereket; a sorrend, láthatóság és színcsoportok megmaradnak (nem vonható vissza). Csak nagyítás: R billentyű','vegyes'],
+    el: ['Προβολή','Επαναφορά παραμέτρων','(κεντιούνται με βελονιά γεμίσματος)','(σατέν για γραμμές και περιγράμματα)','(σατέν, τατάμι ή διαμήκης)','Όλα τα κείμενα','Δοκιμαστικό σχέδιο (κάρτα δοκιμής)','Μετά τη στρογγυλοποίηση στα 0,1 mm, το αντικείμενο δεν περιέχει κινήσεις που μπορούν να κεντηθούν. Μεγεθύνετε το σχέδιο ή εξαιρέστε σκόπιμα το αντικείμενο από το κέντημα.','Επαναφέρει τις παραμέτρους κεντήματος όλων των κειμένων, γραμμών και επιφανειών και τις γενικές παραμέτρους εξαγωγής· διατηρούνται η σειρά, η ορατότητα και οι ομάδες χρωμάτων (χωρίς αναίρεση). Μόνο ζουμ: πλήκτρο R','μικτά'],
+    sv: ['Vy','Återställ parametrar','(broderas med fyllnadsstygn)','(satin för linjer och konturer)','(satin, tatami eller längsgående)','Alla texter','Provmönster (testkort)','Efter avrundning till 0,1 mm innehåller objektet inga rörelser som går att brodera. Förstora motivet eller uteslut avsiktligt objektet från broderiet.','Återställ broderiparametrar för alla texter, linjer och ytor samt globala exportparametrar; ordning, synlighet och färggrupper bevaras (kan inte ångras). Endast zoom: tangenten R','blandat'],
+    da: ['Visning','Nulstil parametre','(broderes med fyldsting)','(satin til linjer og konturer)','(satin, tatami eller langsgående)','Alle tekster','Prøvemønster (testkort)','Efter afrunding til 0,1 mm indeholder objektet ingen bevægelser, der kan broderes. Forstør motivet, eller udeluk bevidst objektet fra broderiet.','Nulstil broderiparametre for alle tekster, linjer og flader samt globale eksportparametre; rækkefølge, synlighed og farvegrupper bevares (kan ikke fortrydes). Kun zoom: tasten R','blandet'],
+    no: ['Visning','Tilbakestill parametere','(broderes med fyllsting)','(sateng for linjer og konturer)','(sateng, tatami eller langsgående)','Alle tekster','Prøvemønster (testkort)','Etter avrunding til 0,1 mm inneholder objektet ingen bevegelser som kan broderes. Forstørr motivet eller utelat objektet bevisst fra broderingen.','Tilbakestill broderiparametere for alle tekster, linjer og flater samt globale eksportparametere; rekkefølge, synlighet og fargegrupper beholdes (kan ikke angres). Bare zoom: tasten R','blandet'],
+    fi: ['Näkymä','Palauta parametrit','(kirjotaan täyttöpistoilla)','(satiini viivoille ja ääriviivoille)','(satiini, tatami tai pituussuuntainen)','Kaikki tekstit','Koekuvio (testikortti)','Kun tämä kohde pyöristetään 0,1 millimetriin, siihen ei jää kirjottavia liikkeitä. Suurenna kuviota tai jätä kohde tietoisesti pois kirjonnasta.','Palauta kaikkien tekstien, viivojen ja alueiden kirjontaparametrit sekä yleiset vientiparametrit; järjestys, näkyvyys ja väriryhmät säilyvät (ei voi kumota). Vain zoomaus: R-näppäin','sekoitettu'],
+    ca: ['Vista','Restableix els paràmetres','(brodades amb puntades de farciment)','(setí per a línies i contorns)','(setí, tatami o longitudinal)','Tots els textos','Patró de prova (targeta de prova)','Després d’arrodonir a 0,1 mm, aquest objecte no conté moviments que es puguin brodar. Amplia el disseny o exclou deliberadament l’objecte del brodat.','Restableix els paràmetres de brodat de tots els textos, línies i àrees i els paràmetres globals d’exportació; conserva l’ordre, la visibilitat i els grups de colors (sense desfer). Només zoom: tecla R','mixt'],
+    tr: ['Görünüm','Parametreleri sıfırla','(dolgu dikişiyle işlenir)','(çizgiler ve konturlar için saten)','(saten, tatami veya boyuna)','Tüm metinler','Deneme deseni (test kartı)','0,1 mm’ye yuvarlandıktan sonra bu nesnede işlenebilir hareket kalmıyor. Deseni büyütün veya nesneyi bilinçli olarak nakıştan hariç tutun.','Tüm metin, çizgi ve alanların nakış parametrelerini ve genel dışa aktarma parametrelerini sıfırlar; sıra, görünürlük ve renk grupları korunur (geri alınamaz). Yalnızca yakınlaştırma: R tuşu','karışık'],
+    ru: ['Вид','Сбросить параметры','(вышиваются заполняющими стежками)','(сатин для линий и контуров)','(сатин, татами или продольный)','Все тексты','Пробный узор (тестовая карта)','После округления до 0,1 мм в объекте не остаётся движений, пригодных для вышивания. Увеличьте рисунок или осознанно исключите объект из вышивки.','Сбросить параметры вышивки всех текстов, линий и областей и общие параметры экспорта; порядок, видимость и группы цветов сохраняются (без отмены). Только масштаб: клавиша R','смешанные'],
+    uk: ['Вигляд','Скинути параметри','(вишиваються заповнювальними стібками)','(сатин для ліній і контурів)','(сатин, татамі або поздовжній)','Усі тексти','Пробний візерунок (тестова картка)','Після округлення до 0,1 мм в об’єкті не залишається рухів, придатних для вишивання. Збільште малюнок або свідомо виключіть об’єкт із вишивки.','Скинути параметри вишивки всіх текстів, ліній і ділянок та загальні параметри експорту; порядок, видимість і групи кольорів зберігаються (без скасування). Лише масштаб: клавіша R','змішані'],
+    bg: ['Изглед','Нулиране на параметрите','(бродират се със запълващ бод)','(сатен за линии и контури)','(сатен, татами или надлъжен)','Всички текстове','Пробен мотив (тестова карта)','След закръгляване до 0,1 mm в обекта не остават движения, които могат да се бродират. Увеличете мотива или съзнателно изключете обекта от бродирането.','Нулира параметрите за бродиране на всички текстове, линии и области и глобалните параметри за експортиране; редът, видимостта и цветовите групи се запазват (без отмяна). Само мащаб: клавиш R','смесени'],
+    zh: ['视图','重置参数','（使用填充针迹刺绣）','（线条和轮廓使用缎面针迹）','（缎面、榻榻米或纵向针迹）','所有文本','试绣图案（测试卡）','舍入到 0.1 毫米后，此对象不再包含可刺绣的移动。请放大图案，或明确将该对象排除在刺绣之外。','重置所有文本、线条和区域的刺绣参数以及全局导出参数；保留顺序、可见性和颜色分组（无法撤销）。仅重置缩放：按 R 键','混合'],
+    ja: ['表示','パラメーターをリセット','（フィルステッチで刺繍）','（線と輪郭にはサテン）','（サテン、タタミ、または縦方向）','すべてのテキスト','試し縫いパターン（テストカード）','0.1 mm 単位に丸めると、このオブジェクトには刺繍可能な動きが残りません。図案を拡大するか、意図的にこのオブジェクトを刺繍対象から除外してください。','すべてのテキスト、線、領域の刺繍パラメーターと全体の書き出しパラメーターをリセットします。順序、表示状態、色グループは維持されます（元に戻せません）。ズームのみ：R キー','混在'],
+    ko: ['보기','매개변수 초기화','(채움 스티치로 자수)','(선과 윤곽에는 새틴)','(새틴, 타타미 또는 세로 방향)','모든 텍스트','시험 무늬 (테스트 카드)','0.1 mm 단위로 반올림하면 이 개체에 자수 가능한 이동이 남지 않습니다. 무늬를 확대하거나 이 개체를 자수 대상에서 의도적으로 제외하세요.','모든 텍스트, 선, 영역의 자수 매개변수와 전역 내보내기 매개변수를 초기화합니다. 순서, 표시 상태와 색상 그룹은 유지됩니다 (실행 취소 불가). 확대/축소만: R 키','혼합'],
+    vi: ['Chế độ xem','Đặt lại thông số','(thêu bằng mũi lấp đầy)','(satin cho đường và đường viền)','(satin, tatami hoặc dọc)','Tất cả văn bản','Mẫu thử (thẻ thử nghiệm)','Sau khi làm tròn đến 0,1 mm, đối tượng này không còn chuyển động có thể thêu được. Hãy phóng to mẫu hoặc chủ động loại đối tượng khỏi phần thêu.','Đặt lại thông số thêu cho mọi văn bản, đường và vùng cùng thông số xuất chung; giữ nguyên thứ tự, trạng thái hiển thị và nhóm màu (không thể hoàn tác). Chỉ thu phóng: phím R','hỗn hợp'],
+    th: ['มุมมอง','รีเซ็ตพารามิเตอร์','(ปักด้วยฝีเข็มเติมพื้นที่)','(ซาตินสำหรับเส้นและเส้นขอบ)','(ซาติน ทาทามิ หรือตามยาว)','ข้อความทั้งหมด','ลายทดลอง (การ์ดทดสอบ)','หลังปัดเศษเป็น 0.1 มม. วัตถุนี้ไม่มีการเคลื่อนไหวที่ปักได้เหลืออยู่ โปรดขยายลายหรือเลือกไม่นำวัตถุนี้ไปปักอย่างชัดเจน','รีเซ็ตพารามิเตอร์การปักของข้อความ เส้น และพื้นที่ทั้งหมด รวมถึงพารามิเตอร์การส่งออกส่วนกลาง โดยคงลำดับ การมองเห็น และกลุ่มสีไว้ (เลิกทำไม่ได้) ซูมเท่านั้น: ปุ่ม R','แบบผสม'],
+    id: ['Tampilan','Atur ulang parameter','(dibordir dengan tusuk isi)','(satin untuk garis dan kontur)','(satin, tatami, atau memanjang)','Semua teks','Pola percobaan (kartu uji)','Setelah pembulatan ke 0,1 mm, objek ini tidak memiliki gerakan yang dapat dibordir. Perbesar desain atau sengaja kecualikan objek ini dari bordir.','Atur ulang parameter bordir semua teks, garis, dan area serta parameter ekspor global; urutan, visibilitas, dan kelompok warna tetap dipertahankan (tidak dapat diurungkan). Hanya zum: tombol R','campuran'],
+    hi: ['दृश्य','पैरामीटर रीसेट करें','(भराव टाँकों से कढ़ाई)','(रेखाओं और रूपरेखाओं के लिए सैटिन)','(सैटिन, तातामी या लंबाई की दिशा में)','सभी टेक्स्ट','परीक्षण नमूना (टेस्ट कार्ड)','0.1 मिमी तक पूर्णांकित करने के बाद इस वस्तु में कढ़ाई योग्य गति नहीं बचती। डिज़ाइन बड़ा करें या वस्तु को जानबूझकर कढ़ाई से बाहर रखें।','सभी टेक्स्ट, रेखाओं और क्षेत्रों के कढ़ाई पैरामीटर तथा वैश्विक निर्यात पैरामीटर रीसेट करें; क्रम, दृश्यता और रंग समूह बने रहते हैं (पूर्ववत नहीं किया जा सकता)। केवल ज़ूम: R कुंजी','मिश्रित'],
+    ar: ['العرض','إعادة ضبط المعلمات','(تُطرّز بغرز التعبئة)','(ساتان للخطوط والمحيطات)','(ساتان أو تاتامي أو طولي)','كل النصوص','نمط تجريبي (بطاقة اختبار)','بعد التقريب إلى 0.1 مم، لا تبقى لهذا العنصر حركات قابلة للتطريز. كبّر التصميم أو استبعد العنصر من التطريز بشكل مقصود.','إعادة ضبط معلمات تطريز جميع النصوص والخطوط والمساحات ومعلمات التصدير العامة؛ يبقى الترتيب والظهور ومجموعات الألوان كما هي (لا يمكن التراجع). التكبير فقط: المفتاح R','مختلط'],
+    he: ['תצוגה','איפוס פרמטרים','(נרקמים בתכי מילוי)','(סאטן לקווים ולקווי מתאר)','(סאטן, טטאמי או לאורך)','כל הטקסטים','דוגמת ניסיון (כרטיס בדיקה)','לאחר עיגול ל־0.1 מ״מ, לא נותרות באובייקט תנועות שניתן לרקום. יש להגדיל את הדוגמה או להחריג את האובייקט מהרקמה באופן מכוון.','איפוס פרמטרי הרקמה של כל הטקסטים, הקווים והשטחים ושל פרמטרי הייצוא הכלליים; הסדר, הנראות וקבוצות הצבע נשמרים (ללא ביטול פעולה). שינוי תקריב בלבד: המקש R','מעורב'],
+    fa: ['نما','بازنشانی پارامترها','(با بخیهٔ پُرکننده گلدوزی می‌شوند)','(ساتن برای خط‌ها و خط‌های دور)','(ساتن، تاتامی یا طولی)','همهٔ متن‌ها','طرح آزمایشی (کارت آزمون)','پس از گرد کردن به ۰٫۱ میلی‌متر، هیچ حرکت قابل گلدوزی برای این شیء باقی نمی‌ماند. طرح را بزرگ‌تر کنید یا آگاهانه این شیء را از گلدوزی کنار بگذارید.','پارامترهای گلدوزی همهٔ متن‌ها، خط‌ها و ناحیه‌ها و پارامترهای عمومی خروجی را بازنشانی می‌کند؛ ترتیب، نمایانی و گروه‌های رنگ حفظ می‌شوند (قابل واگرد نیست). فقط بزرگ‌نمایی: کلید R','ترکیبی']
+  };
+  keys.forEach(function(key, index) {
+    VT_RELEASE_CATALOG[key] = {};
+    Object.keys(values).forEach(function(lang) { VT_RELEASE_CATALOG[key][lang] = values[lang][index]; });
+  });
+  [
+    ['↺ Parameter zurücksetzen', function(v) { return '↺ ' + v[1]; }],
+    ['⊞ Probe-Muster (Test-Karte)', function(v) { return '⊞ ' + v[6]; }],
+    ['Alle Texte · {count}', function(v) { return v[5] + ' · {count}'; }],
+    ['Alle Texte · {count} · gemischt', function(v) { return v[5] + ' · {count} · ' + v[9]; }]
+  ].forEach(function(entry) {
+    VT_RELEASE_CATALOG[entry[0]] = {};
+    Object.keys(values).forEach(function(lang) { VT_RELEASE_CATALOG[entry[0]][lang] = entry[1](values[lang]); });
+  });
+  VT_RELEASE_CATALOG['gemischt'] = {};
+  [
+    ['Text-Reihenabstand', 'Reihenabstand', false],
+    ['Tatami-Winkel', 'Winkel', true],
+    ['Tatami-Stichlänge', 'Stichlänge', true]
+  ].forEach(function(entry) {
+    var dynamicKey = entry[0] + ' · alle {count} Texte';
+    VT_RELEASE_CATALOG[entry[0]] = {};
+    VT_RELEASE_CATALOG[dynamicKey] = {};
+    Object.keys(values).forEach(function(lang) {
+      var terms = DICT[lang];
+      var parameter = (entry[2] ? 'Tatami · ' : '') + terms[entry[1]];
+      VT_RELEASE_CATALOG[entry[0]][lang] = (entry[2] ? '' : terms['Text'] + ' · ') + parameter;
+      VT_RELEASE_CATALOG[dynamicKey][lang] = values[lang][5] + ' · {count} · ' + parameter;
+      VT_RELEASE_CATALOG['gemischt'][lang] = values[lang][9];
+    });
+  });
+})();
+/* VT-EMBROIDERY-FIELD-ALIASES-20261004: retain existing term translations. */
+(function () {
+  ['Winkel', 'Stichlänge'].forEach(function(term) {
+    var key = term + ' (Tatami)';
+    VT_RELEASE_CATALOG[key] = {};
+    LANGS.filter(function(lang) { return lang !== 'de'; }).forEach(function(lang) {
+      VT_RELEASE_CATALOG[key][lang] = DICT[lang][term] + ' (Tatami)';
+    });
+  });
+  var key = 'Fläche: {width} × {height} mm';
+  VT_RELEASE_CATALOG[key] = {};
+  LANGS.filter(function(lang) { return lang !== 'de'; }).forEach(function(lang) {
+    VT_RELEASE_CATALOG[key][lang] = DICT[lang]['Fläche'] + ': {width} × {height} mm';
+  });
+})();
+/* VT-EMBROIDERY-TOOLTIPS-20261004: reset confirmation and exact live help keys. */
+(function () {
+  var texts = {
+  "Stickparameter für alle Texte, Linien und Flächen dieser Zeichenfläche sowie die globalen Exportparameter zurücksetzen? Reihenfolge, Sichtbarkeit und Farbgruppen bleiben erhalten. Das kann nicht rückgängig gemacht werden.": {
+    "en": "Reset embroidery parameters for all text, lines and areas on this canvas, and the global export parameters? Order, visibility and colour groups are preserved. This cannot be undone.",
+    "fr": "Réinitialiser les paramètres de broderie de tous les textes, lignes et surfaces de cette zone de dessin, ainsi que les paramètres globaux d’exportation ? L’ordre, la visibilité et les groupes de couleurs sont conservés. Cette action est irréversible.",
+    "it": "Ripristinare i parametri di ricamo di tutti i testi, le linee e le aree di questa area di disegno e i parametri globali di esportazione? Ordine, visibilità e gruppi di colori vengono mantenuti. L’operazione non può essere annullata.",
+    "es": "¿Restablecer los parámetros de bordado de todos los textos, líneas y áreas de este lienzo y los parámetros globales de exportación? Se conservan el orden, la visibilidad y los grupos de colores. Esta acción no se puede deshacer.",
+    "pt": "Repor os parâmetros de bordado de todos os textos, linhas e áreas desta tela e os parâmetros globais de exportação? A ordem, a visibilidade e os grupos de cores são mantidos. Esta ação não pode ser desfeita.",
+    "nl": "De borduurparameters voor alle tekst, lijnen en vlakken op dit tekengebied en de algemene exportparameters terugzetten? Volgorde, zichtbaarheid en kleurgroepen blijven behouden. Dit kan niet ongedaan worden gemaakt.",
+    "pl": "Zresetować parametry haftu wszystkich tekstów, linii i obszarów na tym obszarze roboczym oraz globalne parametry eksportu? Kolejność, widoczność i grupy kolorów zostaną zachowane. Tej operacji nie można cofnąć.",
+    "cs": "Obnovit výchozí parametry vyšívání všech textů, čar a ploch na tomto plátně i globální parametry exportu? Pořadí, viditelnost a skupiny barev zůstanou zachovány. Tuto akci nelze vrátit zpět.",
+    "sk": "Obnoviť predvolené parametre vyšívania všetkých textov, čiar a plôch na tomto plátne aj globálne parametre exportu? Poradie, viditeľnosť a skupiny farieb zostanú zachované. Túto akciu nemožno vrátiť späť.",
+    "ro": "Resetați parametrii de broderie pentru toate textele, liniile și suprafețele de pe această planșă și parametrii globali de export? Ordinea, vizibilitatea și grupurile de culori se păstrează. Această acțiune nu poate fi anulată.",
+    "hu": "Visszaállítja a vászon összes szövegének, vonalának és felületének hímzési paramétereit, valamint a globális exportparamétereket? A sorrend, a láthatóság és a színcsoportok megmaradnak. Ez a művelet nem vonható vissza.",
+    "el": "Να επαναφερθούν οι παράμετροι κεντήματος για όλα τα κείμενα, τις γραμμές και τις επιφάνειες αυτού του καμβά, καθώς και οι καθολικές παράμετροι εξαγωγής; Η σειρά, η ορατότητα και οι ομάδες χρωμάτων διατηρούνται. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+    "sv": "Återställa broderiparametrarna för all text, alla linjer och ytor på denna rityta samt de globala exportparametrarna? Ordning, synlighet och färggrupper behålls. Detta kan inte ångras.",
+    "da": "Nulstil broderiparametrene for al tekst, alle linjer og flader på denne tegneflade samt de globale eksportparametre? Rækkefølge, synlighed og farvegrupper bevares. Dette kan ikke fortrydes.",
+    "no": "Tilbakestille broderiparametrene for all tekst, alle linjer og flater på denne tegneflaten samt de globale eksportparametrene? Rekkefølge, synlighet og fargegrupper beholdes. Dette kan ikke angres.",
+    "fi": "Palautetaanko tämän piirtoalueen kaikkien tekstien, viivojen ja alueiden kirjontaparametrit sekä yleiset vientiparametrit oletusarvoihin? Järjestys, näkyvyys ja väriryhmät säilyvät. Tätä toimintoa ei voi kumota.",
+    "ca": "Vols restablir els paràmetres de brodat de tots els textos, línies i àrees d’aquest llenç i els paràmetres globals d’exportació? Es conserven l’ordre, la visibilitat i els grups de colors. No es pot desfer.",
+    "tr": "Bu tuvaldeki tüm metin, çizgi ve alanların nakış parametreleri ile genel dışa aktarma parametreleri sıfırlansın mı? Sıra, görünürlük ve renk grupları korunur. Bu işlem geri alınamaz.",
+    "ru": "Сбросить параметры вышивки всех текстов, линий и областей этого холста, а также общие параметры экспорта? Порядок, видимость и группы цветов сохраняются. Это действие нельзя отменить.",
+    "uk": "Скинути параметри вишивки всіх текстів, ліній і ділянок цього полотна та загальні параметри експорту? Порядок, видимість і групи кольорів зберігаються. Цю дію неможливо скасувати.",
+    "bg": "Да се нулират ли параметрите за бродиране на всички текстове, линии и области върху това платно и глобалните параметри за експортиране? Редът, видимостта и цветовите групи се запазват. Това действие не може да бъде отменено.",
+    "zh": "重置此画布上所有文本、线条和区域的刺绣参数，以及全局导出参数？顺序、可见性和颜色分组将保留。此操作无法撤销。",
+    "ja": "このキャンバスのすべてのテキスト、線、領域の刺繍パラメーターと全体の書き出しパラメーターをリセットしますか？順序、表示状態、色グループは維持されます。この操作は元に戻せません。",
+    "ko": "이 캔버스에 있는 모든 텍스트, 선, 영역의 자수 매개변수와 전역 내보내기 매개변수를 초기화할까요? 순서, 표시 상태와 색상 그룹은 유지됩니다. 이 작업은 취소할 수 없습니다.",
+    "vi": "Đặt lại thông số thêu của tất cả văn bản, đường và vùng trên trang vẽ này cùng các thông số xuất chung? Thứ tự, trạng thái hiển thị và nhóm màu được giữ nguyên. Không thể hoàn tác thao tác này.",
+    "th": "รีเซ็ตพารามิเตอร์การปักของข้อความ เส้น และพื้นที่ทั้งหมดบนผืนงานนี้ รวมถึงพารามิเตอร์การส่งออกส่วนกลางหรือไม่? ลำดับ การมองเห็น และกลุ่มสีจะคงเดิม การดำเนินการนี้เลิกทำไม่ได้",
+    "id": "Atur ulang parameter bordir semua teks, garis, dan area pada kanvas ini serta parameter ekspor global? Urutan, visibilitas, dan kelompok warna dipertahankan. Tindakan ini tidak dapat diurungkan.",
+    "hi": "इस कैनवास के सभी टेक्स्ट, रेखाओं और क्षेत्रों के कढ़ाई पैरामीटर तथा वैश्विक निर्यात पैरामीटर रीसेट करें? क्रम, दृश्यता और रंग समूह बने रहेंगे। इस कार्रवाई को पूर्ववत नहीं किया जा सकता।",
+    "ar": "إعادة ضبط معلمات تطريز جميع النصوص والخطوط والمساحات على لوحة الرسم هذه، ومعلمات التصدير العامة؟ يبقى الترتيب والظهور ومجموعات الألوان كما هي. لا يمكن التراجع عن هذا الإجراء.",
+    "he": "לאפס את פרמטרי הרקמה של כל הטקסטים, הקווים והשטחים במשטח זה ואת פרמטרי הייצוא הכלליים? הסדר, הנראות וקבוצות הצבע יישמרו. לא ניתן לבטל פעולה זו.",
+    "fa": "پارامترهای گلدوزی همهٔ متن‌ها، خط‌ها و ناحیه‌های این بوم و پارامترهای عمومی خروجی بازنشانی شوند؟ ترتیب، نمایانی و گروه‌های رنگ حفظ می‌شوند. این کار قابل واگرد نیست."
+  },
+  "Abstand zwischen den Stichreihen in mm. Kleiner = dichter und deckender, aber mehr Stiche.": {
+    "en": "Spacing between stitch rows in mm. Smaller = denser coverage, but more stitches.",
+    "fr": "Espacement entre les rangées de points en mm. Plus petit = couverture plus dense, mais davantage de points.",
+    "it": "Distanza tra le file di punti in mm. Minore = copertura più fitta, ma più punti.",
+    "es": "Separación entre filas de puntadas en mm. Menor = cobertura más densa, pero más puntadas.",
+    "pt": "Espaçamento entre as filas de pontos em mm. Menor = cobertura mais densa, mas mais pontos.",
+    "nl": "Afstand tussen steekrijen in mm. Kleiner = dichtere dekking, maar meer steken.",
+    "pl": "Odstęp między rzędami ściegów w mm. Mniejszy = gęstsze pokrycie, ale więcej ściegów.",
+    "cs": "Vzdálenost mezi řadami stehů v mm. Menší = hustší krytí, ale více stehů.",
+    "sk": "Vzdialenosť medzi radmi stehov v mm. Menšia = hustejšie krytie, ale viac stehov.",
+    "ro": "Distanța dintre rândurile de cusături, în mm. Mai mică = acoperire mai densă, dar mai multe cusături.",
+    "hu": "Az öltéssorok távolsága mm-ben. Kisebb = sűrűbb fedés, de több öltés.",
+    "el": "Απόσταση μεταξύ των σειρών βελονιών σε mm. Μικρότερη = πυκνότερη κάλυψη, αλλά περισσότερες βελονιές.",
+    "sv": "Avstånd mellan stygnrader i mm. Mindre = tätare täckning, men fler stygn.",
+    "da": "Afstand mellem stingrækker i mm. Mindre = tættere dækning, men flere sting.",
+    "no": "Avstand mellom stingradene i mm. Mindre = tettere dekning, men flere sting.",
+    "fi": "Pistorivien väli millimetreinä. Pienempi = tiheämpi peitto, mutta enemmän pistoja.",
+    "ca": "Separació entre les files de puntades en mm. Més petita = més densitat i cobertura, però més puntades.",
+    "tr": "Dikiş sıraları arasındaki mesafe, mm. Daha küçük = daha yoğun örtücülük, ancak daha fazla dikiş.",
+    "ru": "Расстояние между рядами стежков в мм. Меньше = плотнее покрытие, но больше стежков.",
+    "uk": "Відстань між рядами стібків у мм. Менше = щільніше покриття, але більше стібків.",
+    "bg": "Разстояние между редовете бодове в mm. По-малко = по-плътно покритие, но повече бодове.",
+    "zh": "针迹行间距，单位为毫米。越小则覆盖越密，但针迹越多。",
+    "ja": "ステッチ列の間隔（mm）。小さいほど密に覆いますが、針目が増えます。",
+    "ko": "스티치 행 사이의 간격 (mm). 작을수록 더 촘촘히 덮지만 땀 수가 늘어납니다.",
+    "vi": "Khoảng cách giữa các hàng mũi thêu, tính bằng mm. Nhỏ hơn = phủ dày hơn, nhưng nhiều mũi thêu hơn.",
+    "th": "ระยะห่างระหว่างแถวฝีเข็มเป็น มม. ค่าน้อยลง = ปกคลุมแน่นขึ้น แต่ใช้ฝีเข็มมากขึ้น",
+    "id": "Jarak antarbaris tusukan dalam mm. Lebih kecil = cakupan lebih rapat, tetapi lebih banyak tusukan.",
+    "hi": "टाँकों की पंक्तियों के बीच की दूरी, मिमी में। कम = अधिक घना आवरण, लेकिन अधिक टाँके।",
+    "ar": "المسافة بين صفوف الغرز بالملليمتر. الأصغر = تغطية أكثف، لكن بغرز أكثر.",
+    "he": "המרווח בין שורות התכים במ״מ. קטן יותר = כיסוי צפוף יותר, אך יותר תכים.",
+    "fa": "فاصلهٔ ردیف‌های بخیه بر حسب میلی‌متر. کمتر = پوشش متراکم‌تر، اما بخیه‌های بیشتر."
+  },
+  "Lange Sprünge werden geschnitten, sofern die Maschine dies unterstützt. (Sprünge länger als die Schwelle werden beim Export geschnitten, kein Faden quer über die Form; aus = lange Verbindungsfäden bleiben.)": {
+    "en": "Long jumps are trimmed if the machine supports this. (Jumps exceeding the threshold receive trim commands on export, avoiding thread across the shape; off = long connecting threads remain.)",
+    "fr": "Les fils des longs sauts sont coupés si la machine le permet. (Les sauts dépassant le seuil reçoivent des commandes de coupe à l’exportation, pour éviter les fils traversant la forme ; désactivé = les longs fils de liaison restent.)",
+    "it": "I fili dei salti lunghi vengono tagliati se la macchina lo supporta. (Ai salti oltre la soglia vengono aggiunti comandi di taglio durante l’esportazione, evitando fili attraverso la forma; disattivato = i fili di collegamento lunghi rimangono.)",
+    "es": "Los hilos de los saltos largos se cortan si la máquina lo permite. (Al exportar, se añaden órdenes de corte a los saltos que superen el umbral, evitando hilos que crucen la forma; desactivado = quedan los hilos de conexión largos.)",
+    "pt": "Os fios dos saltos longos são cortados se a máquina o permitir. (Na exportação, são adicionados comandos de corte aos saltos que excedam o limite, evitando fios a atravessar a forma; desativado = os fios de ligação longos permanecem.)",
+    "nl": "De draden van lange sprongen worden afgeknipt als de machine dit ondersteunt. (Bij het exporteren krijgen sprongen boven de drempel een knipopdracht, zodat er geen draad over de vorm loopt; uit = lange verbindingsdraden blijven bestaan.)",
+    "pl": "Nici przy długich przeskokach są obcinane, jeśli maszyna to obsługuje. (Podczas eksportu przeskoki przekraczające próg otrzymują polecenia obcięcia, aby nić nie przebiegała przez kształt; wyłączone = długie nici łączące pozostają.)",
+    "cs": "Nitě při dlouhých přeskocích se odstřihnou, pokud to stroj podporuje. (Při exportu se k přeskokům přesahujícím mez přidají příkazy k odstřihu, aby nit nevedla přes tvar; vypnuto = dlouhé spojovací nitě zůstanou.)",
+    "sk": "Nite pri dlhých preskokoch sa odstrihnú, ak to stroj podporuje. (Pri exporte sa k preskokom presahujúcim prah pridajú príkazy na odstrih, aby niť neviedla cez tvar; vypnuté = dlhé spojovacie nite zostanú.)",
+    "ro": "Firele salturilor lungi sunt tăiate dacă mașina permite acest lucru. (La export, salturile care depășesc pragul primesc comenzi de tăiere, pentru a evita firele care traversează forma; dezactivat = firele lungi de legătură rămân.)",
+    "hu": "A hosszú ugrások szálait a gép elvágja, ha támogatja ezt. (Exportáláskor a küszöbnél hosszabb ugrások szálvágási parancsot kapnak, így nem marad az alakzaton keresztülfutó szál; kikapcsolva = a hosszú összekötő szálak megmaradnak.)",
+    "el": "Οι κλωστές των μεγάλων αλμάτων κόβονται, εφόσον το υποστηρίζει η μηχανή. (Κατά την εξαγωγή προστίθενται εντολές κοπής στα άλματα που υπερβαίνουν το όριο, ώστε να μη διασχίζει το σχήμα κλωστή· αν απενεργοποιηθεί, παραμένουν οι μακριές κλωστές σύνδεσης.)",
+    "sv": "Trådarna vid långa hopp klipps om maskinen stöder det. (Hopp som överskrider gränsvärdet får klippkommandon vid export, så att tråden inte löper över formen; av = långa förbindelsetrådar blir kvar.)",
+    "da": "Trådene ved lange spring klippes, hvis maskinen understøtter det. (Spring over grænseværdien får klippekommandoer ved eksport, så tråden ikke løber tværs over formen; fra = lange forbindelsestråde bliver tilbage.)",
+    "no": "Trådene ved lange hopp klippes hvis maskinen støtter det. (Hopp som overskrider terskelen får klippekommandoer ved eksport, slik at tråden ikke går på tvers av formen; av = lange forbindelsestråder blir igjen.)",
+    "fi": "Pitkien hyppyjen langat katkaistaan, jos kone tukee sitä. (Raja-arvon ylittäviin hyppyihin lisätään viennissä katkaisukomennot, jotta lanka ei kulje muodon poikki; pois päältä = pitkät yhdyslangat jäävät paikoilleen.)",
+    "ca": "Els salts llargs es tallen si la màquina ho permet. (En exportar, els salts que superen el llindar reben ordres de tall per evitar fils que travessin la forma; desactivat = es mantenen els fils llargs d’unió.)",
+    "tr": "Makine destekliyorsa uzun atlamalarda iplik kesilir. (Eşiği aşan atlamalara dışa aktarımda kesme komutu eklenir; böylece şeklin üzerinden iplik geçmez. Kapalıysa uzun bağlantı iplikleri kalır.)",
+    "ru": "При длинных переходах нить обрезается, если машина это поддерживает. (При экспорте переходы длиннее порога получают команду обрезки, чтобы нить не проходила поперёк фигуры; выключено = длинные соединительные нити остаются.)",
+    "uk": "Під час довгих переходів нитка обрізається, якщо машина це підтримує. (Під час експорту переходи, довші за поріг, отримують команду обрізання, щоб нитка не проходила впоперек фігури; вимкнено = довгі з’єднувальні нитки залишаються.)",
+    "bg": "Конецът се отрязва при дълги прескоци, ако машината го поддържа. (При експортиране прескоците над прага получават команда за отрязване, за да няма конец напряко през фигурата; изключено = дългите свързващи конци остават.)",
+    "zh": "若机器支持，长跳针会触发剪线。（导出时，会为超过阈值的跳针添加剪线指令，以避免线跨越形状；关闭时则保留长连接线。）",
+    "ja": "ミシンが対応していれば、長いジャンプで糸を切ります。（書き出し時に、しきい値を超えるジャンプに糸切り命令を追加し、形を横切る糸を避けます。オフの場合は長い渡り糸が残ります。）",
+    "ko": "기계가 지원하면 긴 점프에서 실을 자릅니다. (내보낼 때 임계값보다 긴 점프에 실 자르기 명령을 넣어 실이 모양을 가로지르지 않도록 합니다. 끄면 긴 연결 실이 남습니다.)",
+    "vi": "Chỉ được cắt ở các bước nhảy dài nếu máy hỗ trợ. (Khi xuất, bước nhảy vượt ngưỡng được thêm lệnh cắt chỉ để không có chỉ chạy ngang hình; tắt = giữ lại các sợi chỉ nối dài.)",
+    "th": "เครื่องจะตัดด้ายเมื่อกระโดดไกลหากรองรับ (ตอนส่งออกจะเพิ่มคำสั่งตัดด้ายสำหรับการกระโดดที่ยาวเกินเกณฑ์ เพื่อไม่ให้มีด้ายพาดข้ามรูปทรง; ปิด = คงเส้นด้ายเชื่อมยาวไว้)",
+    "id": "Benang dipotong pada lompatan panjang jika mesin mendukungnya. (Saat ekspor, lompatan di atas ambang diberi perintah potong agar benang tidak melintasi bentuk; nonaktif = benang penghubung yang panjang tetap ada.)",
+    "hi": "यदि मशीन समर्थन करती है तो लंबी छलाँगों पर धागा काटा जाता है। (निर्यात में सीमा से लंबी छलाँगों के लिए धागा काटने का आदेश जोड़ा जाता है, ताकि धागा आकृति के आर-पार न जाए; बंद = लंबे जोड़ने वाले धागे बने रहते हैं।)",
+    "ar": "يُقص الخيط عند القفزات الطويلة إذا كانت الماكينة تدعم ذلك. (عند التصدير، تُضاف أوامر قص للقفزات التي تتجاوز العتبة لتجنب مرور الخيط عبر الشكل؛ عند الإيقاف تبقى خيوط الوصل الطويلة.)",
+    "he": "החוט נחתך בקפיצות ארוכות אם המכונה תומכת בכך. (בייצוא מתווספות פקודות חיתוך לקפיצות ארוכות מהסף, כדי שלא יעבור חוט לרוחב הצורה; כבוי = חוטי חיבור ארוכים נשארים.)",
+    "fa": "اگر دستگاه پشتیبانی کند، نخ در پرش‌های بلند بریده می‌شود. (هنگام خروجی گرفتن، برای پرش‌های بلندتر از آستانه فرمان برش افزوده می‌شود تا نخ از عرض شکل نگذرد؛ خاموش = نخ‌های اتصال بلند باقی می‌مانند.)"
+  },
+  "Abstand der Satin-Stiche in mm. Kleiner = dichter. Wirkt nur auf Linien, die als Satin gestickt werden.": {
+    "en": "Satin stitch spacing in mm. Smaller = denser. Applies only to lines embroidered with satin stitches.",
+    "fr": "Espacement des points satin en mm. Plus petit = plus dense. S’applique uniquement aux lignes brodées au point satin.",
+    "it": "Distanza tra i punti satin in mm. Minore = più fitto. Si applica solo alle linee ricamate a punto satin.",
+    "es": "Separación entre puntadas de satén en mm. Menor = más denso. Solo se aplica a las líneas bordadas con puntadas de satén.",
+    "pt": "Espaçamento dos pontos de cetim em mm. Menor = mais denso. Aplica-se apenas a linhas bordadas com pontos de cetim.",
+    "nl": "Afstand tussen satijnsteken in mm. Kleiner = dichter. Geldt alleen voor lijnen die met satijnsteken worden geborduurd.",
+    "pl": "Odstęp między ściegami satynowymi w mm. Mniejszy = gęściej. Dotyczy tylko linii haftowanych ściegiem satynowym.",
+    "cs": "Rozestup saténových stehů v mm. Menší = hustší. Platí pouze pro čáry vyšívané saténovým stehem.",
+    "sk": "Rozostup saténových stehov v mm. Menší = hustejšie. Platí iba pre čiary vyšívané saténovým stehom.",
+    "ro": "Distanța dintre cusăturile satinate, în mm. Mai mică = mai dens. Se aplică numai liniilor brodate cu cusături satinate.",
+    "hu": "A szaténöltések távolsága mm-ben. Kisebb = sűrűbb. Csak a szaténöltéssel hímzett vonalakra vonatkozik.",
+    "el": "Απόσταση μεταξύ των βελονιών σατέν σε mm. Μικρότερη = μεγαλύτερη πυκνότητα. Ισχύει μόνο για γραμμές που κεντιούνται με βελονιές σατέν.",
+    "sv": "Avstånd mellan satinstygn i mm. Mindre = tätare. Gäller endast linjer som broderas med satinstygn.",
+    "da": "Afstand mellem satinsting i mm. Mindre = tættere. Gælder kun linjer broderet med satinsting.",
+    "no": "Avstand mellom satengsting i mm. Mindre = tettere. Gjelder bare linjer som broderes med satengsting.",
+    "fi": "Satiinipistojen väli millimetreinä. Pienempi = tiheämpi. Koskee vain satiinipistoilla kirjottavia viivoja.",
+    "ca": "Separació de les puntades de setí en mm. Més petita = més densitat. Només afecta les línies brodades en setí.",
+    "tr": "Saten dikiş aralığı, mm. Daha küçük = daha yoğun. Yalnızca saten olarak işlenen çizgiler için geçerlidir.",
+    "ru": "Расстояние между сатиновыми стежками в мм. Меньше = плотнее. Действует только для линий, вышиваемых сатином.",
+    "uk": "Відстань між сатиновими стібками в мм. Менше = щільніше. Діє лише для ліній, що вишиваються сатином.",
+    "bg": "Разстояние между сатенените бодове в mm. По-малко = по-плътно. Действа само за линии, бродирани със сатен.",
+    "zh": "缎面针迹间距，单位为毫米。越小则越密。仅适用于以缎面针迹刺绣的线条。",
+    "ja": "サテンステッチの間隔（mm）。小さいほど密になります。サテンで刺繍する線にのみ適用されます。",
+    "ko": "새틴 스티치 간격 (mm). 작을수록 촘촘합니다. 새틴으로 자수하는 선에만 적용됩니다.",
+    "vi": "Khoảng cách mũi satin, tính bằng mm. Nhỏ hơn = dày hơn. Chỉ áp dụng cho các đường được thêu bằng satin.",
+    "th": "ระยะห่างฝีเข็มซาตินเป็น มม. ค่าน้อยลง = แน่นขึ้น มีผลเฉพาะเส้นที่ปักด้วยซาติน",
+    "id": "Jarak tusuk satin dalam mm. Lebih kecil = lebih rapat. Hanya berlaku untuk garis yang dibordir dengan satin.",
+    "hi": "सैटिन टाँकों की दूरी, मिमी में। कम = अधिक घना। केवल सैटिन से कढ़ी जाने वाली रेखाओं पर लागू होता है।",
+    "ar": "تباعد غرز الساتان بالملليمتر. الأصغر = أكثف. يؤثر فقط في الخطوط المطرّزة بالساتان.",
+    "he": "מרווח תכי הסאטן במ״מ. קטן יותר = צפוף יותר. חל רק על קווים הנרקמים בסאטן.",
+    "fa": "فاصلهٔ بخیه‌های ساتن بر حسب میلی‌متر. کمتر = متراکم‌تر. فقط بر خط‌هایی اثر دارد که با ساتن گلدوزی می‌شوند."
+  },
+  "Abstand der Stichreihen nur für Text. Kleiner = dichter.": {
+    "en": "Stitch row spacing for text only. Smaller = denser.",
+    "fr": "Espacement des rangées de points pour le texte uniquement. Plus petit = plus dense.",
+    "it": "Distanza tra le file di punti solo per il testo. Minore = più fitto.",
+    "es": "Separación entre filas de puntadas solo para el texto. Menor = más denso.",
+    "pt": "Espaçamento entre filas de pontos apenas para texto. Menor = mais denso.",
+    "nl": "Afstand tussen steekrijen alleen voor tekst. Kleiner = dichter.",
+    "pl": "Odstęp między rzędami ściegów tylko dla tekstu. Mniejszy = gęściej.",
+    "cs": "Vzdálenost mezi řadami stehů pouze pro text. Menší = hustší.",
+    "sk": "Vzdialenosť medzi radmi stehov iba pre text. Menšia = hustejšie.",
+    "ro": "Distanța dintre rândurile de cusături numai pentru text. Mai mică = mai dens.",
+    "hu": "Az öltéssorok távolsága csak a szövegnél. Kisebb = sűrűbb.",
+    "el": "Απόσταση μεταξύ των σειρών βελονιών μόνο για κείμενο. Μικρότερη = μεγαλύτερη πυκνότητα.",
+    "sv": "Avstånd mellan stygnrader endast för text. Mindre = tätare.",
+    "da": "Afstand mellem stingrækker kun for tekst. Mindre = tættere.",
+    "no": "Avstand mellom stingradene bare for tekst. Mindre = tettere.",
+    "fi": "Pistorivien väli vain tekstille. Pienempi = tiheämpi.",
+    "ca": "Separació de les files de puntades només per al text. Més petita = més densitat.",
+    "tr": "Yalnızca metin için dikiş sırası aralığı. Daha küçük = daha yoğun.",
+    "ru": "Расстояние между рядами стежков только для текста. Меньше = плотнее.",
+    "uk": "Відстань між рядами стібків лише для тексту. Менше = щільніше.",
+    "bg": "Разстояние между редовете бодове само за текст. По-малко = по-плътно.",
+    "zh": "仅用于文本的针迹行间距。越小则越密。",
+    "ja": "テキスト専用のステッチ列間隔。小さいほど密になります。",
+    "ko": "텍스트에만 적용되는 스티치 행 간격. 작을수록 촘촘합니다.",
+    "vi": "Khoảng cách hàng mũi thêu chỉ dành cho văn bản. Nhỏ hơn = dày hơn.",
+    "th": "ระยะห่างแถวฝีเข็มสำหรับข้อความเท่านั้น ค่าน้อยลง = แน่นขึ้น",
+    "id": "Jarak baris tusukan hanya untuk teks. Lebih kecil = lebih rapat.",
+    "hi": "केवल टेक्स्ट के लिए टाँकों की पंक्तियों की दूरी। कम = अधिक घना।",
+    "ar": "تباعد صفوف الغرز للنصوص فقط. الأصغر = أكثف.",
+    "he": "מרווח שורות התכים עבור טקסט בלבד. קטן יותר = צפוף יותר.",
+    "fa": "فاصلهٔ ردیف‌های بخیه فقط برای متن. کمتر = متراکم‌تر."
+  },
+  "Richtung der Tatami-Reihen im Text. 0° waagrecht, 90° senkrecht.": {
+    "en": "Direction of tatami rows in text. 0° horizontal, 90° vertical.",
+    "fr": "Direction des rangées tatami dans le texte. 0° : horizontales, 90° : verticales.",
+    "it": "Direzione delle file tatami nel testo. 0° orizzontale, 90° verticale.",
+    "es": "Dirección de las filas de tatami en el texto. 0° horizontal, 90° vertical.",
+    "pt": "Direção das filas de tatami no texto. 0° horizontal, 90° vertical.",
+    "nl": "Richting van de tatamirijen in tekst. 0° horizontaal, 90° verticaal.",
+    "pl": "Kierunek rzędów tatami w tekście. 0° poziomo, 90° pionowo.",
+    "cs": "Směr řad tatami v textu. 0° vodorovně, 90° svisle.",
+    "sk": "Smer radov tatami v texte. 0° vodorovne, 90° zvisle.",
+    "ro": "Direcția rândurilor tatami din text. 0° orizontal, 90° vertical.",
+    "hu": "A tatamisorok iránya a szövegben. 0° vízszintes, 90° függőleges.",
+    "el": "Κατεύθυνση των σειρών tatami στο κείμενο. 0° οριζόντια, 90° κατακόρυφα.",
+    "sv": "Riktning för tatamirader i text. 0° vågrätt, 90° lodrätt.",
+    "da": "Retning på tatamirækker i tekst. 0° vandret, 90° lodret.",
+    "no": "Retning på tatamiradene i tekst. 0° vannrett, 90° loddrett.",
+    "fi": "Tekstin tatamirivien suunta. 0° vaakasuoraan, 90° pystysuoraan.",
+    "ca": "Direcció de les files de tatami del text. 0° horitzontal, 90° vertical.",
+    "tr": "Metindeki tatami sıralarının yönü. 0° yatay, 90° dikey.",
+    "ru": "Направление рядов татами в тексте. 0° — горизонтально, 90° — вертикально.",
+    "uk": "Напрямок рядів татамі в тексті. 0° — горизонтально, 90° — вертикально.",
+    "bg": "Посока на редовете татами в текста. 0° хоризонтално, 90° вертикално.",
+    "zh": "文本中榻榻米针迹行的方向。0° 为水平，90° 为垂直。",
+    "ja": "テキスト内のタタミ列の方向。0° は水平、90° は垂直です。",
+    "ko": "텍스트 안의 타타미 행 방향. 0°는 수평, 90°는 수직입니다.",
+    "vi": "Hướng các hàng tatami trong văn bản. 0° nằm ngang, 90° thẳng đứng.",
+    "th": "ทิศทางของแถวทาทามิในข้อความ 0° แนวนอน 90° แนวตั้ง",
+    "id": "Arah baris tatami pada teks. 0° horizontal, 90° vertikal.",
+    "hi": "टेक्स्ट में तातामी पंक्तियों की दिशा। 0° क्षैतिज, 90° ऊर्ध्वाधर।",
+    "ar": "اتجاه صفوف التاتامي داخل النص. 0° أفقي، و90° عمودي.",
+    "he": "כיוון שורות הטטאמי בטקסט. 0° אופקי, 90° אנכי.",
+    "fa": "جهت ردیف‌های تاتامی در متن. ۰° افقی، ۹۰° عمودی."
+  },
+  "Maximale Länge der Tatami-Reihenstiche. Gilt nur für Text mit Tatami-Füllung.": {
+    "en": "Maximum stitch length in tatami rows. Applies only to text with tatami fill.",
+    "fr": "Longueur maximale des points des rangées tatami. S’applique uniquement au texte avec remplissage tatami.",
+    "it": "Lunghezza massima dei punti nelle file tatami. Si applica solo al testo con riempimento tatami.",
+    "es": "Longitud máxima de las puntadas en las filas de tatami. Solo se aplica al texto con relleno de tatami.",
+    "pt": "Comprimento máximo dos pontos nas filas de tatami. Aplica-se apenas a texto com preenchimento tatami.",
+    "nl": "Maximale steeklengte in tatamirijen. Geldt alleen voor tekst met tatamivulling.",
+    "pl": "Maksymalna długość ściegów w rzędach tatami. Dotyczy tylko tekstu z wypełnieniem tatami.",
+    "cs": "Maximální délka stehů v řadách tatami. Platí pouze pro text s výplní tatami.",
+    "sk": "Maximálna dĺžka stehov v radoch tatami. Platí iba pre text s výplňou tatami.",
+    "ro": "Lungimea maximă a cusăturilor din rândurile tatami. Se aplică numai textului cu umplere tatami.",
+    "hu": "Az öltések legnagyobb hossza a tatamisorokban. Csak a tatamikitöltésű szövegre vonatkozik.",
+    "el": "Μέγιστο μήκος βελονιάς στις σειρές tatami. Ισχύει μόνο για κείμενο με γέμισμα tatami.",
+    "sv": "Maximal stygnlängd i tatamirader. Gäller endast text med tatamifyllning.",
+    "da": "Maksimal stinglængde i tatamirækker. Gælder kun tekst med tatamifyld.",
+    "no": "Maksimal stinglengde i tatamirader. Gjelder bare tekst med tatamifyll.",
+    "fi": "Tatamirivien pistojen enimmäispituus. Koskee vain tatamitäytteistä tekstiä.",
+    "ca": "Longitud màxima de les puntades de les files de tatami. Només s’aplica al text amb farciment de tatami.",
+    "tr": "Tatami sıralarındaki en büyük dikiş uzunluğu. Yalnızca tatami dolgulu metin için geçerlidir.",
+    "ru": "Максимальная длина стежка в рядах татами. Действует только для текста с заполнением татами.",
+    "uk": "Максимальна довжина стібка в рядах татамі. Діє лише для тексту із заповненням татамі.",
+    "bg": "Максимална дължина на бодовете в редовете татами. Важи само за текст със запълване татами.",
+    "zh": "榻榻米针迹行中的最大针迹长度。仅适用于使用榻榻米填充的文本。",
+    "ja": "タタミ列の最大ステッチ長。タタミで埋めるテキストにのみ適用されます。",
+    "ko": "타타미 행의 최대 스티치 길이. 타타미 채움이 있는 텍스트에만 적용됩니다.",
+    "vi": "Chiều dài mũi tối đa trong các hàng tatami. Chỉ áp dụng cho văn bản có phần lấp đầy tatami.",
+    "th": "ความยาวฝีเข็มสูงสุดในแถวทาทามิ ใช้เฉพาะข้อความที่เติมด้วยทาทามิ",
+    "id": "Panjang tusukan maksimum dalam baris tatami. Hanya berlaku untuk teks dengan isian tatami.",
+    "hi": "तातामी पंक्तियों में टाँके की अधिकतम लंबाई। केवल तातामी भराव वाले टेक्स्ट पर लागू होता है।",
+    "ar": "الطول الأقصى للغرزة في صفوف التاتامي. ينطبق فقط على النصوص ذات تعبئة التاتامي.",
+    "he": "האורך המרבי של תך בשורות הטטאמי. חל רק על טקסט עם מילוי טטאמי.",
+    "fa": "بیشترین طول بخیه در ردیف‌های تاتامی. فقط برای متن با پُرکنندهٔ تاتامی کاربرد دارد."
+  }
+};
+  Object.keys(texts).forEach(function(key) { VT_RELEASE_CATALOG[key] = texts[key]; });
+})();
+/* VT-JUMP-VIEW-HELP-20261004: exact tooltip, not machine-trim assurance. */
+VT_RELEASE_CATALOG['Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nadelbewegungen, keine Garantie für einen Fadenschnitt.'] = {
+  en: 'Show jump paths in 2D and 3D. Dashed paths represent needle movements, not a guarantee that the thread will be trimmed.',
+  fr: 'Afficher les trajets de saut en 2D et en 3D. Les trajets en pointillés représentent des déplacements de l’aiguille, sans garantir une coupe du fil.',
+  it: 'Mostra i percorsi dei salti in 2D e 3D. I percorsi tratteggiati rappresentano movimenti dell’ago, non garantiscono il taglio del filo.',
+  es: 'Mostrar los recorridos de salto en 2D y 3D. Los recorridos discontinuos representan movimientos de la aguja, no garantizan el corte del hilo.',
+  pt: 'Mostrar os percursos dos saltos em 2D e 3D. Os percursos tracejados representam movimentos da agulha, não garantem o corte do fio.',
+  nl: 'Sprongpaden in 2D en 3D tonen. Gestippelde paden zijn naaldbewegingen en garanderen niet dat de draad wordt afgeknipt.',
+  pl: 'Pokaż trasy przeskoków w 2D i 3D. Przerywane trasy oznaczają ruchy igły, a nie gwarancję obcięcia nici.',
+  cs: 'Zobrazit dráhy přeskoků ve 2D a 3D. Přerušované dráhy představují pohyby jehly, nikoli záruku odstřižení nitě.',
+  sk: 'Zobraziť dráhy preskokov v 2D a 3D. Prerušované dráhy predstavujú pohyby ihly, nie záruku odstrihnutia nite.',
+  ro: 'Afișează traseele salturilor în 2D și 3D. Traseele întrerupte reprezintă mișcări ale acului, nu garantează tăierea firului.',
+  hu: 'Az ugrások útvonalának megjelenítése 2D-ben és 3D-ben. A szaggatott útvonalak tűmozgásokat jelölnek, nem garantálják a szál elvágását.',
+  el: 'Εμφάνιση των διαδρομών αλμάτων σε 2D και 3D. Οι διακεκομμένες διαδρομές δείχνουν κινήσεις της βελόνας, δεν εγγυώνται ότι θα κοπεί η κλωστή.',
+  sv: 'Visa hoppvägar i 2D och 3D. Streckade vägar visar nålrörelser och garanterar inte att tråden klipps.',
+  da: 'Vis springbaner i 2D og 3D. Stiplede baner viser nålebevægelser og garanterer ikke, at tråden klippes.',
+  no: 'Vis hoppbaner i 2D og 3D. Stiplede baner viser nålebevegelser og garanterer ikke at tråden klippes.',
+  fi: 'Näytä hyppyjen reitit 2D- ja 3D-näkymissä. Katkoviivareitit kuvaavat neulan liikkeitä eivätkä takaa langan katkaisua.',
+  ca: 'Mostra els recorreguts de salt en 2D i 3D. Els recorreguts discontinus representen moviments de l’agulla, no garanteixen el tall del fil.',
+  tr: 'Atlama yollarını 2B ve 3B olarak göster. Kesikli yollar iğne hareketlerini belirtir; ipliğin kesileceğini garanti etmez.',
+  ru: 'Показывать пути переходов в 2D и 3D. Пунктирные линии обозначают перемещения иглы, но не гарантируют обрезку нити.',
+  uk: 'Показувати шляхи переходів у 2D та 3D. Пунктирні лінії позначають переміщення голки, але не гарантують обрізання нитки.',
+  bg: 'Показване на траекториите на прескоците в 2D и 3D. Пунктираните траектории показват движения на иглата, но не гарантират отрязване на конеца.',
+  zh: '在 2D 和 3D 中显示跳针路径。虚线路径表示针的移动，并不保证会剪断线。',
+  ja: '2D と 3D でジャンプ経路を表示します。破線の経路は針の移動を示しており、糸が切られることを保証するものではありません。',
+  ko: '2D 및 3D에서 점프 경로를 표시합니다. 점선 경로는 바늘 이동을 나타내며, 실이 잘린다는 것을 보장하지 않습니다.',
+  vi: 'Hiển thị đường nhảy trong 2D và 3D. Đường nét đứt biểu thị chuyển động của kim, không bảo đảm rằng chỉ sẽ được cắt.',
+  th: 'แสดงเส้นทางกระโดดในมุมมอง 2D และ 3D เส้นประแสดงการเคลื่อนที่ของเข็ม ไม่ได้เป็นการรับประกันว่าจะตัดด้าย',
+  id: 'Tampilkan jalur lompatan dalam 2D dan 3D. Jalur putus-putus menunjukkan gerakan jarum, bukan jaminan bahwa benang akan dipotong.',
+  hi: '2D और 3D में जंप के रास्ते दिखाएँ। टूटी हुई रेखाएँ सुई की गति दर्शाती हैं, धागा कटने की गारंटी नहीं देतीं।',
+  ar: 'إظهار مسارات القفزات في العرضين ثنائي وثلاثي الأبعاد. تمثل المسارات المتقطعة حركات الإبرة، ولا تضمن قص الخيط.',
+  he: 'הצגת מסלולי דילוג בתצוגות 2D ו־3D. מסלולים מקווקווים מייצגים תנועות מחט ואינם מבטיחים חיתוך של החוט.',
+  fa: 'نمایش مسیر پرش‌ها در نمای دوبعدی و سه‌بعدی. مسیرهای خط‌چین نشان‌دهندهٔ حرکت سوزن هستند و بریدن نخ را تضمین نمی‌کنند.'
+};
   Object.keys(VT_RELEASE_CATALOG).forEach(function(key){Object.keys(VT_RELEASE_CATALOG[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=VT_RELEASE_CATALOG[key][lang];});});
   /* Keep the existing translated label; the file shortcut is language-neutral. */
   Object.keys(DICT).forEach(function(lang){if(DICT[lang]['SVG kopieren'])DICT[lang]['SVG kopieren · Ctrl/⌘+Shift+C → .svg']=DICT[lang]['SVG kopieren']+' · Ctrl/⌘+Shift+C → .svg';});
@@ -57286,6 +57742,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-04', t:'VT-20261004-local-r26', c:null},
+    {d:'2026-10-04', t:'VT-20261004-local-r25', c:null},
+    {d:'2026-10-03', t:'VT-20261003-local-r24', c:null},
     {d:'2026-10-03', t:'VT-20261003-r19', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r18', c:null},
     {d:'2026-10-02', t:'VT-20261002-local-r15', c:null},
@@ -57364,7 +57823,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       if (b.kind==='week') return T('Woche') + ' ' + parseD(b.d).toLocaleDateString(L, {day:'numeric', month:'short'});
       return '' + parseD(b.d).getFullYear();
     }
-    function dlLinks(c){ if(!c)return '';return '<span class="vtcl-links"><a href="'+REPO+'/commit/'+c+'" target="_blank" rel="noopener">'+T('Auf GitHub ansehen')+'</a><a href="'+RAW+'/'+c+'/vektortool.html" target="_blank" rel="noopener" download="vektortool-'+c+'.html">'+T('Herunterladen')+'</a></span>'; }
+    function hasCommit(c){ return typeof c === 'string' && /^[0-9a-f]{7,40}$/i.test(c); }
+    function dlLinks(c){ if(!hasCommit(c))return '';return '<span class="vtcl-links"><a href="'+REPO+'/commit/'+c+'" target="_blank" rel="noopener">'+T('Auf GitHub ansehen')+'</a><a href="'+RAW+'/'+c+'/vektortool.html" target="_blank" rel="noopener" download="vektortool-'+c+'.html">'+T('Herunterladen')+'</a></span>'; }
     var html = '';
     order.forEach(function(k){
       var b = map[k];
@@ -57374,7 +57834,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         b.items.forEach(function(e){ html += '<li><span class="vtcl-dot">&#9656;</span><span>'+esc(T(e.t))+'</span>'+dlLinks(e.c)+'</li>'; });
         html += '</ul>';
       } else {
-        var parts = b.items.map(function(e){ return e.c?'<a href="'+REPO+'/commit/'+e.c+'" target="_blank" rel="noopener">'+esc(T(e.t))+'</a>':esc(T(e.t)); });
+        var parts = b.items.map(function(e){ return hasCommit(e.c)?'<a href="'+REPO+'/commit/'+e.c+'" target="_blank" rel="noopener">'+esc(T(e.t))+'</a>':esc(T(e.t)); });
         html += '<div class="vtcl-summary">'+parts.join(' · ')+'</div>';
       }
       html += '</div>';
@@ -59134,7 +59594,7 @@ function _flowGapFill(cov, grid, flowSegments, inInk){
   }
   return add;
 }
-function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord, flowTile, flowDeadlineMs){
+function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord, flowTile, flowDeadlineMs, coverageFactor){
   if(!loops||!loops.length||!stitches.length) return [];
   var repairDeadline=flowTile&&flowTile.deadlineMs||flowDeadlineMs||0;
   var segs=[],i; for(i=1;i<stitches.length;i++){ var a=stitches[i-1],b=stitches[i]; if(b.jump||b.travel) continue; segs.push([a.x,a.y,b.x,b.y]); }
@@ -59158,7 +59618,7 @@ function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord, flowT
       var low=Math.max(minY,minY+(fy-1)*cell),high=Math.min(maxY,minY+(fy+tileRows+1)*cell);
       if(high<=low)continue;
       var tileInk=(function(lo,hi){return function(x,y){return y>=lo&&y<=hi&&inInk(x,y);};})(low,high);
-      var part=_coverageBackstop(coveredStitches,loops,tileInk,flowSegments,false,{minY:low,maxY:high,deadlineMs:flowDeadline});
+      var part=_coverageBackstop(coveredStitches,loops,tileInk,flowSegments,false,{minY:low,maxY:high,deadlineMs:flowDeadline},flowDeadline,coverageFactor);
       if(Date.now()>flowDeadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
       if(part.length){
         part[0]=Object.assign({},part[0],{jump:true});
@@ -59175,7 +59635,7 @@ function _coverageBackstop(stitches, loops, inInk, flowSegments, tileWord, flowT
   var tileHeight=tileWord?Math.max(1,Math.floor(200000/gw)):gh,tileStart=0,tileEnd=0,cov;
   /* Exact distance to the stitch, not a square dilation which hid 0.6mm
      channels. A normal row gap at the chosen spacing is already covered. */
-  var radius=Math.max(_mm2px(0.16),spacing*0.55), rad2=radius*radius, reach=Math.ceil(radius/cell)+1;
+  var radius=Math.max(_mm2px(0.16),spacing*(coverageFactor||0.55)), rad2=radius*radius, reach=Math.ceil(radius/cell)+1;
   function coverTile(start){
   tileStart=start;tileEnd=Math.min(gh,start+tileHeight);cov=new Uint8Array(gw*(tileEnd-tileStart));
   for(var i=0;i<segs.length;i++){ var s=segs[i], dx=s[2]-s[0], dy=s[3]-s[1], L=Math.hypot(dx,dy), n=Math.max(1,Math.ceil(L/cell)), k;
@@ -59947,6 +60407,216 @@ function _satinWordCoverageRepair(points, groups){
   });
   return extra;
 }
+/* A short uncovered piece belongs beside an existing row, not at the end of
+   the whole glyph. Attach only compact repair runs by a bounded in-material
+   out-and-back detour. Every original row and repair segment is retained;
+   distant runs and counters keep their explicit jump. Längs callers only. */
+function _flowAttachRepair(primary,repair,inInk,deadline,loops,planOnly){
+  if(!primary.length||!repair.length)return planOnly?new Map():primary.concat(repair);
+  if(primary.length+repair.length>300000)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+  var reach=_mm2px(0.45),cell=reach,grid=new Map(),runs=[],run=[];
+  function key(x,y){return Math.floor(x/cell)+','+Math.floor(y/cell);}
+  var retained=null;
+  for(var i=0;i<primary.length;i++){
+    if((i&255)===0&&deadline&&Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+    var p=primary[i];
+    if(!p.jump&&!p.textAnchor&&retained&&Math.hypot(p.x-retained.x,p.y-retained.y)<_mm2px(0.2))continue;
+    retained=p;if(i===0||p.jump||!inInk(p.x,p.y))continue;
+    var k=key(p.x,p.y),list=grid.get(k);if(!list){list=[];grid.set(k,list);}list.push(i);
+  }
+  for(var i=0;i<repair.length;i++){
+    if(repair[i].jump&&run.length){runs.push(run);run=[];}
+    run.push(repair[i]);
+  }
+  if(run.length)runs.push(run);
+  var inserts=new Map(),leftovers=[];
+  function safe(a,b){
+    if(loops&&!_flowTravelInside(a,b,loops,inInk))return false;
+    var n=Math.max(2,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/_mm2px(0.025)));
+    for(var j=0;j<=n;j++)if(!inInk(a.x+(b.x-a.x)*j/n,a.y+(b.y-a.y)*j/n))return false;
+    return true;
+  }
+  for(var ri=0;ri<runs.length;ri++){
+    if(deadline&&Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+    var r=runs[ri],a=r[0],b=r[r.length-1],best=-1,cost=Infinity;
+    if(r.length>1&&Math.hypot(b.x-a.x,b.y-a.y)<=reach*2){
+      var gx=Math.floor(a.x/cell),gy=Math.floor(a.y/cell);
+      for(var dy=-1;dy<=1;dy++)for(var dx=-1;dx<=1;dx++){
+        var list=grid.get((gx+dx)+','+(gy+dy))||[];
+        for(var j=0;j<list.length;j++){
+          if((j&255)===0&&deadline&&Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+          var idx=list[j],p=primary[idx],da=Math.hypot(p.x-a.x,p.y-a.y),db=Math.hypot(p.x-b.x,p.y-b.y);
+          /* Avoid changing an existing short branch into two needle pricks.
+             Long repair runs also remain in their independent sewn order. */
+          if(da>reach||db>reach||da+db>=cost||da<_mm2px(0.1)||db<_mm2px(0.1))continue;
+          if(!safe(p,a)||!safe(b,p))continue;
+          best=idx;cost=da+db;
+        }
+      }
+    }
+    if(best<0){for(var j=0;j<r.length;j++)leftovers.push(r[j]);continue;}
+    var bucket=inserts.get(best);if(!bucket){bucket=[];inserts.set(best,bucket);}
+    bucket.push(r);
+  }
+  if(planOnly)return inserts;
+  if(!inserts.size)return primary.concat(repair);
+  var out=[];
+  for(var i=0;i<primary.length;i++){
+    out.push(primary[i]);var bucket=inserts.get(i);if(!bucket)continue;
+    for(var bi=0;bi<bucket.length;bi++){
+      var r=bucket[bi];
+      for(var j=0;j<r.length;j++){
+        var q=Object.assign({},r[j]);delete q.jump;
+        if(j===0){q.travel=true;q.textAnchor=true;}
+        out.push(q);
+      }
+      out.push({x:primary[i].x,y:primary[i].y,travel:true,textAnchor:true});
+    }
+  }
+  if(leftovers.length){leftovers[0]=Object.assign({},leftovers[0],{jump:true});for(var j=0;j<leftovers.length;j++)out.push(leftovers[j]);}
+  return out;
+}
+
+/* Route compact disconnected runs only after the shaped-word boundary guard.
+   Their geometry is retained exactly, including real hairlines and counters.
+   This avoids a later glyph-to-word boundary projection shrinking a new join. */
+function _flowRouteWholeWord(points,inInk,deadline,loops){
+  var runs=[],run=[];
+  for(var i=0;i<points.length;i++){
+    if((i&255)===0&&deadline&&Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+    if(points[i].jump&&run.length){runs.push(run);run=[];}
+    run.push(points[i]);
+  }
+  if(run.length)runs.push(run);
+  var primary=[],repair=[],pointIndex=new Map();
+  for(var i=0;i<points.length;i++)pointIndex.set(points[i],i);
+  for(var ri=0;ri<runs.length;ri++){
+    var r=runs[ri],length=0,minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(var j=0;j<r.length;j++){
+      minX=Math.min(minX,r[j].x);maxX=Math.max(maxX,r[j].x);minY=Math.min(minY,r[j].y);maxY=Math.max(maxY,r[j].y);
+      if(j)length+=Math.hypot(r[j].x-r[j-1].x,r[j].y-r[j-1].y);
+    }
+    var small=ri>0&&ri<runs.length-1&&r.length>1&&length<=_mm2px(1.5)&&Math.hypot(maxX-minX,maxY-minY)<=_mm2px(0.9);
+    var target=small?repair:primary;
+    for(var j=0;j<r.length;j++)target.push(r[j]);
+  }
+  var plan=_flowAttachRepair(primary,repair,inInk,deadline,loops,true);
+  if(!plan.size)return points;
+  var atIndex=new Map(),omit=new Set();
+  plan.forEach(function(list,anchor){
+    atIndex.set(pointIndex.get(primary[anchor]),list);
+    list.forEach(function(r){for(var i=0;i<r.length;i++)omit.add(pointIndex.get(r[i]));});
+  });
+  /* Unattachable runs stay at their original position. Moving them all to
+     the end can increase the remaining jumps even though their count falls. */
+  var routed=[];
+  for(var i=0;i<points.length;i++){
+    if(omit.has(i))continue;
+    routed.push(points[i]);var list=atIndex.get(i);if(!list)continue;
+    for(var ri=0;ri<list.length;ri++){
+      var r=list[ri];
+      for(var j=0;j<r.length;j++){
+        var q=Object.assign({},r[j]);delete q.jump;
+        if(j===0){q.travel=true;q.textAnchor=true;}
+        routed.push(q);
+      }
+      routed.push({x:points[i].x,y:points[i].y,travel:true,textAnchor:true});
+    }
+  }
+  function jumpDistance(a){var sum=0;for(var i=1;i<a.length;i++)if(a[i].jump)sum+=Math.hypot(a[i].x-a[i-1].x,a[i].y-a[i-1].y);return sum;}
+  /* Fewer jumps alone is not enough if regrouping makes the remaining
+     loose-thread moves longer. Decline such a route; keep all original runs. */
+  return jumpDistance(routed)<=jumpDistance(points)+1e-7?routed:points;
+}
+
+/* Whole reference words are larger than glyphs; keep a separate four-entry
+   cache instead of consuming the existing 200-glyph cache with large masks. */
+var _flowWordReferenceCache=[];
+function _flowWordReference(text,size){
+  var key=state.font+'|'+text+'|'+size+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0);
+  for(var i=0;i<_flowWordReferenceCache.length;i++)if(_flowWordReferenceCache[i].key===key)return _flowWordReferenceCache[i].value;
+  var value=extractSegments(text,state.font,size,!!state.bold,!!state.italic);
+  _flowWordReferenceCache.push({key:key,value:value});
+  if(_flowWordReferenceCache.length>4)_flowWordReferenceCache.shift();
+  return value;
+}
+function _flowWordCoverageRepair(points, groups){
+  var deadline=Date.now()+5000;
+  var extra=[],inkGroups=[];
+  groups.forEach(function(g){
+    if(Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+    if(!g.flowSegments||!g.flowSegments.length)return;
+    /* Reuse exact horizontal ray intersections for all samples on the same
+       y coordinate. Same strict comparison/even-odd rule as _pointInLoops;
+       no contour simplification or boundary tolerance. Cache is call-local. */
+    var crossings=new Map();
+    var ink=function(x,y){
+      var xs=crossings.get(y);
+      if(!xs){xs=[];g.loops.forEach(function(lp){for(var i=0;i<lp.length;i++){var a=lp[i],b=lp[(i+1)%lp.length];if((a.y>y)!==(b.y>y))xs.push(a.x+(y-a.y)/((b.y-a.y)||1e-9)*(b.x-a.x));}});xs.sort(function(a,b){return a-b;});crossings.set(y,xs);}
+      var lo=0,hi=xs.length;while(lo<hi){var m=(lo+hi)>>1;if(x<xs[m])hi=m;else lo=m+1;}return ((xs.length-lo)&1)===1;
+    };
+    inkGroups.push(ink);
+    var rows=_coverageBackstop(points.concat(extra),g.loops,ink,g.flowSegments,true,null,deadline,0.8);
+    var edges=[],local=[];
+    g.loops.forEach(function(loop){for(var i=0;i<loop.length;i++)edges.push([loop[i],loop[(i+1)%loop.length]]);});
+    for(var i=1;i<rows.length;i++){
+      if((i&63)===0&&Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+      var a=rows[i-1],b=rows[i];if(b.jump)continue;
+      var dx=b.x-a.x,dy=b.y-a.y,ts=[0,1];
+      if(dx*dx+dy*dy<1e-12)continue;
+      for(var j=0;j<edges.length;j++){
+        var c=edges[j][0],d=edges[j][1],ex=d.x-c.x,ey=d.y-c.y,den=dx*ey-dy*ex;
+        if(Math.abs(den)<1e-12)continue;
+        var qx=c.x-a.x,qy=c.y-a.y,t=(qx*ey-qy*ex)/den,u=(qx*dy-qy*dx)/den;
+        if(t>1e-10&&t<1-1e-10&&u>=-1e-10&&u<=1+1e-10)ts.push(t);
+      }
+      ts.sort(function(x,y){return x-y;});
+      for(var k=1;k<ts.length;k++){
+        var lo=ts[k-1],hi=ts[k],mid=(lo+hi)/2;if(hi-lo<1e-10||!ink(a.x+dx*mid,a.y+dy*mid))continue;
+        var p={x:a.x+dx*lo,y:a.y+dy*lo,textAnchor:true},q={x:a.x+dx*hi,y:a.y+dy*hi,textAnchor:true};
+        var last=local[local.length-1];
+        if(!last||Math.hypot(last.x-p.x,last.y-p.y)>1e-7){p.jump=true;local.push(p);}
+        local.push(q);
+      }
+    }
+    /* Process nearby repair runs together, not the whole page left-to-right
+       on each raster row. A connector is allowed only through exact material
+       and within the same existing1.6-mm travel limit. Otherwise retain jump. */
+    function canConnect(a,b){
+      if(!a||Math.hypot(b.x-a.x,b.y-a.y)>_mm2px(1.6))return false;
+      var dx=b.x-a.x,dy=b.y-a.y,ts=[0,1];
+      for(var i=0;i<edges.length;i++){
+        var c=edges[i][0],d=edges[i][1],ex=d.x-c.x,ey=d.y-c.y,den=dx*ey-dy*ex;
+        if(Math.abs(den)<1e-12)continue;
+        var qx=c.x-a.x,qy=c.y-a.y,t=(qx*ey-qy*ex)/den,u=(qx*dy-qy*dx)/den;
+        if(t>0&&t<1&&u>=0&&u<=1)ts.push(t);
+      }
+      ts.sort(function(x,y){return x-y;});
+      for(var i=1;i<ts.length;i++){var t=(ts[i-1]+ts[i])/2;if(!ink(a.x+dx*t,a.y+dy*t))return false;}
+      return true;
+    }
+    var runs=[],run=[];
+    for(var i=0;i<local.length;i++){if(local[i].jump&&run.length){runs.push(run);run=[];}run.push(local[i]);}
+    if(run.length)runs.push(run);
+    while(runs.length){
+      if(Date.now()>deadline)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+      var last=extra[extra.length-1]||points[points.length-1],bi=0,reverse=false,bestSafe=false,bestDist=Infinity;
+      for(var i=0;i<runs.length;i++)for(var rev=0;rev<2;rev++){
+        var first=runs[i][rev?runs[i].length-1:0],distance=last?Math.hypot(first.x-last.x,first.y-last.y):0;
+        var safe=canConnect(last,first);
+        if((safe&&!bestSafe)||(safe===bestSafe&&distance<bestDist)){bi=i;reverse=!!rev;bestSafe=safe;bestDist=distance;}
+      }
+      var ordered=runs.splice(bi,1)[0];if(reverse)ordered.reverse();
+      for(var i=0;i<ordered.length;i++){
+        var p={x:ordered[i].x,y:ordered[i].y,textAnchor:true};
+        if(i===0){if(!bestSafe)p.jump=true;else p.travel=true;}
+        extra.push(p);
+      }
+    }
+  });
+  if(!inkGroups.length)return points;
+  return _flowRouteWholeWord(points.concat(extra),function(x,y){for(var i=0;i<inkGroups.length;i++)if(inkGroups[i](x,y))return true;return false;},deadline,groups.reduce(function(a,g){return a.concat(g.loops);},[]));
+}
 function wordStitches(){
   var text=state.text||''; if(!text.trim()) return [];
   var fontSizePx=_mm2px(state.sizeMM);
@@ -59997,7 +60667,19 @@ function wordStitches(){
         var q={x:p.x+line.x,y:p.y+dy};
         bb[0]=Math.min(bb[0],q.x);bb[1]=Math.min(bb[1],q.y);bb[2]=Math.max(bb[2],q.x);bb[3]=Math.max(bb[3],q.y);return q;
       });});
-      if(loops.length) referenceG.push({bb:bb,loops:loops});
+      if(loops.length){
+        var flowSegments=null;
+        if(window._bowlFill==='laengs'){
+          /* Contextual axes are used only to fill actual remaining word gaps.
+             The existing per-glyph rows and their spacing are not replaced. */
+          if(ext.W*ext.H>2000000)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
+          var flowExt=_flowWordReference(line.ch,fontSizePx);
+          flowSegments=flowExt.segs.concat(flowExt.fineDetailAxes||[]).filter(function(s){return s.center&&s.center.length>1;}).map(function(s){
+            return {center:s.center.map(function(p){return{x:p.x+line.x,y:p.y+dy};})};
+          });
+        }
+        referenceG.push({bb:bb,loops:loops,flowSegments:flowSegments});
+      }
     });
     /* Never drop an oversized/unrenderable line from the safety reference. */
     if(referenceComplete&&referenceG.length) allG=referenceG;
@@ -60030,6 +60712,10 @@ function wordStitches(){
     var _q; for(_q=0;_q<filtered.length;_q++){ var P=filtered[_q]; if(P.jump) continue; var pr=_proj(P.x,P.y); if(pr.d>_tolSnap){ var dx=pr.qx-P.x, dy=pr.qy-P.y, dl=Math.hypot(dx,dy)||1; P.x=pr.qx+dx/dl*_ins; P.y=pr.qy+dy/dl*_ins; } }
     /* (2) Stich-MITTE noch >0.27mm aussen (Loch/Konkavitaet-Querung, z.B. e-Auge) -> Sprung. */
     for(_q=1;_q<filtered.length;_q++){ var A=filtered[_q-1], B=filtered[_q]; if(B.jump) continue; var _bad=false,_s2; for(_s2=0;_s2<=6;_s2++){ var _f=_s2/6; if(_proj(A.x+(B.x-A.x)*_f,A.y+(B.y-A.y)*_f).d>_tolO){ _bad=true; break; } } if(_bad) B.jump=true; }
+  }
+  if(state.referenceLayout && window._bowlFill==='laengs') {
+    var flowRepair=_flowWordCoverageRepair(filtered,allG);
+    filtered=flowRepair;
   }
   if(state.referenceLayout && window._bowlFill==='satin') {
     var wordRepair=_satinWordCoverageRepair(filtered,allG);
@@ -60409,7 +61095,7 @@ body.dstv-with-stitch #stitchPanel .stitch-panel-body {
 }
 #stitchPanel #dstvGlobalParams .dgp-ts[aria-pressed="true"] { border-color: var(--ac) !important; }
 #stitchPanel #dstvGlobalParams .dgp-ts:disabled { opacity: .4; cursor: default !important; }
-#stitchPanel #dstvGlobalParams .vt-cardlink { width: 16px; height: 16px; margin-left: 1px; border-color: var(--border); }
+#stitchPanel #dstvGlobalParams .vt-cardlink { margin-left: 1px; }
 #stitchPanel #dstvGlobalParams button[id$="Gear"] { color: var(--fg3) !important; padding: 2px 3px !important; }
 #stitchPanel #dgpApplyStatus { margin: 2px 0 0 !important; padding: 0 1px; font-style: normal !important; line-height: 1.4; }
 #stitchPanel #dgpApplyStatus .dgp-bar { height: 3px; margin-top: 4px; }
@@ -60457,7 +61143,7 @@ body.dstv-with-stitch #dstvModal .dstv-top { overflow: visible; }
 #dstvModal .dstv-top > label { grid-column: 3; line-height: 1.3; font-size: var(--fs-xs) !important; }
 #dstvModal .dstv-top > label:has(#dstvShowJumps) { grid-row: 1; }
 #dstvModal .dstv-top > label:has(#dstvShowDots) { grid-row: 2; }
-#dstvModal #dstvInfoBtn { grid-column: 4; grid-row: 1 / 3; height: 30px; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+#dstvModal #dstvInfoBtn { grid-column: 4; grid-row: 1 / 3; justify-self: center; }
 body.dstv-with-stitch #dstvModal.open .dstv-bot { right: var(--stitch-ui-width) !important; height: var(--stitch-ui-player) !important; }
 #dstvModal .dstv-bot {
   display: grid;
@@ -60535,6 +61221,15 @@ body.dstv-with-stitch #dstvInfoPanel { top: calc(var(--stitch-ui-top) + 8px); ri
   body.dstv-with-stitch #dstvModal #dstvScrub { grid-column: 3; grid-row: 2; }
   body.dstv-with-stitch #dstvModal #dstvScrubCounter { grid-column: 4; grid-row: 2; text-align: right; font-size: var(--fs-xs); }
 }
+/* The settings pane stays physically right in both writing directions.
+   In RTL, grid column 1 starts on the right: reserve it for that pane rather
+   than placing the preview/header underneath it. Keep mobile and inner RTL. */
+@media (min-width: 901px) {
+  html[dir="rtl"] body.dstv-with-stitch #dstvModal.open {
+    grid-template-columns: var(--stitch-ui-width) minmax(0, 1fr);
+    grid-template-areas: "stitch top" "stitch view" "stitch bot";
+  }
+}
 /* Night UI repair: one persistent settings head; native compact choices. */
 body.dstv-with-stitch #stitchPanel .stitch-workspace-head {
   display: block; flex: 0 0 auto; padding: 10px 12px 8px;
@@ -60576,6 +61271,111 @@ body.dstv-with-stitch #stitchPanel .stitch-content::before { display: none !impo
 @media (max-width: 480px) {
   #stitchTestDlg > div { padding: 16px !important; }
   #stitchTestDlg > div > div:has(> label #stHoop) { grid-template-columns: minmax(0,1fr) !important; }
+}
+</style>
+<style id="vt-info-badges">
+/* One information badge across editor, tracer and embroidery. Keep these
+   dimensions independent of ordinary modal buttons and flex/grid stretching. */
+body .vt-cardlink, body .rp-info, body #infoBtn, #dstvModal #dstvInfoBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  align-self: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  max-width: 20px;
+  max-height: 20px;
+  padding: 0;
+  border: 1px solid var(--ac);
+  border-radius: 50%;
+  background: var(--ac);
+  color: #fff;
+  font: italic 700 13px/1 Georgia, serif;
+  vertical-align: middle;
+  text-align: center;
+  transition: background var(--dur), border-color var(--dur);
+}
+.vt-cardlink::before, #infoBtn::before, #dstvInfoBtn::before { content: 'i'; font: inherit; }
+body #infoBtn, #dstvModal #dstvInfoBtn {
+  width: 24px; height: 24px; min-width: 24px; min-height: 24px;
+  max-width: 24px; max-height: 24px; font-size: 15px;
+}
+body .vt-cardlink:hover, body .rp-info:hover, body #infoBtn:hover,
+#dstvModal #dstvInfoBtn:hover, body.dstv-info-open #dstvModal #dstvInfoBtn {
+  background: var(--ac-hover); border-color: var(--ac-hover); color: #fff;
+}
+body button.vt-cardlink:focus-visible, body #infoBtn:focus-visible,
+#dstvModal #dstvInfoBtn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+</style>
+<style id="vt-area-settings-layout">
+#stitchPanel #dgpOutlineHighlightRow { margin: 6px 0 3px 23px; }
+#stitchPanel #dgpOutlineHighlightRow label { display:flex; gap:7px; align-items:center; color:var(--ac); font-size:var(--fs-xs); cursor:pointer; }
+#stitchPanel #dgpOutlineHighlightRow input { flex:0 0 auto; }
+/* Shared columns and quiet option rows. Existing inputs, labels and handlers
+   stay in place; this is presentation only, never embroidery geometry. */
+#stitchPanel #dgpAreaBody { --area-label: 132px; container-type: inline-size; }
+#stitchPanel #dgpAreaBody .dgp-area-grid {
+  display: grid; grid-template-columns: var(--area-label) minmax(40px,1fr) 68px;
+  gap: 6px 10px; align-items: center; font-size: var(--fs-sm); line-height: 1.4;
+}
+#stitchPanel #dgpAreaConnectionGrid { margin-top: 6px; }
+#stitchPanel #dgpAreaMainGrid > label,
+#stitchPanel #dgpVerbindungLabel {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; min-width: 0; font-weight: 500 !important;
+}
+#stitchPanel #dgpAreaBody .vt-cardlink { margin-left: 0; }
+#stitchPanel #dgpAreaBody .dgp-radio { justify-content: flex-start; gap: 12px; }
+#stitchPanel #dgpAreaBody .dgp-radio .dgp-rlbl { font-weight: 500; }
+#stitchPanel #dgpAreaBody span[id$="Val"] { min-width: 0 !important; box-sizing: border-box; text-align: center !important; }
+#stitchPanel #dgpPullLabel {
+  grid-column: 1 / -1; display: grid !important;
+  grid-template-columns: minmax(0,1fr) 26px 20px; gap: 8px !important;
+  min-height: 32px; margin-top: 5px; padding-top: 8px;
+  border-top: 1px solid var(--border); font-weight: 500 !important;
+}
+#stitchPanel #dgpPullComp { grid-column: 1 / 3; }
+#stitchPanel #dgpPullCompVal { grid-column: 3; }
+#stitchPanel #dgpAreaOptions { display: flex; flex-direction: column; gap: 3px; margin-top: 3px; }
+#stitchPanel #dgpAreaOptions .dgp-option-row {
+  display: grid; grid-template-columns: minmax(0,1fr) 26px 20px;
+  align-items: center; gap: 8px; min-height: 32px;
+}
+#stitchPanel #dgpAreaOptions .dgp-option-row > label {
+  gap: 9px !important; min-width: 0; font-weight: 500 !important;
+}
+#stitchPanel #dgpAreaOptions :is(#dgpVersatzLabel,#dgpOutlineControls > label) {
+  display: grid !important; grid-template-columns: 15px minmax(0,1fr) 26px 20px;
+  align-items: center; gap: 8px !important; min-height: 32px;
+  font-weight: 500 !important;
+}
+#stitchPanel #dgpAreaOptions :is(#dgpVersatzLabel,#dgpOutlineControls > label) > .vt-cardlink { grid-column: 4; }
+#stitchPanel #dgpAreaOptions input[type="checkbox"] { width: 15px; height: 15px; margin: 0; }
+#stitchPanel #dstvGlobalParams #dgpAreaBody .dgp-detail-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0 !important; border: 0;
+  border-radius: var(--radius-xs); background: transparent; color: var(--fg2) !important;
+  cursor: pointer;
+}
+#stitchPanel #dstvGlobalParams #dgpAreaBody .dgp-detail-toggle:hover { background: var(--bg2); color: var(--ac) !important; }
+#stitchPanel #dgpAreaBody .dgp-detail-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+#stitchPanel #dgpPullGear[data-open="1"] svg,
+#stitchPanel .dgp-area-option:has(> [data-open="1"]) .dgp-detail-toggle svg { transform: rotate(180deg); }
+#stitchPanel #dgpAreaBody :is(#dgpUnderlaySub,#dgpTrimSub) {
+  grid-template-columns: var(--area-label) minmax(40px,1fr) 68px !important;
+  padding: 8px 0 !important; margin: 2px 0 5px !important;
+  gap: 6px 10px !important; border-top: 1px solid var(--border);
+}
+@container (max-width: 330px) {
+  #stitchPanel #dgpAreaBody .dgp-area-grid,
+  #stitchPanel #dgpAreaBody :is(#dgpUnderlaySub,#dgpTrimSub) {
+    grid-template-columns: minmax(108px,1fr) minmax(32px,.65fr) 62px !important;
+    column-gap: 7px !important;
+  }
 }
 </style>
 </body>
