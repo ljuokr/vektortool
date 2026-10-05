@@ -1,5 +1,36 @@
 # Changelog
 
+## 5 October 2026 — r27
+
+Release build `VT-20261005-local-r27`, byte-identical to the tested local file
+(SHA-256 `28c15f5bd5ee6c87777d5437355439bdd6e18ba49adb6983a051611095cae73c`).
+
+- Canonicalise supported static CSS paints before project persistence, including escaped colours, modern RGB/HSL and inherited SVG currentColor. Migrate known paint fields in detached legacy project/undo data while retaining strict validation and original recovery downloads.
+- Exclude alpha-zero and zero-width unpainted geometry from embroidery and DXF, including gear/wheel exceptions and conversion paths. Preserve visible controls and correctly convert named/RGB/HSL red to the PES thread palette.
+- Preserve supported SVG path-text geometry, anchors, baseline offsets and positioned text spans. Wait for registered fonts before measuring; cancellation cannot commit stale text. Correct exact-path rotation and reject fully overflowed text instead of generating phantom stitches.
+- Preserve imported SVG line caps, joins and miter limits. Scale non-scaling strokes correctly for PNG/PDF raster export; project/graphic SVG semantics remain unchanged.
+- Run Satin/lengthwise text skeletonisation and routing in a local Worker with revision, cancellation and export guards. Missing fonts and Worker failures do not silently substitute text or release incomplete files. Keep the existing large-raster limit, checked before expensive calculation. Stitch cache version 252.
+- Protect strong light/dark contrast during automatic colour merging, including the tested WebKit Gecko. Automatic merging, exact target group count and original source pixels are retained.
+
+Integrated verification: three browser engines; actual project-SVG, DXF, DST,
+PES, PNG and PDF downloads; project reimports and historical IDB recovery.
+The dedicated stitch suite saved 30 files, independently decoded all 15 DST/PES
+pairs and retained byte parity in 30 comparisons. SVG tests covered 14 import/
+roundtrip cases plus four rotation/overflow cases. Gecko passed in all three
+engines, with six independently decoded embroidery files. A fresh network-offline
+Chrome launch of the final local file also passed through actual export.
+
+Limits: unsupported SVG typography and partial alpha are explicitly rejected;
+new SVG diagnostics are not yet fully translated. Worker execution reduces the
+long UI block, not total compute cost (10 large M glyphs: 16.194 s total,
+167 ms maximum observed main-thread LongTask in the integrated test). Very large
+text still reaches the existing raster limit. Stronger contrast protection can
+increase complexity in photographs: the tested fern produced 69.3% more paths;
+nine other public motif groupings remained unchanged. PDF remains JPEG-based.
+No complete SVG/browser/device certification, LightBurn validation or physical
+machine/material approval is implied. Already lost source detail or incorrect
+historical imports may require reimporting/retracing the original.
+
 ## 4 October 2026 — r26
 
 Release build `VT-20261004-local-r26`, byte-identical to the tested local file

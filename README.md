@@ -10,28 +10,29 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 4 October 2026 release uses the tested `VT-20261004-local-r26` build
+The 5 October 2026 release uses the tested `VT-20261005-local-r27` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `fedad10331bf614c0cd02cae95700543de1725d43d08e8d63fd3f9c4027f879b`).
-Test cards no longer hide embroidery objects on other canvases. Exports reject
-active objects whose sewn movement collapses completely on the machine grid.
-Lengthwise text gains whole-word coverage checks and bounded local connections;
-the finishing contour can be highlighted in the preview without changing stitches.
-Round help buttons, area settings, translations and the desktop RTL embroidery
-layout have also been improved. See the changelog for scope and limitations.
+to the tested file; SHA-256 `28c15f5bd5ee6c87777d5437355439bdd6e18ba49adb6983a051611095cae73c`).
+This release repairs SVG colour storage/recovery, invisible embroidery/DXF
+geometry and PES colour conversion. Supported SVG path text, line caps and
+joins are preserved; unsupported typography is explicitly rejected. Satin and
+lengthwise text calculation runs in a local Worker, and automatic colour
+grouping better preserves strong light/dark contrast. See the changelog for
+scope and limitations.
 
-A fresh Gecko trace remained stitchable after creating a test card, switching
-canvases and reloading in a real browser. Pacifico text and error handling were
-also checked in the browser. Source-level regressions, 20 regular machine files
-and 160 additional text exports were independently checked. These separately
-saved encoder files are not a confirmed browser-download round trip or a sew-out.
+The combined release was tested in isolated Chrome, Firefox and WebKit profiles
+with actual saved browser downloads, project reimports, historical recovery and
+independent machine-file decoding. Gecko tracing and export also passed a fresh
+network-offline Chrome launch of the byte-identical local application. These are
+targeted repair checks, not exhaustive browser or machine certification.
 Direct paste into the tested macOS Inkscape 1.2.1 remains unsuccessful; selected
 artwork can instead be saved with Ctrl/Cmd+Shift+C for SVG file import.
 
-Remaining work includes complex-image calculation limits, full browser download
-and reopen checks, final Safari/Firefox and cold-offline checks, LightBurn, and
-physical machine/material trials. Fine lettering can still contain many short
-stitches and jumps; large lengthwise text can take longer to calculate. Very
+Remaining work includes complex-image and large-text calculation limits, SVG
+typography outside the supported subset, some untranslated diagnostics, broader
+device/target-application checks including LightBurn, and physical machine/material
+trials. Worker execution improves responsiveness, not total calculation time.
+Fine lettering can still contain many short stitches and jumps. Very
 small subpaths inside otherwise valid compound objects can still disappear on
 the machine grid. There is no manufacturing approval. Existing projects are not
 silently cleaned, and previously saved hidden objects are not automatically
