@@ -10,26 +10,26 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 5 October 2026 release uses the tested `VT-20261005-local-r27` build
+The 12 October 2026 release uses the tested `VT-20261011-local-r28` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `28c15f5bd5ee6c87777d5437355439bdd6e18ba49adb6983a051611095cae73c`).
-This release repairs SVG colour storage/recovery, invisible embroidery/DXF
-geometry and PES colour conversion. Supported SVG path text, line caps and
-joins are preserved; unsupported typography is explicitly rejected. Satin and
-lengthwise text calculation runs in a local Worker, and automatic colour
-grouping better preserves strong light/dark contrast. See the changelog for
-scope and limitations.
+to the tested file; SHA-256 `82b267ce32212d2ed1f14fef8a74926dd16d693379c10b2bbaa0c1522f5b8829`).
+This release repairs findings of an independent re-verification of r27: SVG
+files with gradient or pattern paint are imported again, import notices name
+the actual cause, Gecko no longer stitches path-text characters the browser
+does not draw, heavy fills are no longer locked by a 5-second time limit in the
+background calculation, late camera streams are stopped, and 59 messages are
+translated in all languages. See the changelog for scope and limitations.
 
-The combined release was tested in isolated Chrome, Firefox and WebKit profiles
-with actual saved browser downloads, project reimports, historical recovery and
-independent machine-file decoding. Gecko tracing and export also passed a fresh
-network-offline Chrome launch of the byte-identical local application. These are
-targeted repair checks, not exhaustive browser or machine certification.
+The release was tested in isolated Chrome, Firefox and WebKit profiles with
+actual saved browser downloads and independent machine-file decoding. Every
+embroidery file that r27 produced in these tests is byte-identical, apart from
+the corrected Gecko path-text overflow cases. These are targeted repair checks,
+not exhaustive browser or machine certification.
 Direct paste into the tested macOS Inkscape 1.2.1 remains unsuccessful; selected
 artwork can instead be saved with Ctrl/Cmd+Shift+C for SVG file import.
 
 Remaining work includes complex-image and large-text calculation limits, SVG
-typography outside the supported subset, some untranslated diagnostics, broader
+typography, gradients and `use` references outside the supported subset, broader
 device/target-application checks including LightBurn, and physical machine/material
 trials. Worker execution improves responsiveness, not total calculation time.
 Fine lettering can still contain many short stitches and jumps. Very

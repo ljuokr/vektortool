@@ -1,5 +1,44 @@
 # Changelog
 
+## 12 October 2026 — r28
+
+Release build `VT-20261011-local-r28`, byte-identical to the tested local file
+(SHA-256 `82b267ce32212d2ed1f14fef8a74926dd16d693379c10b2bbaa0c1522f5b8829`).
+Repairs from an independent re-verification of r27.
+
+- Import SVG files that use gradient or pattern paint again. r27 rejected the whole file as invalid; as before r27, an object painted only by a gradient or pattern is skipped and counted, and everything else is imported.
+- Name the actual cause in import notices: separate notices for skipped gradient, pattern and image objects, for `use` references, and for objects imported without their gradient or pattern paint. Unpainted objects such as an artboard frame no longer raise a loss notice. The notices also appear when nothing could be imported.
+- Do not stitch characters of imported SVG path text that Gecko does not draw. Characters beyond the end of the path were piled up at the path end and characters before its start were continued in a straight line; text that lies completely off its path is now rejected in Gecko as in Chromium. Chromium output is unchanged. Stitch cache version 253.
+- Keep the fixed limit of five million calculation steps per object, but allow 30 s instead of 5 s of active computing time in the pausing background calculation. The 5-s limit made the same design export or lock depending on device speed and load. The synchronous calculation keeps its 5-s limit.
+- Let the fill underlay pause between its passes like the main fill and remove a quadratic scan from the short-stitch merge. Stitch output is unchanged.
+- Stop a camera stream that arrives after Cancel or after switching cameras, and remove the Escape handler when the camera view closes.
+- Complete 59 messages in all 31 non-German languages: SVG import diagnostics and notices, the empty laser export, the custom format label and the caption in the tracer help illustration. The fill style and satin underlay option "Kontur" is no longer shown as "Stroke".
+
+Integrated verification on the final file in isolated Chrome, Firefox and WebKit
+profiles with actual saved downloads: the ten public motifs in colour and
+black-and-white mode produced 18 of 20 DST/PES pairs in each engine (r27:
+17 or 16, 14 and 16). All pairs that r27 produced are byte-identical (17 in
+two Chrome runs, 14 in Firefox, 16 in WebKit); the newly exported sunflower
+equals the output of r27 with only the time limit changed. The files of the
+material, satin-text, Gecko and font tests are byte-identical to r27 in every
+engine; the only changed files are the corrected Gecko path-text overflow
+cases. Further checks: eight gradient/pattern imports and 18 notice cases per
+engine, 13 path-text visibility cases per engine compared against the
+browser's own rendering, 14 camera checks with a simulated device, and the new
+messages in 32 languages through the application's own translation function.
+
+Limits: gradient and pattern paint itself is still not imported, and `use`
+references are reported, not resolved. WebKit still locks imported path text
+that overflows its path. The main fill pass of one object remains a single
+block (longest observed main-thread task 2.4 s in the landscape motif,
+unchanged; butterfly 3.4 s to 1.2 s, sunflower 3.9 s to 2.1 s). The
+synchronous 5-s limit, the 2.5-s outline check and all fixed safety limits are
+unchanged; the fern motif still exceeds the 100,000 contour-point limit. Runs
+of very short jump records in satin-text DST files were observed and left
+unchanged because their effect on a machine is untested. The new translations
+were not reviewed by native speakers. No complete SVG/browser/device
+certification and no physical machine/material approval is implied.
+
 ## 5 October 2026 — r27
 
 Release build `VT-20261005-local-r27`, byte-identical to the tested local file
