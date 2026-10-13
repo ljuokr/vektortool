@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261011-local-r28 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261012-local-r29 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -2663,6 +2663,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
           <div class="tracer-detail-scale"><span>Weniger Knoten</span><button type="button" id="tracerDetailReset" class="tracer-step-btn" title="Details zurücksetzen" aria-label="Details zurücksetzen">↺</button><span>Mehr Details</span></div>
         </div>
         <div class="tracer-row" id="tracerThresholdBetween" style="display:none;"><label for="tracerThreshold">Schwellwert</label><button type="button" id="tracerThreshMinus" class="tracer-step-btn" aria-label="Schwellwert verringern">&minus;</button><input type="range" id="tracerThreshold" min="0" max="255" value="212" step="1"><button type="button" id="tracerThreshPlus" class="tracer-step-btn" aria-label="Schwellwert erhöhen">+</button><span class="tval" id="tracerThresholdVal">212</span></div>
+        <!-- [r29] Füllmodus direkt beim Schwellwert, nur im Umriss-Modus sichtbar (vorher nur unter «Weitere Optionen»). -->
+        <label class="tracer-check" id="tracerSilhouetteFilledWrap" style="display:none;" title="Erzeugt gef&#xFC;llte Fl&#xE4;chen statt nur Umrisslinien."><input type="checkbox" id="tracerSilhouetteFilled">Gef&#xFC;llt statt Umriss</label>
       </div>
       <div class="tracer-section tracer-source-section">
         <div class="tracer-source-caption">Original · Ausschnitt</div>
@@ -2683,12 +2685,12 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
       </div>
 
       <div class="tracer-section" id="tracerColorSection" style="display:none;">
-        <div class="tracer-section-title">Farben gruppieren und ausblenden <span id="tracerColorInfo" style="font-weight:normal;font-size:var(--fs-xs);color:var(--fg3);"></span></div>
+        <div class="tracer-section-title">Farben gruppieren und ausblenden <span id="tracerColorInfo" style="display:block;margin-top:2px;font-weight:normal;font-size:var(--fs-xs);color:var(--fg3);text-transform:none;letter-spacing:0;"></span></div><!-- [r29] Zähler in eigener Zeile statt mitten im Umbruch der Überschrift -->
         <label class="tracer-check"><input type="checkbox" id="tracerAutoMerge" checked><span>Ähnliche Farben automatisch zusammenführen</span></label>
         <div class="tracer-row"><label for="tracerGroupCount">Sichtbare Zielfarben</label><button type="button" id="tracerGroupCountMinus" class="tracer-step-btn" aria-label="−">−</button><input type="range" id="tracerGroupCount" min="1" max="24" value="4" step="1"><button type="button" id="tracerGroupCountPlus" class="tracer-step-btn" aria-label="+">+</button><span class="tval" id="tracerGroupCountVal">4</span></div>
         <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg">Hintergrund entfernen</label>
         <!-- Optional arrangement never replaces the actual automatic output merge. -->
-        <details><summary>Farben automatisch vorsortieren</summary><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farben automatisch vorsortieren</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Bis zu 4 Farbfamilien – nur angeordnet, keine Farbe verändert.</div></details>
+        <!-- [r29] Ohne Aufklapper und ohne doppelte Beschriftung. Der Text sagt, was die Option ordnet und wozu. --><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farbkreise nach Farbfamilien ordnen</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Nur Anzeige: Ähnliche Farbtöne rücken zusammen (bis zu 4 Familien). Das hilft beim Zusammenführen von Hand.</div>
         <div id="tracerSwatches" class="tracer-swatches" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-8) 13px;align-items:center;padding:var(--space-2) var(--space-1);"></div>
         <div id="tracerGroupHint" class="tracer-group-hint" role="status" hidden></div>
         <div class="tracer-color-actions" id="tracerColorActions">
@@ -2744,7 +2746,6 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
       <div class="tracer-section" id="tracerSilhouetteSection" style="display:none;">
         <div class="tracer-section-title">Umriss</div>
         <label class="tracer-check" title="Innere Konturen (Augen, L&#xF6;cher) werden als separate Pfade beibehalten."><input type="checkbox" id="tracerSilhouetteKeepInner" checked>Mit Innenformen</label>
-        <label class="tracer-check" title="Erzeugt gef&#xFC;llte Fl&#xE4;chen statt nur Umrisslinien."><input type="checkbox" id="tracerSilhouetteFilled">Gef&#xFC;llt statt Umriss</label>
         <!-- [sw-tracer-filter v1] Tiefpass/Hochpass wie ein Schwellwert-Tracer: Glaetten unterdrueckt
              Rauschen (erfasst nur grosse Flaechen), Kanten betonen holt feine Konturen zusaetzlich rein.
              Eigene Implementierung (Box-Blur ueber tracerBlur + Sobel), generische Labels. -->
@@ -24343,6 +24344,7 @@ function _tracerSyncModeUI() {
   if (_tEl('tracerModal')) _tEl('tracerModal').classList.toggle('silhouette-mode', silhouette);
   if (_tEl('tracerTitle')) _tEl('tracerTitle').textContent = (typeof window.t === 'function' ? window.t(silhouette ? 'Umriss nachzeichnen' : 'Bildnachzeichner') : (silhouette ? 'Umriss nachzeichnen' : 'Bildnachzeichner')); /* [VT-TRACER-TITEL-I18N v1] direkt in die aktuelle Sprache uebersetzen statt Hardcode-Deutsch; die i18n-Observer-Nachuebersetzung war fragil und flackerte beim Oeffnen/Moduswechsel */
   if (_tEl('tracerSilhouetteSection')) _tEl('tracerSilhouetteSection').style.display = silhouette ? 'block' : 'none';
+  if (_tEl('tracerSilhouetteFilledWrap')) _tEl('tracerSilhouetteFilledWrap').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilhouetteThresholdWrap')) _tEl('tracerSilhouetteThresholdWrap').style.display = silhouette ? 'block' : 'none';
   if (_tEl('tracerThresholdBetween')) _tEl('tracerThresholdBetween').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilColorWrap')) _tEl('tracerSilColorWrap').style.display = silhouette ? 'block' : 'none';
@@ -24358,8 +24360,9 @@ function _tracerSyncModeUI() {
   if (silhouette) _tEl('tracerColorSection').style.display = 'none';
   /* [tracer-optionen-zu v1] Frueher klappte der Umriss-Modus "Weitere Optionen"
      zwangsweise auf (Silhouette-Einstellungen liegen dort). Lukas-Entscheid
-     2026-06-12: auch der Umriss-Modus startet zugeklappt; "Mit Innenformen" /
-     "Gefuellt statt Umriss" sind einen Klick unter "Weitere Optionen" erreichbar.
+     2026-06-12: auch der Umriss-Modus startet zugeklappt; "Mit Innenformen" ist
+     einen Klick unter "Weitere Optionen" erreichbar. Lukas-Entscheid 2026-10-12 (r29):
+     "Gefuellt statt Umriss" steht wieder sichtbar in der Hauptspalte beim Schwellwert.
      Der Reset auf checked=false passiert in _openTracerModal vor diesem Sync. */
 }
 
@@ -57499,6 +57502,10 @@ VT_RELEASE_CATALOG['Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nad
     });
     DICT.de_fixes[contour]='Kontur';
   })();
+  /* VT-R29-NACHZEICHNER-20261012: klarere Beschriftung der Farbfamilien-Anzeige (31 Sprachen). */
+  (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(
+    ["Farbkreise nach Farbfamilien ordnen","Nur Anzeige: Ähnliche Farbtöne rücken zusammen (bis zu 4 Familien). Das hilft beim Zusammenführen von Hand."],
+    {"en":["Arrange colour circles by colour family","Display only: similar hues move together (up to 4 families). This helps when merging by hand."],"fr":["Classer les cercles de couleur par famille","Affichage seulement : les teintes proches sont regroupées (jusqu’à 4 familles). Cela facilite la fusion manuelle."],"it":["Ordina i cerchi colore per famiglia","Solo visualizzazione: le tonalità simili vengono avvicinate (fino a 4 famiglie). Aiuta a unirle a mano."],"es":["Ordenar los círculos de color por familia","Solo visualización: los tonos similares se agrupan (hasta 4 familias). Ayuda a combinarlos a mano."],"pt":["Ordenar os círculos de cor por família","Apenas exibição: tons semelhantes ficam juntos (até 4 famílias). Ajuda a unir manualmente."],"nl":["Kleurcirkels op kleurfamilie ordenen","Alleen weergave: vergelijkbare tinten komen bij elkaar te staan (tot 4 families). Dat helpt bij het handmatig samenvoegen."],"pl":["Uporządkuj kółka kolorów według rodzin","Tylko widok: podobne odcienie trafiają obok siebie (do 4 rodzin). Ułatwia to ręczne łączenie."],"cs":["Seřadit barevné kruhy podle barevných rodin","Pouze zobrazení: podobné odstíny se seskupí k sobě (až 4 rodiny). Usnadňuje to ruční slučování."],"sk":["Zoradiť farebné kruhy podľa farebných rodín","Iba zobrazenie: podobné odtiene sa zoskupia k sebe (najviac 4 rodiny). Uľahčuje to ručné zlučovanie."],"ro":["Aranjează cercurile de culoare pe familii","Doar afișare: nuanțele similare sunt așezate împreună (până la 4 familii). Ajută la combinarea manuală."],"hu":["Színkörök rendezése színcsaládok szerint","Csak megjelenítés: a hasonló árnyalatok egymás mellé kerülnek (legfeljebb 4 család). Ez segíti a kézi összevonást."],"el":["Ταξινόμηση χρωματικών κύκλων ανά οικογένεια","Μόνο εμφάνιση: οι παρόμοιες αποχρώσεις τοποθετούνται μαζί (έως 4 οικογένειες). Διευκολύνει τη χειροκίνητη συγχώνευση."],"sv":["Ordna färgcirklar efter färgfamilj","Endast visning: liknande nyanser hamnar tillsammans (upp till 4 familjer). Det underlättar att slå ihop dem för hand."],"da":["Ordn farvecirkler efter farvefamilie","Kun visning: lignende nuancer samles (op til 4 familier). Det gør det lettere at flette dem manuelt."],"no":["Ordne fargesirkler etter fargefamilie","Bare visning: lignende nyanser samles (opptil 4 familier). Det gjør det enklere å slå dem sammen for hånd."],"fi":["Järjestä väriympyrät väriperheittäin","Vain näkymä: samankaltaiset sävyt siirtyvät vierekkäin (enintään 4 perhettä). Tämä helpottaa yhdistämistä käsin."],"ca":["Ordena els cercles de color per família","Només visualització: els tons semblants s’agrupen (fins a 4 famílies). Ajuda a combinar-los a mà."],"tr":["Renk dairelerini renk ailesine göre düzenle","Yalnızca görünüm: benzer tonlar yan yana gelir (en fazla 4 aile). Elle birleştirmeyi kolaylaştırır."],"ru":["Упорядочить цветовые круги по семействам","Только отображение: похожие оттенки располагаются рядом (до 4 семейств). Это упрощает объединение вручную."],"uk":["Упорядкувати колірні кола за родинами","Лише відображення: схожі відтінки розташовуються поруч (до 4 родин). Це полегшує об’єднання вручну."],"bg":["Подреждане на цветните кръгове по семейства","Само показване: сходните оттенъци се събират един до друг (до 4 семейства). Това улеснява ръчното обединяване."],"zh":["按色系排列色圈","仅影响显示：相近的色调会排在一起（最多 4 个色系），便于手动合并。"],"ja":["色の円を色系統ごとに並べる","表示のみ：似た色合いが隣り合うように並びます（最大4系統）。手動で統合しやすくなります。"],"ko":["색상 원을 색상 계열별로 정렬","표시만 변경: 비슷한 색조가 서로 가까이 배치됩니다(최대 4개 계열). 수동 병합이 쉬워집니다."],"vi":["Sắp xếp vòng màu theo họ màu","Chỉ hiển thị: các tông màu tương tự được xếp cạnh nhau (tối đa 4 họ màu). Giúp gộp thủ công dễ hơn."],"th":["จัดเรียงวงสีตามตระกูลสี","เฉพาะการแสดงผล: โทนสีที่คล้ายกันจะอยู่ใกล้กัน (สูงสุด 4 ตระกูล) ช่วยให้รวมสีด้วยตนเองได้ง่ายขึ้น"],"id":["Urutkan lingkaran warna menurut keluarga warna","Hanya tampilan: rona yang serupa didekatkan (hingga 4 keluarga). Ini memudahkan penggabungan secara manual."],"hi":["रंग-वृत्तों को रंग-परिवार के अनुसार क्रम में रखें","केवल प्रदर्शन: मिलते-जुलते रंग पास-पास आ जाते हैं (अधिकतम 4 परिवार)। इससे हाथ से मिलाना आसान होता है।"],"ar":["ترتيب دوائر الألوان حسب العائلة اللونية","للعرض فقط: تتجاور درجات الألوان المتشابهة (حتى 4 عائلات). يسهّل ذلك الدمج اليدوي."],"he":["סידור עיגולי הצבע לפי משפחות צבעים","תצוגה בלבד: גוונים דומים מוצבים זה לצד זה (עד 4 משפחות). הדבר מקל על מיזוג ידני."],"fa":["چیدن دایره‌های رنگ بر اساس خانوادهٔ رنگ","فقط نمایش: فام‌های مشابه کنار هم قرار می‌گیرند (تا ۴ خانواده). این کار ادغام دستی را آسان‌تر می‌کند."]});
   Object.keys(VT_RELEASE_CATALOG).forEach(function(key){Object.keys(VT_RELEASE_CATALOG[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=VT_RELEASE_CATALOG[key][lang];});});
   /* Keep the existing translated label; the file shortcut is language-neutral. */
   Object.keys(DICT).forEach(function(lang){if(DICT[lang]['SVG kopieren'])DICT[lang]['SVG kopieren · Ctrl/⌘+Shift+C → .svg']=DICT[lang]['SVG kopieren']+' · Ctrl/⌘+Shift+C → .svg';});
@@ -58249,6 +58256,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-12', t:'VT-20261012-local-r29', c:null},
     {d:'2026-10-11', t:'VT-20261011-local-r28', c:null},
     {d:'2026-10-05', t:'VT-20261005-local-r27', c:null},
     {d:'2026-10-04', t:'VT-20261004-local-r26', c:null},

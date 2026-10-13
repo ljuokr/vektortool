@@ -10,20 +10,22 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 12 October 2026 release uses the tested `VT-20261011-local-r28` build
+The 13 October 2026 release uses the tested `VT-20261012-local-r29` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `82b267ce32212d2ed1f14fef8a74926dd16d693379c10b2bbaa0c1522f5b8829`).
-This release repairs findings of an independent re-verification of r27: SVG
+to the tested file; SHA-256 `75ccbd71a877bd2fae4f4e9f3d253247d06a7a58d525660142c927c671f76ee5`).
+r29 adjusts the tracer interface (colour count on its own line, clearer colour
+family option, fill option visible in outline tracing). It builds on r28, which
+repaired findings of an independent re-verification of r27: SVG
 files with gradient or pattern paint are imported again, import notices name
 the actual cause, Gecko no longer stitches path-text characters the browser
 does not draw, heavy fills are no longer locked by a 5-second time limit in the
 background calculation, late camera streams are stopped, and 59 messages are
 translated in all languages. See the changelog for scope and limitations.
 
-The release was tested in isolated Chrome, Firefox and WebKit profiles with
+The releases were tested in isolated Chrome, Firefox and WebKit profiles with
 actual saved browser downloads and independent machine-file decoding. Every
 embroidery file that r27 produced in these tests is byte-identical, apart from
-the corrected Gecko path-text overflow cases. These are targeted repair checks,
+the corrected Gecko path-text overflow cases; r29 output is byte-identical to r28. These are targeted repair checks,
 not exhaustive browser or machine certification.
 Direct paste into the tested macOS Inkscape 1.2.1 remains unsuccessful; selected
 artwork can instead be saved with Ctrl/Cmd+Shift+C for SVG file import.

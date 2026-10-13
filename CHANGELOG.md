@@ -1,5 +1,25 @@
 # Changelog
 
+## 13 October 2026 — r29
+
+Release build `VT-20261012-local-r29`, byte-identical to the tested local file
+(SHA-256 `75ccbd71a877bd2fae4f4e9f3d253247d06a7a58d525660142c927c671f76ee5`).
+Tracer interface adjustments on top of r28; no tracing or embroidery calculation changed.
+
+- Show the colour count below the heading "Group and hide colours" on its own line instead of inside the wrapped heading.
+- Replace the collapsible "presort colours" entry by a single checkbox, "Arrange colour circles by colour family", with a note saying that it only changes the display and helps when merging by hand. The function itself is unchanged.
+- Show "Filled instead of outline" directly below the threshold in outline (black-and-white) tracing. It was only reachable under "More options"; a retained setting is now visible when the tracer is reopened. "With inner shapes" stays under "More options".
+- Add the two new texts in all 31 non-German languages.
+
+Verification on the final file in isolated Chrome, Firefox and WebKit profiles:
+11 interface checks per engine including an actual filled import; the ten
+public motifs produced the same 18 of 20 DST/PES pairs per engine, all
+byte-identical to r28; the Gecko, satin-text, catalogue, camera and import
+checks were repeated without deviation.
+
+Limits: unchanged from r28. The new translations were not reviewed by native
+speakers.
+
 ## 12 October 2026 — r28
 
 Release build `VT-20261011-local-r28`, byte-identical to the tested local file
