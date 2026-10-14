@@ -10,11 +10,16 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 13 October 2026 release uses the tested `VT-20261012-local-r29` build
+The 14 October 2026 release uses the tested `VT-20261014-local-r30` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `75ccbd71a877bd2fae4f4e9f3d253247d06a7a58d525660142c927c671f76ee5`).
-r29 adjusts the tracer interface (colour count on its own line, clearer colour
-family option, fill option visible in outline tracing). It builds on r28, which
+to the tested file; SHA-256 `dc861e0c54623fa6ca8b3c92185380ce15805cfbc3babb2af2b9793b2a70e0ff`).
+r30 makes the paint bucket cover the clicked area completely (no fringe of the
+old colour, fill placed below the lines and reaching to their middle), adds
+a "Smooth edges" switch with its slider to outline tracing, keeps the tracer
+preview zoom while adjusting, and shows colour groups in a second column. r29
+adjusted the tracer interface
+(colour count on its own line, clearer colour family option, fill option visible
+in outline tracing). Both build on r28, which
 repaired findings of an independent re-verification of r27: SVG
 files with gradient or pattern paint are imported again, import notices name
 the actual cause, Gecko no longer stitches path-text characters the browser

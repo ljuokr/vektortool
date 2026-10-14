@@ -1,5 +1,45 @@
 # Changelog
 
+## 14 October 2026 — r30
+
+Release build `VT-20261014-local-r30`, byte-identical to the tested local file
+(SHA-256 `dc861e0c54623fa6ca8b3c92185380ce15805cfbc3babb2af2b9793b2a70e0ff`).
+Paint bucket coverage, smoothing for outline tracing and tracer layout fixes on
+top of r29; no tracing or embroidery calculation changed.
+
+- Paint bucket: cover the clicked area completely. The fill ended at the last fully coloured raster pixel, so a fringe of the old colour up to half a pixel wide stayed visible around every fill, and a white gap stayed between a fill and the line around it. Antialiased edge pixels now belong to the area, along thin parts such as spikes and notches up to three pixels deep (not inside bitmaps, whose soft edges would be painted over). In addition, the outline of the fill reaches an eighth of a pixel beyond the raster pixel edges, because the browser's own rasteriser is only that precise: Chrome, Edge and Firefox round horizontal path edges to quarter raster pixels and approximate curves, which hid slivers of the old colour from the bucket.
+- Paint bucket: place the fill directly above the area it colours instead of on top of the drawing. Lines drawn above the area stay above the fill. Under a line the fill reaches to the middle of the line, because lines keep their width on screen and become thinner in the drawing when zooming in; under a filled shape it reaches one raster pixel. Seams between two areas that meet under the edge of a shape above are covered. A fill between two members of a group joins the group.
+- Paint bucket: recolouring an earlier fill reproduces its outline instead of growing by its own overlap with every click.
+- Outline (black-and-white) tracing: new checkbox "Smooth edges" below "Filled instead of outline", with the "Path smoothing" slider moved from "More options" directly below it. The checkbox switches smoothing on (1.5 px, or the strength chosen last) and off. The default stays off, with the pixel outline as before. Without smoothing the outline is byte-identical to r29.
+- Tracer preview: keep the zoom and position set with pinch or Ctrl+wheel when a slider or checkbox changes the result. Each new preview image started at the base size and visibly zoomed back within a tenth of a second.
+- Colour tracing: show "Group and hide colours" as a second column next to the controls once colours are detected (from a window width of 900 px; narrower windows keep one column). "More options" then open below it in the same column instead of as a third column. The empty box below the source image is hidden; it only appears when it holds the note about reduced processing resolution.
+- Add the two new texts in all 31 non-German languages.
+
+Verification on the final file in isolated Chrome, Firefox and WebKit profiles:
+the paint bucket in 19 situations per engine with actual mouse clicks and saved
+SVG downloads (56 checks per engine). Coverage was measured on the exact
+geometry, independent of any rasterisation: at about 45 000 points per engine
+along the edges of the covered shapes the old colour is exposed nowhere (apart
+from one point in a slit narrower than a pixel), and the fill reaches on average
+0.13 to 0.58 px, at thin parts at most 1.6 px, beyond the covered edge. 4 000 random
+rasters exercised the flood and outline code without a browser. The smoothing
+switch and slider passed 15 checks per engine including actual imports, the
+tracer layout and preview zoom 9 checks per engine. The ten public
+motifs produced the same 18 of 20 DST/PES pairs per engine, all byte-identical
+to r28; the tracer interface, Gecko, satin-text, catalogue, camera, paint-server
+and import checks were repeated without deviation.
+
+Limits: the fill remains a raster result. Its outline is a staircase of half
+pixels and lies up to about 0.6 px outside the covered edge, at thin parts up to
+1.6 px; slits narrower than about one raster pixel are left open, so some of the
+old colour can remain inside them. At corners
+of thin outlines the fill can show one raster pixel (0.5 px) beyond the line at
+very high zoom; its position relative to the middle of a line is accurate to
+half a raster pixel. Under lines thinner than about 0.6 px the fill can show on
+the other side. A click takes 80 to 170 ms on an A4 page instead of 45 to
+130 ms, and up to about 0.3 s for the whole page background. The new
+translations were not reviewed by native speakers. Otherwise unchanged from r29.
+
 ## 13 October 2026 — r29
 
 Release build `VT-20261012-local-r29`, byte-identical to the tested local file

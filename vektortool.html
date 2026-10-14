@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261012-local-r29 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261014-local-r30 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -1519,6 +1519,23 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 #tracerModal.more-opts-open { grid-template-columns:660px minmax(0,1fr); }
 #tracerModal.more-opts-open .tracer-mid-col { flex:0 0 340px; }
 #tracerModal.more-opts-open .tracer-sidebar { display:flex; }
+/* [r30] Farbmodus: Sobald Farben erkannt sind, steht «Farben gruppieren und ausblenden» als zweite Spalte neben der
+   Bedienspalte. «Weitere Optionen» erscheinen dann darunter in derselben Spalte statt als dritte. */
+#tracerModal:has(#tracerColorSection:not([style*="none"])) .tracer-sidebar { display:flex; }
+#tracerModal:not(.more-opts-open) #tracerMoreOpts { display:none !important; }
+@media (min-width:1100px) {
+  #tracerModal:has(#tracerColorSection:not([style*="none"])) { grid-template-columns:660px minmax(0,1fr); }
+  #tracerModal:has(#tracerColorSection:not([style*="none"])) .tracer-mid-col { flex:0 0 340px; }
+}
+/* Mittlere Fensterbreite: zwei schmalere Spalten statt untereinander. */
+@media (min-width:900px) and (max-width:1099px) {
+  #tracerModal:has(#tracerColorSection:not([style*="none"])) { grid-template-columns:584px minmax(0,1fr); }
+  #tracerModal:has(#tracerColorSection:not([style*="none"])) .tracer-controls { flex-direction:row; overflow:hidden; }
+  #tracerModal:has(#tracerColorSection:not([style*="none"])) .tracer-mid-col { flex:0 0 300px; overflow-y:auto; }
+  #tracerModal:has(#tracerColorSection:not([style*="none"])) .tracer-sidebar { flex:0 0 284px; overflow-y:auto; border-left:1px solid var(--border); border-top:none; }
+}
+/* [r30] Der Kasten unter dem Ausschnitt enthält nur den Auflösungshinweis. Ohne ihn blieb ein leerer Kasten stehen. */
+#tracerModal #tracerProcWrap:not(:has(#tracerResolutionNote:not([style*="none"]))) { display:none !important; }
 .stitch-copyable { user-select:text; -webkit-user-select:text; }
 .tracer-preview-area { grid-column:2; grid-row:2; min-width:0; display:flex; flex-direction:column; background:var(--bg2); overflow:hidden; min-height:0; position:relative; }
 /* TRACER-PROGRESS v1: Fortschritts-Overlay beim Nachzeichnen */
@@ -2665,6 +2682,9 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
         <div class="tracer-row" id="tracerThresholdBetween" style="display:none;"><label for="tracerThreshold">Schwellwert</label><button type="button" id="tracerThreshMinus" class="tracer-step-btn" aria-label="Schwellwert verringern">&minus;</button><input type="range" id="tracerThreshold" min="0" max="255" value="212" step="1"><button type="button" id="tracerThreshPlus" class="tracer-step-btn" aria-label="Schwellwert erhöhen">+</button><span class="tval" id="tracerThresholdVal">212</span></div>
         <!-- [r29] Füllmodus direkt beim Schwellwert, nur im Umriss-Modus sichtbar (vorher nur unter «Weitere Optionen»). -->
         <label class="tracer-check" id="tracerSilhouetteFilledWrap" style="display:none;" title="Erzeugt gef&#xFC;llte Fl&#xE4;chen statt nur Umrisslinien."><input type="checkbox" id="tracerSilhouetteFilled">Gef&#xFC;llt statt Umriss</label>
+        <!-- [r30] Zuschaltbare Glättung mit Regler darunter: Ein = Pfadglättung 1.5 px oder die zuletzt gewählte Stärke, Aus = 0. -->
+        <label class="tracer-check" id="tracerSilhouetteSmoothWrap" style="display:none;" title="Glättet die Pixeltreppen der Kontur. Die Stärke stellt der Regler «Pfadglättung» direkt darunter ein."><input type="checkbox" id="tracerSilhouetteSmooth">Kanten glätten</label>
+        <div class="tracer-row" id="tracerPathSimplifyRow" style="display:none;" title="0 erhält die erfasste Pixelkontur. Höhere Werte vereinfachen sie; kleine Details können sich ändern."><label for="tracerPathSimplify">Pfadgl&#xE4;ttung</label><input type="range" id="tracerPathSimplify" min="0" max="6" value="0" step="0.1"><span class="tval" id="tracerPathSimplifyVal">0 px</span></div>
       </div>
       <div class="tracer-section tracer-source-section">
         <div class="tracer-source-caption">Original · Ausschnitt</div>
@@ -2684,21 +2704,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
         <label class="tracer-check" id="tracerInvertWrap" style="display:none;"><input type="checkbox" id="tracerInvert" disabled>Invertieren</label>
       </div>
 
-      <div class="tracer-section" id="tracerColorSection" style="display:none;">
-        <div class="tracer-section-title">Farben gruppieren und ausblenden <span id="tracerColorInfo" style="display:block;margin-top:2px;font-weight:normal;font-size:var(--fs-xs);color:var(--fg3);text-transform:none;letter-spacing:0;"></span></div><!-- [r29] Zähler in eigener Zeile statt mitten im Umbruch der Überschrift -->
-        <label class="tracer-check"><input type="checkbox" id="tracerAutoMerge" checked><span>Ähnliche Farben automatisch zusammenführen</span></label>
-        <div class="tracer-row"><label for="tracerGroupCount">Sichtbare Zielfarben</label><button type="button" id="tracerGroupCountMinus" class="tracer-step-btn" aria-label="−">−</button><input type="range" id="tracerGroupCount" min="1" max="24" value="4" step="1"><button type="button" id="tracerGroupCountPlus" class="tracer-step-btn" aria-label="+">+</button><span class="tval" id="tracerGroupCountVal">4</span></div>
-        <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg">Hintergrund entfernen</label>
-        <!-- Optional arrangement never replaces the actual automatic output merge. -->
-        <!-- [r29] Ohne Aufklapper und ohne doppelte Beschriftung. Der Text sagt, was die Option ordnet und wozu. --><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farbkreise nach Farbfamilien ordnen</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Nur Anzeige: Ähnliche Farbtöne rücken zusammen (bis zu 4 Familien). Das hilft beim Zusammenführen von Hand.</div>
-        <div id="tracerSwatches" class="tracer-swatches" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-8) 13px;align-items:center;padding:var(--space-2) var(--space-1);"></div>
-        <div id="tracerGroupHint" class="tracer-group-hint" role="status" hidden></div>
-        <div class="tracer-color-actions" id="tracerColorActions">
-          <button id="tracerColorUndo" type="button" title="Letzte Farbänderung rückgängig" aria-label="Farbänderung rückgängig" disabled>&#x21A9;</button>
-          <button id="tracerColorRedo" type="button" title="Farbänderung wiederholen" aria-label="Farbänderung wiederholen" disabled>&#x21AA;</button>
-          <button id="tracerColorReset" type="button" title="Alle Farbmerges lösen und alle Farben wieder einblenden">Farben zurücksetzen</button>
-        </div>
-      </div>
+      <!-- [r30] «Farben gruppieren und ausblenden» steht in .tracer-sidebar (zweite Spalte im Farbmodus). -->
 
       <div id="tracerSilColorWrap" style="display:none;padding:var(--space-2) var(--space-4);">
         <button id="tracerSilColorBtn" style="padding:var(--space-2) var(--space-5);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--white);color:var(--fg2);cursor:pointer;font-size:var(--fs-xs);width:100%;">Farben ausschliessen ▾</button>
@@ -2720,6 +2726,24 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 
     <!-- Tracing, Filter & Import (folgt direkt unter Bild & Farben) -->
     <div class="tracer-sidebar">
+
+      <!-- [r30] Farbmodus: Farbgruppen als zweite Spalte. «Weitere Optionen» folgen darunter, nicht als dritte Spalte. -->
+      <div class="tracer-section" id="tracerColorSection" style="display:none;">
+        <div class="tracer-section-title">Farben gruppieren und ausblenden <span id="tracerColorInfo" style="display:block;margin-top:2px;font-weight:normal;font-size:var(--fs-xs);color:var(--fg3);text-transform:none;letter-spacing:0;"></span></div><!-- [r29] Zähler in eigener Zeile statt mitten im Umbruch der Überschrift -->
+        <label class="tracer-check"><input type="checkbox" id="tracerAutoMerge" checked><span>Ähnliche Farben automatisch zusammenführen</span></label>
+        <div class="tracer-row"><label for="tracerGroupCount">Sichtbare Zielfarben</label><button type="button" id="tracerGroupCountMinus" class="tracer-step-btn" aria-label="−">−</button><input type="range" id="tracerGroupCount" min="1" max="24" value="4" step="1"><button type="button" id="tracerGroupCountPlus" class="tracer-step-btn" aria-label="+">+</button><span class="tval" id="tracerGroupCountVal">4</span></div>
+        <label class="tracer-check" id="tracerDropBgWrap" title="Entfernt helle Fl&#xE4;chen die mit dem Bildrand verbunden sind. Kann bei hellem Motiv Teile f&#xE4;lschlich entfernen."><input type="checkbox" id="tracerDropBg">Hintergrund entfernen</label>
+        <!-- Optional arrangement never replaces the actual automatic output merge. -->
+        <!-- [r29] Ohne Aufklapper und ohne doppelte Beschriftung. Der Text sagt, was die Option ordnet und wozu. --><label class="tracer-check"><input type="checkbox" id="tracerColorPresort" aria-describedby="tracerColorPresortNote"><span>Farbkreise nach Farbfamilien ordnen</span></label><div id="tracerColorPresortNote" class="tracer-presort-note">Nur Anzeige: Ähnliche Farbtöne rücken zusammen (bis zu 4 Familien). Das hilft beim Zusammenführen von Hand.</div>
+        <div id="tracerSwatches" class="tracer-swatches" style="display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-8) 13px;align-items:center;padding:var(--space-2) var(--space-1);"></div>
+        <div id="tracerGroupHint" class="tracer-group-hint" role="status" hidden></div>
+        <div class="tracer-color-actions" id="tracerColorActions">
+          <button id="tracerColorUndo" type="button" title="Letzte Farbänderung rückgängig" aria-label="Farbänderung rückgängig" disabled>&#x21A9;</button>
+          <button id="tracerColorRedo" type="button" title="Farbänderung wiederholen" aria-label="Farbänderung wiederholen" disabled>&#x21AA;</button>
+          <button id="tracerColorReset" type="button" title="Alle Farbmerges lösen und alle Farben wieder einblenden">Farben zurücksetzen</button>
+        </div>
+      </div>
+
 
       <!-- Hidden: Bild + Vorlage elements kept for JS compatibility -->
       <div style="display:none;">
@@ -2751,7 +2775,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
              Eigene Implementierung (Box-Blur ueber tracerBlur + Sobel), generische Labels. -->
         <div class="tracer-row" id="tracerLowpassRow" title="Gl&#xE4;ttet das Bild vor dem Erfassen. H&#xF6;her = weniger Rauschen, nur gr&#xF6;ssere zusammenh&#xE4;ngende Fl&#xE4;chen werden erfasst."><label>Gl&#xE4;tten</label><input type="range" id="tracerLowpass" min="0" max="4" value="0" step="0.2"><span class="tval" id="tracerLowpassVal">0</span></div>
         <div class="tracer-row" id="tracerHighpassRow" title="Erfasst zus&#xE4;tzlich feine Kanten und Konturen, die der Schwellwert allein verpasst. H&#xF6;her = mehr Detail am Rand."><label>Kanten betonen</label><input type="range" id="tracerHighpass" min="0" max="100" value="0" step="1"><span class="tval" id="tracerHighpassVal">0</span></div>
-        <div class="tracer-row" id="tracerPathSimplifyRow" style="display:none;" title="0 erhält die erfasste Pixelkontur. Höhere Werte vereinfachen sie; kleine Details können sich ändern."><label for="tracerPathSimplify">Pfadgl&#xE4;ttung</label><input type="range" id="tracerPathSimplify" min="0" max="6" value="0" step="0.1"><span class="tval" id="tracerPathSimplifyVal">0 px</span></div>
+        <!-- [r30] «Pfadglättung» steht jetzt in der Hauptspalte direkt unter «Kanten glätten». -->
         <div style="font-size:var(--fs-xs);color:var(--fg3);line-height:1.35;margin-top:4px;">Gelbe Vorschau zeigt, was erfasst wird. „Mit Innenformen" abschalten = nur Aussenkante.</div>
       </div>
 
@@ -18269,6 +18293,16 @@ function _shapeToPathD(s) {
  *   maxBoundaryEdges=1e6 (hard 32e6). All limits fail explicitly.
  * RGB is composited on white BEFORE comparison; alpha itself is not compared.
  * A four-connected scanline flood never bridges diagonal or one-pixel gaps.
+ * rim (default true; false: none; 'hidden': only the pixels hidden under something
+ *   drawn above): afterwards one layer of edge pixels is added: pixels beside
+ *   the region that are a blend of the seed colour and the colour beyond them
+ *   (never across a separator, never into a flat neighbour), and pixels where the
+ *   drawing below the future fill shows the seed colour, so that only something drawn
+ *   above hides it. That drawing is given as lower (optional RGBA raster of the same
+ *   size) or, when it is one flat colour, as under (optional Uint8Array, 1 = seed).
+ *   Under such a cover the fill reaches one pixel, and under strokes (optional strokes,
+ *   Uint8Array with the coverage of all strokes drawn above) to the middle of the stroke.
+ *   The result lists those pixels as hidden.
  * Returns {rings,pixels,bounds:{x,y,w,h},seedColor,seed,tolerance,
  *          touchesBorder,nodeCount,boundaryEdges,ringAreas}.
  * Rings use integer pixel-EDGE coordinates, with no repeated closing point.
@@ -18364,6 +18398,169 @@ function _vtRasterFloodRegion(rgba, width, height, seedX, seedY, options) {
     }
   }
   queue = null;
+
+  // [r30] Antialiased rim. A pixel beside the region that is a blend of the seed
+  // colour and the colour beyond it still shows the seed colour. Without it a fringe
+  // of the old colour stays visible around every fill. One layer, more along thin parts and under strokes.
+  var under = options.under == null ? null : options.under, lower = options.lower == null ? null : options.lower, hidden = null;
+  var strokes = options.strokes == null ? null : options.strokes;
+  if (strokes && (Object.prototype.toString.call(strokes) !== '[object Uint8Array]' || strokes.length !== count)) fail('Invalid stroke coverage');
+  if (under && (Object.prototype.toString.call(under) !== '[object Uint8Array]' || under.length !== count)) fail('Invalid under mask');
+  if (lower && ((Object.prototype.toString.call(lower) !== '[object Uint8Array]' && Object.prototype.toString.call(lower) !== '[object Uint8ClampedArray]') || lower.length !== count * 4)) fail('Invalid lower raster');
+  if (options.rim !== false) {
+    var seedN = [sr, sg, sb], blendLimit = 12 * 255, blendRim = options.rim !== 'hidden';
+    var numerators = function(data, index) {
+      var o = index * 4, a = data[o + 3];
+      return [65025 + (data[o] - 255) * a, 65025 + (data[o + 1] - 255) * a, 65025 + (data[o + 2] - 255) * a];
+    };
+    var blends = function(data, q, beyond) {
+      var qn = numerators(data, q), bn = numerators(data, beyond), dot = 0, len = 0, apart = false, c, span;
+      for (c = 0; c < 3; c++) {
+        span = seedN[c] - bn[c];
+        if (Math.abs(span) > threshold) apart = true;
+        dot += (qn[c] - bn[c]) * span; len += span * span;
+      }
+      if (!apart) return false; // the far side shows the seed colour: q separates two areas
+      var share = dot / len;
+      // Any visible share counts: at high zoom even a hairline sliver of the old colour shows.
+      // The pixel only has to differ from the far side by two 8-bit levels (rounding noise is one).
+      if (!(share > 0 && share <= 1.25)) return false; // flat neighbour, not a blend
+      if (Math.abs(qn[0] - bn[0]) < 510 && Math.abs(qn[1] - bn[1]) < 510 && Math.abs(qn[2] - bn[2]) < 510) return false;
+      for (c = 0; c < 3; c++) if (Math.abs(qn[c] - bn[c] - share * (seedN[c] - bn[c])) > blendLimit) return false;
+      return true;
+    };
+    // Does the drawing below the future fill plainly show the seed colour here?
+    var seedBelow = function(q) {
+      if (under) return under[q] === 1;
+      if (!lower) return false;
+      var n = numerators(lower, q);
+      return Math.abs(n[0] - sr) <= threshold && Math.abs(n[1] - sg) <= threshold && Math.abs(n[2] - sb) <= threshold;
+    };
+    var rx0 = Math.max(0, minX - 1), rx1 = Math.min(width - 1, maxX + 1), ry0 = Math.max(0, minY - 1), ry1 = Math.min(height - 1, maxY + 1);
+    var rim = [], rx, ry, q, k, wl, wr, wu, wd;
+    var beside = function(q, rx, ry) {
+      return (rx > 0 && state[q - 1] === 2) || (rx + 1 < width && state[q + 1] === 2) ||
+             (ry > 0 && state[q - width] === 2) || (ry + 1 < height && state[q + width] === 2);
+    };
+    hidden = [];
+    // Under something drawn above the future fill: the drawing below shows the seed colour, the
+    // full drawing does not. The fill reaches one pixel under such a cover. Strokes keep their
+    // width on screen, so a line gets thinner in the document when zooming in; only its middle is
+    // a safe edge at every zoom. Under a stroke the fill therefore reaches half-way to the other
+    // side of the stroke (looked for within `reach` pixels). Recolouring an earlier fill
+    // (rim 'hidden') takes everything of it that lies under a cover, up to `reach` pixels deep.
+    if (under || lower) {
+      var reach = 6, near = new Uint8Array(count), far = strokes && blendRim ? new Uint8Array(count) : null, found = [], front = [], next, step, i, n;
+      var covered = function(q) { return state[q] !== 2 && seedBelow(q) && (state[q] === 1 || !matches(q)); };
+      var stroked = function(q) { return strokes !== null && strokes[q] >= 16; };
+      var around = function(q, visit) {
+        var x = q % width;
+        if (x > 0) visit(q - 1);
+        if (x + 1 < width) visit(q + 1);
+        if (q >= width) visit(q - width);
+        if (q + width < count) visit(q + width);
+      };
+      for (ry = ry0; ry <= ry1; ry++) {
+        for (rx = rx0; rx <= rx1; rx++) {
+          q = ry * width + rx;
+          if (state[q] !== 2 && beside(q, rx, ry) && covered(q)) { near[q] = 1; found.push(q); if (!blendRim || stroked(q)) front.push(q); }
+        }
+      }
+      for (step = 2; step <= reach * 2 && front.length; step++) {
+        next = [];
+        for (i = 0; i < front.length; i++) around(front[i], function(n) { if (!near[n] && (!blendRim || stroked(n)) && covered(n)) { near[n] = step; next.push(n); found.push(n); } });
+        front = next;
+      }
+      if (far) {
+        // The other side of a stroke: a pixel without stroke that is not part of the region.
+        front = [];
+        for (i = 0; i < found.length; i++) {
+          q = found[i]; n = false;
+          if (stroked(q)) around(q, function(m) { if (!n && state[m] !== 2 && !stroked(m)) n = true; });
+          if (n) { far[q] = 1; front.push(q); }
+        }
+        for (step = 2; front.length; step++) {
+          next = [];
+          for (i = 0; i < front.length; i++) around(front[i], function(n) { if (near[n] && !far[n] && stroked(n)) { far[n] = step; next.push(n); } });
+          front = next;
+        }
+      }
+      for (i = 0; i < found.length; i++) {
+        q = found[i];
+        if (near[q] === 1 || (far ? far[q] > 0 && near[q] <= far[q] : near[q] <= reach)) { state[q] = 3; rim.push(q); hidden.push(q); }
+      }
+      near = far = found = front = null;
+    }
+    var blended = [];
+    for (ry = blendRim ? ry0 : ry1 + 1; ry <= ry1; ry++) {
+      for (rx = rx0; rx <= rx1; rx++) {
+        q = ry * width + rx;
+        if (state[q] >= 2) continue;
+        // Region to the left/right/up/down of q, with a pixel on the opposite side.
+        wl = rx > 0 && state[q - 1] === 2 && rx + 1 < width; wr = rx + 1 < width && state[q + 1] === 2 && rx > 0;
+        wu = ry > 0 && state[q - width] === 2 && ry + 1 < height; wd = ry + 1 < height && state[q + width] === 2 && ry > 0;
+        if (!(wl || wr || wu || wd)) continue;
+        // The drawing below shows the seed colour as an antialiased edge: two areas meeting
+        // under the edge of the upper one would otherwise keep a seam of the old colour.
+        if (lower && ((wl && blends(lower, q, q + 1)) || (wr && blends(lower, q, q - 1)) ||
+                      (wu && blends(lower, q, q + width)) || (wd && blends(lower, q, q - width)))) { blended.push(q); continue; }
+        // Region on one side, on the other a pixel that is neither region nor seed-coloured.
+        if ((wl && state[q + 1] !== 2 && blends(rgba, q, q + 1)) || (wr && state[q - 1] !== 2 && blends(rgba, q, q - 1)) ||
+            (wu && state[q + width] !== 2 && blends(rgba, q, q + width)) || (wd && state[q - width] !== 2 && blends(rgba, q, q - width))) blended.push(q);
+      }
+    }
+    for (k = 0; k < blended.length; k++) { state[blended[k]] = 3; rim.push(blended[k]); }
+    // A convex corner touches the region only diagonally: take it when both pixels in
+    // between were taken (or are region) and it blends towards the diagonal far side.
+    var corners = [], dx, dy;
+    for (ry = blendRim ? Math.max(1, ry0) : height; ry <= Math.min(height - 2, ry1); ry++) {
+      for (rx = Math.max(1, rx0); rx <= Math.min(width - 2, rx1); rx++) {
+        q = ry * width + rx;
+        if (state[q] >= 2) continue;
+        for (dy = -1; dy <= 1; dy += 2) {
+          for (dx = -1; dx <= 1; dx += 2) {
+            if (state[q + dx + dy * width] === 2 && state[q + dx] >= 2 && state[q + dy * width] >= 2 &&
+                ((lower && (state[q] === 1 || !matches(q)) && blends(lower, q, q - dx - dy * width)) ||
+                 (state[q - dx - dy * width] < 2 && blends(rgba, q, q - dx - dy * width)))) {
+              corners.push(q); dx = dy = 2;
+              if ((under || lower) && seedBelow(q)) hidden.push(q); // a corner between two covers lies under them
+            }
+          }
+        }
+      }
+    }
+    rim = rim.concat(corners);
+    for (k = 0; k < corners.length; k++) state[corners[k]] = 3;
+    // Thin parts of the area (a spike, a notch, the end of a hairline) can reach more than one
+    // pixel beyond the region. Continue from the pixels just taken, at most two more layers,
+    // while the next pixel is again a blend towards the pixel beyond it. A pixel that is lighter
+    // than its far side (a gap between two parts of the area) stops the chain.
+    // Not inside a bitmap (options.chain false): its soft edges would be painted over step by step.
+    var chain = blendRim && options.chain !== false ? blended.concat(corners) : [], grown, layer, nb, from, to, beyond, delta;
+    for (layer = 0; layer < 2 && chain.length; layer++) {
+      grown = [];
+      for (k = 0; k < chain.length; k++) {
+        from = chain[k];
+        for (nb = 0; nb < 4; nb++) {
+          delta = nb === 0 ? -1 : nb === 1 ? 1 : nb === 2 ? -width : width;
+          to = from + delta; beyond = to + delta;
+          if (beyond < 0 || beyond >= count) continue;
+          if ((nb < 2) && Math.floor(beyond / width) !== Math.floor(from / width)) continue; // stay in the row
+          if (state[to] >= 2 || state[beyond] >= 2) continue;
+          if (blends(rgba, to, beyond)) { state[to] = 3; grown.push(to); }
+        }
+      }
+      rim = rim.concat(grown); chain = grown;
+    }
+    for (k = 0; k < rim.length; k++) {
+      q = rim[k]; state[q] = 2; pixels++;
+      rx = q % width; ry = (q - rx) / width;
+      if (rx < minX) minX = rx;
+      if (rx > maxX) maxX = rx;
+      if (ry < minY) minY = ry;
+      if (ry > maxY) maxY = ry;
+    }
+  }
 
   // Each bit is one directed boundary side of the filled pixel (E,S,W,N).
   // Filled material stays to the right. At diagonal contact, turn right first;
@@ -18464,7 +18661,7 @@ function _vtRasterFloodRegion(rgba, width, height, seedX, seedY, options) {
     rings:rings, pixels:pixels, bounds:{x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1},
     seedColor:[sr/255,sg/255,sb/255], seed:{x:seedX,y:seedY}, tolerance:tolerance,
     touchesBorder:minX===0||minY===0||maxX===width-1||maxY===height-1,
-    nodeCount:nodeCount, boundaryEdges:boundaryEdges, ringAreas:ringAreas
+    nodeCount:nodeCount, boundaryEdges:boundaryEdges, ringAreas:ringAreas, hidden:hidden || []
   };
 }
 
@@ -18530,7 +18727,7 @@ function _vtVisibleFillLoadImage(src,job) {
     if(job.cancelled)cancel();else image.src=src;
   });
 }
-function _vtVisibleFillSvg(list,w,h,pixelW,pixelH) {
+function _vtVisibleFillSvg(list,w,h,pixelW,pixelH,probe,strokes) {
   var fonts=Object.create(null),patterns=Object.create(null),markup='';
   list.forEach(function(shape){
     if(!shape||shape.hidden)return;
@@ -18542,11 +18739,16 @@ function _vtVisibleFillSvg(list,w,h,pixelW,pixelH) {
     }
     // Unlike export, retain the same grey contour used by renderShape for
     // otherwise invisible objects. No editor/grid/selection overlays included.
-    markup+=renderShape(shape);
+    markup+=probe?probe(renderShape(shape)):renderShape(shape);
   });
   var css=buildGoogleFontsImport(Object.keys(fonts),true);
   var defs=(css?'<style>'+css+'</style>':'')+Object.keys(patterns).map(function(id){return patterns[id];}).join('');
-  var svg='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+pixelW+'" height="'+pixelH+'" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><defs>'+defs+'</defs><rect width="'+w+'" height="'+h+'" fill="white"/>'+markup+'</svg>';
+  /* [r30] probe: je Form eine Kachel, ohne Grund. strokes: nur die Linien (keine Füllungen, keine Bilder), ohne Grund. */
+  var svg=probe
+    ? '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+pixelW+'" height="'+pixelH+'" viewBox="0 0 '+pixelW+' '+pixelH+'"><defs>'+defs+'</defs>'+markup+'</svg>'
+    : strokes
+    ? '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+pixelW+'" height="'+pixelH+'" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><defs>'+defs+'</defs><style>*{fill:none!important}image{display:none!important}</style>'+markup+'</svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+pixelW+'" height="'+pixelH+'" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><defs>'+defs+'</defs><rect width="'+w+'" height="'+h+'" fill="white"/>'+markup+'</svg>';
   var xml=new DOMParser().parseFromString(svg,'image/svg+xml');
   if(xml.querySelector('parsererror'))throw new Error('Invalid visible SVG');
   // SVG-as-image can silently omit remote resources. Never accept a partly
@@ -18559,7 +18761,7 @@ function _vtVisibleFillSvg(list,w,h,pixelW,pixelH) {
   });
   return svg;
 }
-async function _vtVisibleFillRaster(list,job) {
+async function _vtVisibleFillRaster(list,job,strokes) {
   // Fixed document-space sampling, independent of zoom. Do not silently lower
   // resolution on large pages: faint boundaries could disappear and leak.
   var width=Math.ceil(job.w*2),height=Math.ceil(job.h*2);
@@ -18586,7 +18788,7 @@ async function _vtVisibleFillRaster(list,job) {
     await _vtVisibleFillLoadImage(shape.src,job);
   }
   if(!_vtVisibleFillCurrent(job))throw _vtVisibleFillAbort();
-  var svg=_vtVisibleFillSvg(list,job.w,job.h,width,height);
+  var svg=_vtVisibleFillSvg(list,job.w,job.h,width,height,null,strokes);
   var canvas=document.createElement('canvas'),url=null;
   try{
     canvas.width=width;canvas.height=height;
@@ -18594,12 +18796,151 @@ async function _vtVisibleFillRaster(list,job) {
     url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
     var image=await _vtVisibleFillLoadImage(url,job);
     if(!_vtVisibleFillCurrent(job))throw _vtVisibleFillAbort();
-    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);ctx.drawImage(image,0,0,width,height);
+    if(!strokes){ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);} /* [r30] nur Linien: durchsichtiger Grund */
+    ctx.drawImage(image,0,0,width,height);
     return {rgba:ctx.getImageData(0,0,width,height).data,width:width,height:height};
   }finally{if(url)URL.revokeObjectURL(url);canvas.width=canvas.height=0;}
 }
-function _vtVisibleFillCompute(raster,x,y,job) {
+/* [r30] Welche sichtbare Form liegt am Klickpixel zuoberst? Jede Form wird einzeln auf genau dieses
+   Rasterpixel gerendert (eine Kachel je Form, ein Bild insgesamt). -1: dort ist nichts gezeichnet. */
+async function _vtVisibleFillTopShape(list,job,raster,x,y) {
+  var order=[];
+  list.forEach(function(shape,index){if(shape&&!shape.hidden)order.push(index);});
+  if(!order.length)return -1;
+  var cols=Math.min(order.length,512),rows=Math.ceil(order.length/cols),W=cols*2,H=rows*2,sx=job.w/raster.width,sy=job.h/raster.height,n=0;
+  var svg=_vtVisibleFillSvg(list,job.w,job.h,W,H,function(markup){
+    var tile='<svg x="'+(n%cols)*2+'" y="'+Math.floor(n/cols)*2+'" width="1" height="1" viewBox="'+(x*sx)+' '+(y*sy)+' '+sx+' '+sy+'" preserveAspectRatio="none">'+markup+'</svg>';
+    n++;return tile;
+  });
+  var canvas=document.createElement('canvas'),url=null;
+  try{
+    canvas.width=W;canvas.height=H;
+    var ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)throw new Error('Canvas unavailable');
+    url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
+    var image=await _vtVisibleFillLoadImage(url,job);
+    ctx.clearRect(0,0,W,H);ctx.drawImage(image,0,0,W,H);
+    var data=ctx.getImageData(0,0,W,H).data;
+    for(var i=order.length-1;i>=0;i--)if(data[(Math.floor(i/cols)*2*W+(i%cols)*2)*4+3]>24)return order[i];
+    return -1;
+  }finally{if(url)URL.revokeObjectURL(url);canvas.width=canvas.height=0;}
+}
+/* [r30] Einfügeposition der Füllung: direkt über der obersten Form am Klickpixel und über jeder höher
+   liegenden Form in der Klickfarbe, die die gefüllte Fläche berührt (sie gehört sichtbar zur selben Fläche).
+   Alles andere darüber, etwa Linien, bleibt über der Füllung. */
+function _vtVisibleFillInsertIndex(list,top,region,sx,sy,tolerance) {
+  var b=region.bounds,x0=b.x*sx,y0=b.y*sy,x1=(b.x+b.w)*sx,y1=(b.y+b.h)*sy,seed=region.seedColor;
+  function same(colour){
+    if(typeof colour!=='string'||!/^#[0-9a-f]{6}$/i.test(colour))return false;
+    for(var c=0;c<3;c++)if(Math.abs(parseInt(colour.slice(1+2*c,3+2*c),16)-seed[c])>tolerance)return false;
+    return true;
+  }
+  for(var i=list.length-1;i>top;i--){
+    var shape=list[i];
+    if(!shape||shape.hidden)continue;
+    if(!((shape.fillEnabled!==false&&same(shape.fill))||(Number(shape.strokeWidth)>0&&same(shape.stroke))||(shape.type==='text'&&same(shape.textColor))))continue;
+    var box=geoBBox(shape),pad=(Number(shape.strokeWidth)||0)/2+1;
+    if(box&&box.x-pad<=x1&&box.x+box.w+pad>=x0&&box.y-pad<=y1&&box.y+box.h+pad>=y0)return i+1;
+  }
+  return top+1;
+}
+/* [r30] Für die Flutfunktion: Wie sieht die Zeichnung bis und mit Form «top» aus, also ohne alles, was über
+   der Füllung liegen wird? Wo sie die Klickfarbe zeigt, darf die Füllung unter das Darüberliegende reichen.
+   Rückgabe {lower: Raster} oder, wenn darunter nur der weisse Grund liegt, {under: Maske}; dazu strokes, die
+   Deckung aller Linien über der Füllung (unter Linien reicht die Füllung bis zur Linienmitte).
+   null: über «top» liegt nichts Sichtbares, oder der weisse Grund zeigt die Klickfarbe nicht. */
+async function _vtVisibleFillUnder(list,top,raster,x,y,job) {
+  var above=false,below=false,lines=false,result;
+  list.forEach(function(shape,index){
+    if(!shape||shape.hidden)return;
+    if(index<=top){below=true;return;}
+    above=true;
+    /* Zeichnet die Form eine Linie? Auch die graue Hilfskontur von Formen ohne Füllung und Linie zählt. */
+    if(!(Number(shape.strokeWidth)===0||shape.stroke==='none'||shape.stroke==='transparent')||!(shape.fillEnabled&&shape.fill&&shape.fill!=='none'))lines=true;
+  });
+  if(!above)return null;
+  if(!below){
+    var seed=(y*raster.width+x)*4,tolerance=job.tolerance;
+    if(Math.abs(255-raster.rgba[seed])>tolerance||Math.abs(255-raster.rgba[seed+1])>tolerance||Math.abs(255-raster.rgba[seed+2])>tolerance)return null;
+    result={under:new Uint8Array(raster.width*raster.height).fill(1)};
+  }else{
+    var lower=await _vtVisibleFillRaster(list.slice(0,top+1),job);
+    if(lower.width!==raster.width||lower.height!==raster.height)throw new Error('Visible fill raster mismatch');
+    result={lower:lower.rgba};
+  }
+  if(lines){
+    var drawn=await _vtVisibleFillRaster(list.slice(top+1),job,true);
+    if(drawn.width!==raster.width||drawn.height!==raster.height)throw new Error('Visible fill raster mismatch');
+    result.strokes=new Uint8Array(raster.width*raster.height);
+    for(var i=0,o=3;i<result.strokes.length;i++,o+=4)result.strokes[i]=drawn.rgba[o];
+  }
+  return result;
+}
+/* [r30] Füllform aus der Pixelregion. Der Umriss reicht einen Viertel-Rasterpixel (ein Achtel Dokumentpixel)
+   über die Pixelkanten hinaus, nie über den Blattrand. Genauer zeigt das Raster die Kanten der Zeichnung nicht:
+   Skia (Chrome, Edge, Firefox) rundet waagrechte Kanten auf Viertelpixel und nähert Kurven an. Ein schmalerer
+   Rest der alten Farbe ist im Raster unsichtbar und bliebe sonst als Haarlinie neben der Füllung stehen.
+   Kein Überstand an Kanten, deren Pixel unter etwas Darüberliegendem liegen (region.hidden): Dort reicht die
+   Füllung schon eine Pixelreihe unter die Linie, mehr schaute bei dünnen Linien auf der anderen Seite hervor.
+   Die gefüllte Fläche liegt rechts der Laufrichtung (siehe _vtRasterFloodRegion), aussen ist also links.
+   Wo sich zwei Teile der Fläche nur über Eck berühren, bleibt die Ecke stehen: Sonst überlappten sich die
+   beiden Teile, und die Füllregel evenodd stanzte dort ein Loch. */
+function _vtVisibleFillShape(region,raster,job) {
+  var bleed=.25,W=raster.width,H=raster.height,sx=job.w/W,sy=job.h/H,stride=W+1,seen=new Set(),twice=new Set();
+  var hidden=region.hidden&&region.hidden.length?new Set(region.hidden):null;
+  region.rings.forEach(function(ring){ring.forEach(function(p){var key=p.y*stride+p.x;if(seen.has(key))twice.add(key);else seen.add(key);});});
+  function edgeBleed(a,c){ /* 0, wenn jedes Pixel innen an der Kante a→c verdeckt übernommen wurde */
+    if(!hidden)return bleed;
+    var i;
+    if(a.y===c.y){
+      if(c.x>a.x){for(i=a.x;i<c.x;i++)if(!hidden.has(a.y*W+i))return bleed;}
+      else{for(i=c.x;i<a.x;i++)if(!hidden.has((a.y-1)*W+i))return bleed;}
+    }else if(c.y>a.y){for(i=a.y;i<c.y;i++)if(!hidden.has(i*W+a.x-1))return bleed;}
+    else{for(i=c.y;i<a.y;i++)if(!hidden.has(i*W+a.x))return bleed;}
+    return 0;
+  }
+  var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  var rings=region.rings.map(function(ring){
+    var n=ring.length,out=ring.map(function(p,i){return edgeBleed(p,ring[(i+1)%n]);});
+    return ring.map(function(p,i){
+      var x=p.x,y=p.y;
+      if(!twice.has(y*stride+x)){
+        var a=ring[(i+n-1)%n],c=ring[(i+1)%n],into=out[(i+n-1)%n],away=out[i];
+        if(a.y===p.y){ /* kommt waagrecht an, geht senkrecht weiter */
+          x=x+(c.y>p.y?away:-away); /* nach Süden laufend liegt aussen im Osten */
+          y=y+(p.x>a.x?-into:into); /* nach Osten laufend liegt aussen im Norden */
+        }else{x=x+(p.y>a.y?into:-into);y=y+(c.x>p.x?-away:away);}
+        x=Math.max(0,Math.min(W,x));y=Math.max(0,Math.min(H,y));
+      }
+      if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+      return {x:x,y:y};
+    });
+  });
+  var width=(x1-x0)*sx,height=(y1-y0)*sy,origW=width<.5?1:width,origH=height<.5?1:height;
+  var d=rings.map(function(ring){return ring.map(function(p,i){return(i?'L':'M')+((p.x-x0)/(x1-x0)*origW)+','+((p.y-y0)/(y1-y0)*origH);}).join('')+'Z';}).join('');
+  return {type:'svgpath',svgD:d,svgFillRule:'evenodd',svgEditable:false,fill:job.color,fillEnabled:true,fillTexture:null,stroke:'none',strokeWidth:0,
+    x:x0*sx,y:y0*sy,w:width,h:height,svgOrigX:0,svgOrigY:0,svgOrigW:origW,svgOrigH:origH,rotation:0,flipX:false,flipY:false,opacity:1};
+}
+/* [r30] Stammt die Form aus dem Farbeimer und liegt sie unverändert im heutigen Raster? Erkennbar daran, dass
+   jeder Punkt ihres Umrisses auf einer Pixelkante oder einen Viertelpixel daneben liegt. Dann ist ihr geglätteter
+   Rand nur der eigene Überstand. Beim Umfärben darf er nicht noch einmal zur Fläche kommen, sonst wüchse sie
+   mit jedem Klick. */
+function _vtVisibleFillIsOwn(shape,raster,job) {
+  if(!shape||shape.type!=='svgpath'||shape.svgEditable!==false||shape.svgFillRule!=='evenodd'||shape.rotation||shape.flipX||shape.flipY)return false;
+  if(typeof shape.svgD!=='string'||/[^MLZ0-9e.,\-]/.test(shape.svgD)||shape.svgOrigX||shape.svgOrigY)return false;
+  if(Math.abs(shape.w-shape.svgOrigW)>1e-9||Math.abs(shape.h-shape.svgOrigH)>1e-9)return false;
+  var px=job.w/raster.width,py=job.h/raster.height,numbers=shape.svgD.match(/-?[0-9.]+(?:e-?[0-9]+)?/g)||[];
+  function onGrid(v){var quarter=v*4,whole=Math.round(quarter);return Math.abs(quarter-whole)<1e-5&&Math.abs(whole)%4!==2;}
+  if(numbers.length<8||numbers.length%2)return false;
+  for(var i=0;i<numbers.length;i+=2)if(!onGrid((shape.x+Number(numbers[i]))/px)||!onGrid((shape.y+Number(numbers[i+1]))/py))return false;
+  return true;
+}
+function _vtVisibleFillCompute(raster,x,y,job,below,rim) {
   var options={tolerance:job.tolerance,maxPixels:8000000,maxNodes:60000,maxBoundaryEdges:1000000};
+  if(below&&below.under)options.under=below.under; /* [r30] */
+  if(below&&below.lower)options.lower=below.lower;
+  if(below&&below.strokes)options.strokes=below.strokes;
+  if(rim)options.rim=rim;
+  if(job.noChain)options.chain=false;
   return new Promise(function(resolve,reject){
     var worker=null,url=null,timer=null,settled=false;
     function cleanup(){clearTimeout(timer);if(worker)worker.terminate();if(url)URL.revokeObjectURL(url);worker=null;url=null;var i=job.cancels.indexOf(cancel);if(i>=0)job.cancels.splice(i,1);}
@@ -18635,23 +18976,40 @@ async function onFillDown(e,point) {
   _vtVisibleFillJob=job;
   _vtVisibleFillNotice('Füllung wird berechnet …',true);
   try{
-    var raster=await _vtVisibleFillRaster(_vtDeepClone(shapes),job);
+    var snapshot=_vtDeepClone(shapes);
+    var raster=await _vtVisibleFillRaster(snapshot,job);
     var x=Math.min(raster.width-1,Math.floor(point.x*raster.width/job.w)),y=Math.min(raster.height-1,Math.floor(point.y*raster.height/job.h));
-    var region=await _vtVisibleFillCompute(raster,x,y,job);
+    /* [r30] Die Füllung liegt nicht mehr zuoberst, sondern direkt über der Fläche, die sie färbt. Was darüber
+       gezeichnet ist (etwa Linien), bleibt darüber, und die Füllung reicht eine Pixelreihe darunter.
+       Schlägt die Bestimmung fehl, gilt das bisherige Verhalten (zuoberst, ohne Unterreichen). */
+    var top=shapes.length-1,below=null,own=false;
+    try{
+      top=await _vtVisibleFillTopShape(snapshot,job,raster,x,y);
+      below=await _vtVisibleFillUnder(snapshot,top,raster,x,y,job);
+      own=top>=0&&_vtVisibleFillIsOwn(snapshot[top],raster,job);
+      job.noChain=top>=0&&!!snapshot[top]&&snapshot[top].type==='image'; /* Die Füllung liegt dann über dem Bild */
+    }catch(orderError){
+      if(orderError&&orderError.code==='CANCELLED')throw orderError;
+      console.warn('Visible fill order:',orderError&&orderError.message);top=shapes.length-1;below=null;own=false;
+    }
+    if(!_vtVisibleFillCurrent(job))throw _vtVisibleFillAbort();
+    var region=await _vtVisibleFillCompute(raster,x,y,job,below,own?'hidden':null);
     if(!_vtVisibleFillCurrent(job))throw _vtVisibleFillAbort();
     if(!region||!region.pixels||!region.rings.length)throw new Error('Empty visible fill');
     // Repeated clicks with the same colour must not pile up identical overlays
     // or creep into the antialias fringe a little further on every click.
     if(/^#[0-9a-f]{6}$/i.test(job.color)&&region.seedColor.every(function(c,i){return c===parseInt(job.color.slice(1+2*i,3+2*i),16);})){_vtVisibleFillNotice('Die gewählte Farbe ist hier bereits vorhanden.');return;}
-    var sx=job.w/raster.width,sy=job.h/raster.height,b=region.bounds;
-    var width=b.w*sx,height=b.h*sy,origW=width<.5?1:width,origH=height<.5?1:height;
-    var d=region.rings.map(function(ring){return ring.map(function(p,i){return(i?'L':'M')+((p.x-b.x)/b.w*origW)+','+((p.y-b.y)/b.h*origH);}).join('')+'Z';}).join('');
-    var filled={type:'svgpath',svgD:d,svgFillRule:'evenodd',svgEditable:false,fill:job.color,fillEnabled:true,fillTexture:null,stroke:'none',strokeWidth:0,
-      x:b.x*sx,y:b.y*sy,w:width,h:height,svgOrigX:0,svgOrigY:0,svgOrigW:origW,svgOrigH:origH,rotation:0,flipX:false,flipY:false,opacity:1};
+    var sx=job.w/raster.width,sy=job.h/raster.height;
+    var filled=_vtVisibleFillShape(region,raster,job);
     // Validate before creating an undo entry or allocating a persistent ID.
     filled=normalizeShapeSchema(filled);
     if(!_vtVisibleFillCurrent(job))throw _vtVisibleFillAbort();
-    pu('Farbeimer');filled.id=mkId();shapes.push(filled);
+    var insertAt=shapes.length;
+    try{insertAt=Math.max(0,Math.min(shapes.length,_vtVisibleFillInsertIndex(shapes,top,region,sx,sy,job.tolerance)));}
+    catch(insertError){console.warn('Visible fill order:',insertError&&insertError.message);insertAt=shapes.length;}
+    var below=shapes[insertAt-1],above=shapes[insertAt];
+    if(below&&above&&below.groupId&&below.groupId===above.groupId)filled.groupId=below.groupId; /* mitten in einer Gruppe: gehört dazu */
+    pu('Farbeimer');filled.id=mkId();shapes.splice(insertAt,0,filled);
     selId=null;selIds.clear();_invalidateShapeIndex();render();updateRightPanel();syncToolbarStyleUI();
     if(typeof window.renderLayerList==='function')window.renderLayerList();
     _vtVisibleFillNotice('Fläche gefüllt.');
@@ -24345,6 +24703,7 @@ function _tracerSyncModeUI() {
   if (_tEl('tracerTitle')) _tEl('tracerTitle').textContent = (typeof window.t === 'function' ? window.t(silhouette ? 'Umriss nachzeichnen' : 'Bildnachzeichner') : (silhouette ? 'Umriss nachzeichnen' : 'Bildnachzeichner')); /* [VT-TRACER-TITEL-I18N v1] direkt in die aktuelle Sprache uebersetzen statt Hardcode-Deutsch; die i18n-Observer-Nachuebersetzung war fragil und flackerte beim Oeffnen/Moduswechsel */
   if (_tEl('tracerSilhouetteSection')) _tEl('tracerSilhouetteSection').style.display = silhouette ? 'block' : 'none';
   if (_tEl('tracerSilhouetteFilledWrap')) _tEl('tracerSilhouetteFilledWrap').style.display = silhouette ? 'flex' : 'none';
+  if (_tEl('tracerSilhouetteSmoothWrap')) _tEl('tracerSilhouetteSmoothWrap').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilhouetteThresholdWrap')) _tEl('tracerSilhouetteThresholdWrap').style.display = silhouette ? 'block' : 'none';
   if (_tEl('tracerThresholdBetween')) _tEl('tracerThresholdBetween').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilColorWrap')) _tEl('tracerSilColorWrap').style.display = silhouette ? 'block' : 'none';
@@ -27247,6 +27606,7 @@ function _tracerUpdateReadouts() {
   _tEl('tracerThresholdVal').textContent = _tEl('tracerThreshold').value;
   _tEl('tracerBlurVal').textContent = _tFmtNum(Number(_tEl('tracerBlur').value),1) + " px";
   _tEl('tracerPathSimplifyVal').textContent = _tFmtNum(Number(_tEl('tracerPathSimplify').value),1) + " px";
+  if (_tEl('tracerSilhouetteSmooth')) _tEl('tracerSilhouetteSmooth').checked = Number(_tEl('tracerPathSimplify').value) > 0; /* [r30] */
   _tEl('tracerMinAreaVal').textContent = _tEl('tracerMinArea').value + " px²";
   if (_tEl('tracerLowpass') && _tEl('tracerLowpassVal')) _tEl('tracerLowpassVal').textContent = _tFmtNum(Number(_tEl('tracerLowpass').value),1); /* [sw-tracer-filter v1] */
   if (_tEl('tracerHighpass') && _tEl('tracerHighpassVal')) _tEl('tracerHighpassVal').textContent = String(_tEl('tracerHighpass').value);
@@ -32418,8 +32778,20 @@ function _silApplyExclusion() {
     function applySvgTransform() {
       var svg = wrap.querySelector('svg');
       if (!svg) return;
+      var target = 'translate('+svgPanX+'px,'+svgPanY+'px) scale('+svgScale+')';
+      /* [r30] Jeder Reglerzug zeichnet ein neues Vorschaubild. Es übernimmt Zoom und Lage sofort, ohne den
+         Übergang aus der CSS-Regel: Sonst zoomte es jedes Mal sichtbar aus der Grundgrösse auf. */
+      if (!svg._vtZoomApplied) {
+        svg.style.transition = 'none';
+        svg.style.transformOrigin = '0 0';
+        svg.style.transform = target;
+        svg.getBoundingClientRect();
+        svg.style.transition = '';
+        svg._vtZoomApplied = true;
+        return;
+      }
       svg.style.transformOrigin = '0 0';
-      svg.style.transform = 'translate('+svgPanX+'px,'+svgPanY+'px) scale('+svgScale+')';
+      svg.style.transform = target;
     }
 
     /* Re-apply transform whenever SVG is replaced (innerHTML update) */
@@ -32508,6 +32880,14 @@ function _silApplyExclusion() {
   _tEl('tracerPathSimplify').addEventListener('input', function() {
     _tracerUpdateReadouts();
     _tracerUpdateSimplificationPreview();
+  });
+  /* [r30] «Kanten glätten» im Umriss-Modus: Ein = zuletzt gewählte Stärke oder 1.5 px, Aus = 0 (Pixelkontur).
+     Die Feineinstellung macht der Regler «Pfadglättung» direkt darunter. */
+  if (_tEl('tracerSilhouetteSmooth')) _tEl('tracerSilhouetteSmooth').addEventListener('change', function() {
+    var slider = _tEl('tracerPathSimplify');
+    if (!this.checked && Number(slider.value) > 0) _tState._silSmoothLast = slider.value;
+    slider.value = this.checked ? (Number(slider.value) > 0 ? slider.value : (_tState._silSmoothLast || '1.5')) : '0';
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
   });
   _tEl('tracerNoiseConsent').addEventListener('change', function() {
     _tState.noiseConsentGen = this.checked && !_tState.busy && !_tState.loading
@@ -57506,6 +57886,10 @@ VT_RELEASE_CATALOG['Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nad
   (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(
     ["Farbkreise nach Farbfamilien ordnen","Nur Anzeige: Ähnliche Farbtöne rücken zusammen (bis zu 4 Familien). Das hilft beim Zusammenführen von Hand."],
     {"en":["Arrange colour circles by colour family","Display only: similar hues move together (up to 4 families). This helps when merging by hand."],"fr":["Classer les cercles de couleur par famille","Affichage seulement : les teintes proches sont regroupées (jusqu’à 4 familles). Cela facilite la fusion manuelle."],"it":["Ordina i cerchi colore per famiglia","Solo visualizzazione: le tonalità simili vengono avvicinate (fino a 4 famiglie). Aiuta a unirle a mano."],"es":["Ordenar los círculos de color por familia","Solo visualización: los tonos similares se agrupan (hasta 4 familias). Ayuda a combinarlos a mano."],"pt":["Ordenar os círculos de cor por família","Apenas exibição: tons semelhantes ficam juntos (até 4 famílias). Ajuda a unir manualmente."],"nl":["Kleurcirkels op kleurfamilie ordenen","Alleen weergave: vergelijkbare tinten komen bij elkaar te staan (tot 4 families). Dat helpt bij het handmatig samenvoegen."],"pl":["Uporządkuj kółka kolorów według rodzin","Tylko widok: podobne odcienie trafiają obok siebie (do 4 rodzin). Ułatwia to ręczne łączenie."],"cs":["Seřadit barevné kruhy podle barevných rodin","Pouze zobrazení: podobné odstíny se seskupí k sobě (až 4 rodiny). Usnadňuje to ruční slučování."],"sk":["Zoradiť farebné kruhy podľa farebných rodín","Iba zobrazenie: podobné odtiene sa zoskupia k sebe (najviac 4 rodiny). Uľahčuje to ručné zlučovanie."],"ro":["Aranjează cercurile de culoare pe familii","Doar afișare: nuanțele similare sunt așezate împreună (până la 4 familii). Ajută la combinarea manuală."],"hu":["Színkörök rendezése színcsaládok szerint","Csak megjelenítés: a hasonló árnyalatok egymás mellé kerülnek (legfeljebb 4 család). Ez segíti a kézi összevonást."],"el":["Ταξινόμηση χρωματικών κύκλων ανά οικογένεια","Μόνο εμφάνιση: οι παρόμοιες αποχρώσεις τοποθετούνται μαζί (έως 4 οικογένειες). Διευκολύνει τη χειροκίνητη συγχώνευση."],"sv":["Ordna färgcirklar efter färgfamilj","Endast visning: liknande nyanser hamnar tillsammans (upp till 4 familjer). Det underlättar att slå ihop dem för hand."],"da":["Ordn farvecirkler efter farvefamilie","Kun visning: lignende nuancer samles (op til 4 familier). Det gør det lettere at flette dem manuelt."],"no":["Ordne fargesirkler etter fargefamilie","Bare visning: lignende nyanser samles (opptil 4 familier). Det gjør det enklere å slå dem sammen for hånd."],"fi":["Järjestä väriympyrät väriperheittäin","Vain näkymä: samankaltaiset sävyt siirtyvät vierekkäin (enintään 4 perhettä). Tämä helpottaa yhdistämistä käsin."],"ca":["Ordena els cercles de color per família","Només visualització: els tons semblants s’agrupen (fins a 4 famílies). Ajuda a combinar-los a mà."],"tr":["Renk dairelerini renk ailesine göre düzenle","Yalnızca görünüm: benzer tonlar yan yana gelir (en fazla 4 aile). Elle birleştirmeyi kolaylaştırır."],"ru":["Упорядочить цветовые круги по семействам","Только отображение: похожие оттенки располагаются рядом (до 4 семейств). Это упрощает объединение вручную."],"uk":["Упорядкувати колірні кола за родинами","Лише відображення: схожі відтінки розташовуються поруч (до 4 родин). Це полегшує об’єднання вручну."],"bg":["Подреждане на цветните кръгове по семейства","Само показване: сходните оттенъци се събират един до друг (до 4 семейства). Това улеснява ръчното обединяване."],"zh":["按色系排列色圈","仅影响显示：相近的色调会排在一起（最多 4 个色系），便于手动合并。"],"ja":["色の円を色系統ごとに並べる","表示のみ：似た色合いが隣り合うように並びます（最大4系統）。手動で統合しやすくなります。"],"ko":["색상 원을 색상 계열별로 정렬","표시만 변경: 비슷한 색조가 서로 가까이 배치됩니다(최대 4개 계열). 수동 병합이 쉬워집니다."],"vi":["Sắp xếp vòng màu theo họ màu","Chỉ hiển thị: các tông màu tương tự được xếp cạnh nhau (tối đa 4 họ màu). Giúp gộp thủ công dễ hơn."],"th":["จัดเรียงวงสีตามตระกูลสี","เฉพาะการแสดงผล: โทนสีที่คล้ายกันจะอยู่ใกล้กัน (สูงสุด 4 ตระกูล) ช่วยให้รวมสีด้วยตนเองได้ง่ายขึ้น"],"id":["Urutkan lingkaran warna menurut keluarga warna","Hanya tampilan: rona yang serupa didekatkan (hingga 4 keluarga). Ini memudahkan penggabungan secara manual."],"hi":["रंग-वृत्तों को रंग-परिवार के अनुसार क्रम में रखें","केवल प्रदर्शन: मिलते-जुलते रंग पास-पास आ जाते हैं (अधिकतम 4 परिवार)। इससे हाथ से मिलाना आसान होता है।"],"ar":["ترتيب دوائر الألوان حسب العائلة اللونية","للعرض فقط: تتجاور درجات الألوان المتشابهة (حتى 4 عائلات). يسهّل ذلك الدمج اليدوي."],"he":["סידור עיגולי הצבע לפי משפחות צבעים","תצוגה בלבד: גוונים דומים מוצבים זה לצד זה (עד 4 משפחות). הדבר מקל על מיזוג ידני."],"fa":["چیدن دایره‌های رنگ بر اساس خانوادهٔ رنگ","فقط نمایش: فام‌های مشابه کنار هم قرار می‌گیرند (تا ۴ خانواده). این کار ادغام دستی را آسان‌تر می‌کند."]});
+  /* VT-R30-KANTEN-20261014: «Kanten glätten» im Umriss-Nachzeichner (31 Sprachen). */
+  (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(
+    ["Kanten glätten","Glättet die Pixeltreppen der Kontur. Die Stärke stellt der Regler «Pfadglättung» direkt darunter ein."],
+    {"en":["Smooth edges","Smooths the pixel steps of the outline. The “Path smoothing” slider directly below sets the strength."],"fr":["Lisser les contours","Lisse les marches de pixels du contour. Le curseur « Lissage des chemins », juste en dessous, règle l’intensité."],"it":["Leviga i bordi","Leviga i gradini di pixel del contorno. Il cursore «Levigatura tracciati», subito sotto, regola l’intensità."],"es":["Suavizar los bordes","Suaviza los escalones de píxeles del contorno. El control «Suavizado de trazados», justo debajo, ajusta la intensidad."],"pt":["Suavizar os contornos","Suaviza os degraus de pixels do contorno. O controle “Suavização de caminhos”, logo abaixo, ajusta a intensidade."],"nl":["Randen gladmaken","Maakt de pixeltrapjes van de omtrek glad. De schuifregelaar ‘Padvergladding’ direct eronder stelt de sterkte in."],"pl":["Wygładź krawędzie","Wygładza schodki pikseli na konturze. Siłę ustawia suwak „Wygładzanie ścieżek” tuż poniżej."],"cs":["Vyhladit hrany","Vyhladí pixelové schody obrysu. Sílu nastavuje posuvník „Vyhlazení cest“ přímo pod ním."],"sk":["Vyhladiť hrany","Vyhladí pixelové schody obrysu. Silu nastavuje posúvač „Vyhladenie cesty“ priamo pod ním."],"ro":["Netezește marginile","Netezește treptele de pixeli ale conturului. Intensitatea se reglează cu glisorul „Netezire traseu”, chiar dedesubt."],"hu":["Élek simítása","Kisimítja a körvonal képpontlépcsőit. Az erősséget a közvetlenül alatta lévő „Útvonalsimítás” csúszka állítja."],"el":["Εξομάλυνση ακμών","Εξομαλύνει τα σκαλοπάτια εικονοστοιχείων του περιγράμματος. Την ένταση ρυθμίζει το ρυθμιστικό «Εξομάλυνση διαδρομής» ακριβώς από κάτω."],"sv":["Jämna ut kanter","Jämnar ut konturens pixeltrappor. Reglaget ”Banutjämning” direkt nedanför ställer in styrkan."],"da":["Udjævn kanter","Udjævner omridsets pixeltrapper. Skyderen “Stiudglatning” lige nedenfor indstiller styrken."],"no":["Jevn ut kanter","Jevner ut pikseltrappene i konturen. Glidebryteren «Baneutjevning» rett under stiller inn styrken."],"fi":["Pehmennä reunat","Pehmentää ääriviivan pikseliportaat. Voimakkuutta säädetään suoraan alla olevalla ”Polun pehmennys” -liukusäätimellä."],"ca":["Suavitzar les vores","Suavitza els esglaons de píxels del contorn. El control «Suavitzat de traçat», just a sota, ajusta la intensitat."],"tr":["Kenarları yumuşat","Dış hattaki piksel basamaklarını yumuşatır. Gücü hemen altındaki “Yol yumuşatma” kaydırıcısı ayarlar."],"ru":["Сгладить края","Сглаживает пиксельные ступеньки контура. Силу задаёт ползунок «Сглаживание контуров» прямо под ним."],"uk":["Згладити краї","Згладжує піксельні сходинки контуру. Силу задає повзунок «Згладжування контурів» безпосередньо під ним."],"bg":["Изглади ръбовете","Изглажда пикселните стъпала на контура. Силата се задава с плъзгача „Изглаждане на пътеката“ точно под него."],"zh":["平滑边缘","平滑轮廓上的像素阶梯。强度由正下方的“路径平滑”滑块调整。"],"ja":["エッジを滑らかにする","輪郭のピクセル段差を滑らかにします。強さはすぐ下の「パスのスムージング」スライダーで調整します。"],"ko":["가장자리 부드럽게","윤곽선의 픽셀 계단을 부드럽게 합니다. 강도는 바로 아래의 ‘경로 평활화’ 슬라이더로 조정합니다."],"vi":["Làm mượt cạnh","Làm mượt các bậc thang điểm ảnh của đường viền. Thanh trượt “Làm mượt đường” ngay bên dưới điều chỉnh độ mạnh."],"th":["ทำให้ขอบเรียบ","ทำให้ขั้นบันไดพิกเซลของเส้นขอบเรียบขึ้น ปรับความแรงได้ด้วยแถบเลื่อน “การทำเส้นให้เรียบ” ที่อยู่ด้านล่าง"],"id":["Haluskan tepi","Menghaluskan anak tangga piksel pada garis luar. Kekuatannya diatur dengan penggeser “Penghalusan jalur” tepat di bawahnya."],"hi":["किनारे चिकने करें","रूपरेखा की पिक्सेल सीढ़ियों को चिकना करता है। तीव्रता ठीक नीचे दिए “पथ समतलन” स्लाइडर से समायोजित करें।"],"ar":["تنعيم الحواف","ينعّم درجات البكسل في المخطط. يضبط شريط التمرير «تنعيم المسار» الموجود أسفله مباشرة الشدة."],"he":["החלק קצוות","מחליק את מדרגות הפיקסלים של המתאר. את העוצמה קובע המחוון „החלקת נתיב” שמתחתיו."],"fa":["صاف کردن لبه‌ها","پله‌های پیکسلی طرح کلی را صاف می‌کند. شدت با لغزنده «صاف‌سازی مسیر» درست در زیر آن تنظیم می‌شود."]});
   Object.keys(VT_RELEASE_CATALOG).forEach(function(key){Object.keys(VT_RELEASE_CATALOG[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=VT_RELEASE_CATALOG[key][lang];});});
   /* Keep the existing translated label; the file shortcut is language-neutral. */
   Object.keys(DICT).forEach(function(lang){if(DICT[lang]['SVG kopieren'])DICT[lang]['SVG kopieren · Ctrl/⌘+Shift+C → .svg']=DICT[lang]['SVG kopieren']+' · Ctrl/⌘+Shift+C → .svg';});
@@ -58256,6 +58640,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-14', t:'VT-20261014-local-r30', c:null},
     {d:'2026-10-12', t:'VT-20261012-local-r29', c:null},
     {d:'2026-10-11', t:'VT-20261011-local-r28', c:null},
     {d:'2026-10-05', t:'VT-20261005-local-r27', c:null},
