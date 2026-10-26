@@ -10,10 +10,16 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 14 October 2026 release uses the tested `VT-20261014-local-r30` build
+The 26 October 2026 release uses the tested `VT-20261019-local-r31` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `dc861e0c54623fa6ca8b3c92185380ce15805cfbc3babb2af2b9793b2a70e0ff`).
-r30 makes the paint bucket cover the clicked area completely (no fringe of the
+to the tested file; SHA-256 `b499d655ddd24b348b5d107cbe7ec7feabfba598919b6be57d0395aa38251ade`).
+r31 reworks fill-stitch routing: rows at sharp corners reach the edge again,
+travel runs just inside the outline instead of on it, stitches that graze an
+inward-curved edge are bent inward instead of being cut into chains of short
+jumps, and the underlay leads into the fill without a trim. For a traced gecko
+this reduces jumps in the needle points from 260 to 49 and trims from 3 to 1.
+The pattern generator starts with "Fill canvas" and keeps a free gap between
+scale arcs. r30 made the paint bucket cover the clicked area completely (no fringe of the
 old colour, fill placed below the lines and reaching to their middle), adds
 a "Smooth edges" switch with its slider to outline tracing, keeps the tracer
 preview zoom while adjusting, and shows colour groups in a second column. r29
@@ -30,7 +36,9 @@ translated in all languages. See the changelog for scope and limitations.
 The releases were tested in isolated Chrome, Firefox and WebKit profiles with
 actual saved browser downloads and independent machine-file decoding. Every
 embroidery file that r27 produced in these tests is byte-identical, apart from
-the corrected Gecko path-text overflow cases; r29 output is byte-identical to r28. These are targeted repair checks,
+the corrected Gecko path-text overflow cases; r29 and r30 output is byte-identical
+to r28. r31 changes fill routing on purpose; its files were compared with r30 by
+coverage, stitches outside the shape, jumps, trims and short stitches. These are targeted repair checks,
 not exhaustive browser or machine certification.
 Direct paste into the tested macOS Inkscape 1.2.1 remains unsuccessful; selected
 artwork can instead be saved with Ctrl/Cmd+Shift+C for SVG file import.

@@ -1,5 +1,42 @@
 # Changelog
 
+## 26 October 2026 — r31
+
+Release build `VT-20261019-local-r31`, byte-identical to the tested local file
+(SHA-256 `b499d655ddd24b348b5d107cbe7ec7feabfba598919b6be57d0395aa38251ade`).
+Fill-stitch routing at sharp corners and along inward-curved edges, and pattern
+generator defaults and scale spacing, on top of r30. The stitch cache version
+changes from 253 to 254, so existing designs are recalculated once.
+
+- Fill stitch: rows at sharp corners reach the edge again. Where the return travel along the edge passed the row ends, the removal of stacked needle penetrations dropped the row ends instead of the travel points. The row then stopped at its last interior stitch and a long diagonal stitch led to the next row (for example at star points). Travel points next to a row end are now dropped, or placed into the same hole.
+- Fill stitch: travel along the outline runs 0.35 mm inside it in steps of at most 1.2 mm, instead of exactly on it at every outline vertex. On inward-curved stretches (toes, legs, holes, the inside of curls) every chord between two outline points lay slightly outside, and the final material check cut it into chains of short jumps. Each of them is a machine stop with the needle up, which made stitching slow and loud and added many stitches under 1 mm at the edge.
+- Fill stitch: a stitch whose ends lie inside the shape but which runs slightly outside in between is now bent inward by at most 0.6 mm (one or two bend points, checked exactly against the outline) before the material check falls back to a jump. No stitch leaves the shape.
+- Fill stitch: the transition from underlay to fill is a travel inside the shape, hidden by the fill that follows, instead of a jump that was trimmed from 5 mm. The connection mode "Jumps" keeps trimmed jumps by design.
+- Pattern generator: start with "Fill canvas (10 mm margin)"; "Reset" returns to it.
+- Pattern generator, scales: "Spacing" is the free gap between the walls of neighbouring arcs, within a row and to the next row, and the line width no longer closes it. Arcs no longer touch at a spacing above 0 %; at 0 % they meet as before.
+
+Verification on the final file in isolated Chrome, Firefox and WebKit profiles:
+a new routing test (five-pointed star and the reported traced gecko SVG, default
+settings and "Jumps" mode) passed 8 checks per engine. Every sewn stretch was
+checked every 0.1 mm against the curve geometry of its shape: nothing lies more
+than 0.05 mm outside. For the gecko, r30 → r31: jumps in the needle points
+260 → 49, short jumps in the DST 95 → 29, trims 3 → 1, stitches under 1 mm
+2015 → 1296; the star has no cut-off row ends (r30: 3). The pattern generator
+test passed 15 checks per engine (spacing measured on the inserted shapes). The
+ten public motifs produced the same 18 of 20 DST/PES pairs per engine with no
+loss of coverage and nothing additionally outside; jump records fell by about
+20 % and stitches under 0.5 mm by about 25 %, while trims stayed equal in total
+(+0 to +3 out of 11 600 to 13 200; single photo motifs up to +5). The paint
+bucket, tracer, Gecko, catalogue, camera, satin-text, paint-server, import and
+language checks were repeated without deviation.
+
+Limits: the embroidery files are no longer byte-identical to r30. The underlay
+still changes from line to line along the outline, also around toes; that travel
+is hidden by the fill but takes time, and a route through the interior would be
+a separate change. Bending moves single connector or row stitches up to 0.6 mm
+inward. The "Jumps" connection mode still trims every transition. Physical
+machine trials are pending.
+
 ## 14 October 2026 — r30
 
 Release build `VT-20261014-local-r30`, byte-identical to the tested local file

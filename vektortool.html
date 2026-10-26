@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261014-local-r30 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261019-local-r31 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35251,7 +35251,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 253; /* Rebuild after the r28 path-text overflow repair (hidden glyphs in Gecko). */
+var _STITCH_CACHE_VERSION = 254; /* Rebuild after the r31 fill tip repair (row ends no longer dropped next to edge travel). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -38828,6 +38828,30 @@ function _vtFillOutlineSampleIndex(outline) {
   }
   cached={starts:starts,tree:build(points)};window._vtFillOutlineSampleCache.set(outline,cached);return cached;
 }
+/* [r31] Reisestiche entlang der Kontur lagen genau AUF der Kontur. Wo sie nach innen gewölbt
+   ist (Zehen, Beinansätze, Spitzen), lief jede Sehne zweier Konturpunkte minimal ausserhalb.
+   Die Schlussprüfung (keine Aussenstiche) machte daraus Ketten von Mini-Sprüngen. Die Maschine
+   stoppt bei jedem, fährt mit Nadel oben und wird langsam und laut (Lukas 2026-10-26, Gecko).
+   Darum jeden Reisepunkt um 0.35 mm nach innen versetzen (bei schmalen Stellen 0.175 mm,
+   sonst unverändert). Innen ist die Seite, auf der genau eine der beiden Proben in der Form
+   liegt. keepLast: Zielpunkt bleibt exakt. */
+function _fillTravelInset(shape, geom, pts, keepLast) {
+  if (!shape || !geom || !geom.outline || !pts || pts.length < 2) return pts;
+  var hasSVG = !!(geom.hasSVGPath && _setupFillPath(shape)), d = _mm2px(0.35), out = [];
+  function ins(x, y) { return _fillPointInsideShape(shape, x, y, hasSVG, geom.outline, geom.nEdges); }
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i], a = pts[i - 1] || p, b = pts[i + 1] || p, tx = b.x - a.x, ty = b.y - a.y, tl = Math.hypot(tx, ty), q = null;
+    if (!(keepLast && i === pts.length - 1) && !p.jump && tl > 1e-9) {
+      var nx = -ty / tl, ny = tx / tl;
+      for (var k = 0; k < 2 && !q; k++) {
+        var dd = k ? d / 2 : d, ip = ins(p.x + nx * dd, p.y + ny * dd), im = ins(p.x - nx * dd, p.y - ny * dd);
+        if (ip !== im) q = ip ? { x: p.x + nx * dd, y: p.y + ny * dd } : { x: p.x - nx * dd, y: p.y - ny * dd };
+      }
+    }
+    out.push(q ? Object.assign({}, p, q) : p);
+  }
+  return out;
+}
 function _outlineTravelStitches(shape, fromPt, toPt, resolvedGeometry) {
   var geom = resolvedGeometry;
   try { if (!geom) geom = _stitchResolveFillGeometry(shape); } catch(e) { return null; }
@@ -38969,7 +38993,7 @@ function _outlineTravelStitches(shape, fromPt, toPt, resolvedGeometry) {
   } else {
     pts.push({ x: toPt.x, y: toPt.y });
   }
-  return pts;
+  return _fillTravelInset(shape, geom, pts, true); /* [r31] */
 }
 
 /* ── Strategy: EULERIAN AUTO-FILL ──────────────────────────────────────────
@@ -40380,24 +40404,47 @@ function _thinShortStitches(pts, minPx) {
    nur, wenn das Überspringen keinen langen Stich erzeugt (Schutz gegen Lücken, damit
    Travels/Reihen nicht zerrissen werden). minPx unter dem Reihenabstand → der
    normale Füll-Raster bleibt unangetastet. */
-function _thinSpatialStacking(pts, minPx, maxJoinPx) {
+/* [r31] transit (optional, Set der Rücklauf-Stiche): Ein Rücklauf entlang der Kante sticht
+   genau dort ein, wo die Reihen enden. Bisher kam er in der Stichfolge zuerst und verdrängte
+   die Rand-Anker der Reihen. Die Reihe endete dann am letzten Gitterstich, und ein langer
+   Schrägstich lief zur nächsten Reihe (Sternspitzen, Lukas 2026-10-26). Jetzt zählen für
+   Reihenpunkte nur behaltene Reihenpunkte. Ein Rücklaufpunkt neben einem Reihenpunkt
+   (auch einem späteren) entfällt, wenn das sicher geht, sonst sticht er ins selbe Loch.
+   Ohne transit (oder leer) arbeitet die Funktion wie bisher. */
+function _thinSpatialStacking(pts, minPx, maxJoinPx, transit) {
   if (!pts || pts.length < 3 || minPx <= 0) return pts;
-  var cell = minPx, grid = {};
-  function near(x, y, d) {
-    var dd = d || minPx;
+  var cell = minPx, grid = {}, tgrid = {}, rowGrid = null;
+  function nearIn(g, x, y, dd) {
     var cx = Math.round(x / cell), cy = Math.round(y / cell);
     for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) {
-      var arr = grid[(cx + dx) + ',' + (cy + dy)];
+      var arr = g[(cx + dx) + ',' + (cy + dy)];
       if (!arr) continue;
-      for (var i = 0; i < arr.length; i++) { if (Math.hypot(arr[i][0] - x, arr[i][1] - y) < dd) return true; }
+      for (var i = 0; i < arr.length; i++) { if (Math.hypot(arr[i][0] - x, arr[i][1] - y) < dd) return arr[i]; }
     }
-    return false;
+    return null;
   }
-  function add(x, y) { var k = Math.round(x / cell) + ',' + Math.round(y / cell); (grid[k] = grid[k] || []).push([x, y]); }
+  function near(x, y, d) { return !!nearIn(grid, x, y, d || minPx); }
+  function addTo(g, x, y) { var k = Math.round(x / cell) + ',' + Math.round(y / cell); (g[k] = g[k] || []).push([x, y]); }
+  function add(x, y) { addTo(grid, x, y); }
+  function isT(q) { return !!(rowGrid && transit.has(q)); }
+  if (transit && transit.size) {
+    rowGrid = {};
+    for (var ri = 0; ri < pts.length; ri++) if (!pts[ri].jump && !transit.has(pts[ri])) addTo(rowGrid, pts[ri].x, pts[ri].y);
+  }
   var out = [];
   for (var i = 0; i < pts.length; i++) {
     var p = pts[i];
-    if (p.jump || i === 0 || i === pts.length - 1) { out.push(p); add(p.x, p.y); continue; }
+    if (p.jump || i === 0 || i === pts.length - 1) { out.push(p); if (isT(p)) addTo(tgrid, p.x, p.y); else add(p.x, p.y); continue; }
+    if (isT(p)) {
+      var hit = nearIn(rowGrid, p.x, p.y, minPx), stacked = hit || nearIn(grid, p.x, p.y, minPx) || nearIn(tgrid, p.x, p.y, minPx);
+      var lastT = out[out.length - 1], nxtT = pts[i + 1];
+      if (stacked && lastT && !lastT.jump && !nxtT.jump && Math.hypot(nxtT.x - lastT.x, nxtT.y - lastT.y) < maxJoinPx) continue; /* gestapelt + sicher überspringbar */
+      if (hit) {
+        if (lastT && Math.hypot(lastT.x - hit[0], lastT.y - hit[1]) < 1e-6) continue;
+        out.push(Object.assign({}, p, { x: hit[0], y: hit[1] })); continue; /* selbes Loch wie das Reihenende */
+      }
+      out.push(p); addTo(tgrid, p.x, p.y); continue;
+    }
     /* Rand-Anker (_edge) nur bei ECHTER Stapelung (≈0.12mm, Spitzen) ausdünnen,
        nicht bei normalem dichten Raster — sonst verliert die Reihe ihren Rand-Stich. */
     if (near(p.x, p.y, p._edge ? minPx * 0.45 : minPx)) {
@@ -40596,7 +40643,7 @@ function _fillRerouteOutsideJumps(shape, pts, hasSVGPath, outline, nEdges) {
        kleinen Einsprung-Dreiecke. _travel-Punkte naeht der Aufrufer als
        Stiche statt als Sprungkette. */
     try {
-      var _bArc = _fillBoundaryArc({ x: prev.x, y: prev.y }, { x: p.x, y: p.y }, outline, _mm2px(2.5));
+      var _bArc = _fillBoundaryArc({ x: prev.x, y: prev.y }, { x: p.x, y: p.y }, outline, _mm2px(2.5), shape, { outline: outline, hasSVGPath: hasSVGPath, nEdges: nEdges });
       if (_bArc && _bArc.length) {
         var _bl = 0, _bx = prev.x, _by = prev.y;
         for (var _bi = 0; _bi < _bArc.length; _bi++) { _bl += Math.hypot(_bArc[_bi].x - _bx, _bArc[_bi].y - _by); _bx = _bArc[_bi].x; _by = _bArc[_bi].y; }
@@ -40889,7 +40936,10 @@ function _fillStraightStitches(p1, p2, maxStepPx) {
 
 /* Reiseweg entlang der Form-Kante (kürzerer Bogen, ein Ring) als Stiche, oder
    null wenn die Endpunkte nicht nahe genug an EINEM Outline-Ring liegen. */
-function _fillBoundaryArc(from, to, outline, maxStepPx) {
+/* [r31] shape/geom (optional): Bogen in gleichmässigen Schritten (höchstens 1.2 mm) statt an jedem
+   Konturpunkt (dort 0.2 bis 0.6 mm: viele Mikro-Stiche am Rand) und mit _fillTravelInset nach innen
+   versetzt. Ohne shape wie bisher (Spiralfüllung). Der letzte Punkt bleibt der Konturpunkt beim Ziel. */
+function _fillBoundaryArc(from, to, outline, maxStepPx, shape, geom) {
   if (!outline || outline.length < 4) return null;
   function nearest(pt) { var bi = -1, bd = Infinity; for (var i = 0; i < outline.length; i++) { var dx = outline[i].x - pt.x, dy = outline[i].y - pt.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; bi = i; } } return { idx: bi, dist: Math.sqrt(bd) }; }
   var a = nearest(from), b = nearest(to);
@@ -40901,6 +40951,19 @@ function _fillBoundaryArc(from, to, outline, maxStepPx) {
   function plen(pts) { if (!pts || !pts.length) return Infinity; var L = 0, px = from.x, py = from.y; for (var i = 0; i < pts.length; i++) { L += Math.hypot(pts[i].x - px, pts[i].y - py); px = pts[i].x; py = pts[i].y; } return L; }
   var chosen = (plen(fwd) <= plen(bwd)) ? fwd : bwd;
   if (!chosen || !chosen.length) return null;
+  if (shape && geom) {
+    var stepR = Math.min(maxStepPx, _mm2px(1.2)), res = [], acc = 0, qx = from.x, qy = from.y;
+    for (var kr = 0; kr < chosen.length; kr++) {
+      var vx = chosen[kr].x, vy = chosen[kr].y, sl = Math.hypot(vx - qx, vy - qy), w = 0;
+      if (sl < 1e-9) continue;
+      while (sl - w >= stepR - acc) { w += stepR - acc; acc = 0; res.push({ x: qx + (vx - qx) * w / sl, y: qy + (vy - qy) * w / sl }); }
+      acc += sl - w; qx = vx; qy = vy;
+    }
+    var lastV = chosen[chosen.length - 1];
+    if (res.length && Math.hypot(res[res.length - 1].x - lastV.x, res[res.length - 1].y - lastV.y) <= _mm2px(0.6)) res.pop();
+    res.push({ x: lastV.x, y: lastV.y });
+    return _fillTravelInset(shape, geom, res, true);
+  }
   var out = [], px = from.x, py = from.y;
   for (var k = 0; k < chosen.length; k++) { var seg = _fillStraightStitches({ x: px, y: py }, chosen[k], maxStepPx); for (var s = 0; s < seg.length; s++) out.push(seg[s]); px = chosen[k].x; py = chosen[k].y; }
   return out;
@@ -40933,7 +40996,7 @@ function _fillJumpsToTravel(shape, pts, geom, maxStepPx) {
          Umfang) bleibt der getrimmte Sprung. */
       if (dist > _mm2px(18)) {
         if (_fcL === 'travel' && geom && geom.outline) {
-          var baL = _fillBoundaryArc(from, p, geom.outline, maxStepPx);
+          var baL = _fillBoundaryArc(from, p, geom.outline, maxStepPx, shape, geom);
           if (baL && baL.length) {
             var arcLen = 0, qx = from.x, qy = from.y;
             for (var aq = 0; aq < baL.length; aq++) { arcLen += Math.hypot(baL[aq].x - qx, baL[aq].y - qy); qx = baL[aq].x; qy = baL[aq].y; }
@@ -40947,7 +41010,7 @@ function _fillJumpsToTravel(shape, pts, geom, maxStepPx) {
         for (var u = 0; u < us.length; u++) out.push(us[u]);
         converted++;
       } else {
-        var ba = _fillBoundaryArc(from, p, geom.outline, maxStepPx);
+        var ba = _fillBoundaryArc(from, p, geom.outline, maxStepPx, shape, geom);
         if (ba && ba.length) { for (var a2 = 0; a2 < ba.length; a2++) out.push(ba[a2]); converted++; }
         else out.push({ x: p.x, y: p.y, jump: true });
       }
@@ -42216,6 +42279,44 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     return evenodd?parity:winding!==0;
   }
   var out=[pts[0]],changed=0,outsideCount=0,clippedMM=0,longCount=0,checks=0;
+  /* [r31] Ein Stich, dessen Enden im Material liegen, der aber dazwischen knapp ausserhalb läuft
+     (Verbinder an nach innen gewölbten Kanten, ausgedünnte Konturwege), wurde bisher in Stücke
+     mit Sprüngen zerlegt: Die Maschine stoppt bei jedem, fährt mit Nadel oben, langsam und laut.
+     Jetzt wird er zuerst um höchstens 0.6 mm nach innen gebogen (ein oder zwei Knickpunkte).
+     segInside prüft jede Teilstrecke exakt wie unten (Schnittpunkte mit der Kontur, Mitte jedes
+     Abschnitts innen). Gelingt das nicht, bleibt es beim Sprung. */
+  function segInside(ax,ay,bx,by){
+    var sdx=bx-ax,sdy=by-ay,sL=Math.hypot(sdx,sdy);if(sL<epsilon)return inside(ax,ay);
+    var cs=[0,1],sn=new Set(),slx=Math.floor(Math.min(ax,bx)/cell),srx=Math.floor(Math.max(ax,bx)/cell),sty=Math.floor(Math.min(ay,by)/cell),sby=Math.floor(Math.max(ay,by)/cell);
+    for(var sgy=sty;sgy<=sby;sgy++)for(var sgx=slx;sgx<=srx;sgx++){
+      var cand=grid.get(sgx+','+sgy)||[];
+      for(var sj=0;sj<cand.length;sj++){
+        var sei=cand[sj];if(sn.has(sei))continue;sn.add(sei);
+        if(++checks>20000000)throw new Error('Materialprüfung überschreitet die sichere Arbeitsgrenze. Motiv aufteilen oder vereinfachen.');
+        var se=edges[sei],sex=se.b.x-se.a.x,sey=se.b.y-se.a.y,sden=sdx*sey-sdy*sex;
+        if(Math.abs(sden)>1e-12){var st=((se.a.x-ax)*sey-(se.a.y-ay)*sex)/sden,su=((se.a.x-ax)*sdy-(se.a.y-ay)*sdx)/sden;if(st>0&&st<1&&su>=-epsilon&&su<=1+epsilon)cs.push(st);}
+        else if(Math.abs((se.a.x-ax)*sdy-(se.a.y-ay)*sdx)<=epsilon*sL){var sll=sL*sL,st0=((se.a.x-ax)*sdx+(se.a.y-ay)*sdy)/sll,st1=((se.b.x-ax)*sdx+(se.b.y-ay)*sdy)/sll;if(st0>0&&st0<1)cs.push(st0);if(st1>0&&st1<1)cs.push(st1);}
+      }
+    }
+    cs.sort(function(a,b){return a-b;});
+    for(var sk=1;sk<cs.length;sk++){var slo=cs[sk-1],shi=cs[sk];if(shi-slo<1e-12)continue;var sm=(slo+shi)/2;if(!inside(ax+sdx*sm,ay+sdy*sm))return false;}
+    return true;
+  }
+  function bendInside(q,p){
+    if(!inside(q.x,q.y)||!inside(p.x,p.y))return null;
+    var bdx=p.x-q.x,bdy=p.y-q.y,bL=Math.hypot(bdx,bdy);if(bL<epsilon)return null;
+    var bnx=-bdy/bL,bny=bdx/bL,offs=[0.1,0.2,0.3,0.45,0.6];
+    for(var boi=0;boi<offs.length;boi++){
+      var bd=_mm2px(offs[boi]);
+      for(var bs=-1;bs<=1;bs+=2){
+        var b0={x:q.x+bdx*0.5+bnx*bd*bs,y:q.y+bdy*0.5+bny*bd*bs};
+        if(inside(b0.x,b0.y)&&segInside(q.x,q.y,b0.x,b0.y)&&segInside(b0.x,b0.y,p.x,p.y))return [b0];
+        var b1={x:q.x+bdx/3+bnx*bd*bs,y:q.y+bdy/3+bny*bd*bs},b2={x:q.x+bdx*2/3+bnx*bd*bs,y:q.y+bdy*2/3+bny*bd*bs};
+        if(inside(b1.x,b1.y)&&inside(b2.x,b2.y)&&segInside(q.x,q.y,b1.x,b1.y)&&segInside(b1.x,b1.y,b2.x,b2.y)&&segInside(b2.x,b2.y,p.x,p.y))return [b1,b2];
+      }
+    }
+    return null;
+  }
   for(var pi=1;pi<pts.length;pi++){
     if(pi%256===0)yield 'material-segments';
     var p=pts[pi],q=pts[pi-1];
@@ -42250,6 +42351,8 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
       if(!material)bad=true;
     }
     if(!bad){out.push(p);continue;}
+    var bent=len<=_mm2px(6)?bendInside(q,p):null; /* [r31] */
+    if(bent){for(var bi=0;bi<bent.length;bi++)out.push(bent[bi]);out.push(p);changed++;continue;}
     changed++;
     for(var ci=0;ci<intervals.length;ci++){
       var part=intervals[ci],atEnd=part.hi>=1-1e-12;
@@ -42463,9 +42566,11 @@ function* _calcFillStitchSteps(shape, opts) {
     }
     /* Row identity is transient routing data, not project/cache content.
        Main fill and underlay both pass here after the final row consumer. */
+    var _fillTransitPts = new Set(); /* [r31] Rücklauf-Stiche für die Entstapelung merken (Markierung wird gleich gelöscht) */
     for (var _dcClean = 0; _dcClean < pts.length; _dcClean++) {
       if (_dcClean && _dcClean % 1024 === 0) yield 'fill-row-cleanup';
       var _dcPoint = pts[_dcClean];
+      if (_dcPoint._fillTransit) _fillTransitPts.add(_dcPoint);
       if (_dcPoint._fillRowId != null || _dcPoint._fillTransit) {
         delete _dcPoint._fillRowId; delete _dcPoint._fillScanRow;
         delete _dcPoint._fillRowStart; delete _dcPoint._fillRowEnd; delete _dcPoint._fillTransit;
@@ -42475,7 +42580,7 @@ function* _calcFillStitchSteps(shape, opts) {
     yield 'fill-routing';
     pts = _thinShortStitches(pts, _mm2px(Math.max(0.35, minMM)));
     var rsMM = (opts && isFinite(opts.rowSpacing)) ? opts.rowSpacing : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.rowSpacing)) ? shape.stitch.params.rowSpacing : FILL_ROWSPACING_FALLBACK_MM); /* [VT-STITCH-F8 v1] war 0.4 */
-    pts = _thinSpatialStacking(pts, _mm2px(Math.min(0.3, rsMM * 0.75)), _mm2px(2.5));
+    pts = _thinSpatialStacking(pts, _mm2px(Math.min(0.3, rsMM * 0.75)), _mm2px(2.5), _fillTransitPts);
     yield 'fill-thinning';
     /* Aussen-Linien (über Kerben) durch die Form-Mitte umleiten — VOR dem Jump-Cap,
        damit dieser auch die evtl. langen Reroute-Stiche abfängt. */
@@ -43164,7 +43269,14 @@ function _withFillUnderlayJoin(shape, mainPts, underlayPts) {
   var first = mn[0];
   var last = out[out.length - 1];
   if (last && Math.hypot(first.x - last.x, first.y - last.y) > 0.05) {
-    out.push({ x: first.x, y: first.y, jump: true });
+    /* [r31] Unterlage-Ende → Füllungs-Start als Reiseweg innen (die Füllung deckt ihn gleich zu)
+       statt Sprung, der ab 5 mm geschnitten wird. _fillJumpsToTravel lässt den Sprung im Modus
+       «Sprünge», über 18 mm und wenn kein Innenweg existiert unverändert. */
+    var _ulJoin = [last, { x: first.x, y: first.y, jump: true }];
+    try { var _ulGeom = _stitchResolveFillGeometry(shape); if (_ulGeom && _ulGeom.outline) _ulJoin = _fillJumpsToTravel(shape, _ulJoin, _ulGeom, _mm2px(2)); } catch (eulj) { console.warn('[vt:swallowed]', eulj); }
+    for (var _uj = 1; _uj < _ulJoin.length; _uj++) out.push(_ulJoin[_uj]);
+    var _ujl = out[out.length - 1];
+    if (!_ujl.jump && Math.hypot(_ujl.x - first.x, _ujl.y - first.y) < 1e-6) out.pop();
   }
   for (var i = 0; i < mn.length; i++) out.push(mn[i]);
   /* vt (2026-06-06): Travel-Trim auf dem FÜLL-Teil (ab Underlay-Ende), NACH der
@@ -51301,7 +51413,7 @@ var G = {
   pat: 'twist', alternate: false, minGap: 0, wall: 0.8, seed: 42, canvasFill: true, w: 150, h: 150, n: 8, elSc: 100, gap: 14, amp: 160, /* [gen3d-defaults v1] Start: Miura, Canvas füllen; [gen3d-dichte v1] Start n=20/amp=400; [gap-default-vis v1] Start-Abstand 18% (auch dichte/Mehrfach-Facetten-Muster zeigen klar Abstand) */
   rA: 0, rB: 0, sc: 100, fill: false, invert: true, border: false, mirror: false
 };
-Object.assign(G,{pat:'miura',minGap:1,canvasFill:false,w:130,h:130,n:16,amp:200,gap:8});
+Object.assign(G,{pat:'miura',minGap:1,canvasFill:true,w:130,h:130,n:16,amp:200,gap:8}); /* [r31] Start (und «Zurücksetzen») mit «Canvas füllen», Rand 10 mm */
 var DEF = _vtDeepClone(G);
 var open = false;
 
@@ -51915,16 +52027,26 @@ function genPaths() {
          Geometrie wird so gewählt, dass sich keine Bögen schneiden:
          – Horizontal: rad ≤ dx/2, damit Same-Row-Schuppen sich höchstens
            an den Endpunkten berühren.
-         – Vertikal: dyS = scaleH (Apex von Reihe r+1 sitzt exakt auf dem
-           Endpunkt von Reihe r → tangentialer Kontakt, kein Crossing).
-         cellEs skaliert nur nach unten (Lücken zwischen Schuppen), nicht
-         über 100 %, damit die nicht-schneidende Geometrie erhalten bleibt.
+         – Vertikal: dyS = scaleH (bei Abstand 0 sitzt der Apex von Reihe r+1
+           exakt auf dem Endpunkt von Reihe r → tangentialer Kontakt, kein Crossing).
+         Die Elementgrösse skaliert nur nach unten (Lücken zwischen Schuppen),
+         nicht über 100 %, damit die nicht-schneidende Geometrie erhalten bleibt.
          Ungerade Reihen sind um dx/2 versetzt und enthalten am Rand je
          eine halbe Schuppe (geclippt), damit die Fläche bündig gefüllt wird. */
       var c = n, dx = we / c;
-      var rad = (dx / 2) * Math.min(1, cellEs);
+      /* [r31] Abstand = freie Lücke zwischen den Wänden benachbarter Bögen,
+         in der Reihe UND zur nächsten Reihe: Kein Bogen berührt einen anderen.
+         Bisher verkleinerte der Abstand nur den Bogen. Die Füsse standen weiter
+         auf dem Bogen der nächsten Reihe, und bei kleinen Zellen schloss die
+         Linienbreite auch die Lücke in der Reihe. Abstand 0 % lässt die Bögen
+         wie bisher aneinanderstossen. wallU = Linienbreite in Musterkoordinaten
+         (die Skalierung vergrössert das Muster, nicht die Linienbreite). */
+      var wallU = Math.max(0.2, G.wall == null ? 0.8 : G.wall) / Math.max(0.01, (G.sc || 100) / 100);
+      var clearS = gp * 1.5 * dx;
+      var rad = (dx / 2) * Math.min(1, es);
+      if (gp > 0) rad = Math.max(dx * 0.05, Math.min(rad, (dx - wallU - clearS) / 2));
       var scaleH = rad * 1.3;
-      var dyS = scaleH;
+      var dyS = scaleH + (gp > 0 ? clearS + wallU / 2 : 0);
       var numRows = Math.max(2, Math.floor(he / dyS));
       if (numRows > 100) { numRows = 100; dyS = he / numRows; } /* [muster-audit v1] Freeze-Guard: kleines Element machte dyS winzig (~19'000 Bögen); Kappe + dyS nachziehen deckt weiter die volle Höhe */
       for (var ri = 0; ri < numRows; ri++) {
@@ -58640,6 +58762,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-19', t:'VT-20261019-local-r31', c:null},
     {d:'2026-10-14', t:'VT-20261014-local-r30', c:null},
     {d:'2026-10-12', t:'VT-20261012-local-r29', c:null},
     {d:'2026-10-11', t:'VT-20261011-local-r28', c:null},
