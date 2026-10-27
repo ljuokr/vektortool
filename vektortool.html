@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261019-local-r31 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261027-local-r37 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35251,7 +35251,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 254; /* Rebuild after the r31 fill tip repair (row ends no longer dropped next to edge travel). */
+var _STITCH_CACHE_VERSION = 260; /* Rebuild after r37: satin columns from cross-sections (K13). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -37395,7 +37395,7 @@ function _stitchTextToPathD(shape) {
   if (!shape || shape.type !== 'text' || !shape.text) return '';
   if (shape.onPath && shape.pathId) return _stitchTextOnPathToD(shape);
   var l=window._vtTextLayout(shape);
-  var key=JSON.stringify(['text-pixel-edges-v3',l.lines,l.font,l.x,l.y,!!shape.wFixed,l.width,l.height,window._vtFontRevision||0]);
+  var key=JSON.stringify(['text-pixel-edges-v4'+(window._vtTextTreppeOff?'-roh':''),l.lines,l.font,l.x,l.y,!!shape.wFixed,l.width,l.height,window._vtFontRevision||0]);
   if (shape._textPathKey===key && typeof shape._textPathD==='string') return shape._textPathD;
   var spec=_stitchTextRasterSpec(shape,l),scale=spec.scale,pad=spec.pad,scaledFont=spec.scaledFont,tw=spec.tw,th=spec.th;
   var cv=document.createElement('canvas');cv.width=tw;cv.height=th;
@@ -37406,6 +37406,22 @@ function _stitchTextToPathD(shape) {
   var img=ctx.getImageData(0,0,tw,th).data,mask=new Uint8Array(tw*th);
   for(var p=0,idx=0;p<img.length;p+=4,idx++)mask[idx]=(img[p]+img[p+1]+img[p+2])/3<128?1:0;
   var loops=_stitchTextMaskContours(mask,tw,th),d='';
+  /* [r34 K3] Pixeltreppe (Stufe 1/scale px, 0.066 mm) mit 0.05 mm Toleranz zu geraden Kanten vereinfachen
+     (Douglas-Peucker je Ring, Start am Punkt und am weitest entfernten Punkt). Reihenenden und Innenwege folgen
+     dann der Glyphe statt der Treppe. Abweichung zum Pixelumriss hoechstens 0.05 mm. */
+  if(!window._vtTextTreppeOff){
+    var dpTol=_mm2px(0.05)*scale;
+    var dp=function(P,i0,i1,keep){var ax=P[i0][0],ay=P[i0][1],ex=P[i1][0]-ax,ey=P[i1][1]-ay,el=Math.hypot(ex,ey),bi=-1,bd=dpTol;
+      for(var i=i0+1;i<i1;i++){var dd=el>1e-9?Math.abs((P[i][0]-ax)*ey-(P[i][1]-ay)*ex)/el:Math.hypot(P[i][0]-ax,P[i][1]-ay);if(dd>bd){bd=dd;bi=i;}}
+      if(bi>=0){keep[bi]=1;dp(P,i0,bi,keep);dp(P,bi,i1,keep);}};
+    loops=loops.map(function(loop){
+      if(loop.length<8)return loop;
+      var far=0,fd=-1;for(var i=1;i<loop.length;i++){var q=Math.hypot(loop[i][0]-loop[0][0],loop[i][1]-loop[0][1]);if(q>fd){fd=q;far=i;}}
+      var P=loop.concat([loop[0]]),keep=new Uint8Array(P.length);keep[0]=1;keep[far]=1;keep[P.length-1]=1;
+      dp(P,0,far,keep);dp(P,far,P.length-1,keep);
+      var out=[];for(var j=0;j<P.length-1;j++)if(keep[j])out.push(P[j]);
+      return out.length>=3?out:loop;});
+  }
   loops.forEach(function(loop){
     if(loop.length<3)return;
     loop.forEach(function(pt,i){d+=(i?'L':'M')+(l.x+(pt[0]-pad*scale)/scale).toFixed(3)+','+(l.y+(pt[1]-pad*scale)/scale).toFixed(3);});
@@ -37908,7 +37924,7 @@ function _stitchGeometryCacheKey(shape) {
     /* Text-Geometrie hängt am String/Font/Grösse, NICHT an points; x/y/w/h
        allein reichen nicht (Editieren in-place ändert die bbox nicht). Sonst
        bliebe der Stich bei Textänderung stale. */
-    geomKey += 'text-pixel-edges-v3|' + (shape.text || '') + '|' + (shape.fontSize || 0) + '|' + (shape.fontFamily || '') + '|' + (shape.bold ? 1 : 0) + '|' + (shape.italic ? 1 : 0) + '|' + !!shape.wFixed + '|' + (window._vtFontRevision || 0);
+    geomKey += 'text-pixel-edges-v4|' + (shape.text || '') + '|' + (shape.fontSize || 0) + '|' + (shape.fontFamily || '') + '|' + (shape.bold ? 1 : 0) + '|' + (shape.italic ? 1 : 0) + '|' + !!shape.wFixed + '|' + (window._vtFontRevision || 0);
     if(shape.onPath&&shape.pathId){
       var ref=typeof window.findShape==='function'?window.findShape(shape.pathId):null;
       geomKey+='|styled-path-cpu-v6:'+JSON.stringify([shape.pathId,shape.pathOffset,shape.pathDist,shape.pathLetterSpacing,shape.pathFlip,shape.pathClosed,!!shape.svgTextPathExact,shape.svgTextAnchor||'start',ref&&ref.type!=='text'?_stitchGeometryCacheKey(ref):null]);
@@ -38114,6 +38130,9 @@ function _getOverlayShapes(shape) {
   var ss = window.shapes || [];
   var myBB = _shapeBBox(shape);
   if (!myBB) return [];
+  /* [r33 M1] Der Text-Stellvertreter steht nicht in der Objektliste (sonst stanzt der Text sich selbst weg).
+     Text hatte nie Ueberdeck-Stanzung, das bleibt so. */
+  if (shape._vtTextAsFill) return [];
   var myColor = _stitchNormColor(_stitchShapeColor(shape));
   var myOrder = (shape.stitch && isFinite(shape.stitch.order)) ? shape.stitch.order : 999999;
   var myIdx = ss.indexOf(shape);
@@ -38193,7 +38212,7 @@ function _stitchResolveFillGeometry(shape) {
      String (Loch-Subpaths bei Overlaps). Der MUSS gesampelt werden statt der
      rohen Shape-Ecken, sonst ignoriert die Outline die Löcher. Gilt auch für
      primitive Shapes (rect/polygon/star/…). */
-  if ((shape.type === 'svgpath' || shape._stitchCleanActive) && hasSVGPath) {
+  if ((shape.type === 'svgpath' || shape._stitchCleanActive || shape._vtTextAsFill) && hasSVGPath) { /* [r33 M1] Text-Stellvertreter */
     outline = _sampleSVGOutline();
     if (!outline || outline.length < 4) outline = _getStitchPathPoints(shape, 256, true);
   } else {
@@ -39280,8 +39299,35 @@ function _planAutoFillEuler(allSegments, shape, hasSVGPath, outline, nEdges, fil
     }
     var out = [], runIdx = 0, jumps = 0;
     function emitStraight(p0, p1, runI) { var d = Math.hypot(p1.x - p0.x, p1.y - p0.y); if (d < 0.4) return; var n = Math.max(1, Math.ceil(d / mm(12))); for (var sg = 1; sg <= n; sg++) out.push({ sx: p0.x + (p1.x - p0.x) * ((sg - 1) / n), sy: p0.y + (p1.y - p0.y) * ((sg - 1) / n), ex: p0.x + (p1.x - p0.x) * (sg / n), ey: p0.y + (p1.y - p0.y) * (sg / n), row: -1, _directStitch: true, _runIdx: runI }); }
-    for (var ci = 1; ci < circuit.length; ci++) {
-      var e = edges[circuit[ci].via]; if (!e) continue;
+    /* [r34 K5] Wie Ink/Stitch (find_stitch_path, collapse_sequential_outline_edges): Konturkanten sind nur Wege zur
+       naechsten Reihe. Nach der letzten Reihe entfallen sie (vor der ersten wie zwischen Reihen). Zwischen zwei Reihen bleibt eine einzelne
+       Konturkante (Nachbarreihe), laengere Folgen werden durch den Innenweg ersetzt, wenn er kuerzer ist, Folgen zurueck
+       zum Ausgangspunkt (ganze Lochringe) entfallen. Bisher lief der Euler-Kreis jede Konturkante ab. */
+    var k5First = -1, k5Last = -1, k5Run = -1, ci;
+    for (ci = 1; ci < circuit.length; ci++) { var k5e = edges[circuit[ci].via]; if (k5e && k5e.type === 'seg') { if (k5First < 0) k5First = ci; k5Last = ci; } }
+    function k5Len(a, b) { var Lk = 0; for (var k = a; k <= b; k++) { var ek = edges[circuit[k].via]; if (!ek) continue; var p0 = nodes[circuit[k - 1].node], p1 = nodes[circuit[k].node];
+      if (ek.type === 'cont' && ek.meta && ek.meta.arc) { var arc = ek.meta.arc.slice(); if (circuit[k - 1].node !== ek.u) arc.reverse(); var pr = p0; for (var q = 0; q < arc.length; q++) { Lk += Math.hypot(arc[q].x - pr.x, arc[q].y - pr.y); pr = arc[q]; } Lk += Math.hypot(p1.x - pr.x, p1.y - pr.y); }
+      else Lk += Math.hypot(p1.x - p0.x, p1.y - p0.y); } return Lk; }
+    function k5Collapse(a, b) {
+      var ea = edges[circuit[a].via];
+      if (a === b && ea && ea.type === 'cont') { k5Emit(a); return; }
+      var pa = nodes[circuit[a - 1].node], pb = nodes[circuit[b].node];
+      if (Math.hypot(pb.x - pa.x, pb.y - pa.y) < 0.5) return;
+      var Lo = k5Len(a, b), rt = interiorRouter().routeTravel(pa.x, pa.y, pb.x, pb.y, Math.min(mm(160), Lo));
+      if (rt && rt.length >= 2) { var Lr = 0; for (var q = 1; q < rt.length; q++) Lr += Math.hypot(rt[q].x - rt[q - 1].x, rt[q].y - rt[q - 1].y);
+        if (Lr < Lo) { var pr2 = pa; for (q = 1; q < rt.length; q++) { emitStraight(pr2, rt[q], runIdx); pr2 = rt[q]; } return; } }
+      for (var k = a; k <= b; k++) k5Emit(k);
+    }
+    if (window._vtLochwegeAlt || k5First < 0) { for (ci = 1; ci < circuit.length; ci++) k5Emit(ci); }
+    else for (ci = 1; ci <= k5Last; ci++) { var k5c = edges[circuit[ci].via]; if (!k5c) continue; /* Anfang wie bisher am Kreisstart, Weg dorthin zusammengefasst */
+      if (k5c.type !== 'seg') { if (k5Run < 0) k5Run = ci; continue; }
+      if (k5Run >= 0) { k5Collapse(k5Run, ci - 1); k5Run = -1; }
+      k5Emit(ci); }
+    /* Unterlage: Ende zum Kreisstart zusammenfassen (dort beginnt die Fuellung, sonst Sprung beim Uebergang). Fuellung:
+       Ende entfaellt, ein Weg zurueck laege auf fertiger Fuellung. */
+    if (!window._vtLochwegeAlt && k5First >= 0 && window.__vtEulerUnterlage && k5Last < circuit.length - 1) k5Collapse(k5Last + 1, circuit.length - 1);
+    function k5Emit(ci) {
+      var e = edges[circuit[ci].via]; if (!e) return;
       var fromN = circuit[ci - 1].node, toN = circuit[ci].node, pf = nodes[fromN], pt = nodes[toN];
       if (e.type === 'seg') { out.push({ sx: pf.x, sy: pf.y, ex: pt.x, ey: pt.y, row: (e.rowVal != null ? e.rowVal : 0), _runIdx: runIdx }); if(router)router.markStitched(pf.x,pf.y,pt.x,pt.y);else pendingRows.push([pf.x,pf.y,pt.x,pt.y]); }
       else if (e.type === 'cont') { var pts = (e.meta && e.meta.arc) ? e.meta.arc.slice() : []; if (e.meta && fromN !== e.u) pts.reverse(); var prev = pf; for (var ap = 0; ap < pts.length; ap++) { emitStraight(prev, pts[ap], runIdx); prev = pts[ap]; } emitStraight(prev, pt, runIdx); }
@@ -39921,6 +39967,7 @@ function _calcFillStitchV7(shape, opts) {
   _currentFillOverlays = _stitchDebugFlag('overlayPunch') ? _getOverlayShapes(shape) : null;
   try {
     var pts = [];
+    var _k5PrevU = window.__vtEulerUnterlage; window.__vtEulerUnterlage = !!(opts && opts.unifyWithUnderlay === false); /* [r34 K5] */
     var st = shape.stitch;
     var params = (st && st.params) || {};
     /* Use isFinite(...) so params.angle=0 (Standard für horizontale Rows)
@@ -40183,6 +40230,14 @@ function _calcFillStitchV7(shape, opts) {
         if (pLen > 0) {
           var pnx = pdx / pLen, pny = pdy / pLen;
           var effectivePull = _fillSafePullCompensation(pullComp, pLen);
+          /* [r34 K2] Reihenenden liegen am Motivrand, eine Verlaengerung naeht immer ausserhalb. Das Vektortool erlaubt keine
+             Aussenstiche: bisher schnitt die Schlusspruefung die Enden danach ab und zerlegte die Reihen (Luecken, Zickzack).
+             Darum hier begrenzen und denselben Hinweis wie die Schlusspruefung setzen. */
+          if (effectivePull > 0 && !window._vtPullAussenAlt) {
+            effectivePull = 0;
+            if (!window._vtMaterialGuardWarnings) window._vtMaterialGuardWarnings = {};
+            if (shape && shape.id != null) window._vtMaterialGuardWarnings[shape.id] = 'Positiver Zugausgleich wurde an der Motivgrenze begrenzt. Keine Außenstiche; auf Stoff prüfen.';
+          }
           start = { x: start.x - pnx * effectivePull, y: start.y - pny * effectivePull };
           end = { x: end.x + pnx * effectivePull, y: end.y + pny * effectivePull };
         }
@@ -40274,7 +40329,7 @@ function _calcFillStitchV7(shape, opts) {
         var _rp = rowPts[rpi];
         /* Keep genuine scan rows distinct from routing stitches. DeComb must
            never infer a row from coincident screen-Y coordinates. */
-        if (_segIsTravel) _rp._fillTransit = true;
+        if (_segIsTravel) { _rp._fillTransit = true; _rp._fillPlanTravel = true; } /* [r32] Weg aus der Planung */
         else {
           _rp._fillRowId = si;
           _rp._fillScanRow = seg.row;
@@ -40305,9 +40360,18 @@ function _calcFillStitchV7(shape, opts) {
        JUMP. So verschwinden die ueber den Rand laufenden Travel-Linien, ohne
        die Fuellung anzutasten. Konvexe Formen (Ellipse/Rechteck) sind nicht
        betroffen, da dort keine Aussen-Laeufe entstehen. */
+    /* [r32] Unterlage: Wege der Planung legen Konturpunkte auf mindestens eine Stichlaenge (2.5 mm) zusammen. Ihre
+       Sehnen schneiden um Loecher und Buchten in die Luecke, die Schlusspruefung machte daraus Sprungketten.
+       Laeufe ab 3 Punkten 0.35 mm nach innen versetzen. Nur Unterlage: in der Fuellung sind kurze Planungswege
+       die Wenden zwischen zwei Reihen, versetzt wuerden sie zackig. */
+    if (opts && opts.unifyWithUnderlay === false) {
+      try { var _iP = 0; while (_iP < pts.length) { if (!pts[_iP]._fillPlanTravel || pts[_iP].jump) { _iP++; continue; } var _jP = _iP; while (_jP < pts.length && pts[_jP]._fillPlanTravel && !pts[_jP].jump) _jP++;
+        if (_jP - _iP >= 3) { var _insP = _fillTravelInset(shape, geom, pts.slice(_iP, _jP), false); for (var _kP = 0; _kP < _insP.length; _kP++) pts[_iP + _kP] = _insP[_kP]; } _iP = _jP; } } catch (eP) { console.warn('[vt:swallowed]', eP); }
+    }
     pts = _fillReplaceOutsideRuns(pts, shape, hasSVGPath, outline, nEdges, stitchLen);
     return pts;
   } finally {
+    window.__vtEulerUnterlage = _k5PrevU; /* [r34 K5] */
     _currentFillOverlays = _prevOverlays;
   }
 }
@@ -41897,6 +41961,29 @@ function _calcSpiralFillStitch(shape, opts) {
       var N = (per < sp * 2) ? Math.max(6, Math.round(per / Math.max(1e-6, sp * 0.5)))
                              : Math.max(8, Math.round(per / sp));
       var step = per / N, res = [], j = 0, kvOff = (ph || 0) * step; /* [kontur-versatz v1] N unveraendert -> Punktzahl stabil */
+      /* [r34 K1] Wie Ink/Stitch (running_stitch mit Toleranz): ein Stich endet, bevor die Sehne mehr als die Toleranz
+         vom Ring abweicht. Feste Stichlaenge schnitt auf engen Kurven bis 0.4 mm nach innen (Luecken zwischen Ringen).
+         Start an der Versatz-Phase, Stichpunkte liegen auf dem Ring. Mini-Ringe (Umfang unter 2 Stichlaengen) wie bisher. */
+      if (per >= sp * 2 && !window._vtKonturFestOff) {
+        var tol = Math.min(_mm2px(0.1), rowSp / 3), st0 = 0;
+        while (st0 < n - 1 && cum[st0 + 1] < kvOff) st0++;
+        var rg = []; for (k = 0; k <= n; k++) rg.push(pts[(st0 + k) % n]);
+        var tr = [rg[0]], ti = 0, m = rg.length;
+        while (ti < m - 1) {
+          var tb = ti + 1;
+          for (var tj = ti + 2; tj < m; tj++) {
+            var ax = rg[ti].x, ay = rg[ti].y, ex = rg[tj].x - ax, ey = rg[tj].y - ay, el = Math.hypot(ex, ey);
+            if (el > sp) break;
+            var tok = true;
+            for (var tk = ti + 1; tk < tj && tok; tk++) { var dv = el > 1e-9 ? Math.abs((rg[tk].x - ax) * ey - (rg[tk].y - ay) * ex) / el : Math.hypot(rg[tk].x - ax, rg[tk].y - ay); if (dv > tol) tok = false; }
+            if (!tok) break;
+            tb = tj;
+          }
+          tr.push(rg[tb]); ti = tb;
+        }
+        tr.pop(); /* letzter Punkt = Startpunkt des geschlossenen Rings */
+        if (tr.length >= 4) return tr.map(function (q) { return { x: q.x, y: q.y }; });
+      }
       for (var s = 0; s < N; s++) { var tlen = s * step + kvOff; while (j < n - 1 && cum[j + 1] < tlen) j++; var segl = cum[j + 1] - cum[j], f = segl > 1e-6 ? (tlen - cum[j]) / segl : 0, pa = pts[j], pb = pts[(j + 1) % n]; res.push({ x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f }); }
       return res;
     }
@@ -42241,6 +42328,77 @@ function _vtStitchDrain(iterator) {
   do { step=iterator.next(); } while(!step.done);
   return step.value;
 }
+/* [r34 K4] Mittellauf-Unterlage fuer Satinsaeulen. Ein Stueck zwischen Spruengen gilt als Zickzack-Saeule, wenn
+   mindestens 60 % der Stichpaare die Richtung umkehren und die mittlere Stichlaenge (= Breite) ab 1.5 mm ist. */
+function _vtSatinCenterWalk(pts) {
+  if (!pts || pts.length < 6) return pts;
+  var out = [], i = 0, wMin = _mm2px(1.5), lenMin = _mm2px(3), step = _mm2px(2.5), added = 0;
+  while (i < pts.length) {
+    var j = i + 1; while (j < pts.length && !pts[j].jump) j++;
+    var run = pts.slice(i, j), n = run.length, cw = null;
+    if (n >= 6) {
+      var rev = 0, sum = 0;
+      for (var k = 1; k < n; k++) { sum += Math.hypot(run[k].x - run[k - 1].x, run[k].y - run[k - 1].y);
+        if (k < n - 1 && (run[k].x - run[k - 1].x) * (run[k + 1].x - run[k].x) + (run[k].y - run[k - 1].y) * (run[k + 1].y - run[k].y) < 0) rev++; }
+      if (rev >= 0.6 * (n - 2) && sum / (n - 1) >= wMin) {
+        var m = []; for (k = 1; k < n; k++) m.push({ x: (run[k].x + run[k - 1].x) / 2, y: (run[k].y + run[k - 1].y) / 2 });
+        var sm = m.map(function (q, a) { var sx = 0, sy = 0, cnt = 0; for (var o = Math.max(0, a - 3); o <= Math.min(m.length - 1, a + 3); o++) { sx += m[o].x; sy += m[o].y; cnt++; } return { x: sx / cnt, y: sy / cnt }; }); /* gleitendes Mittel ueber 7: Zick und Zack liegen versetzt */
+        var tot = 0; for (k = 1; k < sm.length; k++) tot += Math.hypot(sm[k].x - sm[k - 1].x, sm[k].y - sm[k - 1].y);
+        if (tot >= lenMin) {
+          var c = [sm[0]], acc = 0;
+          for (k = 1; k < sm.length; k++) { acc += Math.hypot(sm[k].x - sm[k - 1].x, sm[k].y - sm[k - 1].y); if (acc >= step || k === sm.length - 1) { c.push(sm[k]); acc = 0; } }
+          cw = c.concat(c.slice(0, -1).reverse());
+        }
+      }
+    }
+    if (cw) {
+      out.push(run[0]);
+      for (k = 0; k < cw.length; k++) out.push({ x: cw[k].x, y: cw[k].y, _satinUnterlage: true });
+      var r0 = Object.assign({}, run[0]); delete r0.jump; out.push(r0);
+      for (k = 1; k < n; k++) out.push(run[k]);
+      added++;
+    } else for (k = 0; k < n; k++) out.push(run[k]);
+    i = j;
+  }
+  return added ? out : pts;
+}
+/* [r35 K7] Satin-/Laengstext nach Teilflaechen ordnen. Rueckgabe pts unveraendert, wenn der Umriss aus einem Stueck
+   besteht oder ein Stueck keiner Teilflaeche zuzuordnen ist. */
+function _vtSatinIslandOrder(shape, pts) {
+  if (!pts || pts.length < 4) return pts;
+  var tp = Object.create(shape); tp._vtTextAsFill = true;
+  var islands = null;
+  try { islands = _vtFillIslands(tp); } catch (e) { console.warn('[vt:swallowed]', e); return pts; }
+  if (!islands) return pts;
+  var runs = _vtFillIslandRuns(pts, islands);
+  if (!runs) return pts;
+  var parts = [], byK = {};
+  /* [r35 K8] Innerhalb eines Buchstabens die Stuecke (Saeulen zwischen zwei Spruengen) neu ordnen und bei Bedarf wenden:
+     das naechste beginnt am naeheren Ende zum letzten Stich. Eine Satinsaeule ist rueckwaerts genaeht dieselbe Saeule.
+     Reine Zwischenpunkte einer Sprungfolge (Stueck aus einem Sprungpunkt) entfallen, der Sprung entsteht neu. */
+  for (var i = 0; i < runs.length; i++) { var r = runs[i]; if (r.pts.length === 1 && r.pts[0].jump && i > 0) continue;
+    if (!byK[r.k]) { byK[r.k] = { k: r.k, runs: [], pts: [] }; parts.push(byK[r.k]); } byK[r.k].runs.push(r.pts); }
+  for (var pk = 0; pk < parts.length; pk++) {
+    var rl = parts[pk].runs.slice(), seq = [rl.shift()];
+    if (!window._vtSatinWendenAlt) while (rl.length) { var lp = seq[seq.length - 1], le = lp[lp.length - 1], bj = 0, bd2 = Infinity, brev = false;
+      for (var rj = 0; rj < rl.length; rj++) { var c0 = rl[rj][0], c1 = rl[rj][rl[rj].length - 1], d0 = Math.hypot(c0.x - le.x, c0.y - le.y), d1 = Math.hypot(c1.x - le.x, c1.y - le.y);
+        if (d0 < bd2) { bd2 = d0; bj = rj; brev = false; } if (d1 < bd2 - 1e-9) { bd2 = d1; bj = rj; brev = true; } }
+      var nx = rl.splice(bj, 1)[0]; seq.push(brev ? nx.slice().reverse() : nx); }
+    else seq = seq.concat(rl);
+    for (var sq = 0; sq < seq.length; sq++) for (var j = 0; j < seq[sq].length; j++) { var q = Object.assign({}, seq[sq][j]); if (j === 0 && parts[pk].pts.length) q.jump = true; else delete q.jump; parts[pk].pts.push(q); } }
+  if (!parts.length) return pts;
+  function gap(a, b) { var p = a.pts[a.pts.length - 1], q = b.pts[0]; return Math.hypot(q.x - p.x, q.y - p.y); }
+  var best = null, bestLen = Infinity, tries = parts.length <= 60 ? parts.length : 1;
+  for (var si = 0; si < tries; si++) {
+    var left = parts.slice(), order = [left.splice(si, 1)[0]], len = 0;
+    while (left.length) { var bi = 0, bd = Infinity; for (var k = 0; k < left.length; k++) { var d = gap(order[order.length - 1], left[k]); if (d < bd) { bd = d; bi = k; } } len += bd; order.push(left.splice(bi, 1)[0]); }
+    if (len < bestLen - 1e-6) { bestLen = len; best = order; }
+  }
+  var out = [];
+  for (var c = 0; c < best.length; c++) for (var m = 0; m < best[c].pts.length; m++) out.push(m === 0 && out.length ? Object.assign({}, best[c].pts[0], { jump: true }) : best[c].pts[m]);
+  if (out.length && out[0].jump && pts.length && !pts[0].jump) { out[0] = Object.assign({}, out[0]); delete out[0].jump; }
+  return out;
+}
 function _fillFinalizeMaterialSegments(shape, pts, opts) {
   return _vtStitchDrain(_fillFinalizeMaterialSteps(shape,pts,opts));
 }
@@ -42249,6 +42407,13 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
   if(!window._vtMaterialGuardCache)window._vtMaterialGuardCache=new WeakMap();
   var guardKey=_stitchGeometryCacheKey(shape)+'|'+(shape._stitchCleanKey||''),guardCache=window._vtMaterialGuardCache.get(shape);
   if(guardCache&&guardCache.points===pts&&guardCache.key===guardKey)return pts;
+  /* [r34 K4] Satin-Text: Mittellauf-Unterlage wie Ink/Stitch (center_walk_underlay, hin und zurueck) vor jeder
+     Zickzack-Saeule ab 1.5 mm mittlerer Breite und 3 mm Laenge. Mittellinie = Mittelpunkte der
+     Satinstiche, 2.5-mm-Stiche. Danach weiter wie bisher: die Pruefung unten kontrolliert auch diese Stiche. */
+  /* [r35 K7] Satin-/Laengstext Buchstabe fuer Buchstabe: Stuecke zwischen Spruengen den Teilflaechen des Textumrisses
+     zuordnen (wie M2 bei der Fuellung), je Teil in der bisherigen Reihenfolge, Teile mit kuerzester Leerfahrt. */
+  if(shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs')&&!window._vtSatinInselnAlt)pts=_vtSatinIslandOrder(shape,pts);
+  if(shape.type==='text'&&shape.textStitch==='satin'&&!window._vtSatinUnterlageOff&&!(shape.stitch&&shape.stitch.params&&shape.stitch.params.underlay===false))pts=_vtSatinCenterWalk(pts);
   var geom=_stitchResolveFillGeometry(shape);
   if(!geom||!geom.outline||geom.outline.length<3)throw new Error('Stickfläche kann nicht gegen ihre Materialgrenze geprüft werden.');
   var outline=geom.outline, edges=[],grid=new Map(),rows=new Map(),cell=_mm2px(3),epsilon=1e-8;
@@ -42302,6 +42467,36 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     for(var sk=1;sk<cs.length;sk++){var slo=cs[sk-1],shi=cs[sk];if(shi-slo<1e-12)continue;var sm=(slo+shi)/2;if(!inside(ax+sdx*sm,ay+sdy*sm))return false;}
     return true;
   }
+  /* [r32] Innen umleiten, wenn Biegen nicht reicht (Stich quer ueber eine Bucht oder ein Loch): Konturweg
+     (0.35 mm innen) oder Innenweg-Router, der kuerzere gewinnt. Jede Teilstrecke wird wie unten exakt geprueft,
+     sonst bleibt es beim Sprung. Der Router meidet bereits Gesticktes, damit der Umweg nicht sichtbar
+     ueber fertige Reihen laeuft. Hoechstens viermal so lang wie die direkte Strecke oder 12 mm mehr. */
+  var routeRouter=null,routeMarked=1;
+  function routeInside(q,p){
+    if(!inside(q.x,q.y)||!inside(p.x,p.y))return null;
+    var L0=Math.hypot(p.x-q.x,p.y-q.y),cand=[];
+    try{var ow=_outlineTravelStitches(shape,{x:q.x,y:q.y},{x:p.x,y:p.y},geom);if(ow&&ow.length)cand.push(ow);}catch(e1){}
+    try{if(!routeRouter)routeRouter=_buildInteriorTravelRouter(function(x,y){return inside(x,y);},outline);
+      for(;routeMarked<out.length;routeMarked++){var ma=out[routeMarked-1],mb=out[routeMarked];if(ma&&mb&&!mb.jump)routeRouter.markStitched(ma.x,ma.y,mb.x,mb.y);}
+      var rt=routeRouter.routeTravel(q.x,q.y,p.x,p.y,Math.max(_mm2px(20),L0*4));if(rt&&rt.length>=2)cand.push(rt.slice(1));}catch(e2){}
+    var best=null,bestLen=Infinity;
+    for(var ci=0;ci<cand.length;ci++){
+      var path=cand[ci],res=[],px=q.x,py=q.y,ok=true,plen=0;
+      for(var k=0;k<path.length&&ok;k++){
+        var tx=path[k].x,ty=path[k].y,legL=Math.hypot(tx-px,ty-py);if(legL<1e-6)continue;
+        var nn=Math.max(1,Math.ceil(legL/_mm2px(2)));
+        for(var m=1;m<=nn;m++){
+          var ax=px+(tx-px)*(m-1)/nn,ay=py+(ty-py)*(m-1)/nn,bx=px+(tx-px)*m/nn,by=py+(ty-py)*m/nn;
+          if(!segInside(ax,ay,bx,by)){var bb=bendInside({x:ax,y:ay},{x:bx,y:by});if(!bb){ok=false;break;}for(var z=0;z<bb.length;z++)res.push(bb[z]);}
+          res.push({x:bx,y:by});
+        }
+        plen+=legL;px=tx;py=ty;
+      }
+      if(ok&&Math.hypot(px-p.x,py-p.y)>1e-3){ok=segInside(px,py,p.x,p.y);if(ok){res.push({x:p.x,y:p.y});plen+=Math.hypot(px-p.x,py-p.y);}}
+      if(ok&&res.length&&plen<bestLen&&plen<=Math.max(L0*4,L0+_mm2px(12))){best=res;bestLen=plen;}
+    }
+    return best;
+  }
   function bendInside(q,p){
     if(!inside(q.x,q.y)||!inside(p.x,p.y))return null;
     var bdx=p.x-q.x,bdy=p.y-q.y,bL=Math.hypot(bdx,bdy);if(bL<epsilon)return null;
@@ -42317,10 +42512,35 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     }
     return null;
   }
+  var satinK6=shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs')&&!window._vtSatinWegeAlt,satinK6N=0;
+  /* [r35 K6] Ein Weg ist nur zulaessig, wenn spaeter genaeht Satin ihn zudeckt: Raster 0.2 mm mit dem letzten Stichindex
+     je Zelle, jeder Wegpunkt (alle 0.2 mm) braucht in der Umgebung bis 0.4 mm einen spaeteren Stich, hoechstens 0.6 mm Weg duerfen frei liegen. */
+  var k6Last=null,k6C=_mm2px(0.2);
+  function k6Hidden(a,route,fromIdx){
+    if(!k6Last){k6Last=new Map();for(var li=1;li<pts.length;li++){var la=pts[li-1],lb=pts[li];if(lb.jump)continue;var ln=Math.max(1,Math.ceil(Math.hypot(lb.x-la.x,lb.y-la.y)/(k6C*0.7)));
+      for(var lt=0;lt<=ln;lt++){var lk=Math.floor((la.x+(lb.x-la.x)*lt/ln)/k6C)+','+Math.floor((la.y+(lb.y-la.y)*lt/ln)/k6C);if(!(k6Last.get(lk)>=li))k6Last.set(lk,li);}}}
+    var free=0,px=a.x,py=a.y;
+    for(var ri=0;ri<route.length;ri++){var tx=route[ri].x,ty=route[ri].y,n=Math.max(1,Math.ceil(Math.hypot(tx-px,ty-py)/k6C));
+      for(var t=1;t<=n;t++){var x=px+(tx-px)*t/n,y=py+(ty-py)*t/n,gx=Math.floor(x/k6C),gy=Math.floor(y/k6C),ok=false;
+        for(var ox=-2;ox<=2&&!ok;ox++)for(var oy=-2;oy<=2&&!ok;oy++)if(k6Last.get((gx+ox)+','+(gy+oy))>fromIdx)ok=true;
+        if(!ok){free+=Math.hypot(tx-px,ty-py)/n;if(free>_mm2px(0.6))return false;}}
+      px=tx;py=ty;}
+    return true;
+  }
   for(var pi=1;pi<pts.length;pi++){
     if(pi%256===0)yield 'material-segments';
     var p=pts[pi],q=pts[pi-1];
     if(![p.x,p.y,q.x,q.y].every(Number.isFinite))throw new Error('Nicht-endlicher Stichpunkt.');
+    /* [r35 K6] Satin-/Laengstext: Sprungfolge bis 10 mm, deren Start und Landepunkt im selben Material liegen, durch einen
+       Innenweg ersetzen (routeInside: Konturweg oder Router, der Gesticktes meidet, jede Teilstrecke exakt geprueft).
+       Bisher hob die Maschine auch zwischen zwei Saeulen desselben Buchstabens ab. Sonst bleibt der Sprung. */
+    if(p.jump&&satinK6&&out.length>1&&!out[out.length-1].jump){
+      var k6e=pi;while(k6e<pts.length&&pts[k6e].jump)k6e++;
+      var k6q=out[out.length-1],k6p=pts[k6e-1],k6L=Math.hypot(k6p.x-k6q.x,k6p.y-k6q.y);
+      if(k6L>=_mm2px(1)&&k6L<=_mm2px(10)&&k6e<pts.length){var k6r=routeInside(k6q,k6p);
+        if(k6r&&!k6Hidden(k6q,k6r,k6e))k6r=null;
+        if(k6r){for(var k6i=0;k6i<k6r.length-1;k6i++)out.push(k6r[k6i]);var k6l=Object.assign({},k6p);delete k6l.jump;out.push(k6l);changed++;satinK6N++;pi=k6e-1;continue;}}
+    }
     if(p.jump){out.push(p);continue;}
     var dx=p.x-q.x,dy=p.y-q.y,len=Math.hypot(dx,dy);
     if(len>_mm2px(STITCH_LIMITS.jumpSafetyMM)){
@@ -42353,6 +42573,8 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     if(!bad){out.push(p);continue;}
     var bent=len<=_mm2px(6)?bendInside(q,p):null; /* [r31] */
     if(bent){for(var bi=0;bi<bent.length;bi++)out.push(bent[bi]);out.push(p);changed++;continue;}
+    var routed=len<=_mm2px(25)?routeInside(q,p):null; /* [r32] */
+    if(routed){for(var ri2=0;ri2<routed.length-1;ri2++)out.push(routed[ri2]);out.push(p);changed++;continue;}
     changed++;
     for(var ci=0;ci<intervals.length;ci++){
       var part=intervals[ci],atEnd=part.hi>=1-1e-12;
@@ -42362,6 +42584,43 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
       else delete point.jump;
       out.push(point);
     }
+  }
+  /* [r33 M3] Satin-/Längstext: Säulenenden stehen um Hundertstelmillimeter über die Glyphe, die Prüfung oben macht
+     daraus Mini-Sprünge, oft mit Mikrostichen daneben. Landet eine Sprungfolge weniger als 1 mm vom letzten Stich,
+     wird sie durch einen direkten Stich ersetzt: vom letzten Stich oder einem bis 0.5 mm davor liegenden zum Landepunkt
+     oder zu einem der folgenden Stiche bis 0.5 mm danach (und dem ersten weiter entfernten). Es gilt die erste
+     Verbindung, die im Material liegt, die Mikrostiche dazwischen entfallen. Sonst bleibt alles. Toleranz 0.02 mm:
+     Der Textumriss ist eine Pixeltreppe (Stufe 0.066 mm), ein direkter Stich schneidet deren Ecken um Tausendstel.
+     Das ist kleiner als die Treppe selbst und als die DST-Auflösung (0.1 mm). */
+  if(shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs')){
+    var mjSrc=changed?out:pts,mj=[mjSrc[0]],mjLim=_mm2px(1),mjNear=_mm2px(0.5),mjN=0,mjTol=_mm2px(0.02);
+    var mjInside=function(ax,ay,bx,by){
+      if(segInside(ax,ay,bx,by))return true;
+      var n=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/mjTol));
+      for(var t=0;t<=n;t++){var x=ax+(bx-ax)*t/n,y=ay+(by-ay)*t/n,ok=inside(x,y);
+        for(var d=0;d<8&&!ok;d++){var an=d*Math.PI/4;ok=inside(x+Math.cos(an)*mjTol,y+Math.sin(an)*mjTol);}
+        if(!ok)return false;}
+      return true;
+    };
+    for(var mi=1;mi<mjSrc.length;mi++){
+      if(!mjSrc[mi].jump){mj.push(mjSrc[mi]);continue;}
+      var mk=mi;while(mk<mjSrc.length&&mjSrc[mk].jump)mk++;
+      var mFrom=mj[mj.length-1],mLand=mjSrc[mk-1],mDone=false;
+      if(mj.length>1&&Math.hypot(mLand.x-mFrom.x,mLand.y-mFrom.y)<mjLim){
+        var mEnds=[{i:mk-1,p:mLand,land:true}],mStarts=[mj.length-1];
+        for(var me=mk;me<mjSrc.length&&!mjSrc[me].jump;me++){mEnds.push({i:me,p:mjSrc[me]});if(Math.hypot(mjSrc[me].x-mLand.x,mjSrc[me].y-mLand.y)>=mjNear)break;}
+        for(var ms=mj.length-2;ms>=1&&!mj[ms+1].jump&&Math.hypot(mj[ms].x-mFrom.x,mj[ms].y-mFrom.y)<mjNear;ms--)mStarts.push(ms);
+        for(var ma=mStarts.length-1;ma>=0&&!mDone;ma--)for(var mb=mEnds.length-1;mb>=0&&!mDone;mb--){
+          var msp=mj[mStarts[ma]],mep=mEnds[mb];
+          if(!mjInside(msp.x,msp.y,mep.p.x,mep.p.y))continue;
+          mj.length=mStarts[ma]+1;
+          if(mep.land){var mlp=Object.assign({},mLand);delete mlp.jump;mj.push(mlp);mi=mk-1;}else mi=mep.i-1;
+          mjN++;mDone=true;
+        }
+      }
+      if(!mDone){for(var mm=mi;mm<mk;mm++)mj.push(mjSrc[mm]);mi=mk-1;}
+    }
+    if(mjN){out=mj;changed++;}
   }
   var pull=opts&&Number.isFinite(opts.pullCompensation)?opts.pullCompensation:Number(shape.stitch&&shape.stitch.params&&shape.stitch.params.pullCompensation)||0;
   var info={changedSegments:changed,outsideIntervals:outsideCount,outsideLengthMM:clippedMM,longSegments:longCount,pullLimited:pull>0&&outsideCount>0,curveToleranceMM:0.01};
@@ -42519,7 +42778,7 @@ function _calcFillStitch(shape, opts) {
 }
 function* _calcFillStitchSteps(shape, opts) {
   try {
-    if (shape && shape.type === 'text') {
+    if (shape && shape.type === 'text' && !shape._vtTextAsFill) {
       var _tstitch = shape.textStitch || 'tatami';
       /* [VT-TEXT-LAENGS v2] Satin UND Laengs laufen ueber die rail-basierte Engine -> beide
          folgen den Buchstaben-Strichen (und dem Pfad). 'laengs' nutzt contourFlow-Fuellung
@@ -42573,7 +42832,7 @@ function* _calcFillStitchSteps(shape, opts) {
       if (_dcPoint._fillTransit) _fillTransitPts.add(_dcPoint);
       if (_dcPoint._fillRowId != null || _dcPoint._fillTransit) {
         delete _dcPoint._fillRowId; delete _dcPoint._fillScanRow;
-        delete _dcPoint._fillRowStart; delete _dcPoint._fillRowEnd; delete _dcPoint._fillTransit;
+        delete _dcPoint._fillRowStart; delete _dcPoint._fillRowEnd; delete _dcPoint._fillTransit; delete _dcPoint._fillPlanTravel;
       }
     }
     var minMM = (window._stitchGlobal && isFinite(window._stitchGlobal.minStitchLenUnits)) ? window._stitchGlobal.minStitchLenUnits / 10 : 0.3;
@@ -42613,7 +42872,17 @@ function* _calcFillStitchSteps(shape, opts) {
     var _smStep = _mm2px(Math.max(1.5, Math.min(3, (opts && isFinite(opts.stitchLength)) ? opts.stitchLength : ((shape.stitch && shape.stitch.params && isFinite(shape.stitch.params.stitchLength)) ? shape.stitch.params.stitchLength : 3))));
     try { pts = _thinCollinearShortRun(pts, _mm2px(0.85), _smStep, _mm2px(0.3)); } catch(esm){console.warn('[vt:swallowed]',esm)}
     yield 'fill-final-thinning';
-    return yield* _fillFinalizeMaterialSteps(shape,pts,opts);
+    var _finPts = yield* _fillFinalizeMaterialSteps(shape,pts,opts);
+    /* [r32] Unterlage: Stiche ueber 3 mm (Verbinder zwischen den Unterlage-Linien, bis 7 mm) auf derselben
+       Strecke gleichmaessig teilen. Die Linie bleibt, wo die Schlusspruefung sie freigegeben hat. */
+    if (opts && opts.unifyWithUnderlay === false && _finPts && _finPts.length > 1) {
+      var _ulSplit = [_finPts[0]];
+      for (var _ui = 1; _ui < _finPts.length; _ui++) { var _ua = _finPts[_ui - 1], _ub = _finPts[_ui];
+        if (!_ub.jump) { var _uL = Math.hypot(_ub.x - _ua.x, _ub.y - _ua.y); if (_uL > _mm2px(3)) { var _un = Math.ceil(_uL / _mm2px(2.5)); for (var _um = 1; _um < _un; _um++) _ulSplit.push({ x: _ua.x + (_ub.x - _ua.x) * _um / _un, y: _ua.y + (_ub.y - _ua.y) * _um / _un }); } }
+        _ulSplit.push(_ub); }
+      _finPts = _ulSplit;
+    }
+    return _finPts;
   } catch (e) {
     /* [VT-STITCH-F9 v1] Vorher stiller Totalausfall (return []): warf V7 eine
        Exception, war die Form kommentarlos leer. Jetzt loggen UND in einem
@@ -43230,12 +43499,182 @@ function _fillTrimTravelsInPlace(pts, shape, opts, startIdx) {
   return pts;
 }
 
+/* [r33 M2] Getrennte Teilflächen (Inseln) einer Füllung. Grundlage ist dieselbe Kontur, die die Füllung nutzt
+   (_setupFillPath: bereinigte oder rohe Kontur, Füllregel, Drehung). Jeder Ring wird an einer Kante beidseitig
+   abgetastet: innen gefüllt und aussen leer = Aussenrand, umgekehrt = Loch. Ein Loch gehört zum kleinsten
+   Aussenrand, der es umschliesst. Rückgabe: Liste {rings, bb} in Weltkoordinaten oder null, wenn die Form aus
+   einem Stück besteht oder die Konturen nicht eindeutig sind (Überschneidung, mehrdeutige Füllregel). */
+function _vtFillIslands(shape) {
+  if (!shape || window._vtIslandsOff) return null;
+  if (shape.type === 'text' && !shape._vtTextAsFill) return null;
+  _stitchPrepareClean(shape);
+  if (!_setupFillPath(shape)) return null;
+  var rule = _ensureFillPathHelper().path.getAttribute('fill-rule') === 'evenodd' ? 'evenodd' : 'nonzero';
+  var contours = _stitchFlattenContours(_fillPathState.d || ''), rings = [];
+  for (var ci = 0; ci < contours.length; ci++) {
+    var src = contours[ci].pts; if (src.length < 3) continue;
+    var pts = src.map(function (q) { return _fillPathLocalToWorld(q.x, q.y); }), area = 0;
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (var k = 0; k < pts.length; k++) {
+      var a = pts[k], b = pts[(k + 1) % pts.length]; area += a.x * b.y - b.x * a.y;
+      x0 = Math.min(x0, a.x); y0 = Math.min(y0, a.y); x1 = Math.max(x1, a.x); y1 = Math.max(y1, a.y);
+    }
+    if (Math.abs(area) / 2 < 1e-6) continue;
+    rings.push({ pts: pts, area: Math.abs(area) / 2, x0: x0, y0: y0, x1: x1, y1: y1 });
+  }
+  if (rings.length < 2 || rings.length > 400) return null;
+  function cross(r, x, y) { /* Strahl nach +x: [Parität, Umlaufzahl] eines Rings */
+    var par = false, w = 0, p = r.pts;
+    if (y < r.y0 || y > r.y1 || x > r.x1) return [false, 0];
+    for (var i = 0; i < p.length; i++) {
+      var a = p[i], b = p[(i + 1) % p.length];
+      if ((a.y > y) !== (b.y > y) && x < a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)) { par = !par; w += b.y > a.y ? 1 : -1; }
+    }
+    return [par, w];
+  }
+  function filled(x, y) {
+    var par = false, w = 0;
+    for (var i = 0; i < rings.length; i++) { var c = cross(rings[i], x, y); if (c[0]) par = !par; w += c[1]; }
+    return rule === 'evenodd' ? par : w !== 0;
+  }
+  var eps = _mm2px(0.01), outers = [], holes = [];
+  for (var ri = 0; ri < rings.length; ri++) {
+    var r = rings[ri], p = r.pts, best = -1, bl = 0;
+    for (var e = 0; e < p.length; e++) { var q = p[e], n = p[(e + 1) % p.length], l = Math.hypot(n.x - q.x, n.y - q.y); if (l > bl) { bl = l; best = e; } }
+    if (best < 0 || bl < eps * 4) return null;
+    var qa = p[best], qb = p[(best + 1) % p.length], mx = (qa.x + qb.x) / 2, my = (qa.y + qb.y) / 2, nx = -(qb.y - qa.y) / bl, ny = (qb.x - qa.x) / bl;
+    var s1 = cross(r, mx + nx * eps, my + ny * eps)[0], s2 = cross(r, mx - nx * eps, my - ny * eps)[0];
+    if (s1 === s2) return null;
+    var fin = s1 ? filled(mx + nx * eps, my + ny * eps) : filled(mx - nx * eps, my - ny * eps);
+    var fout = s1 ? filled(mx - nx * eps, my - ny * eps) : filled(mx + nx * eps, my + ny * eps);
+    if (fin && !fout) outers.push(ri); else if (!fin && fout) holes.push(ri); else return null;
+  }
+  if (outers.length < 2) return null;
+  function contains(j, i) { /* Ring j umschliesst Ring i ganz, sonst false; Überschneidung = null */
+    var A = rings[j], B = rings[i];
+    if (B.x0 < A.x0 || B.x1 > A.x1 || B.y0 < A.y0 || B.y1 > A.y1) return false;
+    var step = Math.max(1, Math.floor(B.pts.length / 12)), inn = 0, out = 0;
+    for (var k = 0; k < B.pts.length; k += step) { if (cross(A, B.pts[k].x, B.pts[k].y)[0]) inn++; else out++; }
+    return inn && out ? null : inn > 0;
+  }
+  var owner = {};
+  for (var hi = 0; hi < holes.length; hi++) {
+    var own = -1;
+    for (var oi = 0; oi < outers.length; oi++) {
+      var c = contains(outers[oi], holes[hi]); if (c === null) return null;
+      if (c && (own < 0 || rings[outers[oi]].area < rings[own].area)) own = outers[oi];
+    }
+    if (own < 0) return null;
+    (owner[own] = owner[own] || []).push(holes[hi]);
+  }
+  for (var a1 = 0; a1 < outers.length; a1++) for (var a2 = 0; a2 < outers.length; a2++) if (a1 !== a2 && contains(outers[a1], outers[a2]) === null) return null;
+  return outers.map(function (o) {
+    var r = rings[o];
+    return { rings: [r.pts].concat((owner[o] || []).map(function (h) { return rings[h].pts; })), bb: { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y1 } };
+  });
+}
+/* [r33 M2] Stücke einer fertigen Stichfolge (zwischen Sprüngen) den Inseln zuordnen, nach Mehrheit von bis zu 15
+   Punkten je Stück. Stücke ohne Treffer (Punkte genau auf dem Rand) gehören zur nächsten Insel, wenn sie höchstens
+   1 mm entfernt ist. Sonst null (dann bleibt die Reihenfolge wie bisher). */
+function _vtFillIslandRuns(pts, islands) {
+  var runs = [], cur = null, out = [];
+  for (var i = 0; i < pts.length; i++) { if (!cur || pts[i].jump) { cur = []; runs.push(cur); } cur.push(pts[i]); }
+  function inIsland(isl, x, y) {
+    if (x < isl.bb.x0 || x > isl.bb.x1 || y < isl.bb.y0 || y > isl.bb.y1) return false;
+    var par = false;
+    for (var r = 0; r < isl.rings.length; r++) {
+      var p = isl.rings[r];
+      for (var k = 0, j = p.length - 1; k < p.length; j = k++) { var a = p[j], b = p[k]; if ((a.y > y) !== (b.y > y) && x < a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y)) par = !par; }
+    }
+    return par;
+  }
+  for (var ri = 0; ri < runs.length; ri++) {
+    var run = runs[ri], votes = [], step = Math.max(1, Math.floor(run.length / 15)), best = -1;
+    for (var n = 0; n < islands.length; n++) votes.push(0);
+    for (var k = 0; k < run.length; k += step) for (var m = 0; m < islands.length; m++) if (inIsland(islands[m], run[k].x, run[k].y)) { votes[m]++; break; }
+    for (var v = 0; v < votes.length; v++) if (votes[v] && (best < 0 || votes[v] > votes[best])) best = v;
+    if (best < 0) {
+      var bd = _mm2px(1);
+      for (var w = 0; w < islands.length; w++) for (var g = 0; g < islands[w].rings.length; g++) {
+        var rp = islands[w].rings[g];
+        for (var z = 0, y = rp.length - 1; z < rp.length; y = z++) {
+          var ax = rp[y].x, ay = rp[y].y, ex = rp[z].x - ax, ey = rp[z].y - ay, l2 = ex * ex + ey * ey;
+          for (var t = 0; t < run.length; t += step) {
+            var f = l2 ? Math.max(0, Math.min(1, ((run[t].x - ax) * ex + (run[t].y - ay) * ey) / l2)) : 0, dd = Math.hypot(run[t].x - ax - f * ex, run[t].y - ay - f * ey);
+            if (dd < bd) { bd = dd; best = w; }
+          }
+        }
+      }
+      if (best < 0) return null;
+    }
+    out.push({ k: best, pts: run });
+  }
+  return out;
+}
+/* [r33 M1 + M2] Füllung samt Unterlage einer Fläche. Text (ausser Text auf Pfad) rechnet als ungedrehter
+   Stellvertreter über die normale Füllung und wird danach mitgedreht. Bei mehrteiligen Flächen werden Füllung und
+   Unterlage wie bisher für das Ganze geplant und danach Teil für Teil umsortiert: je Teil seine Unterlage, dann seine
+   Füllung (Übergang wie bisher über _withFillUnderlayJoin), dann der nächstgelegene Teil. Einteilige Flächen: wie bisher. */
+function* _vtFillComposeSteps(shape) {
+  if (shape && shape.type === 'text' && !shape._vtTextAsFill && !(shape.onPath && shape.pathId) && !window._vtTextFillLegacy) {
+    var tp = Object.create(shape); tp._vtTextAsFill = true; tp.rotation = 0;
+    var tpts = yield* _vtFillComposeSteps(tp);
+    return window._vtRotateTextStitches((tpts || []).map(function (q) { return Object.assign({}, q); }), shape);
+  }
+  var islands = null;
+  try { islands = _vtFillIslands(shape); } catch (eI) { console.warn('[vt:swallowed]', eI); islands = null; }
+  var main = yield* _calcFillStitchSteps(shape);
+  if (!islands) return yield* _withFillUnderlaySteps(shape, main);
+  var params = (shape.stitch && shape.stitch.params) || {}, ul = [];
+  if (!main || !main.length) return main || [];
+  if (params.underlay !== false) { var uG = _calcFillUnderlayStitch(shape, true); ul = Array.isArray(uG) ? uG : yield* uG; }
+  yield 'underlay';
+  var mr = _vtFillIslandRuns(main, islands), ur = ul && ul.length ? _vtFillIslandRuns(ul, islands) : [];
+  if (!mr || !ur) return _withFillUnderlayJoin(shape, main, ul || []);
+  function seq(list, k) {
+    var o = [];
+    for (var a = 0; a < list.length; a++) {
+      if (list[a].k !== k) continue;
+      var run = list[a].pts;
+      for (var b = 0; b < run.length; b++) {
+        if (b) { o.push(run[b]); continue; }
+        var h = Object.assign({}, run[0]); if (o.length) h.jump = true; else delete h.jump; o.push(h);
+      }
+    }
+    return o;
+  }
+  var parts = [];
+  for (var k = 0; k < islands.length; k++) {
+    var u = seq(ur, k), m = seq(mr, k);
+    if (!u.length && !m.length) continue;
+    parts.push({ k: k, pts: m.length ? (u.length ? _withFillUnderlayJoin(shape, m, u) : m) : u });
+    yield 'island';
+  }
+  /* Reihenfolge: für jeden möglichen ersten Teil (bis 60 Teile, sonst der linkeste) die Kette «nächster Teil zuerst»,
+     davon die mit der kürzesten Leerfahrt. Bei Gleichstand gewinnt der linkere Anfang. */
+  function gap(a, b) { var p = a.pts[a.pts.length - 1], q = b.pts[0]; return Math.hypot(q.x - p.x, q.y - p.y); }
+  var lefts = parts.map(function (pt, i) { return i; }).sort(function (a, b) { return islands[parts[a].k].bb.x0 - islands[parts[b].k].bb.x0; });
+  var best = null, bestLen = Infinity, tries = parts.length <= 60 ? lefts : lefts.slice(0, 1);
+  for (var si = 0; si < tries.length; si++) {
+    var left = parts.slice(), order = [left.splice(tries[si], 1)[0]], len = 0;
+    while (left.length) {
+      var bi = 0, bd = Infinity;
+      for (var j = 0; j < left.length; j++) { var d = gap(order[order.length - 1], left[j]); if (d < bd) { bd = d; bi = j; } }
+      len += bd; order.push(left.splice(bi, 1)[0]);
+    }
+    if (len < bestLen - 1e-6) { bestLen = len; best = order; }
+  }
+  var out = [];
+  for (var c = 0; c < best.length; c++) for (var i = 0; i < best[c].pts.length; i++) out.push(i === 0 && out.length ? Object.assign({}, best[c].pts[0], { jump: true }) : best[c].pts[i]);
+  return out;
+}
 function _withFillUnderlay(shape, mainPts) {
   var st = shape && shape.stitch;
   var params = (st && st.params) || {};
   /* Text: dünne Glyphen brauchen kein Underlay (perpendikulare Stützreihen
-     bei 3.5mm würden bei kleinen Buchstaben nur Mess/Sprünge erzeugen). */
-  if (shape && shape.type === 'text') return mainPts || [];
+     bei 3.5mm würden bei kleinen Buchstaben nur Mess/Sprünge erzeugen). [r33 M1] Der Text-Stellvertreter der normalen Füllung bekommt
+     die Unterlage wie jede Fläche: zu kurze Unterlage-Reihen fallen dort ohnehin weg. */
+  if (shape && shape.type === 'text' && !shape._vtTextAsFill) return mainPts || [];
   if (!mainPts || !mainPts.length || params.underlay === false) return mainPts || [];
   return _withFillUnderlayJoin(shape, mainPts, _calcFillUnderlayStitch(shape));
 }
@@ -43244,7 +43683,7 @@ function _withFillUnderlay(shape, mainPts) {
 function* _withFillUnderlaySteps(shape, mainPts) {
   var st = shape && shape.stitch;
   var params = (st && st.params) || {};
-  if (shape && shape.type === 'text') return mainPts || [];
+  if (shape && shape.type === 'text' && !shape._vtTextAsFill) return mainPts || [];
   if (!mainPts || !mainPts.length || params.underlay === false) return mainPts || [];
   var underlay = _calcFillUnderlayStitch(shape, true);
   return _withFillUnderlayJoin(shape, mainPts, Array.isArray(underlay) ? underlay : yield* underlay);
@@ -43277,6 +43716,31 @@ function _withFillUnderlayJoin(shape, mainPts, underlayPts) {
     for (var _uj = 1; _uj < _ulJoin.length; _uj++) out.push(_ulJoin[_uj]);
     var _ujl = out[out.length - 1];
     if (!_ujl.jump && Math.hypot(_ujl.x - first.x, _ujl.y - first.y) < 1e-6) out.pop();
+    /* [r32] Bleibt es beim Sprung (kein gerader Innenweg, kein kurzer Kantenbogen), fuehrt der Innenweg-Router
+       durch die Form. Die Fuellung deckt diesen Weg gleich zu. Jede Teilstrecke wird alle 0.1 mm geprueft.
+       Im Modus «Spruenge» bleibt der geschnittene Sprung wie gewuenscht. */
+    var _fcJoin = (shape && shape.stitch && shape.stitch.params && shape.stitch.params.fillConnect) || window._fillConnect || 'jump';
+    if (_ujl.jump && _fcJoin !== 'jump') {
+      try {
+        var _gR = _stitchResolveFillGeometry(shape), _hsR = !!(_gR.hasSVGPath && _setupFillPath(shape));
+        var _inR = function (x, y) { return _fillPointInsideShape(shape, x, y, _hsR, _gR.outline, _gR.nEdges); };
+        var _rtR = _buildInteriorTravelRouter(_inR, _gR.outline).routeTravel(last.x, last.y, first.x, first.y, _mm2px(300));
+        if (_rtR && _rtR.length >= 2) {
+          var _ptsR = [], _okR = true, _pxR = last.x, _pyR = last.y;
+          for (var _kR = 1; _kR < _rtR.length && _okR; _kR++) {
+            var _txR = _rtR[_kR].x, _tyR = _rtR[_kR].y, _nR = Math.max(1, Math.ceil(Math.hypot(_txR - _pxR, _tyR - _pyR) / _mm2px(2)));
+            for (var _mR = 1; _mR <= _nR && _okR; _mR++) {
+              var _axR = _pxR + (_txR - _pxR) * (_mR - 1) / _nR, _ayR = _pyR + (_tyR - _pyR) * (_mR - 1) / _nR, _bxR = _pxR + (_txR - _pxR) * _mR / _nR, _byR = _pyR + (_tyR - _pyR) * _mR / _nR;
+              var _nsR = Math.max(2, Math.ceil(Math.hypot(_bxR - _axR, _byR - _ayR) / _mm2px(0.1)));
+              for (var _sR = 1; _sR <= _nsR; _sR++) if (!_inR(_axR + (_bxR - _axR) * _sR / _nsR, _ayR + (_byR - _ayR) * _sR / _nsR)) { _okR = false; break; }
+              if (_okR) _ptsR.push({ x: _bxR, y: _byR });
+            }
+            _pxR = _txR; _pyR = _tyR;
+          }
+          if (_okR && _ptsR.length) { out.pop(); for (var _qR = 0; _qR < _ptsR.length - 1; _qR++) out.push(_ptsR[_qR]); }
+        }
+      } catch (eR) { console.warn('[vt:swallowed]', eR); }
+    }
   }
   for (var i = 0; i < mn.length; i++) out.push(mn[i]);
   /* vt (2026-06-06): Travel-Trim auf dem FÜLL-Teil (ab Underlay-Ende), NACH der
@@ -43718,9 +44182,9 @@ async function _stitchRecalcCooperative(shape, shouldCancel) {
     if(!current()||!textPoints)return {cancelled:true};
   }
   function* calculate(){
-    var points=textWorker?textPoints:yield* _calcFillStitchSteps(shape);
+    var points=textWorker?textPoints:yield* _vtFillComposeSteps(shape); /* [r33 M1 + M2] Füllung samt Unterlage */
     yield 'main-complete';
-    if(!textWorker){points=yield* _withFillUnderlaySteps(shape,points);yield 'underlay';
+    if(!textWorker){yield 'underlay';
       points=_withFillOutline(shape,points);yield 'outline';}
     return yield* _fillFinalizeMaterialSteps(shape,points||[]);
   }
@@ -43834,7 +44298,7 @@ function _stitchRecalcUnsafe(shape) {
         if (shape.type === 'text' && (shape.textStitch === 'satin' || shape.textStitch === 'laengs')) {
           st.needlePoints = _calcFillStitch(shape) || [];
         } else {
-          st.needlePoints = _withFillOutline(shape, _withFillUnderlay(shape, _calcFillStitch(shape)));
+          st.needlePoints = _withFillOutline(shape, _vtStitchDrain(_vtFillComposeSteps(shape))); /* [r33 M1 + M2] */
         }
       break;
     case 'running': st.needlePoints = _calcRunningStitch(shape); break;
@@ -46626,6 +47090,9 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
       var qRun=_dstCleanupQuantizedRun(_dstQuantizeRunDirect(run, centerPxX, centerPxY),preserveMaterial,maxRunUnits);
       if(!preserveMaterial) qRun=_dstReinsertShallowRowCorners(qRun);
       if (!qRun.length) continue;
+      /* [r32] Ein Teilstueck, das nach dem Runden auf 0.1 mm keine Bewegung mehr enthaelt, erzeugt keinen Stich.
+         Bisher fuhr die Maschine trotzdem hin (Schnitt, Leerfahrt bis 160 mm) und wieder weg (zweiter Schnitt). */
+      if (!qRun.some(function (qq) { return qq.x !== qRun[0].x || qq.y !== qRun[0].y; })) continue;
       var firstQ = qRun[0];
       var firstPx = run[0];
       /* INTER-SHAPE / INTER-RUN Übergang. Wenn der globale Travel-Graph
@@ -58762,6 +59229,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-27', t:'VT-20261027-local-r37', c:null},
+    {d:'2026-10-27', t:'VT-20261027-local-r36', c:null},
+    {d:'2026-10-27', t:'VT-20261027-local-r35', c:null},
+    {d:'2026-10-27', t:'VT-20261027-local-r34', c:null},
+    {d:'2026-10-26', t:'VT-20261026-local-r33', c:null},
+    {d:'2026-10-26', t:'VT-20261026-local-r32', c:null},
     {d:'2026-10-19', t:'VT-20261019-local-r31', c:null},
     {d:'2026-10-14', t:'VT-20261014-local-r30', c:null},
     {d:'2026-10-12', t:'VT-20261012-local-r29', c:null},
@@ -59009,13 +59482,17 @@ function _astMergeCollinear(edges,W,dist,nbArr){
       /* Slivers/Spurs (<12px Kante) NICHT mit-mergen: sonst paart ein Sliver faelschlich mit
          dem Stamm, bevor der echte Durchstrich dran ist. Sie bleiben separat (werden spaeter
          als Knubbel gedroppt). */
-      var lst=lstAll.filter(function(it){return es[it.ei].length>12;});
+      /* [r36 K9] Kurzes Stueck mit freiem Strich-Ende (Querstrich-Ende neben einer Kreuzung) ist kein Splitter:
+         es darf sich an ein LANGES Stueck anschliessen, nie an ein anderes kurzes (Serifenpaare bleiben getrennt). */
+      var _k9leaf=function(it){var ed=es[it.ei],o=it.atStart?ed[ed.length-1]:ed[0];return !window._vtK9Off&&ed.length>4&&nbArr&&nbArr[o]===1;};
+      var lst=lstAll.filter(function(it){return es[it.ei].length>12||_k9leaf(it);});
       if(lst.length<2) continue;
       var dirs=lst.map(function(it){return endDir(es[it.ei],it.atStart);});
       var hws=lst.map(function(it){return endHw(es[it.ei],it.atStart);});
       function bestPartner(a){ var bi=-1,bd=-0.5,b; for(b=0;b<lst.length;b++){ if(b===a||lst[a].ei===lst[b].ei) continue; var d=dirs[a].x*dirs[b].x+dirs[a].y*dirs[b].y; if(d<bd){ bd=d; bi=b; } } return {idx:bi,dot:bd}; }
       for(var a=0;a<lst.length;a++){ var pa=bestPartner(a); if(pa.idx<0) continue;
         var pb=bestPartner(pa.idx); if(pb.idx!==a) continue;                         /* Reziprozitaet */
+        if(es[lst[a].ei].length<=12&&es[lst[pa.idx].ei].length<=12) continue;  /* [r36 K9] nie kurz mit kurz */
         var wr=Math.min(hws[a],hws[pa.idx])/(Math.max(hws[a],hws[pa.idx])||1); if(wr<0.55) continue;  /* Breiten-Gate */
         if(!best||pa.dot<best.dot) best={dot:pa.dot,a:lst[a],b:lst[pa.idx]};
       } }
@@ -59333,6 +59810,38 @@ function _contourUnderpath(a, b, loops, inkTest){
 /* === SIGNATUR: loops als 5. Param (Default undefined = inaktiv) ===
    ALT:  function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx){
    NEU (erste Zeile ersetzen):                                            */
+/* [r37 K13] Satin direkt aus den Querschnitten: Stich i verbindet die beiden Endpunkte von Querschnitt i (beide Schienen
+   haben bis auf die Kappen-Verlaengerung gleich viele Punkte). Die bisherige Paarung nach Bogenlaengen-Anteil in 2-mm-
+   Abschnitten zog in engen Boegen (Pacifico g/d) die Stiche schraeg: die Innenschiene ist dort viel kuerzer. Die Kappen-
+   Verlaengerungen werden unter sich nach Anteil gepaart. Luecken ueber dem Stichabstand werden aufgefuellt, staut sich
+   eine Seite (Abstand unter 0.055 mm, enge Innenkurve), wird der Einstich wie bisher um 42 % nach innen gezogen (kurze
+   Stiche statt Faecher ins selbe Loch). */
+function _k13PairStations(rail1, rail2, n0, p1, p2, pitchPx){
+  function frac(r1,r2){ var o=[],n=Math.max(r1.length,r2.length),k; if(!r1.length||!r2.length) return o;
+    for(k=0;k<n;k++){ var t=n>1?k/(n-1):0; o.push([r1[Math.round(t*(r1.length-1))],r2[Math.round(t*(r2.length-1))]]); } return o; }
+  var R=frac(rail1.slice(0,p1),rail2.slice(0,p2)),i;
+  for(i=0;i<n0;i++) R.push([rail1[p1+i],rail2[p2+i]]);
+  R=R.concat(frac(rail1.slice(p1+n0),rail2.slice(p2+n0)));
+  if(R.length<2) return {stitches:[],rungs:[]};
+  var sp=Math.max(_mm2px(0.15),pitchPx),stau=_mm2px(0.055),retr=0.42,all=[],lastA=null,lastB=null;
+  for(i=0;i<R.length;i++){
+    if(i>0){ var A0=R[i-1][0],B0=R[i-1][1],A1=R[i][0],B1=R[i][1],g=Math.max(Math.hypot(A1.x-A0.x,A1.y-A0.y),Math.hypot(B1.x-B0.x,B1.y-B0.y));
+      var ns=Math.min(40,Math.max(0,Math.ceil(g/sp-1e-8)-1));
+      for(var j=1;j<=ns;j++){ var u=j/(ns+1); all.push([{x:A0.x+(A1.x-A0.x)*u,y:A0.y+(A1.y-A0.y)*u},{x:B0.x+(B1.x-B0.x)*u,y:B0.y+(B1.y-B0.y)*u}]); } }
+    all.push([{x:R[i][0].x,y:R[i][0].y},{x:R[i][1].x,y:R[i][1].y}]);
+  }
+  /* Ein Querschnitt, der auf BEIDEN Seiten weniger als die halbe Dichte vom vorigen entfernt liegt, entfaellt (doppelt dicht). */
+  var thin=[all[0]];
+  for(i=1;i<all.length;i++){ var q=thin[thin.length-1],c=all[i];
+    if(i<all.length-1&&Math.hypot(c[0].x-q[0].x,c[0].y-q[0].y)<sp*0.5&&Math.hypot(c[1].x-q[1].x,c[1].y-q[1].y)<sp*0.5) continue; thin.push(c); }
+  var pts=[],rungs=[];
+  for(i=0;i<thin.length;i++){ var a0=thin[i][0],b0=thin[i][1],a=a0,b=b0,can=i>0&&i<thin.length-1;
+    if(can&&lastA&&Math.hypot(a0.x-lastA.x,a0.y-lastA.y)<stau) a={x:a0.x+(b0.x-a0.x)*retr,y:a0.y+(b0.y-a0.y)*retr}; else lastA=a0;
+    if(can&&lastB&&Math.hypot(b0.x-lastB.x,b0.y-lastB.y)<stau) b={x:b0.x+(a0.x-b0.x)*retr,y:b0.y+(a0.y-b0.y)*retr}; else lastB=b0;
+    if(i%2===0){ pts.push(a); pts.push(b); } else { pts.push(b); pts.push(a); }
+    rungs.push([a,b]); }
+  return {stitches:pts,rungs:rungs};
+}
 function _pairSatinSectioned(rail1, rail2, pitchPx, anchorArcPx, loops){
   if(rail1.length<2 || rail2.length<2) return {stitches:[], rungs:[]};
   /* Unequal cap extensions must retain BOTH complete rails. Match arclength
@@ -60012,6 +60521,13 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
            (auch konkave) Striche: alle Innenpunkte drin -> behalten. */
         var rOut=0,rs; for(rs=1;rs<=4;rs++){ var rt=rs/5, rxx=hP.x+(hN.x-hP.x)*rt, ryy=hP.y+(hN.y-hP.y)*rt; if(!_inInk(rxx,ryy)) rOut++; }
         if(rOut<2){pairs.push({mx:M.x,my:M.y,nx:nx,ny:ny,dP:dP,dN:dN});pairStations.push(k);}
+      } else if(!_flowMode&&!window._vtK10Off&&_inInk(M.x,M.y)){
+        /* [r36 K10] Ueberlagerungszone (Kreuzung, Strich laeuft in einen anderen): Querschnitt zu breit oder einseitig.
+           Bisher fiel die Station weg, die Schienen sprangen ueber die Luecke und die Paarung zog die Stiche schraeg
+           ueber die ganze Flaeche. Jetzt Station in Strichbreite: jede Seite auf die lokale Halbbreite gedeckelt. */
+        var kh=Math.max(M.h,_mm2px(0.3)),kP=Math.min(dP,kh),kN=Math.min(dN,kh),kOut=0;
+        for(var ks=1;ks<=4;ks++){var kt=ks/5;if(!_inInk(M.x+nx*(kP-(kP+kN)*kt),M.y+ny*(kP-(kP+kN)*kt)))kOut++;}
+        if(kOut<2&&Math.min(kP,kN)/Math.max(kP,kN)>0.38){pairs.push({mx:M.x,my:M.y,nx:nx,ny:ny,dP:kP,dN:kN});pairStations.push(k);}
       }
     }
   }
@@ -60047,6 +60563,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
      strich da); an freien Strich-Spitzen liegt er ausserhalb -> keine Verlaengerung.
      Geschlossene Schlaufen (start~end) nicht verlaengern. [Recherche wnilfoi2r] */
   var isLoop=Math.hypot(rail1[0].x-rail1[rail1.length-1].x, rail1[0].y-rail1[rail1.length-1].y) < maxHw*1.5;
+  var _k13n0=rail1.length===rail2.length?rail1.length:0,_k13p1=0,_k13p2=0;
   if(!isLoop){
     function _ext(atStart){
       /* [HEBEL 3 inkrementell, pro Rail UNABHAENGIG] Jede Rail einzeln so weit ins Ink
@@ -60091,7 +60608,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
         }
       } else {grow(rail1); grow(rail2);}
     }
-    _ext(true); _ext(false);
+    var _k13n1=rail1.length,_k13n2=rail2.length;_ext(true);var _k13p1=rail1.length-_k13n1,_k13p2=rail2.length-_k13n2;_ext(false);
   }
   /* SEGMENTWEISE PROFI-WEICHE (2026-06-17): Fan-Score pro Segment entscheidet
      Continuous Turning Satin (+Auto-Split+Short-Stitch je nach Kruemmung) vs.
@@ -60123,6 +60640,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
     var _bf=(typeof window!=='undefined'&&window._bowlFill)||'satin';
     if(_bf==='tatami') zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(2.2), staggers:4 });
     else if(_bf==='laengs') zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
+    else if(!window._vtK13Off&&_k13n0>=2) zz=_k13PairStations(rail1, rail2, _k13n0, _k13p1, _k13p2, _densPx);
     else zz=_pairSatinSectioned(rail1, rail2, _densPx, _mm2px(2.0));
     cls.mode = (_bf==='tatami')?'tatami':(_bf==='laengs')?'contourFlow':'satinSectioned';
   } else {
@@ -60351,6 +60869,38 @@ function extractSegments(text, family, fontSizePx, bold, italic, outlineOnly){
         if(acc>=st){ if(atStart){ cen.unshift({x:lin.x,y:lin.y}); hw.unshift(hw[0]); } else { cen.push({x:lin.x,y:lin.y}); hw.push(hw[hw.length-1]); } } };
       if(endA) _exEnd(true); if(endB) _exEnd(false);
     }
+    /* [r36 K11] Gerade durch die Kreuzung: Wo zwei Striche sich kreuzen oder ineinanderlaufen, weitet sich die Flaeche,
+       das Rasterskelett knickt dort zur Mitte der Aufweitung. Die Senkrechten drehen sich, die Saeule faechert quer ueber die
+       ganze Flaeche. Wie beim Digitalisieren von Hand: Stueck mit Halbbreite ueber 1.4x Median durch eine glatte Kurve
+       ersetzen (Richtung davor und danach), sofern sie im Material liegt und nicht mehr als 100 Grad abbiegt. Endet die
+       Saeule in der Aufweitung (Knoten-Ende), endet sie am Rand der Aufweitung, die kreuzende Saeule deckt die Mitte. */
+    if(!window._vtK11Off&&cen.length>12){
+      var k11s=hw.slice().sort(function(aa,bb){return aa-bb;}),k11t=1.4*(k11s[k11s.length>>1]||minHalf),k11n=cen.length;
+      var k11e=k11n-1;if(!endB&&!window._vtK11TrimOff)while(k11e>8&&hw[k11e]>k11t)k11e--;
+      var k11a=0;if(!endA&&!window._vtK11TrimOff)while(k11a<k11e-8&&hw[k11a]>k11t)k11a++;
+      if(k11a>0||k11e<k11n-1){cen=cen.slice(k11a,k11e+1);hw=hw.slice(k11a,k11e+1);}
+      var k11i=1,k11o=[cen[0]],k11h=[hw[0]];
+      while(k11i<cen.length){
+        if(hw[k11i]<=k11t||k11i<4){k11o.push(cen[k11i]);k11h.push(hw[k11i]);k11i++;continue;}
+        var k11j=k11i;while(k11j<cen.length&&hw[k11j]>k11t)k11j++;
+        var ka=k11i-1,kb=k11j,done=false;
+        if(kb<=cen.length-4){
+          var P0=cen[ka],P1=cen[kb],A0=cen[ka-3],B1=cen[kb+3],t0x=P0.x-A0.x,t0y=P0.y-A0.y,t1x=B1.x-P1.x,t1y=B1.y-P1.y;
+          var l0=Math.hypot(t0x,t0y)||1,l1=Math.hypot(t1x,t1y)||1;t0x/=l0;t0y/=l0;t1x/=l1;t1y/=l1;
+          var D=Math.hypot(P1.x-P0.x,P1.y-P0.y),stp=Math.hypot(cen[ka].x-cen[ka-1].x,cen[ka].y-cen[ka-1].y)||0.25;
+          if(t0x*t1x+t0y*t1y>Math.cos(100*Math.PI/180)&&D>1e-6){
+            var nm=Math.max(2,Math.ceil(D/Math.max(stp,0.2))),br=[],ok=true;
+            for(var km=1;km<nm;km++){var u=km/nm,h00=2*u*u*u-3*u*u+1,h10=u*u*u-2*u*u+u,h01=-2*u*u*u+3*u*u,h11=u*u*u-u*u;
+              var bx=h00*P0.x+h10*D*t0x+h01*P1.x+h11*D*t1x,by=h00*P0.y+h10*D*t0y+h01*P1.y+h11*D*t1y;
+              if(!out.inInk(bx,by)){ok=false;break;}br.push({x:bx,y:by,h:hw[ka]+(hw[kb]-hw[ka])*u});}
+            if(ok){for(var kq=0;kq<br.length;kq++){k11o.push({x:br[kq].x,y:br[kq].y});k11h.push(br[kq].h);}done=true;}
+          }
+        }
+        if(!done)for(var kr=k11i;kr<k11j;kr++){k11o.push(cen[kr]);k11h.push(hw[kr]);}
+        k11i=k11j;
+      }
+      cen=k11o;hw=k11h;
+    }
     var _hwSorted=hw.slice().sort(function(aa,bb){return aa-bb;});
     var _hwMed=_hwSorted[Math.floor(_hwSorted.length/2)]||minHalf, _hwCap=_hwMed*1.5;
     for(var _hc=0;_hc<hw.length;_hc++) if(hw[_hc]>_hwCap) hw[_hc]=_hwCap;
@@ -60503,7 +61053,7 @@ function _resolveMode(ext){
    Aenderungen (Pitch, Stichart) die Vorschau schnell neu rendern. */
 var _segCache={};
 function extractSegmentsCached(ch, fontSizePx){
-  var key=state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0);
+  var key=state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0)+'|'+(window._vtK9Off?1:0)+(window._vtK11Off?1:0)+(window._vtK11TrimOff?1:0);
   if(_segCache[key]) return _segCache[key];
   if(Object.keys(_segCache).length>200) _segCache={};
   var r=extractSegments(ch, state.font, fontSizePx, !!state.bold, !!state.italic);
@@ -61649,6 +62199,50 @@ function _flowWordCoverageRepair(points, groups){
   if(!inkGroups.length)return points;
   return _flowRouteWholeWord(points.concat(extra),function(x,y){for(var i=0;i<inkGroups.length;i++)if(inkGroups[i](x,y))return true;return false;},deadline,groups.reduce(function(a,g){return a.concat(g.loops);},[]));
 }
+/* [r36 K12] Je Glyphe mehrere Fassungen rechnen und die beste nehmen. Die neuen Regeln K9 (kurzes Strich-Ende an
+   Kreuzung anschliessen), K10 (Querschnitt in Strichbreite in Ueberlagerungszonen) und K11 (gerade durch die Kreuzung)
+   verbessern viele Glyphen deutlich, einzelne aber nicht. Bewertet werden Spruenge, lange Stiche (ueber 5 mm), Strecke
+   ausserhalb der Glyphe, ungedeckte Innenflaeche und Faecher. Eine neue Fassung muss deutlich besser sein (2 Punkte), sonst
+   bleibt die bisherige. */
+var _K12_VARIANTS=[{_vtK9Off:true,_vtK10Off:true,_vtK11Off:true},{_vtK11Off:true},{}];
+function _k12Score(pts, ext){
+  var j=0,lng=0,outMM=0,i,step=_mm2px(0.2),tol=_mm2px(0.1),segs=[],cell=_mm2px(0.5),grid={};
+  function inT(x,y){ if(ext.inInk(x,y)) return true; return ext.inInk(x+tol,y)||ext.inInk(x-tol,y)||ext.inInk(x,y+tol)||ext.inInk(x,y-tol); }
+  for(i=1;i<pts.length;i++){ var a=pts[i-1],b=pts[i]; if(b.jump){ j++; continue; }
+    var L=Math.hypot(b.x-a.x,b.y-a.y); if(L>_mm2px(5)) lng++;
+    var n=Math.max(1,Math.ceil(L/step)),k; for(k=0;k<n;k++){ var t=(k+0.5)/n; if(!inT(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t)) outMM+=_px2mm(L/n); }
+    var si=segs.length; segs.push([a,b]);
+    var x0=Math.floor(Math.min(a.x,b.x)/cell),x1=Math.floor(Math.max(a.x,b.x)/cell),y0=Math.floor(Math.min(a.y,b.y)/cell),y1=Math.floor(Math.max(a.y,b.y)/cell),gx,gy;
+    if((x1-x0+1)*(y1-y0+1)<=400) for(gx=x0;gx<=x1;gx++) for(gy=y0;gy<=y1;gy++){ var key=gx+','+gy; (grid[key]=grid[key]||[]).push(si); } }
+  var bx0=1e9,by0=1e9,bx1=-1e9,by1=-1e9; (ext.contour||[]).forEach(function(lp){ lp.forEach(function(p){ if(p.x<bx0)bx0=p.x; if(p.y<by0)by0=p.y; if(p.x>bx1)bx1=p.x; if(p.y>by1)by1=p.y; }); });
+  var gs=_mm2px(0.25),core=0,gap=0,r=_mm2px(0.3),e=_mm2px(0.2),x,y;
+  for(x=bx0;x<=bx1;x+=gs) for(y=by0;y<=by1;y+=gs){
+    if(!(ext.inInk(x,y)&&ext.inInk(x+e,y)&&ext.inInk(x-e,y)&&ext.inInk(x,y+e)&&ext.inInk(x,y-e))) continue; core++;
+    var cx=Math.floor(x/cell),cy=Math.floor(y/cell),hit=false,dx,dy;
+    for(dx=-1;dx<=1&&!hit;dx++) for(dy=-1;dy<=1&&!hit;dy++){ var lst=grid[(cx+dx)+','+(cy+dy)]; if(!lst) continue;
+      for(var q=0;q<lst.length&&!hit;q++){ var s0=segs[lst[q]],A=s0[0],B=s0[1],vx=B.x-A.x,vy=B.y-A.y,l2=vx*vx+vy*vy,f=l2?Math.max(0,Math.min(1,((x-A.x)*vx+(y-A.y)*vy)/l2)):0;
+        if(Math.hypot(x-A.x-f*vx,y-A.y-f*vy)<=r) hit=true; } }
+    if(!hit) gap++; }
+  var gapPct=core?gap/core*100:0;
+  /* Faecher: Satinstiche, die einen nahen Nachbarn (bis 12 Stiche weiter) kreuzen. In einer sauberen Saeule nie. */
+  var sw=[],cr=0,ci,cj; for(i=1;i<pts.length;i++) if(!pts[i].jump) sw.push([pts[i-1],pts[i]]);
+  function o3(p,q,r){ return (q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x); }
+  for(ci=0;ci<sw.length;ci++) for(cj=ci+2;cj<Math.min(sw.length,ci+13);cj++){ var P=sw[ci],Q=sw[cj];
+    if(o3(Q[0],Q[1],P[0])*o3(Q[0],Q[1],P[1])<0&&o3(P[0],P[1],Q[0])*o3(P[0],P[1],Q[1])<0) cr++; }
+  return { score:j+0.5*lng+2*outMM+gapPct+0.25*cr, j:j, lng:lng, outMM:outMM, gapPct:gapPct, cross:cr };
+}
+function _k12Glyph(ch, fontSizePx){
+  var KEYS=['_vtK9Off','_vtK10Off','_vtK11Off'],saved=KEYS.map(function(k){return window[k];}),best=null;
+  function one(){ var ext=extractSegmentsCached(ch, fontSizePx);
+    var pts=_resolveMode(ext)==='fill' ? _tatamiContourFill(ext.contour, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 }) : segsToStitches(ext.segs, state.pitch, ext.contour, ext.inInk, null, ext.fineDetailAxes);
+    return {pts:pts,ext:ext}; }
+  if(window._vtK12Off){ return one().pts; }
+  try{
+    for(var vi=0;vi<_K12_VARIANTS.length;vi++){ var V=_K12_VARIANTS[vi]; KEYS.forEach(function(k){ window[k]=!!V[k]; });
+      var r=one(), sc=_k12Score(r.pts, r.ext); if(!best||sc.score<best.sc.score-2){ best={pts:r.pts,sc:sc,v:vi}; } }
+  } finally { KEYS.forEach(function(k,i){ window[k]=saved[i]; }); }
+  return best.pts;
+}
 function wordStitches(){
   var text=state.text||''; if(!text.trim()) return [];
   var fontSizePx=_mm2px(state.sizeMM);
@@ -61671,7 +62265,7 @@ function wordStitches(){
     penX=glyphs[ci].x;penY=glyphs[ci].y-(state.glyphLayout?ext.baseLocalY:0);
     var pts = state.stitch==='pen' ? _angledFill(ext, sp, state.penAngle)
             : state.stitch==='pencross' ? (function(){ var f1=_angledFill(ext,sp,state.penAngle), f2=_angledFill(ext,sp,state.penAngle+90); if(f2[0]) f2[0].jump=true; return f1.concat(f2); })()
-            : (_resolveMode(ext)==='fill' ? _tatamiContourFill(ext.contour, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 }) : segsToStitches(ext.segs, state.pitch, ext.contour, ext.inInk, null, ext.fineDetailAxes));   /* Fuell-Reihen ~0.26mm = Dichte ~4.7 matcht den Boustrophedon-Satin. */
+            : _k12Glyph(ch, fontSizePx);   /* [r36 K12] Kontur und Maske sind in allen Fassungen gleich. Fuell-Reihen ~0.26mm = Dichte ~4.7 matcht den Boustrophedon-Satin. */
     /* KEIN Satin-Backing mehr (Boustrophedon-Satin deckt selbst, Backing war unnoetig - spart
        ~16% Stiche). FUELL-Glyphen behalten den Kontur-Edge-Walk (definiert die Fuell-Kante +
        schliesst die Kanten-Restluecke; keine Backing-Unterlage, sondern Teil der Fuell-Qualitaet,

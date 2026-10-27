@@ -1,5 +1,51 @@
 # Changelog
 
+## 27 October 2026 — r37
+
+Release build `VT-20261027-local-r37`, byte-identical to the tested local file
+(SHA-256 `61f1615e5ea9554ede9f5bfd0678dd6185935141215e19bb73254d595eb58efd`).
+Embroidery routing and lettering, on top of r31 (the intermediate builds r32 to r36
+were not released separately). The work followed a comparison of fill motifs and
+lettering with Ink/Stitch 2.2.0 and its source code. The stitch
+cache version changes from 254 to 260, so existing designs are recalculated once.
+
+- Fill stitch: the final material check now reroutes a stitch that crosses a bay or a hole along the outline or through the interior instead of cutting it into jumps; the route avoids already sewn rows.
+- Fill stitch: the underlay leads into the fill through the interior, its planning points lie 0.35 mm inside the outline and its stitches are at most 3 mm long. Export skips empty pieces, which caused travel moves of up to 160 mm with two trims.
+- Fill stitch: around holes, outline travel between rows is replaced by a shorter interior route where one exists (as Ink/Stitch collapses sequential outline edges); loops and the final return are dropped.
+- Contour fill: rings are sampled within 0.1 mm instead of at a fixed step, which closes most gaps at bends.
+- Fill stitch: positive pull compensation is limited at the shape boundary instead of producing stitches outside; a notice says so.
+- Text, tatami: text objects use the regular fill, letter by letter (underlay and fill per letter, letters in the order with the shortest travel), instead of an older scan fill that jumped between letters.
+- Text outline: the pixel staircase of the text outline is simplified within 0.05 mm.
+- Text, satin: a centre-walk underlay (there and back) under columns from 1.5 mm width and 3 mm length.
+- Text, satin: letters are sewn one after the other in the order with the shortest travel; within a letter, columns are reordered and reversed so that the next one starts where the previous one ends. Short jumps inside a letter become a sewn path only where later satin covers it. Jumps shorter than 1 mm caused by column ends grazing the outline are merged.
+- Text, satin, crossings (for example the looped "t" of Pacifico): a short stroke end next to a crossing is joined to its stroke instead of being dropped, cross-sections in overlap zones keep the stroke width, and the centre line runs straight through the crossing. Because these rules improve most letters but not all, each letter is computed in three variants and the best one by jumps, long stitches, stitches outside, uncovered area and crossing neighbour stitches is used; a new variant must be clearly better, otherwise the previous result stays.
+- Text, satin: each satin stitch follows one cross-section of the stroke, instead of pairing the two edges by their share of length in 2 mm sections. In thick, tight bowls (Pacifico "g", "d") the inner edge is much shorter, and the old pairing pulled the stitches into fans across the counter, many of them cut into jumps. Where the inner edge gets crowded, every other stitch is shortened, so stitches do not all meet in one hole.
+
+Verification in isolated Chrome and WebKit profiles: the full regression (routing,
+patterns, paint bucket, tracer, Gecko, catalogue, path text, font strokes, colours,
+upgrade, materials, paint servers, import notices, camera, satin text, languages,
+motifs and the stitch matrix) passed on the r36 build without new deviation; the
+remaining path-text and import-notice deviations are identical in r32 to r35. The
+final r37 file, which only changes how satin columns are paired, passed the satin
+text, satin and lettering tests in both engines; every sewn stretch of the five test
+texts was checked every 0.1 mm against the text outline: nothing lies more than
+0.1 mm outside. Against Ink/Stitch 2.2.0 with the same 16 shapes and settings, no
+Vektortool shape has stitches outside (Ink/Stitch: 9 shapes, up to 9 mm), at similar
+stitch count, thread and time. Over 252 letters in 12 fonts at 20 mm, r35 → r37:
+jumps 1485 → 904, stitches over 5 mm 875 → 76, stretches outside the letter before
+the final check 444 → 50 mm, uncovered area −94 %. Satin lettering over five test
+texts, r34 (before the lettering changes) → r37: trims 51 → 32, jump sequences
+147 → 101, travel 755 → 529 mm, about 15 % more stitches. The embroidery files were
+also opened in two online viewers that process them in the browser.
+
+Limits: Firefox could not be tested in this round (the test engine does not start
+after a macOS update). The full regression of the final r37 file is still running
+after this release. The embroidery files are not byte-identical to r31. Single
+letters can get a few more jumps (for example "x" and "W" in some fonts), and the
+script word "Liebe" in Lobster has more jumps than before; computing a satin letter
+takes about twice as long. Every jump of 5 mm or more is still trimmed (Ink/Stitch
+leaves jump threads between letters). Physical machine trials are pending.
+
 ## 26 October 2026 — r31
 
 Release build `VT-20261019-local-r31`, byte-identical to the tested local file

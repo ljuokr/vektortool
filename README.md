@@ -10,10 +10,17 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 26 October 2026 release uses the tested `VT-20261019-local-r31` build
+The 27 October 2026 release uses the tested `VT-20261027-local-r37` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `b499d655ddd24b348b5d107cbe7ec7feabfba598919b6be57d0395aa38251ade`).
-r31 reworks fill-stitch routing: rows at sharp corners reach the edge again,
+to the tested file; SHA-256 `61f1615e5ea9554ede9f5bfd0678dd6185935141215e19bb73254d595eb58efd`).
+r37 improves embroidery routing and lettering: the final material check reroutes
+stitches through the interior instead of cutting them into jumps, the underlay and
+travel around holes take shorter interior routes, tatami and satin text are sewn
+letter by letter, satin text gets a centre-walk underlay, and crossings in script
+letters (such as the looped "t" of Pacifico) become clean columns, and satin stitches
+follow the cross-section of the stroke, so thick bowls no longer fan. Over five test
+texts satin trims fall from 51 to 32 compared with the state before these changes, and in a comparison of 16 shapes with Ink/Stitch
+no Vektortool shape has stitches outside. r31 reworked fill-stitch routing: rows at sharp corners reach the edge again,
 travel runs just inside the outline instead of on it, stitches that graze an
 inward-curved edge are bent inward instead of being cut into chains of short
 jumps, and the underlay leads into the fill without a trim. For a traced gecko
@@ -37,8 +44,9 @@ The releases were tested in isolated Chrome, Firefox and WebKit profiles with
 actual saved browser downloads and independent machine-file decoding. Every
 embroidery file that r27 produced in these tests is byte-identical, apart from
 the corrected Gecko path-text overflow cases; r29 and r30 output is byte-identical
-to r28. r31 changes fill routing on purpose; its files were compared with r30 by
-coverage, stitches outside the shape, jumps, trims and short stitches. These are targeted repair checks,
+to r28. r31 and r37 change routing on purpose; their files were compared with the
+previous release by coverage, stitches outside the shape, jumps, trims and short
+stitches, and r37 also with Ink/Stitch 2.2.0. r37 was tested in Chrome and WebKit only. These are targeted repair checks,
 not exhaustive browser or machine certification.
 Direct paste into the tested macOS Inkscape 1.2.1 remains unsuccessful; selected
 artwork can instead be saved with Ctrl/Cmd+Shift+C for SVG file import.
