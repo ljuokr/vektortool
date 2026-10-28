@@ -1,5 +1,40 @@
 # Changelog
 
+## 28 October 2026 — r41
+
+Release build `VT-20261028-local-r41`, byte-identical to the tested local file
+(SHA-256 `e109b7f1d9c09c2e7cd6e7917f01a5028cbc0fe84b2626d6df284cb88573a753`).
+Laser and cutting-plotter export, fill-stitch routing and lettering, on top of r37 (the
+intermediate builds r38 to r40 were not released separately). The routing work was
+written independently from published methods (boustrophedon cell decomposition, Choset
+2000; depth-first coverage of the cell graph, Acar and Choset 2002; the rural postman
+problem, Frederickson 1979; weighted-sum multi-objective choice, Marler and Arora 2004;
+dynamic programming, Bellman 1957); Ink/Stitch 2.2.0 was used only as a black box for
+comparison. The stitch cache version changes from 260 to 264, so existing designs are
+recalculated once.
+
+- Laser / cutting plotter: new export "Laser / cutting plotter …" with files for xTool Studio (SVG), LightBurn (SVG, DXF with layers by colour) and Silhouette Studio (DXF, SVG). Red #FF0000 hairlines are cuts, black areas are engraving, sizes in mm; engraving comes before cutting and inner contours before outer ones.
+- Outline tracing: new option "Two colours: cut black, engrave colour". The outer edge of the black part becomes the cut line, coloured parts become the engraving; tiny black specks are dropped and "Smooth edges" is switched on.
+- Status bar: a globe link next to "i" opens the Design und Technik website in a new tab; the info window lists it too. Opening the info or the shortcuts window now closes the other one (they used to stay open on top of each other).
+- Fill stitch: the default row offset is the classic four-row tatami stagger on a fixed grid; the previous irregular offset remains available as "Scatter stitches". The last stitch of a row is never longer than 1.05 × the stitch length (it could reach 4 mm).
+- Fill stitch, routing: each cell of the fill is first crossed while it is still empty and sewn on the way back, so travel lies under rows sewn later instead of on top of finished rows. The transition from underlay to fill keeps the planned order. Jumps shorter than 1 mm become stitches. Not used in the "Jumps" connection mode, which keeps its previous behaviour.
+- Fill stitch and tatami text: each letter or part is planned in up to six variants (new routing, previous routing, four start corners) and sewn in the order (nearest next or reading order) with the lowest cost of visible travel, jump sequences and trims; a new choice must be clearly better. Limited to shapes up to 20 000 needle points.
+- Translations: the new texts are available in all 31 languages.
+
+Measurements against r37 and Ink/Stitch 2.2.0 (same shapes and settings, needle points
+decoded from DST; visible travel = stitches of 1 mm or more across rows already sewn):
+over nine test shapes visible travel falls from about 204 mm (r37) to about 32 mm
+(Ink/Stitch: 17 mm), stitches over 4 mm disappear, the longest stitch is 3.4 mm
+(Ink/Stitch 3.1 mm). Over six outlined fonts visible travel falls from 218 mm (r37) to
+34 mm (Ink/Stitch 35 mm) at the same number of trims; Ink/Stitch still has fewer jump
+sequences (mostly jumps under 1 mm across narrow gaps inside letters). Large traced
+motifs take about 20 to 50 % longer to calculate.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all completed. The known deviations
+remain (one check in T03 per engine and one in T09, both present before r37). Traced motifs
+export as in r37 (18 of 20; both versions of the fern photo stay blocked by shapes without
+stitches), with about 2 % more trims in the Hershey calligraphy motif.
+
 ## 27 October 2026 — r37
 
 Release build `VT-20261027-local-r37`, byte-identical to the tested local file

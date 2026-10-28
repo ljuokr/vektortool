@@ -10,9 +10,16 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 27 October 2026 release uses the tested `VT-20261027-local-r37` build
+The 28 October 2026 release uses the tested `VT-20261028-local-r41` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `61f1615e5ea9554ede9f5bfd0678dd6185935141215e19bb73254d595eb58efd`).
+to the tested file; SHA-256 `e109b7f1d9c09c2e7cd6e7917f01a5028cbc0fe84b2626d6df284cb88573a753`).
+r41 adds a laser and cutting-plotter export (xTool Studio, LightBurn, Silhouette
+Studio; red hairline = cut, black = engrave) and two-colour outline tracing for it,
+a link to the Design und Technik website in the status bar, the classic four-row
+tatami stagger, and fill routing that hides travel under rows sewn later. Tatami and
+outlined lettering choose per letter between routing variants. Over six outlined
+fonts, visible travel across finished rows falls from 218 mm (r37) to 34 mm, close to
+Ink/Stitch 2.2.0 (35 mm).
 r37 improves embroidery routing and lettering: the final material check reroutes
 stitches through the interior instead of cutting them into jumps, the underlay and
 travel around holes take shorter interior routes, tatami and satin text are sewn
@@ -44,9 +51,9 @@ The releases were tested in isolated Chrome, Firefox and WebKit profiles with
 actual saved browser downloads and independent machine-file decoding. Every
 embroidery file that r27 produced in these tests is byte-identical, apart from
 the corrected Gecko path-text overflow cases; r29 and r30 output is byte-identical
-to r28. r31 and r37 change routing on purpose; their files were compared with the
+to r28. r31, r37 and r41 change routing on purpose; their files were compared with the
 previous release by coverage, stitches outside the shape, jumps, trims and short
-stitches, and r37 also with Ink/Stitch 2.2.0. r37 was tested in Chrome and WebKit only. These are targeted repair checks,
+stitches, and r37 and r41 also with Ink/Stitch 2.2.0. r37 and r41 were tested in Chrome and WebKit only. These are targeted repair checks,
 not exhaustive browser or machine certification.
 Direct paste into the tested macOS Inkscape 1.2.1 remains unsuccessful; selected
 artwork can instead be saved with Ctrl/Cmd+Shift+C for SVG file import.

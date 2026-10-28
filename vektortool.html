@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261027-local-r37 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261028-local-r41 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -1301,6 +1301,20 @@ body.stick-mode #stitchPanel .stitch-content[data-stab="type"] { display:none !i
 #vtChangelog .vtcl-foot a:hover { text-decoration:underline; }
 #vtChangelogBtn { padding:2px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); color:var(--ac); cursor:pointer; font-size:var(--fs-sm); }
 #vtChangelogBtn:hover { border-color:var(--ac); }
+/* [r38 L2] Dialog Laser / Schneideplotter */
+#laserCutOverlay { position:fixed; inset:0; z-index:10010; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); padding:16px; }
+#laserCutDialog { background:var(--white); color:var(--fg); border-radius:var(--radius-lg); box-shadow:var(--shadow-4); padding:22px 24px 18px; width:min(540px,100%); max-height:calc(100vh - 32px); overflow:auto; box-sizing:border-box; }
+#laserCutDialog h3 { margin:0 0 var(--space-3); font-size:var(--fs-xl); font-weight:700; }
+#laserCutDialog .lcd-sub { font-size:var(--fs-md); color:var(--fg2); margin-bottom:14px; }
+#laserCutDialog .lcd-dev { border:1px solid var(--n-100); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:10px; }
+#laserCutDialog .lcd-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+#laserCutDialog .lcd-head small { color:var(--fg2); font-size:var(--fs-xs); }
+#laserCutDialog .lcd-btns { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 6px; }
+#laserCutDialog button { font:inherit; font-size:var(--fs-base); padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--white); color:var(--fg); cursor:pointer; }
+#laserCutDialog button:hover:not(:disabled), #laserCutDialog button:focus-visible { border-color:var(--ac); outline:2px solid var(--ac); outline-offset:1px; }
+#laserCutDialog button:disabled { opacity:.45; cursor:default; }
+#laserCutDialog p { margin:0; font-size:var(--fs-md); line-height:1.45; color:var(--fg2); }
+#laserCutDialog .lcd-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:12px; font-size:var(--fs-xs); color:var(--fg2); }
 #importChoiceOverlay { position:fixed; inset:0; z-index:10010; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); } /* [uxfix v1] B06: über dstvModal (9999) und stitchPanel (10000), sonst öffnete der Dialog unsichtbar HINTER dem Stick-Viewer */
 #importChoiceDialog { background:var(--white); border-radius:var(--radius-lg); box-shadow:var(--shadow-4); padding:28px 32px 22px; min-width:320px; max-width:400px; text-align:center; }
 #importChoiceDialog h3 { margin:0 0 var(--space-3); font-size:var(--fs-xl); font-weight:700; color:var(--fg); }
@@ -1977,6 +1991,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   <button id="exportPdfBtn" title="PDF-Seite in echten mm mit eingebettetem JPEG-Rasterbild, kein Vektor-PDF. Zum Ausdrucken, Versenden und Archivieren. Hinweis: Text wird als Bild eingebettet - manche Schriften erscheinen dabei in einer Ersatzschrift. Wenn die Schrift exakt stimmen muss, SVG nutzen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4,1h6l3,3v11H4z"/><path d="M10,1v3h3"/><path d="M6,8h4M6,10.5h3"/></svg>PDF (gerastert)</button>
   <!-- [export3d-raus v1] "SVG 3D-Druck"-Button entfernt (Lukas 2026-06-09: "brauche ich jetzt nicht mehr").
        buildExportSVG3D + window-Expose bleiben (Goldentests/3D-Pipeline); bei Bedarf Button aus Backup zurueck. -->
+  <button id="exportLaserCutBtn" title="Schneidbare Konturen für xTool Studio, LightBurn oder Silhouette Studio. Rot = Schnitt, Schwarz = Gravur, Masse in mm."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="4" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><path d="M5.5,10.5L12,2M10.5,10.5L4,2"/></svg>Laser / Schneideplotter …</button>
   <button id="exportDxfBtn" title="DXF für CAD/CNC/Laser (LibreCAD, Fusion, LightBurn). Offline-Testexport: Kurven und Materialkonturen inklusive Löcher in echten mm. Sichtbare gesperrte Formen sind enthalten. Nicht unterstützte Formen brechen den Export ab. Vor Fertigung im Zielprogramm prüfen."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2,8h12M8,2v12M4,4l8,8M12,4l-8,8"/></svg>DXF (CAD/CNC)</button><!-- [uxfix v1] G8: buildExportDXF() war fertig, aber ohne Aufrufer; Header versprach DXF -->
   <div class="exp-sep"></div>
   <button id="exportClipBtn" title="SVG kopieren · Ctrl/⌘+Shift+C → .svg"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4" y="4" width="9" height="9" rx="1"/><path d="M3,11V3h8"/></svg>SVG kopieren</button>
@@ -2062,8 +2077,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
       <!-- [stickui-b v1] #stitchDotsToggle entfernt (Standalone-Fallback) -->
       <span title="Stich-Versatz: zufällige Variation pro Stich, damit kein Muster entsteht" style="display:inline-flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);padding:var(--space-2) var(--space-5);border:1px solid var(--ac);border-radius:var(--radius-sm);background:#fff8e8;font-weight:600;">
         Versatz
-        <input id="stitchOffsetSlider" type="range" min="0" max="100" value="100" step="5" style="width:110px;height:16px;vertical-align:middle;accent-color:var(--ac);">
-        <span id="stitchOffsetValue" style="min-width:32px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">100%</span>
+        <input id="stitchOffsetSlider" type="range" min="0" max="100" value="0" step="5" style="width:110px;height:16px;vertical-align:middle;accent-color:var(--ac);">
+        <span id="stitchOffsetValue" style="min-width:32px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">0%</span>
         <!-- [stickui-b v1] #stitchOffsetReroll entfernt (Standalone-Fallback; Slider bleibt) -->
       </span>
       <!-- [stickui-fs-trim v1] Faden-Trimmen aus der Topline nach #dstvGlobalParams verschoben (weniger prominent platziert) -->
@@ -2083,9 +2098,9 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
       <div style="display:grid;grid-template-columns:auto 1fr auto;gap:var(--space-4) var(--space-5);align-items:center;font-size:var(--fs-sm);">
         <!-- v43A: Versatz Slider -->
         <label style="font-weight:600;color:var(--fg);" title="Stich-Versatz: zufällige Variation gegen Linien-Pattern">Versatz</label>
-        <input id="gpOffsetSlider" type="range" min="0" max="100" value="100" step="5" style="width:100%;accent-color:var(--ac);">
+        <input id="gpOffsetSlider" type="range" min="0" max="100" value="0" step="5" style="width:100%;accent-color:var(--ac);">
         <span style="display:flex;align-items:center;gap:var(--space-2);">
-          <span id="gpOffsetVal" style="min-width:32px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">100%</span>
+          <span id="gpOffsetVal" style="min-width:32px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ac);font-weight:700;">0%</span>
           <button id="gpOffsetReroll" title="Neu berechnen — neuer Zufalls-Seed" style="font-size:var(--fs-sm);padding:var(--space-1) var(--space-3);border:1px solid var(--ac);border-radius:var(--radius-xs);background:var(--white);color:var(--ac);cursor:pointer;font-weight:700;">&#x21BB;</button>
         </span>
         <!-- v43A: Punkte Toggle -->
@@ -2552,6 +2567,30 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   </div>
 </div>
 
+<!-- [r38 L2] Export Laser / Schneideplotter -->
+<div id="laserCutOverlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="laserCutTitle">
+  <div id="laserCutDialog">
+    <h3 id="laserCutTitle">Laser / Schneideplotter</h3>
+    <div class="lcd-sub" id="laserCutSummary" role="status"></div>
+    <div class="lcd-dev">
+      <div class="lcd-head"><strong>xTool Studio</strong><small>LaserBox und andere xTool-Laser</small></div>
+      <div class="lcd-btns"><button type="button" data-lc="xtool-svg">SVG speichern</button></div>
+      <p>SVG in xTool Studio importieren. Rote Linien auf «Schneiden», schwarze Flächen auf «Gravieren» stellen. Material wählen, Lage in der Kameravorschau prüfen, dann starten.</p>
+    </div>
+    <div class="lcd-dev">
+      <div class="lcd-head"><strong>LightBurn</strong><small>Vevor, GCC und andere</small></div>
+      <div class="lcd-btns"><button type="button" data-lc="lightburn-svg">SVG speichern</button><button type="button" data-lc="lightburn-dxf">DXF speichern</button></div>
+      <p>Datei über «Datei &gt; Importieren» öffnen. Die Ebenen kommen nach Farbe an: Rot (02) auf «Linie» für den Schnitt, Schwarz (00) auf «Füllen» für die Gravur. Leistung und Tempo fürs Material einstellen, mit «Rahmen» die Lage prüfen, dann starten.</p>
+    </div>
+    <div class="lcd-dev">
+      <div class="lcd-head"><strong>Silhouette Studio</strong><small>Schneideplotter</small></div>
+      <div class="lcd-btns"><button type="button" data-lc="silhouette-dxf">DXF speichern</button><button type="button" data-lc="silhouette-svg">SVG speichern</button></div>
+      <p>DXF öffnen (SVG erst ab Designer Edition). Grösse nach dem Öffnen kontrollieren. Unter «Senden» nach Linienfarbe schneiden: Rot schneiden, Schwarz ausschalten oder mit Stift zeichnen.</p>
+    </div>
+    <div class="lcd-foot"><span>Rot #FF0000 = Schnitt (Haarlinie) · Schwarz = Gravur · Masse in mm</span><button type="button" id="laserCutClose">Schliessen</button></div>
+  </div>
+</div>
+
 <div id="canvasWrap">
   <svg id="mainSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zeichenflaeche"></svg>
   <div id="dropOverlay">
@@ -2567,6 +2606,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
 
 <div id="statusbar">
   <button id="infoBtn" title="Info" aria-label="Info"></button>
+  <a id="siteLinkBtn" href="https://sites.google.com/view/design-und-technik" target="_blank" rel="noopener" title="Design und Technik (Website, neuer Tab)" aria-label="Design und Technik, Website in neuem Tab"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><ellipse cx="8" cy="8" rx="2.6" ry="6.2"/><path d="M1.8,8h12.4M2.8,4.8h10.4M2.8,11.2h10.4"/></svg></a>
   <button id="shortcutsBtn" title="Tastenkürzel" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:var(--fs-xs);padding:var(--space-1) var(--space-3);cursor:pointer;color:var(--fg2);font-family:monospace">?</button>
   <span id="stDrawSize"></span>
   <span id="stTool">Auswahl</span>
@@ -2622,6 +2662,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
   </div>
   <div class="info-line"><span class="info-label">Autor</span> Lukas Jordi</div>
   <div class="info-line"><span class="info-label">Kontakt</span> <a href="mailto:lukasjordi@gmail.com">lukasjordi@gmail.com</a></div>
+  <div class="info-line"><span class="info-label">Website</span> <a href="https://sites.google.com/view/design-und-technik" target="_blank" rel="noopener">Design und Technik</a></div>
   <div class="info-line"><span class="info-label">Download</span> <span><a href="#" download="vektortool.html">vektortool.html herunterladen</a> · läuft komplett offline, ohne Installation</span></div>
   <!-- [VT-CHANGELOG v1] Verlauf-Button + immer sichtbarer Zeitstempel der neusten Version -->
   <div class="info-line"><span class="info-label">Verlauf</span> <span><button type="button" id="vtChangelogBtn">Änderungen anzeigen</button> · <span class="vtcl-updlabel">zuletzt aktualisiert</span> <span id="vtClLastUpdated">…</span></span></div>
@@ -2682,6 +2723,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-v
         <div class="tracer-row" id="tracerThresholdBetween" style="display:none;"><label for="tracerThreshold">Schwellwert</label><button type="button" id="tracerThreshMinus" class="tracer-step-btn" aria-label="Schwellwert verringern">&minus;</button><input type="range" id="tracerThreshold" min="0" max="255" value="212" step="1"><button type="button" id="tracerThreshPlus" class="tracer-step-btn" aria-label="Schwellwert erhöhen">+</button><span class="tval" id="tracerThresholdVal">212</span></div>
         <!-- [r29] Füllmodus direkt beim Schwellwert, nur im Umriss-Modus sichtbar (vorher nur unter «Weitere Optionen»). -->
         <label class="tracer-check" id="tracerSilhouetteFilledWrap" style="display:none;" title="Erzeugt gef&#xFC;llte Fl&#xE4;chen statt nur Umrisslinien."><input type="checkbox" id="tracerSilhouetteFilled">Gef&#xFC;llt statt Umriss</label>
+        <!-- [r38 L1] Laser/Plotter: Schwarz = Schnitt (nur Aussenkante), bunt = Gravur. -->
+        <label class="tracer-check" id="tracerLaserTwoColorWrap" style="display:none;" title="F&#xFC;r Laser und Schneideplotter: Schwarzes wird zur Schnittkontur (nur die Aussenkante), Buntes wie Rot oder Blau zur Gravurfl&#xE4;che. Graue T&#xF6;ne z&#xE4;hlen als Schwarz."><input type="checkbox" id="tracerLaserTwoColor">Zwei Farben: Schwarz schneiden, Farbe gravieren</label>
         <!-- [r30] Zuschaltbare Glättung mit Regler darunter: Ein = Pfadglättung 1.5 px oder die zuletzt gewählte Stärke, Aus = 0. -->
         <label class="tracer-check" id="tracerSilhouetteSmoothWrap" style="display:none;" title="Glättet die Pixeltreppen der Kontur. Die Stärke stellt der Regler «Pfadglättung» direkt darunter ein."><input type="checkbox" id="tracerSilhouetteSmooth">Kanten glätten</label>
         <div class="tracer-row" id="tracerPathSimplifyRow" style="display:none;" title="0 erhält die erfasste Pixelkontur. Höhere Werte vereinfachen sie; kleine Details können sich ändern."><label for="tracerPathSimplify">Pfadgl&#xE4;ttung</label><input type="range" id="tracerPathSimplify" min="0" max="6" value="0" step="0.1"><span class="tval" id="tracerPathSimplifyVal">0 px</span></div>
@@ -21121,16 +21164,18 @@ function _cncSkipMsg(skip) {
 }
 
 /* ---- DXF: echte mm, $INSUNITS-Header, Layer FLAECHEN/LINIEN ---- */
-function buildExportDXF() {
-  var ents = '', nextHandle = 256;
+/* [r38 L2] laser = [{pts, closed, layer:'SCHNITT'|'GRAVUR'}] schreibt die Laser-/Plotter-Ebenen statt der Formen. */
+function buildExportDXF(laser) {
+  var ents = '', nextHandle = 256, layerNames = laser ? ['0', 'SCHNITT', 'GRAVUR'] : ['0', 'FLAECHEN', 'LINIEN'];
   function poly(pts, closed, layer) {
     ents += '0\nLWPOLYLINE\n5\n' + (nextHandle++).toString(16).toUpperCase() +
-      '\n330\n20\n100\nAcDbEntity\n8\n' + layer + '\n100\nAcDbPolyline\n90\n' + pts.length + '\n70\n' + (closed ? 1 : 0) + '\n';
+      '\n330\n20\n100\nAcDbEntity\n8\n' + layer + (laser ? '\n62\n' + (layer === 'SCHNITT' ? 1 : 7) : '') + '\n100\nAcDbPolyline\n90\n' + pts.length + '\n70\n' + (closed ? 1 : 0) + '\n';
     for (var i = 0; i < pts.length; i++) {
       ents += '10\n' + px2mm(pts[i].x).toFixed(4) + '\n20\n' + (-px2mm(pts[i].y)).toFixed(4) + '\n';
     }
   }
-  for (var i = 0; i < shapes.length; i++) {
+  if (laser) laser.forEach(function(it) { if (it.pts.length >= 2) poly(it.pts, it.closed, it.layer); });
+  else for (var i = 0; i < shapes.length; i++) {
     var s = shapes[i];
     if (!s || s.hidden) continue;
     var parts = _shapeToCncParts(s);
@@ -21147,9 +21192,9 @@ function buildExportDXF() {
   var tables = '0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLTYPE\n5\n10\n330\n0\n100\nAcDbSymbolTable\n70\n1\n' +
     '0\nLTYPE\n5\n11\n330\n10\n100\nAcDbSymbolTableRecord\n100\nAcDbLinetypeTableRecord\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n0\nENDTAB\n' +
     '0\nTABLE\n2\nLAYER\n5\n12\n330\n0\n100\nAcDbSymbolTable\n70\n3\n';
-  ['0', 'FLAECHEN', 'LINIEN'].forEach(function(name, i) {
+  layerNames.forEach(function(name, i) {
     tables += '0\nLAYER\n5\n' + (19 + i).toString(16).toUpperCase() +
-      '\n330\n12\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n2\n' + name + '\n70\n0\n62\n' + (i === 2 ? 5 : 7) + '\n6\nCONTINUOUS\n';
+      '\n330\n12\n100\nAcDbSymbolTableRecord\n100\nAcDbLayerTableRecord\n2\n' + name + '\n70\n0\n62\n' + (laser ? (i === 1 ? 1 : 7) : (i === 2 ? 5 : 7)) + '\n6\nCONTINUOUS\n';
   });
   tables += '0\nENDTAB\n0\nTABLE\n2\nBLOCK_RECORD\n5\n16\n330\n0\n100\nAcDbSymbolTable\n70\n2\n';
   ['*Model_Space', '*Paper_Space'].forEach(function(name, i) {
@@ -21248,6 +21293,85 @@ $('exportLaserSvgBtn').addEventListener('click',function(){
     catch(error){ alert(window.t('DXF-Export vollständig abgebrochen. Keine Fertigungsdatei erzeugt.\n\n{detail}',{detail:error && error.message || error})); return; }
     downloadBlob(new Blob([data], {type:'application/dxf'}), ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g,'') || 'vektortool-export') + '.dxf');
   });
+})();
+
+/* [r38 L2] Export fuer Laser und Schneideplotter. Rolle aus s.laserRole (Nachzeichner zweifarbig), sonst Schnitt.
+   Schnitt = rote Haarlinie ohne Fuellung, Gravur = schwarz gefuellt. Reihenfolge: Gravur, dann Schnittkonturen nach
+   Flaeche des Umrisskastens aufsteigend, damit Innenkonturen vor der Aussenkontur laufen und das Teil liegen bleibt. */
+function _vtLaserCutCollect() {
+  var engrave = [], cut = [], skipped = 0;
+  for (var i = 0; i < shapes.length; i++) {
+    var s = shapes[i];
+    if (!s || s.hidden) continue;
+    if (s.type === 'text' || s.type === 'image') { skipped++; continue; }
+    var parts = _shapeToCncParts(s), role = s.laserRole === 'engrave' ? 'engrave' : 'cut';
+    for (var p = 0; p < parts.length; p++) {
+      var pts = parts[p].pts;
+      if (!pts || pts.length < 2) continue;
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (var k = 0; k < pts.length; k++) { x0 = Math.min(x0, pts[k].x); y0 = Math.min(y0, pts[k].y); x1 = Math.max(x1, pts[k].x); y1 = Math.max(y1, pts[k].y); }
+      (role === 'engrave' ? engrave : cut).push({ pts: pts, closed: !!parts[p].closed, area: parts[p].role === 'area', shape: s.id,
+        box: { x0: x0, y0: y0, x1: x1, y1: y1 }, size: (x1 - x0) * (y1 - y0) });
+    }
+  }
+  cut.sort(function(a, b) { return a.size - b.size; });
+  return { engrave: engrave, cut: cut, skipped: skipped };
+}
+function buildExportLaserCutSVG(L) {
+  var all = L.engrave.concat(L.cut), x0 = 0, y0 = 0, x1 = docW, y1 = docH;
+  all.forEach(function(it) { x0 = Math.min(x0, it.box.x0); y0 = Math.min(y0, it.box.y0); x1 = Math.max(x1, it.box.x1); y1 = Math.max(y1, it.box.y1); });
+  function mm(v) { return px2mm(v).toFixed(3); }
+  function d(it) { var o = 'M' + mm(it.pts[0].x) + ',' + mm(it.pts[0].y); for (var k = 1; k < it.pts.length; k++) o += 'L' + mm(it.pts[k].x) + ',' + mm(it.pts[k].y); return o + (it.closed ? 'Z' : ''); }
+  var areas = {}, order = [], lines = '';
+  L.engrave.forEach(function(it) {
+    if (it.area && it.closed) { if (!(it.shape in areas)) { areas[it.shape] = ''; order.push(it.shape); } areas[it.shape] += d(it); }
+    else lines += '<path d="' + d(it) + '" fill="none" stroke="#000000" stroke-width="0.1"/>\n';
+  });
+  var g = order.map(function(id) { return '<path d="' + areas[id] + '" fill="#000000" fill-rule="evenodd" stroke="#000000" stroke-width="0.1"/>\n'; }).join('') + lines;
+  var c = L.cut.map(function(it) { return '<path d="' + d(it) + '" fill="none" stroke="#FF0000" stroke-width="0.1"/>\n'; }).join('');
+  var w = px2mm(x1 - x0).toFixed(3), h = px2mm(y1 - y0).toFixed(3);
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="' + w + 'mm" height="' + h + 'mm" viewBox="' + mm(x0) + ' ' + mm(y0) + ' ' + w + ' ' + h + '">\n' +
+    (g ? '<g id="Gravur">\n' + g + '</g>\n' : '') + (c ? '<g id="Schnitt">\n' + c + '</g>\n' : '') + '</svg>\n';
+}
+var _vtLaserCutData = null;
+function _vtLaserCutOpen() {
+  var ov = $('laserCutOverlay'), L = null, msg;
+  try { L = _vtLaserCutCollect(); } catch (error) { msg = window.t('Export nicht möglich:') + ' ' + (error && error.message || error); }
+  if (L && !L.cut.length && !L.engrave.length) { msg = window.t('Keine schneid- oder gravierbaren Konturen gefunden.'); L = null; }
+  if (L) {
+    msg = window.t('Schnitt (rot): {cut} Konturen · Gravur (schwarz): {engrave} Konturen', { cut: L.cut.length, engrave: L.engrave.length });
+    if (L.skipped) msg += ' · ' + window.t('{count} Text- oder Bildobjekt(e) nicht enthalten', { count: L.skipped });
+  }
+  $('laserCutSummary').textContent = msg;
+  var btns = ov.querySelectorAll('[data-lc]');
+  Array.prototype.forEach.call(btns, function(b) { b.disabled = !L; });
+  _vtLaserCutData = L; ov.style.display = 'flex';
+  (L ? btns[0] : $('laserCutClose')).focus();
+}
+function _vtLaserCutClose() { $('laserCutOverlay').style.display = 'none'; _vtLaserCutData = null; }
+function _vtLaserCutSave(kind) {
+  var L = _vtLaserCutData; if (!L) return;
+  var dev = kind.split('-')[0], fmt = kind.split('-')[1];
+  var name = ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g, '') || 'vektortool-export') + '-' + dev + '.' + fmt;
+  try {
+    if (fmt === 'svg') downloadBlob(new Blob([buildExportLaserCutSVG(L)], { type: 'image/svg+xml' }), name);
+    else downloadBlob(new Blob([buildExportDXF(L.engrave.map(function(it) { return { pts: it.pts, closed: it.closed, layer: 'GRAVUR' }; })
+      .concat(L.cut.map(function(it) { return { pts: it.pts, closed: it.closed, layer: 'SCHNITT' }; })))], { type: 'application/dxf' }), name);
+  } catch (error) { alert(window.t('Export nicht möglich:') + ' ' + (error && error.message || error)); return; }
+  if (window._vtToast) window._vtToast(window.t('{name} gespeichert.', { name: name }));
+}
+(function() {
+  var btn = $('exportLaserCutBtn'), ov = $('laserCutOverlay'); if (!btn || !ov) return;
+  btn.addEventListener('click', function() {
+    _vtCloseExportMenu(false);
+    if (!shapes.length) { if (window._vtToast) window._vtToast(window.t('Keine Shapes vorhanden.')); return; }
+    _vtLaserCutOpen();
+  });
+  Array.prototype.forEach.call(ov.querySelectorAll('[data-lc]'), function(b) { b.addEventListener('click', function() { _vtLaserCutSave(b.getAttribute('data-lc')); }); });
+  $('laserCutClose').addEventListener('click', _vtLaserCutClose);
+  ov.addEventListener('click', function(e) { if (e.target === ov) _vtLaserCutClose(); });
+  /* Dokumentebene mit Capture: Safari fokussiert geklickte Knoepfe nicht, Escape kaeme sonst nicht am Dialog an. */
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && ov.style.display === 'flex') { e.stopPropagation(); e.preventDefault(); _vtLaserCutClose(); } }, true);
 })();
 
 // SVG 3D-Druck Export (weiss = leer/Loch, rest = schwarz)
@@ -24704,6 +24828,7 @@ function _tracerSyncModeUI() {
   if (_tEl('tracerSilhouetteSection')) _tEl('tracerSilhouetteSection').style.display = silhouette ? 'block' : 'none';
   if (_tEl('tracerSilhouetteFilledWrap')) _tEl('tracerSilhouetteFilledWrap').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilhouetteSmoothWrap')) _tEl('tracerSilhouetteSmoothWrap').style.display = silhouette ? 'flex' : 'none';
+  if (_tEl('tracerLaserTwoColorWrap')) _tEl('tracerLaserTwoColorWrap').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilhouetteThresholdWrap')) _tEl('tracerSilhouetteThresholdWrap').style.display = silhouette ? 'block' : 'none';
   if (_tEl('tracerThresholdBetween')) _tEl('tracerThresholdBetween').style.display = silhouette ? 'flex' : 'none';
   if (_tEl('tracerSilColorWrap')) _tEl('tracerSilColorWrap').style.display = silhouette ? 'block' : 'none';
@@ -28089,7 +28214,7 @@ function _tracerCleanColorFringesAsync(imageData, palette, options) {
 }
 
 function _tracerRasterKey() {
-  return JSON.stringify({controls:['tracerMode','tracerMaxDim','tracerBlur','tracerThreshold','tracerInvert','tracerHighpass','tracerColors','tracerDropBg','tracerCleanFringes','tracerSharedCorners'].map(function(id) {
+  return JSON.stringify({controls:['tracerMode','tracerMaxDim','tracerBlur','tracerThreshold','tracerInvert','tracerLaserTwoColor','tracerHighpass','tracerColors','tracerDropBg','tracerCleanFringes','tracerSharedCorners'].map(function(id) {
     var el = _tEl(id) || {}; return [id,el.value,el.checked];
   }),crop:_tState.crop,excluded:_tState.silExcludedColors,map:_tState.colorMap});
 }
@@ -28246,7 +28371,11 @@ function _tracerRenderProcessed(asyncColor) {
       invert: _tEl('tracerInvert').checked,
       highpass: Number((_tEl('tracerHighpass') || {}).value) || 0
     }).mask;
+    var _vtTwo = _tracerIsSilhouetteMode() && !!(_tEl('tracerLaserTwoColor') && _tEl('tracerLaserTwoColor').checked);
     for (var i = 0, _pix = 0; i < data.length; i += 4, _pix++) {
+      /* [r38 L1] Zweifarbig: bunte Pixel (Kanalabstand ab 40) werden Gravur, in der Vorschau rot. Rot zaehlt beim
+         Schnitt nicht als Tinte, weil die Silhouette nur r < 128 liest. */
+      if (_vtTwo && data[i+3] >= 128 && Math.max(data[i], data[i+1], data[i+2]) - Math.min(data[i], data[i+1], data[i+2]) >= 40) { data[i] = 220; data[i+1] = data[i+2] = 30; data[i+3] = 255; continue; }
       data[i] = data[i+1] = data[i+2] = _monoMask[_pix] ? 0 : 255;
       data[i+3] = 255;
     }
@@ -30219,6 +30348,54 @@ function _tracerAutoFitSvg(container) {
   svg.style.height = Math.round(svgH * scale) + 'px';
 }
 
+/* [r38 L1] Zweifarbig nachzeichnen fuer Laser und Plotter. Eingang ist das aufbereitete Raster: schwarz = Schnitt,
+   rot (220,30,30) = Gravur, weiss = leer. Schnitt: nur die Aussenkante der schwarzen Flaechen (Loecher gefuellt),
+   schwarze Teilflaechen unter 1 % der groessten entfallen (Farbsaeume, Punkte). Gravur: die bunten Flaechen mit
+   Innenformen. Die Pfade tragen data-vt-laser, Uebernehmen macht daraus zwei Formen. */
+function _vtLaserTwoColorTrace(imageData, settings, outW, outH) {
+  var w = imageData.width, h = imageData.height, n = w * h, src = imageData.data;
+  var cutData = { width: w, height: h, data: new Uint8ClampedArray(src) };
+  var engData = { width: w, height: h, data: new Uint8ClampedArray(src.length) }, colored = 0;
+  for (var i = 0; i < n; i++) {
+    var o = i * 4, c = src[o+3] > 0 && src[o] >= 128 && src[o+1] < 128;
+    engData.data[o] = engData.data[o+1] = engData.data[o+2] = c ? 0 : 255; engData.data[o+3] = 255;
+    if (c) colored++;
+  }
+  function black(k) { return src[k*4+3] > 0 && src[k*4] < 128; }
+  var lab = new Int32Array(n), sizes = [0], stack = new Int32Array(n), big = 0;
+  for (var s0 = 0; s0 < n; s0++) {
+    if (lab[s0] || !black(s0)) continue;
+    var id = sizes.length, top = 0, cnt = 0; lab[s0] = id; stack[top++] = s0;
+    while (top) {
+      var p = stack[--top], x = p % w, y = (p - x) / w; cnt++;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+        var xx = x + dx, yy = y + dy;
+        if ((dx || dy) && xx >= 0 && yy >= 0 && xx < w && yy < h) { var q = yy * w + xx; if (!lab[q] && black(q)) { lab[q] = id; stack[top++] = q; } }
+      }
+    }
+    sizes.push(cnt); if (cnt > big) big = cnt;
+  }
+  for (var j = 0; j < n; j++) if (lab[j] && sizes[lab[j]] < big * 0.01) cutData.data[j*4] = cutData.data[j*4+1] = cutData.data[j*4+2] = 255;
+  var size = { outputWidth: outW, outputHeight: outH };
+  var cut = big ? _tracerEngine.vectorizeSilhouetteImageData(cutData, Object.assign({}, settings, { silhouetteKeepInner: false }),
+    Object.assign({ filled: false, strokeColor: '#ff0000', strokeWidth: lineW }, size)) : { svgMarkup: '', pathCount: 0 };
+  var eng = colored ? _tracerEngine.vectorizeSilhouetteImageData(engData, Object.assign({}, settings, { silhouetteKeepInner: true }),
+    Object.assign({ filled: true, fillColor: '#000000' }, size)) : { svgMarkup: '', pathCount: 0 };
+  var parser = new DOMParser(), root = null, paths = [];
+  [[eng, 'engrave'], [cut, 'cut']].forEach(function(part) {
+    if (!part[0].svgMarkup) return;
+    var r = parser.parseFromString(part[0].svgMarkup, 'image/svg+xml').documentElement;
+    if (!r || r.nodeName.toLowerCase() !== 'svg') return;
+    Array.prototype.forEach.call(r.querySelectorAll('path'), function(el) { el.setAttribute('data-vt-laser', part[1]); paths.push(el); });
+    if (!root) root = r;
+  });
+  if (!root || !paths.length) return { svgMarkup: '', layerCount: 0, pathCount: 0 };
+  while (root.firstChild) root.removeChild(root.firstChild);
+  paths.forEach(function(el) { root.appendChild(root.ownerDocument.importNode(el, true)); });
+  return { svgMarkup: new XMLSerializer().serializeToString(root), layerCount: (cut.pathCount ? 1 : 0) + (eng.pathCount ? 1 : 0),
+    pathCount: (cut.pathCount || 0) + (eng.pathCount || 0), autoNoiseFloor: Math.max(cut.autoNoiseFloor || 0, eng.autoNoiseFloor || 0),
+    noiseLoss: cut.noiseLoss || eng.noiseLoss || null };
+}
 function _tracerNormalizeSilhouetteSvg(svgMarkup) {
   /* Only engine-marked new silhouettes opt in. Smooth first in the original
      raster space, then scale coordinates exactly once; no new curve fitting. */
@@ -31308,7 +31485,9 @@ async function _tracerRunVectorize(keepGeneration) {
       var silhouetteInk = '#000000';
       var silhouetteWidth = srcCanvas._tracerOutputWidth || _directW;
       var silhouetteHeight = srcCanvas._tracerOutputHeight || _directH;
-      var silhouetteResult = _tracerEngine.vectorizeSilhouetteImageData(_directData, settings, {
+      var silhouetteResult = (_tEl('tracerLaserTwoColor') && _tEl('tracerLaserTwoColor').checked)
+        ? _vtLaserTwoColorTrace(_directData, settings, silhouetteWidth, silhouetteHeight)
+        : _tracerEngine.vectorizeSilhouetteImageData(_directData, settings, {
         filled: settings.silhouetteFilled,
         fillColor: silhouetteInk,
         strokeColor: silhouetteInk,
@@ -32195,8 +32374,9 @@ function _applyTracerResult() {
     if (parent && (parent.tagName === 'mask' || parent.tagName === 'defs' || parent.tagName === 'clipPath')) continue;
     /* [VT-TRACER-CONSOLIDATE v1] Gleichfarbige Fragmente sammeln statt sofort je Pfad
        eine Form anzulegen (sonst tausende Formen). Emit pro Farbe nach dem Loop. */
-    var _ccKey = silhouetteImport ? '__sil__' : fill;
-    if (!_ccByColor[_ccKey]) { _ccByColor[_ccKey] = { fill: fill, ds: [] }; _ccSeq.push(_ccKey); }
+    var _laser = silhouetteImport ? (pathEl.getAttribute('data-vt-laser') || '') : ''; /* [r38 L1] */
+    var _ccKey = silhouetteImport ? '__sil__' + _laser : fill;
+    if (!_ccByColor[_ccKey]) { _ccByColor[_ccKey] = { fill: fill, ds: [], laser: _laser }; _ccSeq.push(_ccKey); }
     _ccByColor[_ccKey].ds.push(d);
   }
 
@@ -32227,6 +32407,9 @@ function _applyTracerResult() {
        editor's smoothing/handle constraints; that is an explicit later A action,
        not an import operation. Native svgpath move/scale/rotation/export applies
        the source-to-canvas transform without rewriting this source path. */
+    /* [r38 L1] Zweifarbig: Schnitt als rote Linie, Gravur als schwarze Flaeche (Export Laser / Schneideplotter). */
+    if (_grp.laser === 'cut') { ns.stroke = '#ff0000'; ns.strokeWidth = lineW; ns.fill = 'none'; ns.fillEnabled = false; ns.laserRole = 'cut'; }
+    else if (_grp.laser === 'engrave') { ns.stroke = 'none'; ns.strokeWidth = 0; ns.fill = '#000000'; ns.fillEnabled = true; ns.laserRole = 'engrave'; }
     preparedShapes.push(ns);
   }
 
@@ -32385,6 +32568,7 @@ function _applyTracerResult() {
     setTool('select'); render(); updateRightPanel();
     if (typeof window.renderLayerList === 'function') window.renderLayerList();
     _tracerSetStatus(newIds.length + ' Pfade importiert.');
+    if (window._vtToast && preparedShapes.some(function(p) { return p.laserRole; })) window._vtToast(window.t('Schnitt (rot) und Gravur (schwarz) eingefügt. Weiter mit Export > Laser / Schneideplotter.'));
   } else {
     _tracerSetStatus('Keine Pfade zum Importieren gefunden.');
     setTool(_tracerPrevTool);
@@ -32414,6 +32598,7 @@ function _applyTracerResult() {
   if (btn && popup) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
+      var other = document.getElementById('shortcutsPopup'); if (other) other.style.display = 'none'; /* [U1] nie beide offen */
       popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
     });
     if (close) close.addEventListener('click', function() { popup.style.display = 'none'; });
@@ -32444,6 +32629,7 @@ function _applyTracerResult() {
   if (btn && popup) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
+      var other = document.getElementById('infoPopup'); if (other) other.style.display = 'none'; /* [U1] nie beide offen */
       popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
     });
     document.addEventListener('click', function(e) {
@@ -32976,7 +33162,9 @@ function _silApplyExclusion() {
   _tracerHoldRepeat('tracerSilColorsPlus', 1, _tracerStepSilColors);
 
   /* Checkboxes */
-  ['tracerDropBg','tracerInvert'].forEach(function(id) {
+  /* [r38 L1] Schnittlinien brauchen glatte Kanten: «Zwei Farben» schaltet «Kanten glätten» mit ein. */
+  _tEl('tracerLaserTwoColor').addEventListener('change', function() { var sm = _tEl('tracerSilhouetteSmooth'); if (this.checked && sm && !sm.checked) sm.click(); });
+  ['tracerDropBg','tracerInvert','tracerLaserTwoColor'].forEach(function(id) {
     _tEl(id).addEventListener('change', function() {
       _tracerUpdateProcessedPreview();
       if (_tState.image) _tracerScheduleVectorize(0);
@@ -35176,7 +35364,7 @@ var FILL_ROWSPACING_FALLBACK_MM = STITCH_LIMITS.fillRowSpacingFallbackMM; /* [VT
 /* Versioned project settings: only documented manufacturing options, never
    arbitrary imported properties or transient preview flags. Legacy projects
    get the same defaults as a fresh session, not the previous project's values. */
-var _STITCH_OFFSET_DEFAULTS = Object.freeze({ amount: 1.0, seed: 1337 });
+var _STITCH_OFFSET_DEFAULTS = Object.freeze({ amount: 0, seed: 1337 }); /* [r39 F1] 0 = klassischer Tatami-Versatz im 4er-Takt */
 function _vtStitchSettingsDefaults() {
   return { version: 1, global: Object.assign({}, _STITCH_GLOBAL_DEFAULTS),
     trim: { enabled: true, thresholdMM: DST_TRIM_DEFAULT_MM }, fillConnect: 'continuous',
@@ -35217,6 +35405,11 @@ window._vtRestoreStitchProjectSettings = function(input) {
   var lock = document.getElementById('gpLock'), decomb = document.getElementById('gpDeComb');
   if (lock) lock.checked = settings.global.lockEnabled;
   if (decomb) decomb.checked = settings.global.deComb;
+  /* [r39 F1] Versatz-Regler und «Stiche streuen» zeigen den gespeicherten Wert, nicht den HTML-Startwert. */
+  var offPct = Math.round(settings.offset.amount * 100);
+  ['stitchOffsetSlider', 'gpOffsetSlider'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = offPct; });
+  ['stitchOffsetValue', 'gpOffsetVal'].forEach(function(id) { var el = document.getElementById(id); if (el) el.textContent = offPct + '%'; });
+  var offBox = document.getElementById('dgpRandomOffset'); if (offBox) offBox.checked = settings.offset.amount > 0;
   var min = document.getElementById('gpMinStitch'), label = document.getElementById('gpMinStitchVal');
   if (min) min.value = settings.global.minStitchLenUnits / 10;
   if (label) label.textContent = (settings.global.minStitchLenUnits / 10).toFixed(2) + ' mm';
@@ -35251,7 +35444,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 260; /* Rebuild after r37: satin columns from cross-sections (K13). */
+var _STITCH_CACHE_VERSION = 264; /* r41: J1 Spruenge ohne F3. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -38530,7 +38723,11 @@ function _buildGloballyPhasedFillRow(start, end, dirX, dirY, stitchLen, rowIdx, 
       var aTail = aPts[aPts.length - 1];
       var aTailGap = Math.hypot(end.x - aTail.x, end.y - aTail.y);
       if (aTailGap > _mm2px(0.02)) {
-        if (aPts.length > 1 && aTailGap < stitchLen * 0.35) { aTail.x = end.x; aTail.y = end.y; aTail._edge = true; }
+        /* [r39 F2] Kurzen Rest nur anhaengen, wenn der Stich hoechstens 1.05 x Stichlaenge wird. Sonst teilen sich die
+           zwei letzten Stiche die Strecke vom vorletzten Punkt bis zum Rand je zur Haelfte (keine 4-mm-Schlaufen). */
+        var aPrevT = aPts.length > 1 ? aPts[aPts.length - 2] : null, aJoin = aPrevT ? Math.hypot(end.x - aPrevT.x, end.y - aPrevT.y) : 0;
+        if (aPts.length > 1 && aTailGap < stitchLen * 0.35 && aJoin <= stitchLen * 1.05) { aTail.x = end.x; aTail.y = end.y; aTail._edge = true; }
+        else if (aPts.length > 1 && aTailGap < stitchLen * 0.35) { aTail.x = (aPrevT.x + end.x) / 2; aTail.y = (aPrevT.y + end.y) / 2; aPts.push({ x: end.x, y: end.y, _edge: true }); }
         else aPts.push({ x: end.x, y: end.y, _edge: true });
       }
       return aPts;
@@ -39450,7 +39647,7 @@ function _planCellFill(segs, dirX, dirY, maxRowStepPx) {
     var _edgeCnt = 0;
     for (i = 0; i < cells.length; i++) _edgeCnt += adj[i].length;
     _edgeCnt /= 2;
-    if (_edgeCnt >= cells.length) return null;
+    if (_edgeCnt >= cells.length && (window._vtF3Off || window.__vtEulerUnterlage || cells.length > 4000)) return null; /* [r40fork F3a] Loecher: aufspannender Baum (nur Fuellung) */
     function endPt(cIdx, last) { var L = cells[cIdx], s = segs[L[last ? L.length - 1 : 0]]; return { x: (s.sx + s.ex) / 2, y: (s.sy + s.ey) / 2 }; }
     function unvisitedDeg(cIdx) { var d = 0, L = adj[cIdx]; for (var u = 0; u < L.length; u++) if (!visited[L[u].to]) d++; return d; }
     var out = [], visited = new Array(cells.length), visCnt = 0, cur = null;
@@ -39496,6 +39693,107 @@ function _planCellFill(segs, dirX, dirY, maxRowStepPx) {
       var dead = unvisitedDeg(edge.to) === 0;
       if (dead && _cellIsMicro(edge.to)) return viaIsLast; /* [fillcells v2] V2b */
       return dead ? !viaIsLast : viaIsLast;
+    }
+    /* [r40fork F3a] Tiefensuche «hin als Weg, zurueck stickend». side 0 = erste Reihe der Zelle, 1 = letzte. visit()
+       endet an der Eintrittsseite der Zelle, ihr ganzer Teilbaum ist dann gestickt. Die Wege legt der Planer selbst als
+       Reisesegmente (row -1) fest: entlang der Zellwand (Reihenenden, 0.3 mm innen) durch die noch leere Zelle und auf
+       der Linie einer noch leeren Grenzreihe zur naechsten Zelle. Beides wird spaeter von Reihen zugedeckt. */
+    if (!window._vtF3Off && !window.__vtEulerUnterlage && cells.length <= 4000) { /* nur die Fuellung, die Unterlage behaelt ihren Weg */
+      var F3IN = _mm2px(0.3), F3MAX = _mm2px(10), F3NEAR = (maxRowStepPx > 0 && isFinite(maxRowStepPx) ? maxRowStepPx : _mm2px(0.6)) * 1.6;
+      var sideOf = function (cIdx, segIdx) { var Lc = cells[cIdx]; return (Lc.length > 1 && segIdx === Lc[Lc.length - 1]) ? 1 : 0; };
+      var rowOf = function (cIdx, side) { var Lc = cells[cIdx]; return side ? Lc[Lc.length - 1] : Lc[0]; };
+      var wallPt = function (si, hi) { var sg = segs[si], pa = sg.sx * dirX + sg.sy * dirY, pb = sg.ex * dirX + sg.ey * dirY;
+        var useS = hi ? pa >= pb : pa < pb, ax = useS ? sg.sx : sg.ex, ay = useS ? sg.sy : sg.ey, bx = useS ? sg.ex : sg.sx, by = useS ? sg.ey : sg.sy;
+        var Lr = Math.hypot(bx - ax, by - ay) || 1, t = Math.min(F3IN, Lr / 2) / Lr; return { x: ax + (bx - ax) * t, y: ay + (by - ay) * t }; };
+      var onRow = function (si, p) { var lo = wallPt(si, false), hi = wallPt(si, true), vx = hi.x - lo.x, vy = hi.y - lo.y, l2 = vx * vx + vy * vy || 1;
+        var t = Math.max(0, Math.min(1, ((p.x - lo.x) * vx + (p.y - lo.y) * vy) / l2)); return { x: lo.x + vx * t, y: lo.y + vy * t }; };
+      /* Wechsel auf eine andere Reihenlinie: zuerst entlang der eigenen Reihe, dann quer (kein Schraegstich ueber 1 mm). */
+      var stepTo = function (p) {
+        if (cur) { var al = (p.x - cur.x) * dirX + (p.y - cur.y) * dirY; if (Math.abs(al) > _mm2px(0.5)) travelTo({ x: cur.x + dirX * al, y: cur.y + dirY * al }); }
+        travelTo(p);
+      };
+      var travelTo = function (p) {
+        if (!cur) { cur = { x: p.x, y: p.y }; return; }
+        var d = Math.hypot(p.x - cur.x, p.y - cur.y); if (d < 0.05) return;
+        var k = Math.max(1, Math.ceil(d / F3MAX)), x0 = cur.x, y0 = cur.y;
+        for (var j = 1; j <= k; j++) { var q = { x: x0 + (p.x - x0) * j / k, y: y0 + (p.y - y0) * j / k }; out.push({ sx: cur.x, sy: cur.y, ex: q.x, ey: q.y, row: -1, _directStitch: true, _f3Travel: true }); cur = q; }
+      };
+      /* Auf die Linie einer noch leeren Reihe wechseln (nur wenn sie anliegt) und darauf zum Ziel bzw. zum naeheren Ende. */
+      var rowWalk = function (si, target) {
+        if (!cur) return;
+        var p = onRow(si, cur);
+        /* Liegt die Reihe nicht an (Faden am fernen Ende der zuletzt gestickten Reihe), zuerst auf deren Linie bis vor die
+           Reihe laufen: der Weg liegt dann deckungsgleich auf einer Reihe statt quer ueber gestickte Flaeche. */
+        if (Math.hypot(p.x - cur.x, p.y - cur.y) > F3NEAR && lastSewn >= 0 && !window._vtF3OnRowOff) {
+          var q = onRow(lastSewn, p), q2 = onRow(si, q);
+          if (Math.hypot(q.x - cur.x, q.y - cur.y) < 0.05 || Math.hypot(q2.x - q.x, q2.y - q.y) > F3NEAR) return;
+          travelTo(q); p = onRow(si, cur);
+        }
+        if (Math.hypot(p.x - cur.x, p.y - cur.y) > F3NEAR) return;
+        var lo = wallPt(si, false), hi = wallPt(si, true);
+        var goal = target ? onRow(si, target) : (Math.hypot(lo.x - p.x, lo.y - p.y) <= Math.hypot(hi.x - p.x, hi.y - p.y) ? lo : hi);
+        /* Uebertritt 0.5 mm in Laufrichtung versetzt: der reine Querschritt (0.3 mm) fiele der Kurzstich-Ausduennung zum
+           Opfer und hinterliesse einen Schraegstich. */
+        var gl = Math.hypot(goal.x - p.x, goal.y - p.y), sh = Math.min(_mm2px(0.5), gl);
+        if (gl > 1e-6) p = { x: p.x + (goal.x - p.x) / gl * sh, y: p.y + (goal.y - p.y) / gl * sh };
+        stepTo(p);
+        travelTo(goal);
+      };
+      /* Entlang der Zellwand hi (Reihenenden) von einer Seite zur anderen, Douglas-Peucker 0.1 mm. */
+      var wallWalk = function (c, fromSide, hi) {
+        var Lc = cells[c]; if (Lc.length < 2) return;
+        var order = fromSide ? Lc.slice().reverse() : Lc;
+        var poly = order.map(function (si) { return wallPt(si, hi); }), keep = new Array(poly.length), tol = _mm2px(0.1);
+        keep[0] = keep[poly.length - 1] = true;
+        (function dp(i0, i1) { var a = poly[i0], b = poly[i1], vx = b.x - a.x, vy = b.y - a.y, l = Math.hypot(vx, vy) || 1, bi = -1, bd = tol;
+          for (var m = i0 + 1; m < i1; m++) { var dd = Math.abs((poly[m].x - a.x) * vy - (poly[m].y - a.y) * vx) / l; if (dd > bd) { bd = dd; bi = m; } }
+          if (bi > 0) { keep[bi] = true; dp(i0, bi); dp(bi, i1); } })(0, poly.length - 1);
+        for (var m = 0; m < poly.length; m++) if (keep[m]) travelTo(poly[m]);
+      };
+      var nearestAt = function (c, side) {
+        var lst = adj[c], bk = -1, bd = Infinity, ref = cur || endPt(c, side === 1);
+        for (var q = 0; q < lst.length; q++) {
+          var e = lst[q]; if (visited[e.to] || sideOf(c, e.from) !== side) continue;
+          var vs = segs[e.via], dd = Math.min(Math.hypot(vs.sx - ref.x, vs.sy - ref.y), Math.hypot(vs.ex - ref.x, vs.ey - ref.y));
+          if (dd < bd) { bd = dd; bk = q; }
+        }
+        return bk < 0 ? null : lst[bk];
+      };
+      var viaTarget = function (e) { var vs = segs[e.via]; return { x: (vs.sx + vs.ex) / 2, y: (vs.sy + vs.ey) / 2 }; };
+      /* J = Anschlussstelle zur Elternzelle. Die Zelle wird von der fernen Seite zur Eintrittsseite gestickt; die
+         Startwand S folgt aus der Reihenzahl, damit die letzte Reihe an der Wand E endet, die J naeher liegt
+         (sonst bliebe der Faden am falschen Reihenende und der naechste Weg liefe ueber Gesticktes). */
+      var visit = function (c, entry, J) {
+        visited[c] = 1; visCnt++;
+        var far = 1 - entry, eRow = rowOf(c, entry), fRow = rowOf(c, far), e;
+        while ((e = nearestAt(c, entry))) { rowWalk(eRow, viaTarget(e)); visit(e.to, sideOf(e.to, e.via), cur); }
+        if (cells[c].length > 1 && !nearestAt(c, far) && _cellIsMicro(c)) { emitCell(c, entry === 1); lastSewn = fRow; return; }
+        var ref = J || cur, E = ref ? Math.hypot(wallPt(eRow, true).x - ref.x, wallPt(eRow, true).y - ref.y) < Math.hypot(wallPt(eRow, false).x - ref.x, wallPt(eRow, false).y - ref.y) : false;
+        var S = (cells[c].length % 2 === 0) ? E : !E;
+        if (!cur && J) S = E; /* Wurzel: Anfang an der Wand naeher am Unterlage-Ende, das Ende zaehlt hier nicht */
+        rowWalk(eRow, wallPt(eRow, S));
+        wallWalk(c, entry, S);
+        while ((e = nearestAt(c, far))) { rowWalk(fRow, viaTarget(e)); visit(e.to, sideOf(e.to, e.via), cur); }
+        rowWalk(fRow, wallPt(fRow, S));
+        emitCell(c, entry === 0); lastSewn = eRow;
+      };
+      /* Wurzel = Zelle mit der groessten Reihenlaenge: schmale Zellen (Zacken, Beine) werden so Kinder breiter Zellen und
+         enden an einer Wand, die an der Grenzreihe der Elternzelle anliegt. */
+      var root = -1, rootV = -1, lastSewn = -1;
+      for (i = 0; i < cells.length; i++) { var rv = 0; for (k = 0; k < cells[i].length; k++) rv += proj[cells[i][k]].hi - proj[cells[i][k]].lo; if (window._vtF3RootTop) rv = -(segs[cells[i][0]].row * 1e9 + proj[cells[i][0]].lo); if (rv > rootV) { rootV = rv; root = i; } }
+      /* [r40fork F3c] Startwunsch = Ende der Unterlage: Eintrittsseite der Wurzel, deren Reihe naeher daran liegt. */
+      var hint = (window.__vtS1HintFn ? window.__vtS1HintFn(segs) : window.__vtF3Hint) || null, rootEntry = 0; /* [S1] */
+      /* Liegt die grosse Wurzel weit (ab 5 mm) vom Unterlage-Ende weg, beginnt die Zelle mit der naechsten Reihe: der
+         Uebergang laeuft sonst ueber Loecher hinweg und wird zum Sprung. */
+      if (hint && !window._vtF3HintRootOff) {
+        var wallD = function (ci) { var bd = Infinity; [rowOf(ci, 0), rowOf(ci, 1)].forEach(function (si) { [false, true].forEach(function (h) { var w = wallPt(si, h); bd = Math.min(bd, Math.hypot(w.x - hint.x, w.y - hint.y)); }); }); return bd; };
+        if (wallD(root) > _mm2px(5)) { var bestC = root, bestD = wallD(root); for (i = 0; i < cells.length; i++) { var dC = wallD(i); if (dC < bestD) { bestD = dC; bestC = i; } } root = bestC; }
+      }
+      if (hint) { var dRow = function (si) { var pp = onRow(si, hint); return Math.hypot(pp.x - hint.x, pp.y - hint.y); }; if (dRow(rowOf(root, 1)) < dRow(rowOf(root, 0))) rootEntry = 1; }
+      visit(root, rootEntry, hint);
+      var f3Rows = 0; for (i = 0; i < out.length; i++) if (out[i].row >= 0) f3Rows++;
+      if (f3Rows === n) return out;
+      out = []; visited = new Array(cells.length); visCnt = 0; cur = null; /* unvollstaendig: alter Weg */
     }
     while (visCnt < cells.length) {
       /* Komponenten-Start: ohne Ankunftspunkt die oberste Zelle (kleinste row,
@@ -40279,7 +40577,7 @@ function _calcFillStitchV7(shape, opts) {
           /* zu kurz fuer einen Zwischenstich: nur Endpunkt (gerade Linie) */
           rowPts.push({ x: end.x, y: end.y });
         } else {
-          var nSteps = Math.max(1, Math.round(segLen / travelStepMin));
+          var nSteps = Math.max(1, seg._f3Travel ? Math.ceil(segLen / (stitchLen * 0.95)) : Math.round(segLen / travelStepMin)); /* [r40fork F3a] */
           for (var dsi = 1; dsi <= nSteps; dsi++) {
             var dst = dsi / nSteps;
             rowPts.push({ x: start.x + (end.x - start.x) * dst, y: start.y + (end.y - start.y) * dst });
@@ -40343,7 +40641,7 @@ function _calcFillStitchV7(shape, opts) {
            exakt bleiben). Eliminiert die Rand-Treppe aus kurzen Connectors. */
         if (_segIsTravel && pts.length > 0 && rpi < rowPts.length - 1) {
           var _lp = pts[pts.length - 1];
-          if (!_lp.jump && Math.hypot(_rp.x - _lp.x, _rp.y - _lp.y) < Math.max(stitchLen, _mm2px(1.5))) {
+          if (!_lp.jump && Math.hypot(_rp.x - _lp.x, _rp.y - _lp.y) < (seg._f3Travel ? _mm2px(0.5) : Math.max(stitchLen, _mm2px(1.5)))) {
             continue; /* zu nah → ueberspringen */
           }
         }
@@ -42512,7 +42810,7 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     }
     return null;
   }
-  var satinK6=shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs')&&!window._vtSatinWegeAlt,satinK6N=0;
+  var satinK6=(shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs')&&!window._vtSatinWegeAlt)||(!window._vtS4Off&&!(shape.stitch&&shape.stitch.type&&shape.stitch.type!=='fill')&&((shape.stitch&&shape.stitch.params&&shape.stitch.params.fillConnect)||window._fillConnect||'jump')!=='jump'),satinK6N=0; /* [S4] auch Fuellung */
   /* [r35 K6] Ein Weg ist nur zulaessig, wenn spaeter genaeht Satin ihn zudeckt: Raster 0.2 mm mit dem letzten Stichindex
      je Zelle, jeder Wegpunkt (alle 0.2 mm) braucht in der Umgebung bis 0.4 mm einen spaeteren Stich, hoechstens 0.6 mm Weg duerfen frei liegen. */
   var k6Last=null,k6C=_mm2px(0.2);
@@ -42592,7 +42890,7 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
      Verbindung, die im Material liegt, die Mikrostiche dazwischen entfallen. Sonst bleibt alles. Toleranz 0.02 mm:
      Der Textumriss ist eine Pixeltreppe (Stufe 0.066 mm), ein direkter Stich schneidet deren Ecken um Tausendstel.
      Das ist kleiner als die Treppe selbst und als die DST-Auflösung (0.1 mm). */
-  if(shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs')){
+  if((shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs'))||(!window._vtS4Off&&!(shape.stitch&&shape.stitch.type&&shape.stitch.type!=='fill')&&((shape.stitch&&shape.stitch.params&&shape.stitch.params.fillConnect)||window._fillConnect||'jump')!=='jump')){ /* [S4] auch Fuellung */
     var mjSrc=changed?out:pts,mj=[mjSrc[0]],mjLim=_mm2px(1),mjNear=_mm2px(0.5),mjN=0,mjTol=_mm2px(0.02);
     var mjInside=function(ax,ay,bx,by){
       if(segInside(ax,ay,bx,by))return true;
@@ -43615,7 +43913,147 @@ function _vtFillIslandRuns(pts, islands) {
    Stellvertreter über die normale Füllung und wird danach mitgedreht. Bei mehrteiligen Flächen werden Füllung und
    Unterlage wie bisher für das Ganze geplant und danach Teil für Teil umsortiert: je Teil seine Unterlage, dann seine
    Füllung (Übergang wie bisher über _withFillUnderlayJoin), dann der nächstgelegene Teil. Einteilige Flächen: wie bisher. */
+/* [S1] Auswahl je Teilform zwischen F3-Zellplaner und altem Weg, [S2] Reihenfolge der Teilformen (bisherige Kette
+   oder Leserichtung) per dynamischer Programmierung, [S3] dieselbe Auswahl fuer einteilige Formen. Kosten wie der
+   Maschinenlauf: 1 je mm sichtbarer Weg, 0.5 je Sprungfolge, 2 je Schnitt (Sprung ab 5 mm). */
+function _vtS1Kosten(pts, ang) {
+  var M = _mm2px(1), ux = Math.cos(ang), uy = Math.sin(ang), cell = 0.5 * M, grid = new Map(), vis = 0, jumps = 0, cuts = 0;
+  function isRow(a, b) { var dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy); return l >= M && Math.abs(dx * ux + dy * uy) / l > 0.995; }
+  function near(x, y, a, b) {
+    if (Math.hypot(x - a.x, y - a.y) < 0.3 * M || Math.hypot(x - b.x, y - b.y) < 0.3 * M) return false;
+    var cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    for (var ox = -1; ox <= 1; ox++) for (var oy = -1; oy <= 1; oy++) {
+      var L = grid.get((cx + ox) + ',' + (cy + oy)); if (!L) continue;
+      for (var j = 0; j < L.length; j++) { var s = L[j], vx = s[2] - s[0], vy = s[3] - s[1], l2 = vx * vx + vy * vy || 1, t = Math.max(0, Math.min(1, ((x - s[0]) * vx + (y - s[1]) * vy) / l2));
+        if (Math.hypot(x - s[0] - t * vx, y - s[1] - t * vy) < 0.2 * M) return true; }
+    }
+    return false;
+  }
+  for (var i = 1; i < pts.length; i++) {
+    var p = pts[i], q = pts[i - 1];
+    if (p.jump) { var k = i; while (k < pts.length && pts[k].jump) k++; var Lj = Math.hypot(pts[k - 1].x - q.x, pts[k - 1].y - q.y); jumps++; if (Lj >= 5 * M) cuts++; i = k - 1; continue; }
+    var l = Math.hypot(p.x - q.x, p.y - q.y);
+    if (isRow(q, p)) { var n = Math.floor(l / cell) + 1, seg = [q.x, q.y, p.x, p.y];
+      for (var m = 0; m <= n; m++) { var key = Math.floor((q.x + (p.x - q.x) * m / n) / cell) + ',' + Math.floor((q.y + (p.y - q.y) * m / n) / cell), A = grid.get(key); if (!A) grid.set(key, A = []); if (A[A.length - 1] !== seg) A.push(seg); } }
+    else if (l >= 0.5 * M) { var ns = Math.max(1, Math.floor(l / (0.1 * M))); for (var z = 0; z < ns; z++) if (near(q.x + (p.x - q.x) * (z + 0.5) / ns, q.y + (p.y - q.y) * (z + 0.5) / ns, q, p)) vis += l / ns; }
+  }
+  return { vis: vis / M, jumps: jumps, cuts: cuts, k: vis / M + 0.5 * jumps + 2 * cuts };
+}
+function _vtS1Teile(out, islands) {
+  var runs = _vtFillIslandRuns(out, islands); if (!runs) return null;
+  var res = [], seen = {};
+  for (var r = 0; r < runs.length; r++) {
+    var last = res[res.length - 1];
+    if (last && last.k === runs[r].k) { for (var j = 0; j < runs[r].pts.length; j++) last.pts.push(runs[r].pts[j]); continue; }
+    if (seen[runs[r].k]) return null; seen[runs[r].k] = 1;
+    var p0 = Object.assign({}, runs[r].pts[0]); delete p0.jump;
+    res.push({ k: runs[r].k, pts: [p0].concat(runs[r].pts.slice(1)) });
+  }
+  return res;
+}
+function _vtS1Variante(shape, f3, hintFn) {
+  /* Eine Variante ohne Unterbruch rechnen: die Schalter duerfen nicht in andere Formen hineinwirken. */
+  var f3o = window._vtF3Off, hfo = window.__vtS1HintFn, sid = shape && shape.id, fl = window._vtFillFailures && window._vtFillFailures[sid], gw = window._vtMaterialGuardWarnings && window._vtMaterialGuardWarnings[sid], r = null;
+  window._vtF3Off = !f3; window.__vtS1HintFn = hintFn || null;
+  try { r = _vtStitchDrain(_vtFillComposeStepsF3(shape)); } catch (eS1) { console.warn('[vt:swallowed]', eS1); r = null; }
+  finally { window._vtF3Off = f3o; window.__vtS1HintFn = hfo;
+    if (window._vtFillFailures) { if (fl === undefined) delete window._vtFillFailures[sid]; else window._vtFillFailures[sid] = fl; }
+    if (window._vtMaterialGuardWarnings) { if (gw === undefined) delete window._vtMaterialGuardWarnings[sid]; else window._vtMaterialGuardWarnings[sid] = gw; } }
+  return r && r.length >= 4 ? r : null;
+}
+/* [S1] Startwunsch je Teilflaeche: eine Ecke ihres Umrechtecks (0 links oben, 1 rechts oben, 2 links unten, 3 rechts unten) */
+function _vtS1EckHint(c) {
+  return function (segs) { var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (var i = 0; i < segs.length; i++) { var s = segs[i]; x0 = Math.min(x0, s.sx, s.ex); x1 = Math.max(x1, s.sx, s.ex); y0 = Math.min(y0, s.sy, s.ey); y1 = Math.max(y1, s.sy, s.ey); }
+    return { x: c & 1 ? x1 : x0, y: c & 2 ? y1 : y0 }; };
+}
+/* [J1] Modus «Spruenge»: F3 aus (wie r39). Der Schalter gilt nur waehrend der einzelnen Rechenschritte dieser Form. */
 function* _vtFillComposeSteps(shape) {
+  var fcJ1 = (shape && shape.stitch && shape.stitch.params && shape.stitch.params.fillConnect) || window._fillConnect || 'jump';
+  if (fcJ1 !== 'jump' || window._vtF3Off) return yield* _vtFillComposeStepsS1(shape);
+  var itJ1 = _vtFillComposeStepsS1(shape), rJ1, vJ1, altJ1;
+  while (true) {
+    altJ1 = window._vtF3Off; window._vtF3Off = true;
+    try { rJ1 = itJ1.next(vJ1); } finally { window._vtF3Off = altJ1; }
+    if (rJ1.done) return rJ1.value;
+    vJ1 = yield rJ1.value;
+  }
+}
+function* _vtFillComposeStepsS1(shape) {
+  /* Im Modus «Spruenge» sind Spruenge gewollt: dort keine Auswahl nach Sprungkosten */
+  var fcS1 = (shape && shape.stitch && shape.stitch.params && shape.stitch.params.fillConnect) || window._fillConnect || 'jump';
+  if (window._vtS1Off || window._vtF3Off || window.__vtS1Inner || fcS1 === 'jump' || (shape && shape.type === 'text' && !shape._vtTextAsFill)) return yield* _vtFillComposeStepsF3(shape);
+  var A = yield* _vtFillComposeStepsF3(shape);
+  if (!A || A.length < 4 || A.length > 20000) return A; /* [S5] grosse Formen: keine Varianten (Berechnungsgrenze) */
+  var sid = shape && shape.id, vars = [{ n: 'F3', pts: A }], B;
+  window.__vtS1Inner = true;
+  try {
+    var tS5 = Date.now(); B = _vtS1Variante(shape, false, null); if (B) vars.push({ n: 'alt', pts: B }); tS5 = Date.now() - tS5; yield 'variante';
+    /* Weitere F3-Varianten mit Startwunsch an den vier Ecken je Teilflaeche: nur bis 12000 Punkte und wenn der alte
+       Weg schnell ging [S5] (Rechenzeit) */
+    if (A.length <= 12000 && tS5 <= 250 && !window._vtS1EckenOff) for (var c = 0; c < 4; c++) { var E = _vtS1Variante(shape, true, _vtS1EckHint(c)); if (E) vars.push({ n: 'F3e' + c, pts: E }); yield 'variante'; }
+  } finally { window.__vtS1Inner = false; }
+  if (vars.length < 2) return A;
+  /* Reihenwinkel wie der Maschinenlauf: haeufigste Richtung der Stiche ab 2 mm */
+  var hist = {}, hb = -1, ang = 0;
+  for (var i = 1; i < A.length; i++) { if (A[i].jump) continue; var dx = A[i].x - A[i - 1].x, dy = A[i].y - A[i - 1].y; if (Math.hypot(dx, dy) < _mm2px(2)) continue;
+    var dg = ((Math.round(Math.atan2(dy, dx) * 180 / Math.PI) % 180) + 180) % 180; hist[dg] = (hist[dg] || 0) + 1; if (hist[dg] > hb) { hb = hist[dg]; ang = dg * Math.PI / 180; } }
+  var dbg = (window.__vtS1Dbg = window.__vtS1Dbg || {}); var D = dbg[sid != null ? sid : '?'] = { ang: Math.round(ang * 180 / Math.PI) };
+  var keep = function (out) { if (window.__vtS1Keep) D.varianten = { V: vars.map(function (v) { return v.n; }), A: A, C: out, islands: islands ? islands.map(function (q) { return q.bb; }) : null }; return out; };
+  var islands = null;
+  try { islands = _vtFillIslands(shape); } catch (eI) { islands = null; }
+  /* Bewertet wird, was die Maschine naeht: jede Variante nach der Materialpruefung (sie teilt Stiche an der Kontur und
+     ersetzt Spruenge durch verdeckte Innenwege). Deren Nebenwirkungen auf die Form werden zurueckgesetzt. */
+  var mgI = shape.stitch ? shape.stitch._materialGuardInfo : undefined, mgW = window._vtMaterialGuardWarnings && window._vtMaterialGuardWarnings[sid], mgC = window._vtMaterialGuardCache && window._vtMaterialGuardCache.get(shape);
+  vars.forEach(function (v) { try { v.g = _vtStitchDrain(_fillFinalizeMaterialSteps(shape, v.pts)); } catch (eG) { v.g = null; } });
+  if (shape.stitch) { if (mgI === undefined) delete shape.stitch._materialGuardInfo; else shape.stitch._materialGuardInfo = mgI; }
+  if (window._vtMaterialGuardWarnings) { if (mgW === undefined) delete window._vtMaterialGuardWarnings[sid]; else window._vtMaterialGuardWarnings[sid] = mgW; }
+  if (window._vtMaterialGuardCache) { if (mgC) window._vtMaterialGuardCache.set(shape, mgC); else window._vtMaterialGuardCache.delete(shape); }
+  yield 'variante';
+  var teile = islands ? vars.map(function (v) { return _vtS1Teile(v.pts, islands); }) : null;
+  var teileG = islands ? vars.map(function (v) { return v.g ? _vtS1Teile(v.g, islands) : null; }) : null;
+  if (!teile || !teile[0] || teile[0].length < 2) {
+    /* [S3] einteilig (oder nicht sauber zerlegbar): ganze Form vergleichen */
+    var bi = 0; D.k = vars.map(function (v) { v.c = _vtS1Kosten(v.g || v.pts, ang); return [v.n, Math.round(v.c.k * 10) / 10]; });
+    for (i = 1; i < vars.length; i++) if (vars[i].c.k < vars[bi].c.k - 1e-9) bi = i;
+    if (!(vars[bi].c.k < vars[0].c.k - 0.25)) bi = 0;
+    D.wahl = vars[bi].n; return keep(vars[bi].pts);
+  }
+  var tA = teile[0], V = {};
+  for (i = 0; i < tA.length; i++) V[tA[i].k] = [];
+  for (var vi = 0; vi < vars.length; vi++) { var T = teile[vi]; if (!T || T.length !== tA.length) continue;
+    var ok = true; for (i = 0; i < T.length; i++) if (!V[T[i].k]) ok = false; if (!ok) continue;
+    var TG = teileG[vi], gOk = !!TG && TG.length === T.length; if (gOk) for (i = 0; i < T.length; i++) if (TG[i].k !== T[i].k) gOk = false;
+    for (i = 0; i < T.length; i++) V[T[i].k].push({ n: vars[vi].n, pts: T[i].pts, c: _vtS1Kosten(gOk ? TG[i].pts : T[i].pts, ang) }); }
+  function trans(a, b) { var p = a.pts[a.pts.length - 1], q = b.pts[0], L = Math.hypot(q.x - p.x, q.y - p.y) / _mm2px(1); return 0.5 + (L >= 5 ? 2 : 0) + 0.01 * L; }
+  function dp(order) {
+    var prev = null;
+    for (var a = 0; a < order.length; a++) {
+      var cur = V[order[a]].map(function (v) {
+        if (!prev) return { c: v.c.k, path: [v] };
+        var best = null; for (var u = 0; u < prev.length; u++) { var c = prev[u].c + trans(prev[u].path[prev[u].path.length - 1], v) + v.c.k; if (!best || c < best.c - 1e-9) best = { c: c, path: prev[u].path.concat([v]) }; }
+        return best; });
+      prev = cur;
+    }
+    var b = prev[0]; for (var w = 1; w < prev.length; w++) if (prev[w].c < b.c - 1e-9) b = prev[w];
+    return b;
+  }
+  var orderA = tA.map(function (t) { return t.k; });
+  var base = 0; for (i = 0; i < orderA.length; i++) base += V[orderA[i]][0].c.k + (i ? trans(V[orderA[i - 1]][0], V[orderA[i]][0]) : 0);
+  /* Leserichtung: Zeilen nach Oberkante, eine neue Zeile beginnt unter der Unterkante der laufenden; darin nach links */
+  var byY = orderA.slice().sort(function (a, b) { return islands[a].bb.y0 - islands[b].bb.y0; }), line = {}, ln = -1, lnY1 = -Infinity;
+  for (i = 0; i < byY.length; i++) { var bb = islands[byY[i]].bb; if ((bb.y0 + bb.y1) / 2 > lnY1) { ln++; lnY1 = bb.y1; } else lnY1 = Math.max(lnY1, bb.y1); line[byY[i]] = ln; }
+  var orderR = orderA.slice().sort(function (a, b) { return (line[a] - line[b]) || (islands[a].bb.x0 - islands[b].bb.x0); });
+  var rA = dp(orderA), rR = dp(orderR), best = rR.c < rA.c - 1e-9 ? rR : rA;
+  D.basis = Math.round(base * 100) / 100; D.kette = Math.round(rA.c * 100) / 100; D.lese = Math.round(rR.c * 100) / 100;
+  D.teile = best.path.map(function (v, ix) { var t = (best === rR ? orderR : orderA)[ix]; return [t, v.n].concat(V[t].map(function (w) { return w.n + ':' + Math.round(w.c.k * 10) / 10; })); });
+  if (!(best.c < base - 0.25)) { D.wahl = 'F3 unveraendert'; return keep(A); }
+  D.wahl = best === rR ? 'Leserichtung' : 'Kette';
+  var out = [];
+  for (var q = 0; q < best.path.length; q++) for (var j = 0; j < best.path[q].pts.length; j++) out.push(j === 0 && out.length ? Object.assign({}, best.path[q].pts[0], { jump: true }) : best.path[q].pts[j]);
+  return keep(out);
+}
+function* _vtFillComposeStepsF3(shape) {
   if (shape && shape.type === 'text' && !shape._vtTextAsFill && !(shape.onPath && shape.pathId) && !window._vtTextFillLegacy) {
     var tp = Object.create(shape); tp._vtTextAsFill = true; tp.rotation = 0;
     var tpts = yield* _vtFillComposeSteps(tp);
@@ -43623,11 +44061,22 @@ function* _vtFillComposeSteps(shape) {
   }
   var islands = null;
   try { islands = _vtFillIslands(shape); } catch (eI) { console.warn('[vt:swallowed]', eI); islands = null; }
-  var main = yield* _calcFillStitchSteps(shape);
-  if (!islands) return yield* _withFillUnderlaySteps(shape, main);
-  var params = (shape.stitch && shape.stitch.params) || {}, ul = [];
+  var params = (shape.stitch && shape.stitch.params) || {}, ul = [], ulDone = false;
+  /* [r40fork F3c] Unterlage zuerst rechnen: ihr Ende ist der Startwunsch der Fuellplanung (window.__vtF3Hint). So beginnt
+     die Fuellung nahe am Unterlage-Ende, ohne dass die Fuellung spaeter umgedreht werden muss. */
+  if (!window._vtF3Off && params.underlay !== false && !(shape && shape.type === 'text' && !shape._vtTextAsFill)) {
+    var uG0 = _calcFillUnderlayStitch(shape, true); ul = Array.isArray(uG0) ? uG0 : yield* uG0; ulDone = true;
+    window.__vtF3Hint = ul && ul.length ? { x: ul[ul.length - 1].x, y: ul[ul.length - 1].y } : null;
+  }
+  var main;
+  try { main = yield* _calcFillStitchSteps(shape); } finally { window.__vtF3Hint = null; }
+  if (!islands) {
+    if (!ulDone) return yield* _withFillUnderlaySteps(shape, main);
+    if (!main || !main.length) return main || [];
+    return ul && ul.length ? _withFillUnderlayJoin(shape, main, ul) : main;
+  }
   if (!main || !main.length) return main || [];
-  if (params.underlay !== false) { var uG = _calcFillUnderlayStitch(shape, true); ul = Array.isArray(uG) ? uG : yield* uG; }
+  if (!ulDone && params.underlay !== false) { var uG = _calcFillUnderlayStitch(shape, true); ul = Array.isArray(uG) ? uG : yield* uG; }
   yield 'underlay';
   var mr = _vtFillIslandRuns(main, islands), ur = ul && ul.length ? _vtFillIslandRuns(ul, islands) : [];
   if (!mr || !ur) return _withFillUnderlayJoin(shape, main, ul || []);
@@ -43703,6 +44152,13 @@ function _withFillUnderlayJoin(shape, mainPts, underlayPts) {
   var d01 = Math.hypot(ulEnd.x - mnStart1.x, ulEnd.y - mnStart1.y);
   var mnRev = (d01 < d00);
   var ul = underlayPts.slice();
+  /* [r40fork F3b] Die Fuellung nie umdrehen, die Reihenfolge der Planung (Wege vor den Reihen) bleibt erhalten. Bei Bedarf
+     wird die Unterlage umgedreht, sie liegt ohnehin unter der Fuellung. */
+  if (!window._vtF3Off) {
+    mnRev = false;
+    var ulStartF3 = underlayPts[0];
+    if (!window._vtF3UlRevOff && Math.hypot(ulStartF3.x - mnStart0.x, ulStartF3.y - mnStart0.y) < d00 - 1e-6) ul = _reverseStitchPath(underlayPts);
+  }
   var mn = mnRev ? _reverseStitchPath(mainPts) : mainPts;
   var out = ul;
   var first = mn[0];
@@ -43740,6 +44196,13 @@ function _withFillUnderlayJoin(shape, mainPts, underlayPts) {
           if (_okR && _ptsR.length) { out.pop(); for (var _qR = 0; _qR < _ptsR.length - 1; _qR++) out.push(_ptsR[_qR]); }
         }
       } catch (eR) { console.warn('[vt:swallowed]', eR); }
+      /* [r40fork F3b] Bleibt der Sprung (kein gerader Innenweg, z. B. ueber die Kerbe eines Herzens), am Rand entlang zum
+         Fuellstart: zu diesem Zeitpunkt ist nur die Unterlage gestickt, die Reihenenden der Fuellung decken den Weg zu. */
+      if (!window._vtF3Off && out[out.length - 1].jump) {
+        try { var _owF3 = _outlineTravelStitches(shape, last, first, _stitchResolveFillGeometry(shape));
+          if (_owF3 && _owF3.length && !_owF3.some(function (q) { return q.jump; })) { out.pop(); for (var _qF = 0; _qF < _owF3.length - 1; _qF++) out.push({ x: _owF3[_qF].x, y: _owF3[_qF].y, _fillTransit: true }); }
+        } catch (eF3) { console.warn('[vt:swallowed]', eF3); }
+      }
     }
   }
   for (var i = 0; i < mn.length; i++) out.push(mn[i]);
@@ -43748,6 +44211,9 @@ function _withFillUnderlayJoin(shape, mainPts, underlayPts) {
      Trims verschieben) → fängt die durchgerutschten Travels. Underlay (Index <
      underlayPts.length) bleibt unberührt. */
   try { _fillTrimTravelsInPlace(out, shape, null, underlayPts.length); } catch(etr){console.warn('[vt:swallowed]',etr)}
+  /* [r40fork F4] Vernaehen gehoert an Schnitte, und die sind schon beidseitig vernaeht (gemessen). Ein Sprung unter 1 mm
+     ist kein Schnitt, teilt den Faden aber in einen weiteren Abschnitt ohne Knoten: als gewoehnlichen Stich naehen. */
+  if (!window._vtF4Off) for (var f4 = 1; f4 < out.length; f4++) if (out[f4].jump && !out[f4 - 1].jump && Math.hypot(out[f4].x - out[f4 - 1].x, out[f4].y - out[f4 - 1].y) < _mm2px(1) && !(f4 + 1 < out.length && out[f4 + 1].jump)) out[f4] = Object.assign({}, out[f4], { jump: false });
   return out;
 }
 
@@ -48914,7 +49380,7 @@ window.__LINEA_DEBUG__ = {
         </div>
         <!-- Versatz (kein Sub) -->
         <label id="dgpVersatzLabel" style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--fs-sm);color:var(--fg);cursor:pointer;font-weight:600;" title="Verteilt die Einstiche leicht unregelmässig, damit im Füllstich keine sichtbaren diagonalen Linien entstehen.">
-          <input id="dgpRandomOffset" type="checkbox" checked style="cursor:pointer;">
+          <input id="dgpRandomOffset" type="checkbox" style="cursor:pointer;">
           <span>Stiche streuen</span>
         </label>
         <!-- Optional equal-color running finish; no default or automatic migration. -->
@@ -58479,6 +58945,10 @@ VT_RELEASE_CATALOG['Sprungwege in 2D und 3D anzeigen. Gestrichelte Wege sind Nad
   (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(
     ["Kanten glätten","Glättet die Pixeltreppen der Kontur. Die Stärke stellt der Regler «Pfadglättung» direkt darunter ein."],
     {"en":["Smooth edges","Smooths the pixel steps of the outline. The “Path smoothing” slider directly below sets the strength."],"fr":["Lisser les contours","Lisse les marches de pixels du contour. Le curseur « Lissage des chemins », juste en dessous, règle l’intensité."],"it":["Leviga i bordi","Leviga i gradini di pixel del contorno. Il cursore «Levigatura tracciati», subito sotto, regola l’intensità."],"es":["Suavizar los bordes","Suaviza los escalones de píxeles del contorno. El control «Suavizado de trazados», justo debajo, ajusta la intensidad."],"pt":["Suavizar os contornos","Suaviza os degraus de pixels do contorno. O controle “Suavização de caminhos”, logo abaixo, ajusta a intensidade."],"nl":["Randen gladmaken","Maakt de pixeltrapjes van de omtrek glad. De schuifregelaar ‘Padvergladding’ direct eronder stelt de sterkte in."],"pl":["Wygładź krawędzie","Wygładza schodki pikseli na konturze. Siłę ustawia suwak „Wygładzanie ścieżek” tuż poniżej."],"cs":["Vyhladit hrany","Vyhladí pixelové schody obrysu. Sílu nastavuje posuvník „Vyhlazení cest“ přímo pod ním."],"sk":["Vyhladiť hrany","Vyhladí pixelové schody obrysu. Silu nastavuje posúvač „Vyhladenie cesty“ priamo pod ním."],"ro":["Netezește marginile","Netezește treptele de pixeli ale conturului. Intensitatea se reglează cu glisorul „Netezire traseu”, chiar dedesubt."],"hu":["Élek simítása","Kisimítja a körvonal képpontlépcsőit. Az erősséget a közvetlenül alatta lévő „Útvonalsimítás” csúszka állítja."],"el":["Εξομάλυνση ακμών","Εξομαλύνει τα σκαλοπάτια εικονοστοιχείων του περιγράμματος. Την ένταση ρυθμίζει το ρυθμιστικό «Εξομάλυνση διαδρομής» ακριβώς από κάτω."],"sv":["Jämna ut kanter","Jämnar ut konturens pixeltrappor. Reglaget ”Banutjämning” direkt nedanför ställer in styrkan."],"da":["Udjævn kanter","Udjævner omridsets pixeltrapper. Skyderen “Stiudglatning” lige nedenfor indstiller styrken."],"no":["Jevn ut kanter","Jevner ut pikseltrappene i konturen. Glidebryteren «Baneutjevning» rett under stiller inn styrken."],"fi":["Pehmennä reunat","Pehmentää ääriviivan pikseliportaat. Voimakkuutta säädetään suoraan alla olevalla ”Polun pehmennys” -liukusäätimellä."],"ca":["Suavitzar les vores","Suavitza els esglaons de píxels del contorn. El control «Suavitzat de traçat», just a sota, ajusta la intensitat."],"tr":["Kenarları yumuşat","Dış hattaki piksel basamaklarını yumuşatır. Gücü hemen altındaki “Yol yumuşatma” kaydırıcısı ayarlar."],"ru":["Сгладить края","Сглаживает пиксельные ступеньки контура. Силу задаёт ползунок «Сглаживание контуров» прямо под ним."],"uk":["Згладити краї","Згладжує піксельні сходинки контуру. Силу задає повзунок «Згладжування контурів» безпосередньо під ним."],"bg":["Изглади ръбовете","Изглажда пикселните стъпала на контура. Силата се задава с плъзгача „Изглаждане на пътеката“ точно под него."],"zh":["平滑边缘","平滑轮廓上的像素阶梯。强度由正下方的“路径平滑”滑块调整。"],"ja":["エッジを滑らかにする","輪郭のピクセル段差を滑らかにします。強さはすぐ下の「パスのスムージング」スライダーで調整します。"],"ko":["가장자리 부드럽게","윤곽선의 픽셀 계단을 부드럽게 합니다. 강도는 바로 아래의 ‘경로 평활화’ 슬라이더로 조정합니다."],"vi":["Làm mượt cạnh","Làm mượt các bậc thang điểm ảnh của đường viền. Thanh trượt “Làm mượt đường” ngay bên dưới điều chỉnh độ mạnh."],"th":["ทำให้ขอบเรียบ","ทำให้ขั้นบันไดพิกเซลของเส้นขอบเรียบขึ้น ปรับความแรงได้ด้วยแถบเลื่อน “การทำเส้นให้เรียบ” ที่อยู่ด้านล่าง"],"id":["Haluskan tepi","Menghaluskan anak tangga piksel pada garis luar. Kekuatannya diatur dengan penggeser “Penghalusan jalur” tepat di bawahnya."],"hi":["किनारे चिकने करें","रूपरेखा की पिक्सेल सीढ़ियों को चिकना करता है। तीव्रता ठीक नीचे दिए “पथ समतलन” स्लाइडर से समायोजित करें।"],"ar":["تنعيم الحواف","ينعّم درجات البكسل في المخطط. يضبط شريط التمرير «تنعيم المسار» الموجود أسفله مباشرة الشدة."],"he":["החלק קצוות","מחליק את מדרגות הפיקסלים של המתאר. את העוצמה קובע המחוון „החלקת נתיב” שמתחתיו."],"fa":["صاف کردن لبه‌ها","پله‌های پیکسلی طرح کلی را صاف می‌کند. شدت با لغزنده «صاف‌سازی مسیر» درست در زیر آن تنظیم می‌شود."]});
+  /* VT-R41-LASER-20261028: Laser / Schneideplotter, «Zwei Farben» im Nachzeichner, Website-Link (31 Sprachen). */
+  (function(keys,values){keys.forEach(function(key,i){VT_RELEASE_CATALOG[key]={};Object.keys(values).forEach(function(lang){VT_RELEASE_CATALOG[key][lang]=values[lang][i];});});})(
+    ["Zwei Farben: Schwarz schneiden, Farbe gravieren","Für Laser und Schneideplotter: Schwarzes wird zur Schnittkontur (nur die Aussenkante), Buntes wie Rot oder Blau zur Gravurfläche. Graue Töne zählen als Schwarz.","Schnitt (rot) und Gravur (schwarz) eingefügt. Weiter mit Export > Laser / Schneideplotter.","Schneidbare Konturen für xTool Studio, LightBurn oder Silhouette Studio. Rot = Schnitt, Schwarz = Gravur, Masse in mm.","Laser / Schneideplotter …","Laser / Schneideplotter","LaserBox und andere xTool-Laser","SVG speichern","SVG in xTool Studio importieren. Rote Linien auf «Schneiden», schwarze Flächen auf «Gravieren» stellen. Material wählen, Lage in der Kameravorschau prüfen, dann starten.","Vevor, GCC und andere","DXF speichern","Datei über «Datei > Importieren» öffnen. Die Ebenen kommen nach Farbe an: Rot (02) auf «Linie» für den Schnitt, Schwarz (00) auf «Füllen» für die Gravur. Leistung und Tempo fürs Material einstellen, mit «Rahmen» die Lage prüfen, dann starten.","Schneideplotter","DXF öffnen (SVG erst ab Designer Edition). Grösse nach dem Öffnen kontrollieren. Unter «Senden» nach Linienfarbe schneiden: Rot schneiden, Schwarz ausschalten oder mit Stift zeichnen.","Rot #FF0000 = Schnitt (Haarlinie) · Schwarz = Gravur · Masse in mm","Export nicht möglich:","Keine schneid- oder gravierbaren Konturen gefunden.","Schnitt (rot): {cut} Konturen · Gravur (schwarz): {engrave} Konturen","{count} Text- oder Bildobjekt(e) nicht enthalten","{name} gespeichert.","Design und Technik (Website, neuer Tab)","Design und Technik, Website in neuem Tab","Website"],
+    {"en":["Two colours: cut black, engrave colour","For lasers and cutting plotters: black becomes the cut outline (outer edge only), colours such as red or blue become the engraving area. Grey tones count as black.","Cut (red) and engraving (black) inserted. Continue with Export > Laser / cutting plotter.","Cuttable outlines for xTool Studio, LightBurn or Silhouette Studio. Red = cut, black = engraving, dimensions in mm.","Laser / cutting plotter …","Laser / cutting plotter","LaserBox and other xTool lasers","Save SVG","Import the SVG into xTool Studio. Set red lines to “Cut” and black areas to “Engrave”. Choose the material, check the position in the camera preview, then start.","Vevor, GCC and others","Save DXF","Open the file via “File > Import”. The layers arrive by colour: set red (02) to “Line” for the cut and black (00) to “Fill” for the engraving. Set power and speed for the material, check the position with “Frame”, then start.","Cutting plotter","Open the DXF (SVG only from Designer Edition). Check the size after opening. Under “Send”, cut by line colour: cut red, switch black off or draw it with a pen.","Red #FF0000 = cut (hairline) · Black = engraving · Dimensions in mm","Export not possible:","No cuttable or engravable outlines found.","Cut (red): {cut} outlines · Engraving (black): {engrave} outlines","{count} text or image object(s) not included","{name} saved.","Design und Technik (website, new tab)","Design und Technik, website in a new tab","Website"],"fr":["Deux couleurs : découper le noir, graver la couleur","Pour laser et traceur de découpe : le noir devient le contour de découpe (bord extérieur uniquement), les couleurs comme le rouge ou le bleu deviennent la surface de gravure. Les tons gris comptent comme du noir.","Découpe (rouge) et gravure (noir) insérées. Continuer avec Export > Laser / traceur de découpe.","Contours découpables pour xTool Studio, LightBurn ou Silhouette Studio. Rouge = découpe, noir = gravure, dimensions en mm.","Laser / traceur de découpe …","Laser / traceur de découpe","LaserBox et autres lasers xTool","Enregistrer en SVG","Importer le SVG dans xTool Studio. Régler les lignes rouges sur « Découper » et les surfaces noires sur « Graver ». Choisir le matériau, vérifier la position dans l’aperçu caméra, puis lancer.","Vevor, GCC et autres","Enregistrer en DXF","Ouvrir le fichier via « Fichier > Importer ». Les calques arrivent par couleur : rouge (02) sur « Ligne » pour la découpe, noir (00) sur « Remplir » pour la gravure. Régler puissance et vitesse selon le matériau, vérifier la position avec « Cadre », puis lancer.","Traceur de découpe","Ouvrir le DXF (SVG seulement à partir de Designer Edition). Contrôler la taille après l’ouverture. Sous « Envoyer », découper par couleur de ligne : découper le rouge, désactiver le noir ou le tracer au stylo.","Rouge #FF0000 = découpe (ligne fine) · Noir = gravure · Dimensions en mm","Export impossible :","Aucun contour à découper ou à graver trouvé.","Découpe (rouge) : {cut} contours · Gravure (noir) : {engrave} contours","{count} objet(s) texte ou image non inclus","{name} enregistré.","Design und Technik (site web, nouvel onglet)","Design und Technik, site web dans un nouvel onglet","Site web"],"it":["Due colori: tagliare il nero, incidere il colore","Per laser e plotter da taglio: il nero diventa il contorno di taglio (solo il bordo esterno), i colori come rosso o blu diventano l’area di incisione. I toni di grigio contano come nero.","Taglio (rosso) e incisione (nero) inseriti. Continua con Esporta > Laser / plotter da taglio.","Contorni tagliabili per xTool Studio, LightBurn o Silhouette Studio. Rosso = taglio, nero = incisione, misure in mm.","Laser / plotter da taglio …","Laser / plotter da taglio","LaserBox e altri laser xTool","Salva SVG","Importa l’SVG in xTool Studio. Imposta le linee rosse su «Taglia» e le aree nere su «Incidi». Scegli il materiale, verifica la posizione nell’anteprima della fotocamera, poi avvia.","Vevor, GCC e altri","Salva DXF","Apri il file con «File > Importa». I livelli arrivano per colore: rosso (02) su «Linea» per il taglio, nero (00) su «Riempimento» per l’incisione. Imposta potenza e velocità per il materiale, verifica la posizione con «Cornice», poi avvia.","Plotter da taglio","Apri il DXF (SVG solo dalla Designer Edition). Controlla le dimensioni dopo l’apertura. In «Invia» taglia per colore della linea: taglia il rosso, disattiva il nero o disegnalo con la penna.","Rosso #FF0000 = taglio (linea sottile) · Nero = incisione · Misure in mm","Esportazione non possibile:","Nessun contorno da tagliare o incidere trovato.","Taglio (rosso): {cut} contorni · Incisione (nero): {engrave} contorni","{count} oggetti di testo o immagine non inclusi","{name} salvato.","Design und Technik (sito web, nuova scheda)","Design und Technik, sito web in una nuova scheda","Sito web"],"es":["Dos colores: cortar el negro, grabar el color","Para láser y plóter de corte: el negro pasa a ser el contorno de corte (solo el borde exterior), los colores como el rojo o el azul pasan a ser la superficie de grabado. Los tonos grises cuentan como negro.","Corte (rojo) y grabado (negro) insertados. Continúa con Exportar > Láser / plóter de corte.","Contornos cortables para xTool Studio, LightBurn o Silhouette Studio. Rojo = corte, negro = grabado, medidas en mm.","Láser / plóter de corte …","Láser / plóter de corte","LaserBox y otros láseres xTool","Guardar SVG","Importa el SVG en xTool Studio. Pon las líneas rojas en «Cortar» y las superficies negras en «Grabar». Elige el material, comprueba la posición en la vista previa de la cámara y luego inicia.","Vevor, GCC y otros","Guardar DXF","Abre el archivo con «Archivo > Importar». Las capas llegan por color: rojo (02) en «Línea» para el corte, negro (00) en «Relleno» para el grabado. Ajusta potencia y velocidad para el material, comprueba la posición con «Marco» y luego inicia.","Plóter de corte","Abre el DXF (SVG solo desde Designer Edition). Comprueba el tamaño tras abrirlo. En «Enviar», corta por color de línea: corta el rojo, desactiva el negro o dibújalo con bolígrafo.","Rojo #FF0000 = corte (línea fina) · Negro = grabado · Medidas en mm","No se puede exportar:","No se encontraron contornos para cortar o grabar.","Corte (rojo): {cut} contornos · Grabado (negro): {engrave} contornos","{count} objeto(s) de texto o imagen no incluidos","{name} guardado.","Design und Technik (sitio web, nueva pestaña)","Design und Technik, sitio web en una pestaña nueva","Sitio web"],"pt":["Duas cores: cortar o preto, gravar a cor","Para laser e plotter de corte: o preto passa a ser o contorno de corte (apenas a aresta exterior), as cores como vermelho ou azul passam a ser a área de gravação. Os tons de cinzento contam como preto.","Corte (vermelho) e gravação (preto) inseridos. Continue com Exportar > Laser / plotter de corte.","Contornos cortáveis para xTool Studio, LightBurn ou Silhouette Studio. Vermelho = corte, preto = gravação, medidas em mm.","Laser / plotter de corte …","Laser / plotter de corte","LaserBox e outros lasers xTool","Guardar SVG","Importe o SVG no xTool Studio. Defina as linhas vermelhas como “Cortar” e as áreas pretas como “Gravar”. Escolha o material, verifique a posição na pré-visualização da câmara e depois inicie.","Vevor, GCC e outros","Guardar DXF","Abra o ficheiro em “Ficheiro > Importar”. As camadas chegam por cor: vermelho (02) em “Linha” para o corte, preto (00) em “Preencher” para a gravação. Ajuste potência e velocidade ao material, verifique a posição com “Moldura” e depois inicie.","Plotter de corte","Abra o DXF (SVG só a partir da Designer Edition). Verifique o tamanho depois de abrir. Em “Enviar”, corte por cor de linha: corte o vermelho, desative o preto ou desenhe-o com caneta.","Vermelho #FF0000 = corte (linha fina) · Preto = gravação · Medidas em mm","Não é possível exportar:","Nenhum contorno para cortar ou gravar encontrado.","Corte (vermelho): {cut} contornos · Gravação (preto): {engrave} contornos","{count} objeto(s) de texto ou imagem não incluído(s)","{name} guardado.","Design und Technik (site, novo separador)","Design und Technik, site num novo separador","Site"],"nl":["Twee kleuren: zwart snijden, kleur graveren","Voor laser en snijplotter: zwart wordt de snijcontour (alleen de buitenrand), kleuren zoals rood of blauw worden het graveervlak. Grijstinten tellen als zwart.","Snede (rood) en gravure (zwart) ingevoegd. Verder met Export > Laser / snijplotter.","Snijbare contouren voor xTool Studio, LightBurn of Silhouette Studio. Rood = snijden, zwart = graveren, maten in mm.","Laser / snijplotter …","Laser / snijplotter","LaserBox en andere xTool-lasers","SVG opslaan","Importeer de SVG in xTool Studio. Zet rode lijnen op ‘Snijden’ en zwarte vlakken op ‘Graveren’. Kies het materiaal, controleer de positie in de camerapreview en start dan.","Vevor, GCC en andere","DXF opslaan","Open het bestand via ‘Bestand > Importeren’. De lagen komen binnen op kleur: rood (02) op ‘Lijn’ voor het snijden, zwart (00) op ‘Vullen’ voor het graveren. Stel vermogen en snelheid in voor het materiaal, controleer de positie met ‘Kader’ en start dan.","Snijplotter","Open de DXF (SVG pas vanaf Designer Edition). Controleer na het openen de grootte. Snijd onder ‘Verzenden’ op lijnkleur: rood snijden, zwart uitschakelen of met een pen tekenen.","Rood #FF0000 = snijden (haarlijn) · Zwart = graveren · Maten in mm","Exporteren niet mogelijk:","Geen snij- of graveerbare contouren gevonden.","Snijden (rood): {cut} contouren · Graveren (zwart): {engrave} contouren","{count} tekst- of afbeeldingsobject(en) niet opgenomen","{name} opgeslagen.","Design und Technik (website, nieuw tabblad)","Design und Technik, website in nieuw tabblad","Website"],"pl":["Dwa kolory: czarny wycinać, kolorowy grawerować","Do lasera i plotera tnącego: czarne staje się konturem cięcia (tylko krawędź zewnętrzna), kolory takie jak czerwony czy niebieski stają się powierzchnią grawerowania. Odcienie szarości liczą się jako czarny.","Wstawiono cięcie (czerwone) i grawerowanie (czarne). Dalej: Eksport > Laser / ploter tnący.","Kontury do cięcia dla xTool Studio, LightBurn lub Silhouette Studio. Czerwony = cięcie, czarny = grawerowanie, wymiary w mm.","Laser / ploter tnący …","Laser / ploter tnący","LaserBox i inne lasery xTool","Zapisz SVG","Zaimportuj SVG do xTool Studio. Czerwone linie ustaw na „Cięcie”, czarne powierzchnie na „Grawerowanie”. Wybierz materiał, sprawdź położenie w podglądzie kamery, a potem uruchom.","Vevor, GCC i inne","Zapisz DXF","Otwórz plik przez „Plik > Importuj”. Warstwy przychodzą według koloru: czerwony (02) ustaw na „Linia” dla cięcia, czarny (00) na „Wypełnienie” dla grawerowania. Ustaw moc i prędkość dla materiału, sprawdź położenie przyciskiem „Ramka”, a potem uruchom.","Ploter tnący","Otwórz DXF (SVG dopiero od Designer Edition). Po otwarciu sprawdź rozmiar. W „Wyślij” tnij według koloru linii: czerwony wycinaj, czarny wyłącz lub rysuj pisakiem.","Czerwony #FF0000 = cięcie (linia włoskowa) · Czarny = grawerowanie · Wymiary w mm","Eksport niemożliwy:","Nie znaleziono konturów do cięcia ani grawerowania.","Cięcie (czerwony), kontury: {cut} · Grawerowanie (czarny), kontury: {engrave}","Nieuwzględnione obiekty tekstowe lub obrazy: {count}","Zapisano {name}.","Design und Technik (strona internetowa, nowa karta)","Design und Technik, strona internetowa w nowej karcie","Strona internetowa"],"cs":["Dvě barvy: černou řezat, barevné gravírovat","Pro laser a řezací plotr: z černé se stane řezný obrys (jen vnější okraj), z barev jako červená nebo modrá plocha gravírování. Šedé tóny se počítají jako černá.","Řez (červená) a gravírování (černá) vloženy. Pokračujte přes Export > Laser / řezací plotr.","Řezatelné obrysy pro xTool Studio, LightBurn nebo Silhouette Studio. Červená = řez, černá = gravírování, rozměry v mm.","Laser / řezací plotr …","Laser / řezací plotr","LaserBox a další lasery xTool","Uložit SVG","Importujte SVG do xTool Studio. Červené čáry nastavte na „Řezat“, černé plochy na „Gravírovat“. Zvolte materiál, zkontrolujte polohu v náhledu kamery a pak spusťte.","Vevor, GCC a další","Uložit DXF","Soubor otevřete přes „Soubor > Importovat“. Vrstvy přijdou podle barvy: červenou (02) nastavte na „Čára“ pro řez, černou (00) na „Výplň“ pro gravírování. Nastavte výkon a rychlost pro materiál, polohu zkontrolujte pomocí „Rám“ a pak spusťte.","Řezací plotr","Otevřete DXF (SVG až od Designer Edition). Po otevření zkontrolujte velikost. V části „Odeslat“ řežte podle barvy čáry: červenou řezat, černou vypnout nebo kreslit perem.","Červená #FF0000 = řez (vlasová čára) · Černá = gravírování · Rozměry v mm","Export není možný:","Nenalezeny žádné obrysy k řezání ani gravírování.","Řez (červená), obrysy: {cut} · Gravírování (černá), obrysy: {engrave}","Nezahrnuté textové nebo obrázkové objekty: {count}","{name} uloženo.","Design und Technik (web, nová karta)","Design und Technik, web na nové kartě","Web"],"sk":["Dve farby: čiernu rezať, farebné gravírovať","Pre laser a rezací plotter: z čiernej sa stane rezný obrys (len vonkajší okraj), z farieb ako červená alebo modrá plocha gravírovania. Sivé tóny sa počítajú ako čierna.","Rez (červená) a gravírovanie (čierna) vložené. Pokračujte cez Export > Laser / rezací plotter.","Rezateľné obrysy pre xTool Studio, LightBurn alebo Silhouette Studio. Červená = rez, čierna = gravírovanie, rozmery v mm.","Laser / rezací plotter …","Laser / rezací plotter","LaserBox a ďalšie lasery xTool","Uložiť SVG","Importujte SVG do xTool Studio. Červené čiary nastavte na „Rezať“, čierne plochy na „Gravírovať“. Zvoľte materiál, skontrolujte polohu v náhľade kamery a potom spustite.","Vevor, GCC a ďalšie","Uložiť DXF","Súbor otvorte cez „Súbor > Importovať“. Vrstvy prídu podľa farby: červenú (02) nastavte na „Čiara“ pre rez, čiernu (00) na „Výplň“ pre gravírovanie. Nastavte výkon a rýchlosť pre materiál, polohu skontrolujte pomocou „Rám“ a potom spustite.","Rezací plotter","Otvorte DXF (SVG až od Designer Edition). Po otvorení skontrolujte veľkosť. V časti „Odoslať“ režte podľa farby čiary: červenú rezať, čiernu vypnúť alebo kresliť perom.","Červená #FF0000 = rez (vlasová čiara) · Čierna = gravírovanie · Rozmery v mm","Export nie je možný:","Nenašli sa žiadne obrysy na rezanie ani gravírovanie.","Rez (červená), obrysy: {cut} · Gravírovanie (čierna), obrysy: {engrave}","Nezahrnuté textové alebo obrázkové objekty: {count}","{name} uložené.","Design und Technik (web, nová karta)","Design und Technik, web na novej karte","Web"],"ro":["Două culori: negrul se taie, culoarea se gravează","Pentru laser și plotter de tăiere: negrul devine contur de tăiere (doar marginea exterioară), culorile precum roșu sau albastru devin suprafață de gravare. Nuanțele de gri contează ca negru.","Tăiere (roșu) și gravare (negru) inserate. Continuați cu Export > Laser / plotter de tăiere.","Contururi tăiabile pentru xTool Studio, LightBurn sau Silhouette Studio. Roșu = tăiere, negru = gravare, dimensiuni în mm.","Laser / plotter de tăiere …","Laser / plotter de tăiere","LaserBox și alte lasere xTool","Salvare SVG","Importați SVG-ul în xTool Studio. Setați liniile roșii pe „Tăiere” și suprafețele negre pe „Gravare”. Alegeți materialul, verificați poziția în previzualizarea camerei, apoi porniți.","Vevor, GCC și altele","Salvare DXF","Deschideți fișierul prin „Fișier > Import”. Straturile sosesc după culoare: roșu (02) pe „Linie” pentru tăiere, negru (00) pe „Umplere” pentru gravare. Setați puterea și viteza pentru material, verificați poziția cu „Cadru”, apoi porniți.","Plotter de tăiere","Deschideți DXF-ul (SVG doar de la Designer Edition). Verificați dimensiunea după deschidere. La „Trimitere”, tăiați după culoarea liniei: roșul se taie, negrul se dezactivează sau se desenează cu pixul.","Roșu #FF0000 = tăiere (linie subțire) · Negru = gravare · Dimensiuni în mm","Export imposibil:","Nu s-au găsit contururi de tăiat sau de gravat.","Tăiere (roșu): {cut} contururi · Gravare (negru): {engrave} contururi","{count} obiect(e) text sau imagine neincluse","{name} salvat.","Design und Technik (site web, filă nouă)","Design und Technik, site web într-o filă nouă","Site web"],"hu":["Két szín: a fekete vágás, a szín gravírozás","Lézerhez és vágóplotterhez: a feketéből vágókontúr lesz (csak a külső él), a színekből, például pirosból vagy kékből gravírozott felület. A szürke árnyalatok feketének számítanak.","Vágás (piros) és gravírozás (fekete) beillesztve. Tovább: Exportálás > Lézer / vágóplotter.","Vágható kontúrok az xTool Studio, a LightBurn vagy a Silhouette Studio programhoz. Piros = vágás, fekete = gravírozás, méretek mm-ben.","Lézer / vágóplotter …","Lézer / vágóplotter","LaserBox és más xTool lézerek","SVG mentése","Importálja az SVG-t az xTool Studio programba. A piros vonalakat állítsa „Vágás”, a fekete felületeket „Gravírozás” módra. Válassza ki az anyagot, ellenőrizze a helyzetet a kamera előnézetében, majd indítsa el.","Vevor, GCC és mások","DXF mentése","Nyissa meg a fájlt a „Fájl > Importálás” menüben. A rétegek szín szerint érkeznek: a pirosat (02) állítsa „Vonal” módra a vágáshoz, a feketét (00) „Kitöltés” módra a gravírozáshoz. Állítsa be a teljesítményt és a sebességet az anyaghoz, a „Keret” gombbal ellenőrizze a helyzetet, majd indítsa el.","Vágóplotter","Nyissa meg a DXF-et (SVG csak a Designer Edition változattól). Megnyitás után ellenőrizze a méretet. A „Küldés” alatt vonalszín szerint vágjon: a pirosat vágja, a feketét kapcsolja ki vagy rajzolja tollal.","Piros #FF0000 = vágás (hajszálvonal) · Fekete = gravírozás · Méretek mm-ben","Az exportálás nem lehetséges:","Nem található vágható vagy gravírozható kontúr.","Vágás (piros): {cut} kontúr · Gravírozás (fekete): {engrave} kontúr","{count} szöveg- vagy képobjektum nincs benne","{name} mentve.","Design und Technik (weboldal, új lap)","Design und Technik, weboldal új lapon","Weboldal"],"el":["Δύο χρώματα: κοπή στο μαύρο, χάραξη στο χρώμα","Για λέιζερ και κοπτικό πλότερ: το μαύρο γίνεται περίγραμμα κοπής (μόνο το εξωτερικό άκρο), τα χρώματα όπως κόκκινο ή μπλε γίνονται επιφάνεια χάραξης. Οι γκρι τόνοι μετρούν ως μαύρο.","Η κοπή (κόκκινο) και η χάραξη (μαύρο) εισήχθησαν. Συνέχεια με Εξαγωγή > Λέιζερ / κοπτικό πλότερ.","Περιγράμματα για κοπή στο xTool Studio, το LightBurn ή το Silhouette Studio. Κόκκινο = κοπή, μαύρο = χάραξη, διαστάσεις σε mm.","Λέιζερ / κοπτικό πλότερ …","Λέιζερ / κοπτικό πλότερ","LaserBox και άλλα λέιζερ xTool","Αποθήκευση SVG","Εισαγάγετε το SVG στο xTool Studio. Ορίστε τις κόκκινες γραμμές σε «Κοπή» και τις μαύρες επιφάνειες σε «Χάραξη». Επιλέξτε υλικό, ελέγξτε τη θέση στην προεπισκόπηση της κάμερας και ξεκινήστε.","Vevor, GCC και άλλα","Αποθήκευση DXF","Ανοίξτε το αρχείο από «Αρχείο > Εισαγωγή». Τα επίπεδα φτάνουν ανά χρώμα: κόκκινο (02) σε «Γραμμή» για την κοπή, μαύρο (00) σε «Γέμισμα» για τη χάραξη. Ρυθμίστε ισχύ και ταχύτητα για το υλικό, ελέγξτε τη θέση με «Πλαίσιο» και ξεκινήστε.","Κοπτικό πλότερ","Ανοίξτε το DXF (SVG μόνο από την Designer Edition). Ελέγξτε το μέγεθος μετά το άνοιγμα. Στην «Αποστολή» κόψτε ανά χρώμα γραμμής: κόψτε το κόκκινο, απενεργοποιήστε το μαύρο ή σχεδιάστε το με στυλό.","Κόκκινο #FF0000 = κοπή (λεπτή γραμμή) · Μαύρο = χάραξη · Διαστάσεις σε mm","Η εξαγωγή δεν είναι δυνατή:","Δεν βρέθηκαν περιγράμματα για κοπή ή χάραξη.","Κοπή (κόκκινο): {cut} περιγράμματα · Χάραξη (μαύρο): {engrave} περιγράμματα","{count} αντικείμενα κειμένου ή εικόνας δεν περιλαμβάνονται","Το {name} αποθηκεύτηκε.","Design und Technik (ιστότοπος, νέα καρτέλα)","Design und Technik, ιστότοπος σε νέα καρτέλα","Ιστότοπος"],"sv":["Två färger: skär svart, gravera färg","För laser och skärplotter: svart blir skärkontur (endast ytterkanten), färger som rött eller blått blir graveringsyta. Grå toner räknas som svart.","Skärning (röd) och gravering (svart) infogade. Fortsätt med Export > Laser / skärplotter.","Skärbara konturer för xTool Studio, LightBurn eller Silhouette Studio. Rött = skärning, svart = gravering, mått i mm.","Laser / skärplotter …","Laser / skärplotter","LaserBox och andra xTool-lasrar","Spara SVG","Importera SVG-filen i xTool Studio. Ställ röda linjer på ”Skär” och svarta ytor på ”Gravera”. Välj material, kontrollera läget i kameraförhandsvisningen och starta sedan.","Vevor, GCC med flera","Spara DXF","Öppna filen via ”Arkiv > Importera”. Lagren kommer in efter färg: röd (02) på ”Linje” för skärningen, svart (00) på ”Fyll” för graveringen. Ställ in effekt och hastighet för materialet, kontrollera läget med ”Ram” och starta sedan.","Skärplotter","Öppna DXF-filen (SVG först från Designer Edition). Kontrollera storleken efter öppnandet. Under ”Skicka” skär du efter linjefärg: skär rött, stäng av svart eller rita det med penna.","Rött #FF0000 = skärning (hårlinje) · Svart = gravering · Mått i mm","Export inte möjlig:","Inga skär- eller graverbara konturer hittades.","Skärning (röd): {cut} konturer · Gravering (svart): {engrave} konturer","{count} text- eller bildobjekt ingår inte","{name} sparad.","Design und Technik (webbplats, ny flik)","Design und Technik, webbplats i ny flik","Webbplats"],"da":["To farver: skær sort, gravér farve","Til laser og skæreplotter: sort bliver skærekontur (kun yderkanten), farver som rød eller blå bliver graveringsflade. Grå toner tæller som sort.","Skæring (rød) og gravering (sort) indsat. Fortsæt med Eksport > Laser / skæreplotter.","Skærbare konturer til xTool Studio, LightBurn eller Silhouette Studio. Rød = skæring, sort = gravering, mål i mm.","Laser / skæreplotter …","Laser / skæreplotter","LaserBox og andre xTool-lasere","Gem SVG","Importér SVG-filen i xTool Studio. Sæt røde linjer til “Skær” og sorte flader til “Gravér”. Vælg materiale, kontrollér placeringen i kameraeksempelvisningen, og start derefter.","Vevor, GCC og andre","Gem DXF","Åbn filen via “Filer > Importér”. Lagene kommer ind efter farve: rød (02) på “Linje” til skæringen, sort (00) på “Fyld” til graveringen. Indstil effekt og hastighed til materialet, kontrollér placeringen med “Ramme”, og start derefter.","Skæreplotter","Åbn DXF-filen (SVG først fra Designer Edition). Kontrollér størrelsen efter åbning. Under “Send” skæres efter linjefarve: skær rød, slå sort fra eller tegn den med pen.","Rød #FF0000 = skæring (hårlinje) · Sort = gravering · Mål i mm","Eksport ikke mulig:","Ingen skære- eller graverbare konturer fundet.","Skæring (rød): {cut} konturer · Gravering (sort): {engrave} konturer","{count} tekst- eller billedobjekt(er) ikke medtaget","{name} gemt.","Design und Technik (websted, ny fane)","Design und Technik, websted i ny fane","Websted"],"no":["To farger: skjær svart, graver farge","For laser og skjæreplotter: svart blir skjærekontur (bare ytterkanten), farger som rødt eller blått blir graveringsflate. Grå toner teller som svart.","Skjæring (rød) og gravering (svart) satt inn. Fortsett med Eksport > Laser / skjæreplotter.","Skjærbare konturer for xTool Studio, LightBurn eller Silhouette Studio. Rødt = skjæring, svart = gravering, mål i mm.","Laser / skjæreplotter …","Laser / skjæreplotter","LaserBox og andre xTool-lasere","Lagre SVG","Importer SVG-filen i xTool Studio. Sett røde linjer til «Skjær» og svarte flater til «Graver». Velg materiale, kontroller plasseringen i kameraforhåndsvisningen, og start deretter.","Vevor, GCC og andre","Lagre DXF","Åpne filen via «Fil > Importer». Lagene kommer inn etter farge: rødt (02) på «Linje» for skjæringen, svart (00) på «Fyll» for graveringen. Still inn effekt og hastighet for materialet, kontroller plasseringen med «Ramme», og start deretter.","Skjæreplotter","Åpne DXF-filen (SVG først fra Designer Edition). Kontroller størrelsen etter åpning. Under «Send» skjærer du etter linjefarge: skjær rødt, slå av svart eller tegn det med penn.","Rødt #FF0000 = skjæring (hårlinje) · Svart = gravering · Mål i mm","Eksport ikke mulig:","Fant ingen skjære- eller graverbare konturer.","Skjæring (rød): {cut} konturer · Gravering (svart): {engrave} konturer","{count} tekst- eller bildeobjekt(er) ikke med","{name} lagret.","Design und Technik (nettsted, ny fane)","Design und Technik, nettsted i ny fane","Nettsted"],"fi":["Kaksi väriä: musta leikataan, väri kaiverretaan","Laserille ja leikkuriplotterille: mustasta tulee leikkausääriviiva (vain ulkoreuna), väreistä kuten punaisesta tai sinisestä kaiverrusalue. Harmaat sävyt lasketaan mustaksi.","Leikkaus (punainen) ja kaiverrus (musta) lisätty. Jatka kohdasta Vienti > Laser / leikkuriplotteri.","Leikattavat ääriviivat ohjelmiin xTool Studio, LightBurn tai Silhouette Studio. Punainen = leikkaus, musta = kaiverrus, mitat millimetreinä.","Laser / leikkuriplotteri …","Laser / leikkuriplotteri","LaserBox ja muut xTool-laserit","Tallenna SVG","Tuo SVG ohjelmaan xTool Studio. Aseta punaiset viivat tilaan ”Leikkaa” ja mustat alueet tilaan ”Kaiverra”. Valitse materiaali, tarkista sijainti kameran esikatselussa ja käynnistä sitten.","Vevor, GCC ja muut","Tallenna DXF","Avaa tiedosto kohdasta ”Tiedosto > Tuo”. Tasot tulevat värin mukaan: punainen (02) tilaan ”Viiva” leikkausta varten, musta (00) tilaan ”Täyttö” kaiverrusta varten. Säädä teho ja nopeus materiaalille, tarkista sijainti ”Kehys”-toiminnolla ja käynnistä sitten.","Leikkuriplotteri","Avaa DXF (SVG vasta Designer Editionista alkaen). Tarkista koko avaamisen jälkeen. Leikkaa kohdassa ”Lähetä” viivavärin mukaan: punainen leikataan, musta poistetaan käytöstä tai piirretään kynällä.","Punainen #FF0000 = leikkaus (hiusviiva) · Musta = kaiverrus · Mitat millimetreinä","Vienti ei onnistu:","Leikattavia tai kaiverrettavia ääriviivoja ei löytynyt.","Leikkaus (punainen): {cut} ääriviivaa · Kaiverrus (musta): {engrave} ääriviivaa","{count} teksti- tai kuvaobjektia ei mukana","{name} tallennettu.","Design und Technik (verkkosivusto, uusi välilehti)","Design und Technik, verkkosivusto uudessa välilehdessä","Verkkosivusto"],"ca":["Dos colors: tallar el negre, gravar el color","Per a làser i plòter de tall: el negre esdevé el contorn de tall (només la vora exterior), els colors com el vermell o el blau esdevenen la superfície de gravat. Els tons grisos compten com a negre.","Tall (vermell) i gravat (negre) inserits. Continueu amb Exportar > Làser / plòter de tall.","Contorns tallables per a xTool Studio, LightBurn o Silhouette Studio. Vermell = tall, negre = gravat, mides en mm.","Làser / plòter de tall …","Làser / plòter de tall","LaserBox i altres làsers xTool","Desa en SVG","Importeu l’SVG a xTool Studio. Poseu les línies vermelles a «Tallar» i les superfícies negres a «Gravar». Trieu el material, comproveu la posició a la previsualització de la càmera i després inicieu.","Vevor, GCC i altres","Desa en DXF","Obriu el fitxer amb «Fitxer > Importa». Les capes arriben per color: vermell (02) a «Línia» per al tall, negre (00) a «Emplena» per al gravat. Ajusteu potència i velocitat per al material, comproveu la posició amb «Marc» i després inicieu.","Plòter de tall","Obriu el DXF (SVG només a partir de Designer Edition). Comproveu la mida després d’obrir-lo. A «Envia», talleu per color de línia: talleu el vermell, desactiveu el negre o dibuixeu-lo amb bolígraf.","Vermell #FF0000 = tall (línia fina) · Negre = gravat · Mides en mm","No es pot exportar:","No s’han trobat contorns per tallar o gravar.","Tall (vermell): {cut} contorns · Gravat (negre): {engrave} contorns","{count} objecte(s) de text o imatge no inclosos","{name} desat.","Design und Technik (lloc web, pestanya nova)","Design und Technik, lloc web en una pestanya nova","Lloc web"],"tr":["İki renk: siyahı kes, rengi oy","Lazer ve kesim plotteri için: siyah kesim konturu olur (yalnızca dış kenar), kırmızı veya mavi gibi renkler oyma alanı olur. Gri tonlar siyah sayılır.","Kesim (kırmızı) ve oyma (siyah) eklendi. Dışa aktar > Lazer / kesim plotteri ile devam edin.","xTool Studio, LightBurn veya Silhouette Studio için kesilebilir konturlar. Kırmızı = kesim, siyah = oyma, ölçüler mm cinsinden.","Lazer / kesim plotteri …","Lazer / kesim plotteri","LaserBox ve diğer xTool lazerleri","SVG kaydet","SVG'yi xTool Studio'ya içe aktarın. Kırmızı çizgileri “Kes”, siyah alanları “Oy” olarak ayarlayın. Malzemeyi seçin, konumu kamera önizlemesinde kontrol edin, ardından başlatın.","Vevor, GCC ve diğerleri","DXF kaydet","Dosyayı “Dosya > İçe Aktar” ile açın. Katmanlar renge göre gelir: kesim için kırmızıyı (02) “Çizgi”, oyma için siyahı (00) “Doldur” olarak ayarlayın. Malzemeye göre güç ve hızı ayarlayın, konumu “Çerçeve” ile kontrol edin, ardından başlatın.","Kesim plotteri","DXF'yi açın (SVG yalnızca Designer Edition ile). Açtıktan sonra boyutu kontrol edin. “Gönder” altında çizgi rengine göre kesin: kırmızıyı kesin, siyahı kapatın veya kalemle çizin.","Kırmızı #FF0000 = kesim (kıl çizgi) · Siyah = oyma · Ölçüler mm cinsinden","Dışa aktarma mümkün değil:","Kesilebilir veya oyulabilir kontur bulunamadı.","Kesim (kırmızı): {cut} kontur · Oyma (siyah): {engrave} kontur","{count} metin veya görsel nesnesi dahil değil","{name} kaydedildi.","Design und Technik (web sitesi, yeni sekme)","Design und Technik, yeni sekmede web sitesi","Web sitesi"],"ru":["Два цвета: чёрное резать, цветное гравировать","Для лазера и режущего плоттера: чёрное становится контуром реза (только внешний край), цвета вроде красного или синего становятся площадью гравировки. Серые тона считаются чёрными.","Рез (красный) и гравировка (чёрный) вставлены. Далее: Экспорт > Лазер / режущий плоттер.","Контуры для резки в xTool Studio, LightBurn или Silhouette Studio. Красный = рез, чёрный = гравировка, размеры в mm.","Лазер / режущий плоттер …","Лазер / режущий плоттер","LaserBox и другие лазеры xTool","Сохранить SVG","Импортируйте SVG в xTool Studio. Красные линии установите на «Резка», чёрные области на «Гравировка». Выберите материал, проверьте положение в предпросмотре камеры и запустите.","Vevor, GCC и другие","Сохранить DXF","Откройте файл через «Файл > Импорт». Слои приходят по цвету: красный (02) на «Линия» для реза, чёрный (00) на «Заливка» для гравировки. Настройте мощность и скорость для материала, проверьте положение кнопкой «Рамка» и запустите.","Режущий плоттер","Откройте DXF (SVG только начиная с Designer Edition). После открытия проверьте размер. В разделе «Отправить» режьте по цвету линии: красное резать, чёрное отключить или рисовать пером.","Красный #FF0000 = рез (волосяная линия) · Чёрный = гравировка · Размеры в mm","Экспорт невозможен:","Контуры для резки или гравировки не найдены.","Рез (красный), контуров: {cut} · Гравировка (чёрный), контуров: {engrave}","Не включено текстовых или графических объектов: {count}","Сохранено: {name}.","Design und Technik (сайт, новая вкладка)","Design und Technik, сайт в новой вкладке","Сайт"],"uk":["Два кольори: чорне різати, кольорове гравіювати","Для лазера й різального плотера: чорне стає контуром різу (лише зовнішній край), кольори на кшталт червоного чи синього стають площею гравіювання. Сірі тони вважаються чорними.","Різ (червоний) і гравіювання (чорний) вставлено. Далі: Експорт > Лазер / різальний плотер.","Контури для різання в xTool Studio, LightBurn або Silhouette Studio. Червоний = різ, чорний = гравіювання, розміри в mm.","Лазер / різальний плотер …","Лазер / різальний плотер","LaserBox та інші лазери xTool","Зберегти SVG","Імпортуйте SVG у xTool Studio. Червоні лінії встановіть на «Різання», чорні площі на «Гравіювання». Виберіть матеріал, перевірте положення в попередньому перегляді камери й запустіть.","Vevor, GCC та інші","Зберегти DXF","Відкрийте файл через «Файл > Імпорт». Шари надходять за кольором: червоний (02) на «Лінія» для різу, чорний (00) на «Заливка» для гравіювання. Налаштуйте потужність і швидкість для матеріалу, перевірте положення кнопкою «Рамка» й запустіть.","Різальний плотер","Відкрийте DXF (SVG лише починаючи з Designer Edition). Після відкриття перевірте розмір. У розділі «Надіслати» ріжте за кольором лінії: червоне різати, чорне вимкнути або малювати пером.","Червоний #FF0000 = різ (волосяна лінія) · Чорний = гравіювання · Розміри в mm","Експорт неможливий:","Контурів для різання чи гравіювання не знайдено.","Різ (червоний), контурів: {cut} · Гравіювання (чорний), контурів: {engrave}","Не включено текстових або графічних об’єктів: {count}","Збережено: {name}.","Design und Technik (сайт, нова вкладка)","Design und Technik, сайт у новій вкладці","Сайт"],"bg":["Два цвята: черното се реже, цветното се гравира","За лазер и режещ плотер: черното става контур за рязане (само външният ръб), цветове като червено или синьо стават повърхност за гравиране. Сивите тонове се броят за черно.","Рязането (червено) и гравирането (черно) са вмъкнати. Продължете с Експорт > Лазер / режещ плотер.","Контури за рязане за xTool Studio, LightBurn или Silhouette Studio. Червено = рязане, черно = гравиране, размери в mm.","Лазер / режещ плотер …","Лазер / режещ плотер","LaserBox и други лазери xTool","Запис на SVG","Импортирайте SVG в xTool Studio. Задайте червените линии на „Рязане“, а черните повърхности на „Гравиране“. Изберете материал, проверете позицията в прегледа от камерата и стартирайте.","Vevor, GCC и други","Запис на DXF","Отворете файла чрез „Файл > Импортиране“. Слоевете идват по цвят: червено (02) на „Линия“ за рязането, черно (00) на „Запълване“ за гравирането. Настройте мощност и скорост за материала, проверете позицията с „Рамка“ и стартирайте.","Режещ плотер","Отворете DXF (SVG едва от Designer Edition). След отваряне проверете размера. В „Изпращане“ режете по цвят на линията: червеното се реже, черното се изключва или се рисува с писалка.","Червено #FF0000 = рязане (тънка линия) · Черно = гравиране · Размери в mm","Експортът не е възможен:","Не са намерени контури за рязане или гравиране.","Рязане (червено), контури: {cut} · Гравиране (черно), контури: {engrave}","Невключени текстови или графични обекти: {count}","Записано: {name}.","Design und Technik (уебсайт, нов раздел)","Design und Technik, уебсайт в нов раздел","Уебсайт"],"zh":["双色：黑色切割，彩色雕刻","用于激光和刻字机：黑色变为切割轮廓（仅外边缘），红色或蓝色等彩色变为雕刻区域。灰色调按黑色处理。","已插入切割（红色）和雕刻（黑色）。下一步：导出 > 激光 / 刻字机。","适用于 xTool Studio、LightBurn 或 Silhouette Studio 的可切割轮廓。红色 = 切割，黑色 = 雕刻，单位 mm。","激光 / 刻字机…","激光 / 刻字机","LaserBox 及其他 xTool 激光器","保存 SVG","将 SVG 导入 xTool Studio。将红色线条设为“切割”，黑色区域设为“雕刻”。选择材料，在相机预览中检查位置，然后开始。","Vevor、GCC 等","保存 DXF","通过“文件 > 导入”打开文件。图层按颜色导入：红色 (02) 设为“线条”用于切割，黑色 (00) 设为“填充”用于雕刻。按材料设置功率和速度，用“边框”检查位置，然后开始。","刻字机","打开 DXF（SVG 需 Designer Edition 及以上）。打开后检查尺寸。在“发送”中按线条颜色切割：切割红色，关闭黑色或用笔绘制。","红色 #FF0000 = 切割（细线） · 黑色 = 雕刻 · 单位 mm","无法导出：","未找到可切割或可雕刻的轮廓。","切割（红色）：{cut} 个轮廓 · 雕刻（黑色）：{engrave} 个轮廓","{count} 个文本或图像对象未包含","已保存 {name}。","Design und Technik（网站，新标签页）","Design und Technik，在新标签页中打开网站","网站"],"ja":["2色：黒はカット、色は彫刻","レーザーとカッティングプロッター用：黒はカットの輪郭（外側の縁のみ）、赤や青などの色は彫刻面になります。グレーの階調は黒として扱います。","カット（赤）と彫刻（黒）を挿入しました。続きは「書き出し > レーザー / カッティングプロッター」から。","xTool Studio、LightBurn、Silhouette Studio 用のカット可能な輪郭。赤 = カット、黒 = 彫刻、寸法は mm。","レーザー / カッティングプロッター…","レーザー / カッティングプロッター","LaserBox などの xTool レーザー","SVG を保存","SVG を xTool Studio に読み込みます。赤い線を「カット」、黒い面を「彫刻」に設定します。素材を選び、カメラのプレビューで位置を確認してから開始します。","Vevor、GCC など","DXF を保存","「ファイル > インポート」でファイルを開きます。レイヤーは色ごとに読み込まれます。カットには赤 (02) を「ライン」、彫刻には黒 (00) を「塗りつぶし」に設定します。素材に合わせて出力と速度を設定し、「フレーム」で位置を確認してから開始します。","カッティングプロッター","DXF を開きます（SVG は Designer Edition 以上）。開いた後にサイズを確認します。「送信」で線の色ごとにカットします。赤はカット、黒はオフにするかペンで描画します。","赤 #FF0000 = カット（ヘアライン） · 黒 = 彫刻 · 寸法は mm","書き出しできません：","カットまたは彫刻できる輪郭が見つかりません。","カット（赤）：{cut} 個の輪郭 · 彫刻（黒）：{engrave} 個の輪郭","{count} 個のテキストまたは画像オブジェクトは含まれません","{name} を保存しました。","Design und Technik（ウェブサイト、新しいタブ）","Design und Technik、新しいタブでウェブサイトを開く","ウェブサイト"],"ko":["두 가지 색: 검은색은 절단, 컬러는 조각","레이저와 커팅 플로터용: 검은색은 절단 윤곽선(바깥 가장자리만)이 되고, 빨강이나 파랑 같은 색은 조각 영역이 됩니다. 회색 톤은 검은색으로 간주합니다.","절단(빨강)과 조각(검정)을 삽입했습니다. 내보내기 > 레이저 / 커팅 플로터에서 계속하세요.","xTool Studio, LightBurn 또는 Silhouette Studio용 절단 가능한 윤곽선. 빨강 = 절단, 검정 = 조각, 치수는 mm.","레이저 / 커팅 플로터 …","레이저 / 커팅 플로터","LaserBox 및 기타 xTool 레이저","SVG 저장","SVG를 xTool Studio로 가져옵니다. 빨간 선은 ‘절단’, 검은 영역은 ‘조각’으로 설정합니다. 재료를 선택하고 카메라 미리보기에서 위치를 확인한 다음 시작합니다.","Vevor, GCC 등","DXF 저장","‘파일 > 가져오기’로 파일을 엽니다. 레이어는 색상별로 들어옵니다. 절단용 빨강(02)은 ‘라인’, 조각용 검정(00)은 ‘채우기’로 설정합니다. 재료에 맞게 출력과 속도를 설정하고 ‘프레임’으로 위치를 확인한 다음 시작합니다.","커팅 플로터","DXF를 엽니다(SVG는 Designer Edition부터). 연 다음 크기를 확인합니다. ‘보내기’에서 선 색상별로 절단합니다. 빨강은 절단하고, 검정은 끄거나 펜으로 그립니다.","빨강 #FF0000 = 절단(헤어라인) · 검정 = 조각 · 치수는 mm","내보낼 수 없습니다:","절단하거나 조각할 윤곽선을 찾지 못했습니다.","절단(빨강): 윤곽선 {cut}개 · 조각(검정): 윤곽선 {engrave}개","텍스트 또는 이미지 개체 {count}개는 포함되지 않음","{name}을(를) 저장했습니다.","Design und Technik(웹사이트, 새 탭)","Design und Technik, 새 탭에서 웹사이트 열기","웹사이트"],"vi":["Hai màu: cắt màu đen, khắc màu","Cho laser và máy cắt plotter: màu đen thành đường viền cắt (chỉ mép ngoài), các màu như đỏ hoặc xanh dương thành vùng khắc. Tông xám được tính là đen.","Đã chèn đường cắt (đỏ) và vùng khắc (đen). Tiếp tục với Xuất > Laser / máy cắt plotter.","Đường viền cắt được cho xTool Studio, LightBurn hoặc Silhouette Studio. Đỏ = cắt, đen = khắc, kích thước theo mm.","Laser / máy cắt plotter …","Laser / máy cắt plotter","LaserBox và các máy laser xTool khác","Lưu SVG","Nhập SVG vào xTool Studio. Đặt các đường đỏ là “Cắt” và các vùng đen là “Khắc”. Chọn vật liệu, kiểm tra vị trí trong bản xem trước camera, rồi bắt đầu.","Vevor, GCC và các hãng khác","Lưu DXF","Mở tệp qua “Tệp > Nhập”. Các lớp được nhập theo màu: đỏ (02) đặt “Đường” để cắt, đen (00) đặt “Tô” để khắc. Đặt công suất và tốc độ theo vật liệu, kiểm tra vị trí bằng “Khung”, rồi bắt đầu.","Máy cắt plotter","Mở DXF (SVG chỉ từ Designer Edition). Kiểm tra kích thước sau khi mở. Trong “Gửi”, cắt theo màu đường: cắt màu đỏ, tắt màu đen hoặc vẽ bằng bút.","Đỏ #FF0000 = cắt (nét mảnh) · Đen = khắc · Kích thước theo mm","Không thể xuất:","Không tìm thấy đường viền có thể cắt hoặc khắc.","Cắt (đỏ): {cut} đường viền · Khắc (đen): {engrave} đường viền","{count} đối tượng văn bản hoặc hình ảnh không được đưa vào","Đã lưu {name}.","Design und Technik (trang web, thẻ mới)","Design und Technik, trang web trong thẻ mới","Trang web"],"th":["สองสี: ตัดสีดำ แกะสลักสี","สำหรับเลเซอร์และเครื่องตัดพล็อตเตอร์: สีดำจะเป็นเส้นขอบตัด (เฉพาะขอบนอก) สีอื่นเช่นแดงหรือน้ำเงินจะเป็นพื้นที่แกะสลัก โทนสีเทานับเป็นสีดำ","แทรกเส้นตัด (แดง) และงานแกะสลัก (ดำ) แล้ว ทำต่อที่ ส่งออก > เลเซอร์ / เครื่องตัดพล็อตเตอร์","เส้นขอบที่ตัดได้สำหรับ xTool Studio, LightBurn หรือ Silhouette Studio แดง = ตัด ดำ = แกะสลัก ขนาดเป็น mm","เลเซอร์ / เครื่องตัดพล็อตเตอร์ …","เลเซอร์ / เครื่องตัดพล็อตเตอร์","LaserBox และเลเซอร์ xTool รุ่นอื่น","บันทึก SVG","นำเข้า SVG ใน xTool Studio ตั้งเส้นสีแดงเป็น “ตัด” และพื้นที่สีดำเป็น “แกะสลัก” เลือกวัสดุ ตรวจตำแหน่งในภาพตัวอย่างจากกล้อง แล้วเริ่มงาน","Vevor, GCC และอื่น ๆ","บันทึก DXF","เปิดไฟล์ทาง “ไฟล์ > นำเข้า” เลเยอร์จะแยกตามสี: ตั้งสีแดง (02) เป็น “เส้น” สำหรับการตัด และสีดำ (00) เป็น “เติม” สำหรับการแกะสลัก ตั้งกำลังและความเร็วตามวัสดุ ตรวจตำแหน่งด้วย “กรอบ” แล้วเริ่มงาน","เครื่องตัดพล็อตเตอร์","เปิด DXF (SVG ใช้ได้ตั้งแต่ Designer Edition) ตรวจขนาดหลังเปิดไฟล์ ใน “ส่ง” ให้ตัดตามสีเส้น: ตัดสีแดง ปิดสีดำหรือวาดด้วยปากกา","แดง #FF0000 = ตัด (เส้นบาง) · ดำ = แกะสลัก · ขนาดเป็น mm","ส่งออกไม่ได้:","ไม่พบเส้นขอบที่ตัดหรือแกะสลักได้","ตัด (แดง): {cut} เส้นขอบ · แกะสลัก (ดำ): {engrave} เส้นขอบ","ไม่รวมวัตถุข้อความหรือรูปภาพ {count} รายการ","บันทึก {name} แล้ว","Design und Technik (เว็บไซต์ แท็บใหม่)","Design und Technik, เว็บไซต์ในแท็บใหม่","เว็บไซต์"],"id":["Dua warna: potong hitam, ukir warna","Untuk laser dan plotter pemotong: hitam menjadi kontur potong (hanya tepi luar), warna seperti merah atau biru menjadi bidang ukir. Nada abu-abu dihitung sebagai hitam.","Potongan (merah) dan ukiran (hitam) disisipkan. Lanjutkan dengan Ekspor > Laser / plotter pemotong.","Kontur yang dapat dipotong untuk xTool Studio, LightBurn, atau Silhouette Studio. Merah = potong, hitam = ukir, ukuran dalam mm.","Laser / plotter pemotong …","Laser / plotter pemotong","LaserBox dan laser xTool lainnya","Simpan SVG","Impor SVG ke xTool Studio. Atur garis merah ke “Potong” dan bidang hitam ke “Ukir”. Pilih bahan, periksa posisi di pratinjau kamera, lalu mulai.","Vevor, GCC, dan lainnya","Simpan DXF","Buka file melalui “File > Impor”. Lapisan masuk menurut warna: merah (02) ke “Garis” untuk potongan, hitam (00) ke “Isi” untuk ukiran. Atur daya dan kecepatan untuk bahan, periksa posisi dengan “Bingkai”, lalu mulai.","Plotter pemotong","Buka DXF (SVG baru mulai Designer Edition). Periksa ukuran setelah dibuka. Di “Kirim”, potong menurut warna garis: potong merah, matikan hitam atau gambar dengan pena.","Merah #FF0000 = potong (garis rambut) · Hitam = ukir · Ukuran dalam mm","Ekspor tidak dapat dilakukan:","Tidak ditemukan kontur yang dapat dipotong atau diukir.","Potong (merah): {cut} kontur · Ukir (hitam): {engrave} kontur","{count} objek teks atau gambar tidak disertakan","{name} disimpan.","Design und Technik (situs web, tab baru)","Design und Technik, situs web di tab baru","Situs web"],"hi":["दो रंग: काला काटें, रंगीन नक्काशी करें","लेज़र और कटिंग प्लॉटर के लिए: काला कटाई की रूपरेखा बनता है (केवल बाहरी किनारा), लाल या नीले जैसे रंग नक्काशी का क्षेत्र बनते हैं। धूसर टोन काले माने जाते हैं।","कटाई (लाल) और नक्काशी (काला) जोड़ी गई। निर्यात > लेज़र / कटिंग प्लॉटर से आगे बढ़ें।","xTool Studio, LightBurn या Silhouette Studio के लिए काटने योग्य रूपरेखाएँ। लाल = कटाई, काला = नक्काशी, माप mm में।","लेज़र / कटिंग प्लॉटर …","लेज़र / कटिंग प्लॉटर","LaserBox और अन्य xTool लेज़र","SVG सहेजें","SVG को xTool Studio में आयात करें। लाल रेखाओं को “काटें” और काले क्षेत्रों को “नक्काशी” पर सेट करें। सामग्री चुनें, कैमरा पूर्वावलोकन में स्थिति जाँचें, फिर शुरू करें।","Vevor, GCC और अन्य","DXF सहेजें","फ़ाइल को “फ़ाइल > आयात” से खोलें। परतें रंग के अनुसार आती हैं: कटाई के लिए लाल (02) को “रेखा” पर, नक्काशी के लिए काला (00) को “भरें” पर सेट करें। सामग्री के लिए पावर और गति सेट करें, “फ़्रेम” से स्थिति जाँचें, फिर शुरू करें।","कटिंग प्लॉटर","DXF खोलें (SVG केवल Designer Edition से)। खोलने के बाद आकार जाँचें। “भेजें” में रेखा के रंग के अनुसार काटें: लाल काटें, काला बंद करें या पेन से बनाएँ।","लाल #FF0000 = कटाई (हेयरलाइन) · काला = नक्काशी · माप mm में","निर्यात संभव नहीं:","काटने या नक्काशी योग्य कोई रूपरेखा नहीं मिली।","कटाई (लाल): {cut} रूपरेखाएँ · नक्काशी (काला): {engrave} रूपरेखाएँ","{count} पाठ या छवि ऑब्जेक्ट शामिल नहीं","{name} सहेजा गया।","Design und Technik (वेबसाइट, नया टैब)","Design und Technik, नए टैब में वेबसाइट","वेबसाइट"],"ar":["لونان: قصّ الأسود، ونقش الملوّن","لليزر وراسمة القطع: يصبح الأسود محيط قص (الحافة الخارجية فقط)، وتصبح الألوان مثل الأحمر أو الأزرق مساحة نقش. تُحتسب درجات الرمادي سوداء.","أُدرج القص (أحمر) والنقش (أسود). تابع عبر تصدير > ليزر / راسمة القطع.","محيطات قابلة للقص لـ xTool Studio أو LightBurn أو Silhouette Studio. أحمر = قص، أسود = نقش، القياسات بالـ mm.","ليزر / راسمة القطع …","ليزر / راسمة القطع","LaserBox وأجهزة ليزر xTool الأخرى","حفظ SVG","استورد ملف SVG في xTool Studio. اضبط الخطوط الحمراء على «قص» والمساحات السوداء على «نقش». اختر المادة، وتحقّق من الموضع في معاينة الكاميرا، ثم ابدأ.","Vevor وGCC وغيرها","حفظ DXF","افتح الملف عبر «ملف > استيراد». تصل الطبقات حسب اللون: الأحمر (02) على «خط» للقص، والأسود (00) على «تعبئة» للنقش. اضبط القدرة والسرعة حسب المادة، وتحقّق من الموضع بزر «إطار»، ثم ابدأ.","راسمة القطع","افتح ملف DXF (SVG فقط بدءًا من Designer Edition). تحقّق من الحجم بعد الفتح. في «إرسال» اقطع حسب لون الخط: اقطع الأحمر، وأوقف الأسود أو ارسمه بالقلم.","أحمر #FF0000 = قص (خط شعري) · أسود = نقش · القياسات بالـ mm","التصدير غير ممكن:","لم يُعثر على محيطات قابلة للقص أو النقش.","قص (أحمر): {cut} محيطات · نقش (أسود): {engrave} محيطات","لم تُضمَّن {count} من كائنات النص أو الصور","حُفظ {name}.","Design und Technik (موقع ويب، علامة تبويب جديدة)","Design und Technik، موقع ويب في علامة تبويب جديدة","الموقع الإلكتروني"],"he":["שני צבעים: לחתוך שחור, לחרוט צבע","ללייזר ולפלוטר חיתוך: השחור הופך לקו מתאר לחיתוך (רק הקצה החיצוני), צבעים כמו אדום או כחול הופכים לשטח חריטה. גוני אפור נחשבים לשחור.","החיתוך (אדום) והחריטה (שחור) נוספו. המשיכו דרך ייצוא > לייזר / פלוטר חיתוך.","קווי מתאר לחיתוך עבור xTool Studio, LightBurn או Silhouette Studio. אדום = חיתוך, שחור = חריטה, מידות במ\"מ.","לייזר / פלוטר חיתוך …","לייזר / פלוטר חיתוך","LaserBox ולייזרים אחרים של xTool","שמירת SVG","ייבאו את קובץ ה-SVG ל-xTool Studio. הגדירו קווים אדומים ל„חיתוך” ושטחים שחורים ל„חריטה”. בחרו חומר, בדקו את המיקום בתצוגה המקדימה של המצלמה ואז התחילו.","Vevor, GCC ואחרים","שמירת DXF","פתחו את הקובץ דרך „קובץ > ייבוא”. השכבות מגיעות לפי צבע: אדום (02) ל„קו” עבור החיתוך, שחור (00) ל„מילוי” עבור החריטה. הגדירו הספק ומהירות לפי החומר, בדקו את המיקום עם „מסגרת” ואז התחילו.","פלוטר חיתוך","פתחו את קובץ ה-DXF (SVG רק החל מ-Designer Edition). בדקו את הגודל אחרי הפתיחה. תחת „שליחה” חתכו לפי צבע הקו: לחתוך אדום, לכבות שחור או לצייר אותו בעט.","אדום #FF0000 = חיתוך (קו שערה) · שחור = חריטה · מידות במ\"מ","הייצוא אינו אפשרי:","לא נמצאו קווי מתאר לחיתוך או לחריטה.","חיתוך (אדום): {cut} קווי מתאר · חריטה (שחור): {engrave} קווי מתאר","{count} אובייקטי טקסט או תמונה לא נכללו","{name} נשמר.","Design und Technik (אתר אינטרנט, כרטיסייה חדשה)","Design und Technik, אתר אינטרנט בכרטיסייה חדשה","אתר אינטרנט"],"fa":["دو رنگ: برش مشکی، حکاکی رنگی","برای لیزر و پلاتر برش: مشکی به خط دور برش تبدیل می‌شود (فقط لبهٔ بیرونی) و رنگ‌هایی مانند قرمز یا آبی به سطح حکاکی. تُن‌های خاکستری مشکی حساب می‌شوند.","برش (قرمز) و حکاکی (مشکی) درج شد. ادامه با برون‌بری > لیزر / پلاتر برش.","خط‌های دور قابل برش برای xTool Studio، LightBurn یا Silhouette Studio. قرمز = برش، مشکی = حکاکی، اندازه‌ها به mm.","لیزر / پلاتر برش …","لیزر / پلاتر برش","LaserBox و دیگر لیزرهای xTool","ذخیرهٔ SVG","SVG را در xTool Studio وارد کنید. خط‌های قرمز را روی «برش» و سطح‌های مشکی را روی «حکاکی» بگذارید. ماده را انتخاب کنید، جای کار را در پیش‌نمایش دوربین بررسی کنید و سپس شروع کنید.","Vevor، GCC و دیگران","ذخیرهٔ DXF","فایل را از «فایل > وارد کردن» باز کنید. لایه‌ها بر اساس رنگ می‌رسند: قرمز (02) روی «خط» برای برش، مشکی (00) روی «پُرکردن» برای حکاکی. توان و سرعت را برای ماده تنظیم کنید، جای کار را با «قاب» بررسی کنید و سپس شروع کنید.","پلاتر برش","DXF را باز کنید (SVG فقط از Designer Edition به بالا). پس از باز کردن اندازه را بررسی کنید. در «ارسال» بر اساس رنگ خط برش دهید: قرمز را برش دهید، مشکی را خاموش کنید یا با قلم بکشید.","قرمز #FF0000 = برش (خط مویی) · مشکی = حکاکی · اندازه‌ها به mm","برون‌بری ممکن نیست:","هیچ خط دور قابل برش یا حکاکی پیدا نشد.","برش (قرمز): {cut} خط دور · حکاکی (مشکی): {engrave} خط دور","{count} شیء متنی یا تصویری گنجانده نشد","{name} ذخیره شد.","Design und Technik (وب‌سایت، زبانهٔ جدید)","Design und Technik، وب‌سایت در زبانهٔ جدید","وب‌سایت"]});
   Object.keys(VT_RELEASE_CATALOG).forEach(function(key){Object.keys(VT_RELEASE_CATALOG[key]).forEach(function(lang){if(!DICT[lang])DICT[lang]={};DICT[lang][key]=VT_RELEASE_CATALOG[key][lang];});});
   /* Keep the existing translated label; the file shortcut is language-neutral. */
   Object.keys(DICT).forEach(function(lang){if(DICT[lang]['SVG kopieren'])DICT[lang]['SVG kopieren · Ctrl/⌘+Shift+C → .svg']=DICT[lang]['SVG kopieren']+' · Ctrl/⌘+Shift+C → .svg';});
@@ -59229,6 +59699,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-28', t:'VT-20261028-local-r41', c:null},
+    {d:'2026-10-28', t:'VT-20261028-local-r40fork', c:null},
+    {d:'2026-10-28', t:'VT-20261028-local-r39', c:null},
+    {d:'2026-10-28', t:'VT-20261028-local-r38', c:null},
     {d:'2026-10-27', t:'VT-20261027-local-r37', c:null},
     {d:'2026-10-27', t:'VT-20261027-local-r36', c:null},
     {d:'2026-10-27', t:'VT-20261027-local-r35', c:null},
@@ -63018,6 +63492,11 @@ body .vt-cardlink:hover, body .rp-info:hover, body #infoBtn:hover,
 #dstvModal #dstvInfoBtn:hover, body.dstv-info-open #dstvModal #dstvInfoBtn {
   background: var(--ac-hover); border-color: var(--ac-hover); color: #fff;
 }
+/* [r38 L3] Website-Link im selben Kreis wie das «i». */
+body #siteLinkBtn { display:inline-flex; align-items:center; justify-content:center; flex:none; box-sizing:border-box; width:24px; height:24px; margin-left:-6px; border:1px solid var(--ac); border-radius:50%; background:var(--ac); color:#fff; transition:background var(--dur), border-color var(--dur); }
+body #siteLinkBtn svg { width:15px; height:15px; }
+body #siteLinkBtn:hover { background:var(--ac-hover); border-color:var(--ac-hover); }
+body #siteLinkBtn:focus-visible { outline:2px solid var(--ac); outline-offset:2px; }
 body button.vt-cardlink:focus-visible, body #infoBtn:focus-visible,
 #dstvModal #dstvInfoBtn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
 </style>
