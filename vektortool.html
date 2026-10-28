@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261028-local-r41 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261028-local-r42 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -21164,12 +21164,12 @@ function _cncSkipMsg(skip) {
 }
 
 /* ---- DXF: echte mm, $INSUNITS-Header, Layer FLAECHEN/LINIEN ---- */
-/* [r38 L2] laser = [{pts, closed, layer:'SCHNITT'|'GRAVUR'}] schreibt die Laser-/Plotter-Ebenen statt der Formen. */
+/* [r38 L2] laser = [{pts, closed, layer:'CUT'|'ENGRAVE'}] schreibt die Laser-/Plotter-Ebenen statt der Formen. */
 function buildExportDXF(laser) {
-  var ents = '', nextHandle = 256, layerNames = laser ? ['0', 'SCHNITT', 'GRAVUR'] : ['0', 'FLAECHEN', 'LINIEN'];
+  var ents = '', nextHandle = 256, layerNames = laser ? ['0', 'CUT', 'ENGRAVE'] : ['0', 'FLAECHEN', 'LINIEN'];
   function poly(pts, closed, layer) {
     ents += '0\nLWPOLYLINE\n5\n' + (nextHandle++).toString(16).toUpperCase() +
-      '\n330\n20\n100\nAcDbEntity\n8\n' + layer + (laser ? '\n62\n' + (layer === 'SCHNITT' ? 1 : 7) : '') + '\n100\nAcDbPolyline\n90\n' + pts.length + '\n70\n' + (closed ? 1 : 0) + '\n';
+      '\n330\n20\n100\nAcDbEntity\n8\n' + layer + (laser ? '\n62\n' + (layer === 'CUT' ? 1 : 7) : '') + '\n100\nAcDbPolyline\n90\n' + pts.length + '\n70\n' + (closed ? 1 : 0) + '\n';
     for (var i = 0; i < pts.length; i++) {
       ents += '10\n' + px2mm(pts[i].x).toFixed(4) + '\n20\n' + (-px2mm(pts[i].y)).toFixed(4) + '\n';
     }
@@ -21331,7 +21331,7 @@ function buildExportLaserCutSVG(L) {
   var c = L.cut.map(function(it) { return '<path d="' + d(it) + '" fill="none" stroke="#FF0000" stroke-width="0.1"/>\n'; }).join('');
   var w = px2mm(x1 - x0).toFixed(3), h = px2mm(y1 - y0).toFixed(3);
   return '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="' + w + 'mm" height="' + h + 'mm" viewBox="' + mm(x0) + ' ' + mm(y0) + ' ' + w + ' ' + h + '">\n' +
-    (g ? '<g id="Gravur">\n' + g + '</g>\n' : '') + (c ? '<g id="Schnitt">\n' + c + '</g>\n' : '') + '</svg>\n';
+    (g ? '<g id="Engrave">\n' + g + '</g>\n' : '') + (c ? '<g id="Cut">\n' + c + '</g>\n' : '') + '</svg>\n';
 }
 var _vtLaserCutData = null;
 function _vtLaserCutOpen() {
@@ -21355,8 +21355,8 @@ function _vtLaserCutSave(kind) {
   var name = ((docName || 'vektortool-export').replace(/[^a-zA-Z0-9_\-äöüÄÖÜ ]/g, '') || 'vektortool-export') + '-' + dev + '.' + fmt;
   try {
     if (fmt === 'svg') downloadBlob(new Blob([buildExportLaserCutSVG(L)], { type: 'image/svg+xml' }), name);
-    else downloadBlob(new Blob([buildExportDXF(L.engrave.map(function(it) { return { pts: it.pts, closed: it.closed, layer: 'GRAVUR' }; })
-      .concat(L.cut.map(function(it) { return { pts: it.pts, closed: it.closed, layer: 'SCHNITT' }; })))], { type: 'application/dxf' }), name);
+    else downloadBlob(new Blob([buildExportDXF(L.engrave.map(function(it) { return { pts: it.pts, closed: it.closed, layer: 'ENGRAVE' }; })
+      .concat(L.cut.map(function(it) { return { pts: it.pts, closed: it.closed, layer: 'CUT' }; })))], { type: 'application/dxf' }), name);
   } catch (error) { alert(window.t('Export nicht möglich:') + ' ' + (error && error.message || error)); return; }
   if (window._vtToast) window._vtToast(window.t('{name} gespeichert.', { name: name }));
 }
@@ -35444,7 +35444,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 264; /* r41: J1 Spruenge ohne F3. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 265; /* r42: M2 lange Fuellstiche geteilt, S6 Variantengrenze. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -39698,7 +39698,7 @@ function _planCellFill(segs, dirX, dirY, maxRowStepPx) {
        endet an der Eintrittsseite der Zelle, ihr ganzer Teilbaum ist dann gestickt. Die Wege legt der Planer selbst als
        Reisesegmente (row -1) fest: entlang der Zellwand (Reihenenden, 0.3 mm innen) durch die noch leere Zelle und auf
        der Linie einer noch leeren Grenzreihe zur naechsten Zelle. Beides wird spaeter von Reihen zugedeckt. */
-    if (!window._vtF3Off && !window.__vtEulerUnterlage && cells.length <= 4000) { /* nur die Fuellung, die Unterlage behaelt ihren Weg */
+    if (!window._vtF3Off && !window.__vtEulerUnterlage && cells.length <= 4000) { window.__vtF3Hit = true; /* [S6] */ /* nur die Fuellung, die Unterlage behaelt ihren Weg */
       var F3IN = _mm2px(0.3), F3MAX = _mm2px(10), F3NEAR = (maxRowStepPx > 0 && isFinite(maxRowStepPx) ? maxRowStepPx : _mm2px(0.6)) * 1.6;
       var sideOf = function (cIdx, segIdx) { var Lc = cells[cIdx]; return (Lc.length > 1 && segIdx === Lc[Lc.length - 1]) ? 1 : 0; };
       var rowOf = function (cIdx, side) { var Lc = cells[cIdx]; return side ? Lc[Lc.length - 1] : Lc[0]; };
@@ -42920,6 +42920,13 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     }
     if(mjN){out=mj;changed++;}
   }
+  if(!window._vtM2Off&&!(shape.type==='text'&&(shape.textStitch==='satin'||shape.textStitch==='laengs'))&&!(shape.stitch&&shape.stitch.type&&shape.stitch.type!=='fill')){ /* [M2] */
+    var m2Base=changed?out:pts,m2SL=_mm2px(Math.max(1,Number(shape.stitch&&shape.stitch.params&&shape.stitch.params.stitchLength)||3)),m2Out=null;
+    for(var m2=1;m2<m2Base.length;m2++){var a2=m2Base[m2-1],b2=m2Base[m2];
+      if(!b2.jump){var l2=Math.hypot(b2.x-a2.x,b2.y-a2.y);if(l2>m2SL*1.35){if(!m2Out)m2Out=m2Base.slice(0,m2);var n2=Math.ceil(l2/m2SL);for(var k2=1;k2<n2;k2++)m2Out.push({x:a2.x+(b2.x-a2.x)*k2/n2,y:a2.y+(b2.y-a2.y)*k2/n2});}}
+      if(m2Out)m2Out.push(b2);}
+    if(m2Out){out=m2Out;changed++;}
+  }
   var pull=opts&&Number.isFinite(opts.pullCompensation)?opts.pullCompensation:Number(shape.stitch&&shape.stitch.params&&shape.stitch.params.pullCompensation)||0;
   var info={changedSegments:changed,outsideIntervals:outsideCount,outsideLengthMM:clippedMM,longSegments:longCount,pullLimited:pull>0&&outsideCount>0,curveToleranceMM:0.01};
   if(shape.stitch&&(changed||!shape.stitch._materialGuardInfo))shape.stitch._materialGuardInfo=info;
@@ -43939,6 +43946,13 @@ function _vtS1Kosten(pts, ang) {
   }
   return { vis: vis / M, jumps: jumps, cuts: cuts, k: vis / M + 0.5 * jumps + 2 * cuts };
 }
+/* [S6] Reihenwinkel wie in der Auswahl: haeufigste Richtung der Stiche ab 2 mm */
+function _vtS6Winkel(A) {
+  var hist = {}, hb = -1, ang = 0;
+  for (var i = 1; i < A.length; i++) { if (A[i].jump) continue; var dx = A[i].x - A[i - 1].x, dy = A[i].y - A[i - 1].y; if (Math.hypot(dx, dy) < _mm2px(2)) continue;
+    var dg = ((Math.round(Math.atan2(dy, dx) * 180 / Math.PI) % 180) + 180) % 180; hist[dg] = (hist[dg] || 0) + 1; if (hist[dg] > hb) { hb = hist[dg]; ang = dg * Math.PI / 180; } }
+  return ang;
+}
 function _vtS1Teile(out, islands) {
   var runs = _vtFillIslandRuns(out, islands); if (!runs) return null;
   var res = [], seen = {};
@@ -43983,17 +43997,22 @@ function* _vtFillComposeStepsS1(shape) {
   /* Im Modus «Spruenge» sind Spruenge gewollt: dort keine Auswahl nach Sprungkosten */
   var fcS1 = (shape && shape.stitch && shape.stitch.params && shape.stitch.params.fillConnect) || window._fillConnect || 'jump';
   if (window._vtS1Off || window._vtF3Off || window.__vtS1Inner || fcS1 === 'jump' || (shape && shape.type === 'text' && !shape._vtTextAsFill)) return yield* _vtFillComposeStepsF3(shape);
-  var A = yield* _vtFillComposeStepsF3(shape);
+  window.__vtF3Hit = false;
+  var A = yield* _vtFillComposeStepsF3(shape), f3Hit = window.__vtF3Hit;
   if (!A || A.length < 4 || A.length > 20000) return A; /* [S5] grosse Formen: keine Varianten (Berechnungsgrenze) */
+  /* [S6] Ohne F3 waeren alle Varianten gleich, ueber 6000 Punkte bringen sie kaum etwas (gemessen 2 %, Rechenzeit
+     1.5- bis 2-fach). Dann nur die Reihenfolge der Teilformen waehlen. */
+  var s6Nur = !window._vtS6Off && (!f3Hit || A.length > 6000);
+  if (!window._vtS6Off) { var c6 = _vtS1Kosten(A, _vtS6Winkel(A)); if (c6.k < 0.25) return A; } /* [S6] nichts zu verbessern */
   var sid = shape && shape.id, vars = [{ n: 'F3', pts: A }], B;
   window.__vtS1Inner = true;
   try {
-    var tS5 = Date.now(); B = _vtS1Variante(shape, false, null); if (B) vars.push({ n: 'alt', pts: B }); tS5 = Date.now() - tS5; yield 'variante';
+    if (!s6Nur) { var tS5 = Date.now(); B = _vtS1Variante(shape, false, null); if (B) vars.push({ n: 'alt', pts: B }); tS5 = Date.now() - tS5; yield 'variante';
     /* Weitere F3-Varianten mit Startwunsch an den vier Ecken je Teilflaeche: nur bis 12000 Punkte und wenn der alte
        Weg schnell ging [S5] (Rechenzeit) */
-    if (A.length <= 12000 && tS5 <= 250 && !window._vtS1EckenOff) for (var c = 0; c < 4; c++) { var E = _vtS1Variante(shape, true, _vtS1EckHint(c)); if (E) vars.push({ n: 'F3e' + c, pts: E }); yield 'variante'; }
+    if (A.length <= 12000 && tS5 <= 250 && !window._vtS1EckenOff) for (var c = 0; c < 4; c++) { var E = _vtS1Variante(shape, true, _vtS1EckHint(c)); if (E) vars.push({ n: 'F3e' + c, pts: E }); yield 'variante'; } }
   } finally { window.__vtS1Inner = false; }
-  if (vars.length < 2) return A;
+  if (vars.length < 2 && !s6Nur) return A;
   /* Reihenwinkel wie der Maschinenlauf: haeufigste Richtung der Stiche ab 2 mm */
   var hist = {}, hb = -1, ang = 0;
   for (var i = 1; i < A.length; i++) { if (A[i].jump) continue; var dx = A[i].x - A[i - 1].x, dy = A[i].y - A[i - 1].y; if (Math.hypot(dx, dy) < _mm2px(2)) continue;
@@ -47570,6 +47589,7 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
         var jumpDistUnits = Math.sqrt(dxJ*dxJ + dyJ*dyJ);
         var jumpDistMM = jumpDistUnits / 10;
         var sameColor = (lastColor !== null && es.color === lastColor);
+        var m1Stich = !window._vtM1Off && havePos && window._trimAnyStitch === true && (ri > 0 || sameColor) && jumpDistMM < 1; /* [M1] */
         /* IMMER in window._dstLastJumpReport sammeln (unabhängig vom Flag).
            Der DST-Viewer rendert die Top-N Jumps direkt in der Sidebar. */
         try {
@@ -47617,7 +47637,7 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
             dstPts.push({ x: curDstX, y: curDstY, jump: true });
           }
         }
-        dstPts.push({ x: firstQ.x, y: firstQ.y, jump: true });
+        dstPts.push(m1Stich ? { x: firstQ.x, y: firstQ.y } : { x: firstQ.x, y: firstQ.y, jump: true });
         curDstX = firstQ.x; curDstY = firstQ.y;
         havePos = true;
       }
@@ -59699,6 +59719,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-28', t:'VT-20261028-local-r42', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r41', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r40fork', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r39', c:null},

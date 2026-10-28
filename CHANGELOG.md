@@ -1,5 +1,29 @@
 # Changelog
 
+## 28 October 2026 — r42
+
+Release build `VT-20261028-local-r42`, byte-identical to the tested local file
+(SHA-256 `6b73f0069064f6bdd92f0248ae4fcaae984339f8a01cd21a43d1735e03082a9f`).
+Follow-up to r41: calculation time, short jumps, long travel stitches and laser layer
+names. The stitch cache version changes from 264 to 265, so existing designs are
+recalculated once.
+
+- Calculation time: the per-letter routing variants of r41 are only calculated where they can help (shapes up to 6 000 needle points where the new fill routing applies; the order of the parts is still chosen for all shapes up to 20 000 points). Large traced motifs are back to about the r37 calculation time (octopus 4.0 s → 1.6 s, mandala 9.2 s → 4.0 s in Chrome).
+- Short jumps: a move of less than 1 mm between two parts of the same colour is now sewn as a normal stitch instead of a jump (fewer jump sequences in lettering, e.g. Great Vibes 8 → 5, Pacifico 6 → 3; satin lettering Great Vibes 17 → 10, Pacifico 33 → 22).
+- Long stitches: fill and tatami stitches longer than 1.35 × the stitch length (single travel stitches up to 5.9 mm) are split into equal stitches along the same line. Satin is unchanged. In the "Jumps" connection mode such a move becomes a jump.
+- Laser / cutting plotter: layer names in the exported files are now English (`Cut`, `Engrave` in SVG; `CUT`, `ENGRAVE` in DXF), independent of the interface language. Colours are unchanged (LightBurn assigns layers by colour).
+
+Checked and left unchanged: the contour fill gaps measured since r39 move with the ring
+phase of the stitches (some shapes better, others worse), a fixed phase pattern did not
+improve them overall and added jumps; lock stitches are already placed before and after
+every trim; the fern photo stays blocked (more than 100 000 contour points per shape,
+a coarser contour only moved the block to the calculation limit).
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all completed. The known deviations
+remain (one check in T03 per engine and one in T09, both present before r37). Traced motifs export
+as in r41 (18 of 20), with at most one or two more trims per motif; the Fronalpstock photo still takes
+longer in WebKit than in r37 (41 s instead of 32 s).
+
 ## 28 October 2026 — r41
 
 Release build `VT-20261028-local-r41`, byte-identical to the tested local file

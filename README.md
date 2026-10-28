@@ -10,9 +10,12 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 28 October 2026 release uses the tested `VT-20261028-local-r41` build
+The 28 October 2026 release uses the tested `VT-20261028-local-r42` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `e109b7f1d9c09c2e7cd6e7917f01a5028cbc0fe84b2626d6df284cb88573a753`).
+to the tested file; SHA-256 `6b73f0069064f6bdd92f0248ae4fcaae984339f8a01cd21a43d1735e03082a9f`).
+r42 brings large traced motifs back to the r37 calculation time, sews moves under 1 mm
+as stitches instead of jumps, splits long single travel stitches and uses English layer
+names in laser files.
 r41 adds a laser and cutting-plotter export (xTool Studio, LightBurn, Silhouette
 Studio; red hairline = cut, black = engrave) and two-colour outline tracing for it,
 a link to the Design und Technik website in the status bar, the classic four-row
