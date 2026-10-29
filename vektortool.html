@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261028-local-r42 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261028-local-r43 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35444,7 +35444,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 265; /* r42: M2 lange Fuellstiche geteilt, S6 Variantengrenze. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 266; /* r43: K17 Satin-Enden. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -59719,6 +59719,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-10-28', t:'VT-20261028-local-r43', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r42', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r41', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r40fork', c:null},
@@ -61181,6 +61182,38 @@ function marchingSquares(mask,W,H){
    Stuetzpunkte - gerade Striche ergeben Flaeche~0 -> Ratio 0 (kein Faecher-Risiko),
    enge dicke Bowls ergeben kleinen Radius -> hohe Ratio. Unempfindlich gegen die
    pixelige Skelett-Treppe (im Gegensatz zur punktweisen Winkelmessung). */
+/* [K17] Sporn an freien Enden kappen und gerade verlaengern. Liefert {c, h} (neue Mittellinie und Halbbreiten). */
+function _k17Spur(cen, hw, endKinds, inInk){
+  if(window._vtK17Off||!inInk||!cen||cen.length<6||!hw||hw.length!==cen.length) return {c:cen,h:hw};
+  cen=cen.slice(); hw=hw.slice();
+  for(var e=0;e<2;e++){ if(endKinds[e]!=='free') continue;
+    var C=e?cen.slice().reverse():cen,H=e?hw.slice().reverse():hw,Hm=H.slice().sort(function(a,b){ return a-b; })[H.length>>1],cu=[0],q;
+    for(q=1;q<C.length;q++) cu[q]=cu[q-1]+Math.hypot(C[q].x-C[q-1].x,C[q].y-C[q-1].y);
+    var dir=function(a){ var b=Math.min(C.length-1,a+4),x=C[b].x-C[a].x,y=C[b].y-C[a].y,l=Math.hypot(x,y)||1; return {x:x/l,y:y/l}; };
+    var rx=0,ry=0; for(q=0;q<C.length-4;q++) if(cu[q]>=2*Hm&&cu[q]<=4*Hm){ var dq=dir(q); rx+=dq.x; ry+=dq.y; }
+    var rl=Math.hypot(rx,ry); if(rl<1e-9) continue; rx/=rl; ry/=rl;
+    /* Nur gerade Striche: die mittlere Richtung der beiden Haelften des Referenzabschnitts weicht
+       hoechstens 10 Grad ab (an echten Kurven, z. B.
+       Schwaenzen von Schreibschriften, ist die Biegung am Ende gewollt) */
+    var ax=0,ay=0,bx=0,by=0; for(q=0;q<C.length-4;q++){ var dg=dir(q); if(cu[q]>=2*Hm&&cu[q]<3*Hm){ ax+=dg.x; ay+=dg.y; } else if(cu[q]>=3*Hm&&cu[q]<=4*Hm){ bx+=dg.x; by+=dg.y; } }
+    var al=Math.hypot(ax,ay),bl=Math.hypot(bx,by); if(al<1e-9||bl<1e-9||(ax*bx+ay*by)/(al*bl)<Math.cos(10*Math.PI/180)) continue;
+    var d0=dir(0); if(d0.x*rx+d0.y*ry>Math.cos(15*Math.PI/180)) continue;
+    /* Nur Spornen in spitze Ecken: dort schrumpft die Halbbreite zum Ende hin. An runden Enden (Nunito) laeuft das
+       Skelett ins Zentrum der Rundung, die Halbbreite bleibt voll. */
+    if(H[0]>=0.7*Hm) continue;
+    var k=-1; for(q=1;q<C.length-4&&cu[q]<=2.5*Hm;q++){ var dk=dir(q); if(dk.x*rx+dk.y*ry>Math.cos(8*Math.PI/180)){ k=q; break; } }
+    if(k<0) continue;
+    /* Verlaengerung hoechstens so lang wie der Sporn plus eine halbe Halbbreite, und nur solange die Form quer nicht
+       breiter als 1.3 Strichbreiten wird (sonst laeuft sie in Serifen oder Nachbarstriche) */
+    var wq=function(px,py){ var w=0,t; for(t=st;t<6*H[k]&&inInk(px-ry*t,py+rx*t);t+=st) w+=st; for(t=st;t<6*H[k]&&inInk(px+ry*t,py-rx*t);t+=st) w+=st; return w; };
+    var X=[],st=Math.max(0.25,Hm*0.05); for(var d=st;d<Math.min(3*H[k],cu[k]+0.5*H[k]);d+=st){ var px=C[k].x-rx*d,py=C[k].y-ry*d; if(!inInk(px,py)||wq(px,py)>2.6*H[k]) break; X.push({x:px,y:py}); }
+    /* An V-Spitzen (W, K, X) ist der Sporn richtig: die Verlaengerung stoppt dort frueh (Form wird breit). Dann bleibt
+       das Ende, wie es war (sonst bleibt die Spitze ungedeckt und die Notfuellung flickt sie mit Spruengen). */
+    var Lo=-((C[0].x-C[k].x)*rx+(C[0].y-C[k].y)*ry); if(X.length*st<0.6*Lo) continue;
+    var nC=X.slice().reverse().concat(C.slice(k)),nH=X.map(function(){ return H[k]; }).concat(H.slice(k));
+    if(e){ cen=nC.reverse(); hw=nH.reverse(); } else { cen=nC; hw=nH; } }
+  return {c:cen,h:hw};
+}
 function _segCurveRatio(cc, hw){
   var n=cc.length; if(n<5) return 0;
   var sm=_astSmooth(cc.slice(), Math.max(2, Math.round(n*0.06))), i;
@@ -61461,6 +61494,13 @@ function extractSegments(text, family, fontSizePx, bold, italic, outlineOnly){
       if(sKind==='junc'&&eKind==='junc'&&_pa<Math.max(2.2*_pmed,_mm2px(1.3))) continue;
       if(pc.length>=2) segs.push({kind:'satin',center:pc,hw:ph,endK0:sKind,endK1:eKind});
     } }
+  /* [K17] Erst wenn alle Segmente feststehen: ein freies Ende, an dem ein anderes Segment naeher als 1.5 Halbbreiten
+     liegt, ist eine Spitze oder Verbindung (W-Spitzen), dort bleibt der Sporn. */
+  if(!window._vtK17Off) segs.forEach(function(sg,si){ if(sg.kind!=='satin'||!sg.center||sg.center.length<6) return;
+    var hs=sg.hw.slice().sort(function(a,b){ return a-b; }),hm=hs[hs.length>>1]||1,ek=[sg.endK0,sg.endK1];
+    [0,1].forEach(function(e){ if(ek[e]!=='free') return; var P=e?sg.center[sg.center.length-1]:sg.center[0];
+      segs.forEach(function(o,oi){ if(oi===si||!o.center) return; for(var j=0;j<o.center.length;j++) if(Math.hypot(o.center[j].x-P.x,o.center[j].y-P.y)<1.5*hm){ ek[e]='nah'; return; } }); });
+    var r17=_k17Spur(sg.center,sg.hw,ek,out.inInk); sg.center=r17.c; sg.hw=r17.h; });
   out.segs=segs;
   /* Degenerations-Mass: max Halbbreite/Kruemmungsradius ueber alle Satin-Segmente.
      Hoch (>~0.5) = Strich zu dick fuer seine Kurve -> Satin-Saeule faechert auf
@@ -61548,7 +61588,7 @@ function _resolveMode(ext){
    Aenderungen (Pitch, Stichart) die Vorschau schnell neu rendern. */
 var _segCache={};
 function extractSegmentsCached(ch, fontSizePx){
-  var key=state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0)+'|'+(window._vtK9Off?1:0)+(window._vtK11Off?1:0)+(window._vtK11TrimOff?1:0);
+  var key=state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0)+'|'+(window._vtK9Off?1:0)+(window._vtK11Off?1:0)+(window._vtK11TrimOff?1:0)+(window._vtK17Off?1:0);
   if(_segCache[key]) return _segCache[key];
   if(Object.keys(_segCache).length>200) _segCache={};
   var r=extractSegments(ch, state.font, fontSizePx, !!state.bold, !!state.italic);

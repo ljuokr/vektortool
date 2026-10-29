@@ -1,5 +1,18 @@
 # Changelog
 
+## 28 October 2026 — r43
+
+Release build `VT-20261028-local-r43`, byte-identical to the tested local file
+(SHA-256 `ef0058f3f62fd18fffd56010022099715f2a7dee39e581b47d19d66be1a7c95c`).
+Satin lettering at obliquely cut stroke ends. The stitch cache version changes from 265
+to 266, so existing designs are recalculated once.
+
+- Satin lettering: at an obliquely cut free stroke end (for example the top of the Lobster "b"), the centre line of the stroke ran into the acute corner and the satin stitches fanned into that corner. Such a spur is now cut off and the centre line continues straight to the edge, so the stitches stay parallel and become shorter along the slanted end. Rounded ends, curved tails and pointed joins (W, K, X) are left unchanged. In the satin test words trims fall from 10 to 9 (Lobster) and from 7 to 6 (Great Vibes); over 252 letters in 12 fonts jumps fall from 904 to 896 and stitches outside the letter from 50 to 49 mm.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. The known deviations remain (one check in T03 per engine and one in T09). Fill
+stitches and traced motifs are unchanged compared with r42.
+
 ## 28 October 2026 — r42
 
 Release build `VT-20261028-local-r42`, byte-identical to the tested local file
