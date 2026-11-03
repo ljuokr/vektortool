@@ -10,9 +10,11 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 28 October 2026 release uses the tested `VT-20261028-local-r43` build
+The 3 November 2026 release uses the tested `VT-20261103-local-r44` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `ef0058f3f62fd18fffd56010022099715f2a7dee39e581b47d19d66be1a7c95c`).
+to the tested file; SHA-256 `63dad2b0e3fd956c1f205d06e7d528996ec077d24f654ffcdb6294da5b3cd3e6`).
+r44 sews same-colour moves under 3 mm as stitches, drops tiny satin patches that cost a
+jump and speeds up the final routing check in WebKit.
 r43 keeps satin stitches parallel at obliquely cut stroke ends (no more fan into the corner).
 r42 brings large traced motifs back to the r37 calculation time, sews moves under 1 mm
 as stitches instead of jumps, splits long single travel stitches and uses English layer

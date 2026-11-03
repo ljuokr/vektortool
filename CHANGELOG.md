@@ -1,5 +1,22 @@
 # Changelog
 
+## 3 November 2026 — r44
+
+Release build `VT-20261103-local-r44`, byte-identical to the tested local file
+(SHA-256 `63dad2b0e3fd956c1f205d06e7d528996ec077d24f654ffcdb6294da5b3cd3e6`).
+Fewer jumps in lettering and small satin patches, faster final check in WebKit. The stitch
+cache version changes from 266 to 267, so existing designs are recalculated once.
+
+- Short jumps: a move of less than 3 mm (previously 1 mm) between two parts of the same colour is now sewn as a stitch instead of a jump. Such a move is below the trim threshold, so the thread already lay across the same gap; as a stitch it lies tight. This follows the documented 3 mm "collapse length" default of Ink/Stitch. Satin lettering jump sequences fall from 27 to 15 (Lobster) and from 22 to 13 (Pacifico); in the stroke test shapes short jumps fall from 141 to 22, trims are unchanged.
+- Satin lettering: a tiny coverage patch (sewn length under 1.5 mm, more than 3 mm away) is no longer added at the end of a letter. It cost a jump and often a trim (for example the extra trims on the Lobster "b" in r43). Over 252 letters in 12 fonts jumps fall from 896 to 775; the price is tiny uncovered corners of at most 0.45 % of a letter.
+- Calculation time: the final travel routing skips searches between regions that are not connected, and the closing guard check reuses its results. Output is byte-identical; WebKit is about 2 s faster on large photo motifs (Fronalpstock 40.7 s → 38.7 s).
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. The known deviations remain (one check in T03 per engine and one in T09). In traced
+motifs trims are unchanged compared with r43 and jump records fall by about 3 500; stitches
+counted outside the shape rise slightly in black-and-white motifs (at most 1.1 %), because the
+former loose short jumps are now counted as stitches.
+
 ## 28 October 2026 — r43
 
 Release build `VT-20261028-local-r43`, byte-identical to the tested local file

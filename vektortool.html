@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261028-local-r43 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261103-local-r44 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35444,7 +35444,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 266; /* r43: K17 Satin-Enden. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 267; /* r44: K19 kleine Flicke, M1b. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -42072,12 +42072,18 @@ function _buildInteriorTravelRouter(pInside, outline) {
   var bq = []; for (var z2 = 0; z2 < N; z2++) if (!inside[z2]) bq.push(z2);
   var head = 0, nb4 = [1, 0, -1, 0, 0, 1, 0, -1];
   while (head < bq.length) { var c0 = bq[head++], cx0 = c0 % cols, cy0 = (c0 / cols) | 0, dd0 = bdist[c0]; for (var di0 = 0; di0 < 4; di0++) { var nx0 = cx0 + nb4[di0 * 2], ny0 = cy0 + nb4[di0 * 2 + 1]; if (nx0 < 0 || nx0 >= cols || ny0 < 0 || ny0 >= rws) continue; var ni0 = ny0 * cols + nx0; if (bdist[ni0] === -1) { bdist[ni0] = dd0 + 1; bq.push(ni0); } } }
+  /* [K23] Teilflaechen (4er-Nachbarschaft) fuer den Schnelltest «kein Weg» */
+  var comp = new Int32Array(N), nComp = 0; for (var cz = 0; cz < N; cz++) comp[cz] = -1;
+  for (var cs = 0; cs < N; cs++) { if (!inside[cs] || comp[cs] >= 0) continue; var cq = [cs]; comp[cs] = nComp;
+    while (cq.length) { var cc = cq.pop(), ccx0 = cc % cols, ccy0 = (cc / cols) | 0; for (var cd = 0; cd < 4; cd++) { var cnx = ccx0 + nb4[cd * 2], cny = ccy0 + nb4[cd * 2 + 1]; if (cnx < 0 || cnx >= cols || cny < 0 || cny >= rws) continue; var cn = cny * cols + cnx; if (inside[cn] && comp[cn] < 0) { comp[cn] = nComp; cq.push(cn); } } }
+    nComp++; }
   function cellOf(x, y) { var ccx = Math.round((x - ox) / step), ccy = Math.round((y - oy) / step); if (ccx < 0) ccx = 0; if (ccx >= cols) ccx = cols - 1; if (ccy < 0) ccy = 0; if (ccy >= rws) ccy = rws - 1; return ccy * cols + ccx; }
   function snapInside(idx) { if (inside[idx]) return idx; var cy = (idx / cols) | 0, cx = idx % cols; for (var r = 1; r <= 5; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) { var nx = cx + dx, ny = cy + dy; if (nx < 0 || nx >= cols || ny < 0 || ny >= rws) continue; if (inside[ny * cols + nx]) return ny * cols + nx; } return -1; }
   function markStitched(ax, ay, bx, by) { var d = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(d / (step * 0.5))); for (var i = 0; i <= n; i++) { var t = i / n; stitched[cellOf(ax + (bx - ax) * t, ay + (by - ay) * t)] = 1; } }
   function routeTravel(fx, fy, tx, ty, maxLenPx) {
     var si = snapInside(cellOf(fx, fy)), ti = snapInside(cellOf(tx, ty));
     if (si < 0 || ti < 0 || si === ti) return null;
+    if (!window._vtK23Off && comp[si] !== comp[ti]) return null; /* [K23] verschiedene Teilflaechen: kein Weg */
     var dist = new Float64Array(N), prev = new Int32Array(N), vis = new Uint8Array(N), z;
     for (z = 0; z < N; z++) { dist[z] = Infinity; prev[z] = -1; }
     dist[si] = 0;
@@ -44024,7 +44030,14 @@ function* _vtFillComposeStepsS1(shape) {
   /* Bewertet wird, was die Maschine naeht: jede Variante nach der Materialpruefung (sie teilt Stiche an der Kontur und
      ersetzt Spruenge durch verdeckte Innenwege). Deren Nebenwirkungen auf die Form werden zurueckgesetzt. */
   var mgI = shape.stitch ? shape.stitch._materialGuardInfo : undefined, mgW = window._vtMaterialGuardWarnings && window._vtMaterialGuardWarnings[sid], mgC = window._vtMaterialGuardCache && window._vtMaterialGuardCache.get(shape);
-  vars.forEach(function (v) { try { v.g = _vtStitchDrain(_fillFinalizeMaterialSteps(shape, v.pts)); } catch (eG) { v.g = null; } });
+  vars.forEach(function (v) { try { v.g = _vtStitchDrain(_fillFinalizeMaterialSteps(shape, v.pts)); } catch (eG) { v.g = null; }
+    /* [K22] Zustand nach der Pruefung dieser Variante festhalten */
+    v.gi = shape.stitch ? shape.stitch._materialGuardInfo : undefined; v.gw = window._vtMaterialGuardWarnings && window._vtMaterialGuardWarnings[sid]; v.gc = window._vtMaterialGuardCache && window._vtMaterialGuardCache.get(shape); });
+  var k22 = function (v) { /* [K22] gepruefte Fassung uebernehmen */
+    if (window._vtK22Off || !v || !v.g || !v.gc || v.gc.points !== v.g) return v ? v.pts : A;
+    if (shape.stitch) { if (v.gi === undefined) delete shape.stitch._materialGuardInfo; else shape.stitch._materialGuardInfo = v.gi; }
+    if (v.gw !== undefined) { if (!window._vtMaterialGuardWarnings) window._vtMaterialGuardWarnings = {}; window._vtMaterialGuardWarnings[sid] = v.gw; }
+    window._vtMaterialGuardCache.set(shape, v.gc); return v.g; };
   if (shape.stitch) { if (mgI === undefined) delete shape.stitch._materialGuardInfo; else shape.stitch._materialGuardInfo = mgI; }
   if (window._vtMaterialGuardWarnings) { if (mgW === undefined) delete window._vtMaterialGuardWarnings[sid]; else window._vtMaterialGuardWarnings[sid] = mgW; }
   if (window._vtMaterialGuardCache) { if (mgC) window._vtMaterialGuardCache.set(shape, mgC); else window._vtMaterialGuardCache.delete(shape); }
@@ -44036,7 +44049,7 @@ function* _vtFillComposeStepsS1(shape) {
     var bi = 0; D.k = vars.map(function (v) { v.c = _vtS1Kosten(v.g || v.pts, ang); return [v.n, Math.round(v.c.k * 10) / 10]; });
     for (i = 1; i < vars.length; i++) if (vars[i].c.k < vars[bi].c.k - 1e-9) bi = i;
     if (!(vars[bi].c.k < vars[0].c.k - 0.25)) bi = 0;
-    D.wahl = vars[bi].n; return keep(vars[bi].pts);
+    D.wahl = vars[bi].n; return keep(k22(vars[bi]));
   }
   var tA = teile[0], V = {};
   for (i = 0; i < tA.length; i++) V[tA[i].k] = [];
@@ -44066,7 +44079,7 @@ function* _vtFillComposeStepsS1(shape) {
   var rA = dp(orderA), rR = dp(orderR), best = rR.c < rA.c - 1e-9 ? rR : rA;
   D.basis = Math.round(base * 100) / 100; D.kette = Math.round(rA.c * 100) / 100; D.lese = Math.round(rR.c * 100) / 100;
   D.teile = best.path.map(function (v, ix) { var t = (best === rR ? orderR : orderA)[ix]; return [t, v.n].concat(V[t].map(function (w) { return w.n + ':' + Math.round(w.c.k * 10) / 10; })); });
-  if (!(best.c < base - 0.25)) { D.wahl = 'F3 unveraendert'; return keep(A); }
+  if (!(best.c < base - 0.25)) { D.wahl = 'F3 unveraendert'; return keep(k22(vars[0])); }
   D.wahl = best === rR ? 'Leserichtung' : 'Kette';
   var out = [];
   for (var q = 0; q < best.path.length; q++) for (var j = 0; j < best.path[q].pts.length; j++) out.push(j === 0 && out.length ? Object.assign({}, best.path[q].pts[0], { jump: true }) : best.path[q].pts[j]);
@@ -47589,7 +47602,7 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
         var jumpDistUnits = Math.sqrt(dxJ*dxJ + dyJ*dyJ);
         var jumpDistMM = jumpDistUnits / 10;
         var sameColor = (lastColor !== null && es.color === lastColor);
-        var m1Stich = !window._vtM1Off && havePos && window._trimAnyStitch === true && (ri > 0 || sameColor) && jumpDistMM < 1; /* [M1] */
+        var m1Stich = !window._vtM1Off && havePos && window._trimAnyStitch === true && (ri > 0 || sameColor) && jumpDistMM < (window._vtM1bOff ? 1 : 3); /* [M1, M1b] */
         /* IMMER in window._dstLastJumpReport sammeln (unabhängig vom Flag).
            Der DST-Viewer rendert die Top-N Jumps direkt in der Sidebar. */
         try {
@@ -59719,6 +59732,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-03', t:'VT-20261103-local-r44', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r43', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r42', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r41', c:null},
@@ -62163,7 +62177,10 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
     prevEnd=segPts[segPts.length-1]; }
   /* COVERAGE-BACKSTOP: unbedeckte Innenflaeche (Script-Loop-/Cap-Luecken) mit Fuell-Stichen schliessen. */
   if(flowDeadlineMs&&Date.now()>flowDeadlineMs)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
-  if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null, false, null, flowDeadlineMs); if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
+  if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null, false, null, flowDeadlineMs);
+    if(!window._vtK19Off&&_bs.length&&out.length){ var k19L=0; for(var k19=1;k19<_bs.length;k19++) if(!_bs[k19].jump) k19L+=Math.hypot(_bs[k19].x-_bs[k19-1].x,_bs[k19].y-_bs[k19-1].y); /* [K19] */
+      var k19e=out[out.length-1]; if(k19L<_mm2px(1.5)&&Math.hypot(_bs[0].x-k19e.x,_bs[0].y-k19e.y)>_mm2px(3)) _bs=[]; }
+    if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
   /* Preserve primary Satin and its existing routing. Add only uncovered fine
      axis seams before it, retaining the original endpoint for the next glyph. */
   if(!_flowMode && window._bowlFill==='satin'){
