@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261103-local-r46 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261103-local-r47 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35485,7 +35485,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 269; /* r46: K31 Haarlinien. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 270; /* r47: K33-K35 Konturen, Satin-Teilung, importierte Linien. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -35553,7 +35553,8 @@ function _stitchAutoDefaultType(shape) {
      Strich umsetzen - Laufstich, ab 0.8 mm als Satin-Band - AUCH wenn eine
      Fuellung gewaehlt ist (eine offene Linie laesst sich nicht flaechig fuellen).
      Steht VOR dem Fuellung-Check, damit die Fuellung offene Linien nicht abfaengt. */
-  if (!shape.closed && (shape.type === 'line' || shape.type === 'path' || shape.type === 'freehand') &&
+  var k35 = !window._vtK35Off && shape.type === 'svgpath' && (shape.svgNodeSubpaths ? shape.svgNodeSubpaths.length === 1 : ((shape.svgD || '').match(/[Mm]/g) || []).length === 1); /* [K35] */
+  if (!shape.closed && (shape.type === 'line' || shape.type === 'path' || shape.type === 'freehand' || k35) &&
       hasStroke) {
     return strokeWidth >= _mm2px(0.8) ? 'satincol' : 'running';
   }
@@ -36723,7 +36724,7 @@ function _stitchMiterBandPoints(shape, pitchMM) {
      Sonst schlaufen/haengen die Faeden. Mittel-Einstiche gestaffelt (ungerade Legs
      versetzt), damit keine sichtbare Mittelnaht entsteht (= Profi-„split satin",
      Inkstitch „maximum stitch length"). */
-  pts = _stitchSplitLongLegs(pts, (typeof _mm2px === 'function') ? _mm2px(6) : 22.7);
+  pts = _stitchSplitLongLegs(pts, (typeof _mm2px === 'function') ? _mm2px(window._vtK34Off ? 6 : 7) : 22.7); /* [K34] */
   return pts;
 }
 
@@ -36731,14 +36732,14 @@ function _stitchMiterBandPoints(shape, pitchMM) {
    gestaffelt gegen eine sichtbare Mittelnaht. Jumps bleiben unangetastet. */
 function _stitchSplitLongLegs(pts, maxLenPx) {
   if (!pts || pts.length < 2 || !(maxLenPx > 0)) return pts;
-  var out = [pts[0]];
+  var out = [pts[0]], k34n = 0;
   for (var i = 1; i < pts.length; i++) {
     var a = pts[i - 1], b = pts[i];
     if (b.jump || a.jump) { out.push(b); continue; }
     var L = Math.hypot(b.x - a.x, b.y - a.y);
     if (L > maxLenPx) {
-      var m = Math.ceil(L / maxLenPx);
-      var bias = (i & 1) ? (0.5 / m) : 0;
+      var m = Math.ceil(L * (window._vtK34Off ? 1 : 1.25) / maxLenPx); /* [K34] mit Versatz bleibt jedes Teilstueck <= Grenze */
+      var bias = window._vtK34Off ? ((i & 1) ? (0.5 / m) : 0) : ((k34n++ & 1) ? 0.25 / m : -0.25 / m); /* [K34] */
       for (var k = 1; k < m; k++) {
         var t = Math.min(0.97, Math.max(0.03, k / m + bias));
         out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
@@ -36785,6 +36786,9 @@ function _stitchInsetPolygon(pts, d) {
 function _stitchOutlineAreaPoints(shape, strictExport) {
   if (!shape) return [];
   var sw = Number(shape.strokeWidth) || 1;
+  if (!window._vtK33Off && sw < _mm2px(0.8) && typeof _calcFillOutlineStitch === 'function') { /* [K33] */
+    try { var k33 = _calcFillOutlineStitch(shape); if (k33 && k33.length >= 2) return k33; } catch (e33) { if (strictExport) throw e33; }
+  }
   var pitch = (shape.stitch && shape.stitch.params && Number(shape.stitch.params.rimDensity) > 0)
     ? Number(shape.stitch.params.rimDensity) : 0.2;
   /* [gehrung v1] Zuerst die echte Gehrung (scharfe, saubere Ecken). */
@@ -59824,6 +59828,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-03', t:'VT-20261103-local-r47', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r46', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r45', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r44', c:null},

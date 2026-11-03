@@ -1,5 +1,22 @@
 # Changelog
 
+## 3 November 2026 — r47
+
+Release build `VT-20261103-local-r47`, byte-identical to the tested local file
+(SHA-256 `dc0f3e2142453a38249558cab2993d4aff32820559a84034eb8cf11888aa16a1`).
+Thin outlines, satin splitting and imported wide lines, from a comparison with Ink/Stitch 3.3 on 40
+test shapes. The stitch cache version changes from 269 to 270, so existing designs are recalculated once.
+
+- Thin outlines: a differently coloured outline under 0.8 mm around a filled shape was sewn as a satin band in stroke width, even at 0.3 mm (1059 stitches under 0.5 mm around a 30 mm circle). It is now a running stitch along the outline, as for lines: 106 short stitches, Ink/Stitch 115.
+- Satin splitting: wide satin bands are now split from 7 mm instead of 6 mm, and the parts really alternate between two offsets. Until now every split stitch got the same offset, so a 6 mm band was sewn as 4.5 + 1.5 mm with a row of needle points 1.5 mm from the edge. The 6 mm band is now unsplit (269 stitches, Ink/Stitch 288); at 8 and 12 mm the longest stitch is 5.7 mm and no stitch exceeds 7 mm (Ink/Stitch: 277 stitches over 7 mm).
+- Imported lines: an imported open SVG path with a single subpath and a stroke of at least 0.8 mm now becomes a satin band like a drawn line, instead of a thin running stitch. Paths with several subpaths stay running stitch.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. The only known deviation remains one check in T03 per engine. In one T15 run (WebKit) a
+page load timed out once and the dependent checks failed; the repeated run passed all 56 checks.
+Traced motifs and the stroke test matrix are unchanged compared with r46 (jumps, trims and
+stitches identical).
+
 ## 3 November 2026 — r46
 
 Release build `VT-20261103-local-r46`, byte-identical to the tested local file
