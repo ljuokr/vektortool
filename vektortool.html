@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261103-local-r45 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261103-local-r46 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35485,7 +35485,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 268; /* r45: K24 Innenecken. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 269; /* r46: K31 Haarlinien. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -37941,16 +37941,17 @@ function _stitchRingsToPolys(rings, fillRule) {
     }
     return cnt;
   });
-  var polys = [], outerIdx = [];
+  var polys = [], outerIdx = [], polyOf = {};
   for (var i = 0; i < rings.length; i++) {
     if (rings[i].length < 4) continue;
-    if (depth[i] % 2 === 0) { outerIdx.push(polys.length); polys.push([rings[i], i]); }
+    if (depth[i] % 2 === 0) { outerIdx.push(polys.length); polyOf[i] = polys.length; polys.push([rings[i], i]); }
   }
   /* Loecher der kleinsten enthaltenden Outer-Flaeche zuordnen. */
   for (var h = 0; h < rings.length; h++) {
     if (rings[h].length < 4 || depth[h] % 2 === 0) continue;
-    var best = -1, bestDepth = -1;
-    for (var p = 0; p < polys.length; p++) {
+    var best = -1, bestDepth = -1, k30 = null;
+    if (!window._vtK30Off) { k30 = []; var k30c = containing(rings[h][0]); for (var k30i = 0; k30i < k30c.length; k30i++) { var k30p = polyOf[k30c[k30i]]; if (k30p !== undefined) k30.push(k30p); } } /* [K30] */
+    for (var k30j = 0, p; k30 ? k30j < k30.length : k30j < polys.length; k30j++) { p = k30 ? k30[k30j] : k30j;
       var oi = polys[p][polys[p].length - 1]; /* gespeicherter Ring-Index am Ende */
       if (typeof oi !== 'number') continue;
       if (pip(rings[h][0], rings[oi]) && depth[oi] > bestDepth) { best = p; bestDepth = depth[oi]; }
@@ -38171,7 +38172,7 @@ function _stitchGeometryCacheKey(shape) {
 
 function _vtStitchBuildIndexedHit(d,rule,previous) {
   if(previous&&previous.d===d&&previous.rule===rule)return previous;
-  var contours=_stitchFlattenContours(d),rows=new Map(),cell=_mm2px(0.25),count=0,scanlines=new Map();
+  var contours=_stitchFlattenContours(d),rows=new Map(),cell=_mm2px(0.25),count=0,scanlines=new Map(),once=new Set();
   var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   contours.forEach(function(c){
     var pts=c.pts;if(pts.length<3)return;
@@ -38226,6 +38227,16 @@ function _vtStitchBuildIndexedHit(d,rule,previous) {
   return {d:d,rule:rule,contains:function(x,y){
     if(x<minX||x>maxX||y<minY||y>maxY)return false;
     var scan=scanlines.get(y);
+    if(!scan&&!window._vtK29Off&&!once.has(y)){ /* [K29] erste Abfrage dieser y: direkt zaehlen */
+      if(once.size>=4096)once.clear(); once.add(y);
+      var dl=rows.get(Math.floor(y/cell))||[],dw=0,dn=0,onB=false;
+      for(var di=0;di<dl.length;di++){ var de=dl[di];if(y<de.loY||y>de.hiY)continue;
+        if(de.dy===0){ if(x>=Math.min(de.ax,de.bx)&&x<=Math.max(de.ax,de.bx))onB=true; continue; }
+        var dx0=de.ax+(y-de.ay)*de.dx/de.dy; if(Math.abs(dx0-x)<=1e-9){onB=true;continue;}
+        if(dx0>x&&(de.ay>y)!==(de.by>y)){dw+=de.dy>0?1:-1;dn++;} }
+      if(onB)return filledBoundary(x,y);
+      return rule==='evenodd'?(dn%2)!==0:dw!==0;
+    }
     if(!scan){
       var list=rows.get(Math.floor(y/cell))||[],crossings=[],horizontal=[];
       for(var i=0;i<list.length;i++){
@@ -59813,6 +59824,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-03', t:'VT-20261103-local-r46', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r45', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r44', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r43', c:null},
@@ -61312,7 +61324,9 @@ function _k17Spur(cen, hw, endKinds, inInk){
     /* Verlaengerung hoechstens so lang wie der Sporn plus eine halbe Halbbreite, und nur solange die Form quer nicht
        breiter als 1.3 Strichbreiten wird (sonst laeuft sie in Serifen oder Nachbarstriche) */
     var wq=function(px,py){ var w=0,t; for(t=st;t<6*H[k]&&inInk(px-ry*t,py+rx*t);t+=st) w+=st; for(t=st;t<6*H[k]&&inInk(px+ry*t,py-rx*t);t+=st) w+=st; return w; };
-    var X=[],st=Math.max(0.25,Hm*0.05); for(var d=st;d<Math.min(3*H[k],cu[k]+0.5*H[k]);d+=st){ var px=C[k].x-rx*d,py=C[k].y-ry*d; if(!inInk(px,py)||wq(px,py)>2.6*H[k]) break; X.push({x:px,y:py}); }
+    var ws=function(px,py,sg){ var w=0; for(var t=st;t<6*H[k]&&inInk(px-sg*ry*t,py+sg*rx*t);t+=st) w+=st; return w; }; /* [K31] */
+    var X=[],st=Math.max(0.25,Hm*0.05); for(var d=st;d<Math.min(3*H[k],cu[k]+0.5*H[k]);d+=st){ var px=C[k].x-rx*d,py=C[k].y-ry*d; if(!inInk(px,py)||wq(px,py)>2.6*H[k]) break;
+      if(!window._vtK31Off&&ws(px,py,1)<0.6*H[k]&&ws(px,py,-1)<0.6*H[k]) break; /* [K31] */ X.push({x:px,y:py}); }
     /* An V-Spitzen (W, K, X) ist der Sporn richtig: die Verlaengerung stoppt dort frueh (Form wird breit). Dann bleibt
        das Ende, wie es war (sonst bleibt die Spitze ungedeckt und die Notfuellung flickt sie mit Spruengen). */
     var Lo=-((C[0].x-C[k].x)*rx+(C[0].y-C[k].y)*ry); if(X.length*st<0.6*Lo) continue;

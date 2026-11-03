@@ -1,5 +1,21 @@
 # Changelog
 
+## 3 November 2026 — r46
+
+Release build `VT-20261103-local-r46`, byte-identical to the tested local file
+(SHA-256 `3fdd29773a260922746b34637f0f1c363e705bed674a89f9be1296e24b81f1db`).
+Faster area checks and satin at hairline stroke ends. The stitch cache version changes from 268
+to 269, so existing designs are recalculated once.
+
+- Calculation time: the indexed fill-area test now counts the first query of a scanline directly instead of building and sorting a full scanline for every new position, and holes are assigned to their outer regions through the existing bounding-box tree. Output is byte-identical; in Chrome the Fronalpstock motif takes 8.5 s instead of 10.5 s and the longest uninterrupted calculation block falls from 2.1 s to 1.4 s.
+- Satin lettering: the stroke-end extension of r43 now stops where a stroke tapers into a hairline on both sides. At the thin right end of the Great Vibes "T" crossbar stitches outside the letter fall from 3.4 to 2.0 mm, and the Lobster "d" no longer crosses at the stem junction. Obliquely cut ends (top of the Lobster "b") are still extended. Over 252 letters in 12 fonts uncovered area falls from 10.6 to 10.4 and stitches outside the letter from 43.3 to 43.2 mm.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. The only known deviation remains one check in T03 per engine. The T23 travel criterion
+now allows at most 5 % more travel than the legacy comparison mode (fewer jump sequences are still
+required); T23 passes in both engines. Traced motifs and the stroke test matrix are unchanged
+compared with r45 (jumps, trims and stitches identical).
+
 ## 3 November 2026 — r45
 
 Release build `VT-20261103-local-r45`, byte-identical to the tested local file
