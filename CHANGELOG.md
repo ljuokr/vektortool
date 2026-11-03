@@ -1,5 +1,26 @@
 # Changelog
 
+## 3 November 2026 — r45
+
+Release build `VT-20261103-local-r45`, byte-identical to the tested local file
+(SHA-256 `d6eb20f6c57827fec7a606076a6bec82191550859d076cbf890272b7529c3162`).
+Short jumps only over sewn area, SVG `use`/`symbol` import, satin at inner corners and faster fill
+calculation. The stitch cache version changes from 267 to 268, so existing designs are recalculated once.
+
+- Short jumps: r44 sewed every same-colour move under 3 mm as a stitch. Over empty fabric a loose jump thread is better, because it can be clipped after embroidering and a stitch cannot. From 1 mm on, a move is now only sewn as a stitch when it runs within 0.5 mm of stitches of the same colour along its whole length. In the traced motifs stitches counted outside the shape are back at the r43 level; about two thirds of the jump saving of r44 remain.
+- SVG import: `use` and `symbol` references are now imported (including the symbol viewport mapping) instead of only being reported. They inherit colour and style from the `use` element as in a browser. References with percentage sizes, "slice" or reference cycles are still reported as not imported.
+- Satin lettering: at a tight inner corner (for example where the stem of the Lobster "b" turns into the bowl) the inner needle points no longer pile up in one spot. They are spread evenly along the inner edge, so the stitches turn gradually instead of fanning from a point. This is only applied where every new stitch stays inside the letter. Over 252 letters in 12 fonts jumps fall from 795 to 791, stitches outside the letter from 43.7 to 43.3 mm and uncovered area from 10.9 to 10.6.
+- Calculation time: the final material check, the assignment of fill rows to separate regions and the search for the nearest outline point use spatial indexes. Output is byte-identical; large photo motifs are about twice as fast in WebKit (Fronalpstock 42.3 s → 21.7 s) and markedly faster in Chrome.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. The known deviations remain (one check in T03 per engine). T09 (content of `use`/`symbol`)
+now passes; T13 expects the imported references instead of the former notice. One T01b check in
+Chrome failed once and passed on repetition. In T23 (WebKit) the tatami lettering travel of the
+long test text (308 mm, r43: 313 mm) is now slightly above that of the legacy comparison mode,
+which gained more from the short-jump stitches since r44; this deviation already existed in r44.
+Fill stitches of the traced motifs are byte-identical to the r44 rules with the new short-jump
+condition; trims are unchanged.
+
 ## 3 November 2026 — r44
 
 Release build `VT-20261103-local-r44`, byte-identical to the tested local file

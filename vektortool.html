@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261103-local-r44 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261103-local-r45 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -20061,6 +20061,47 @@ function parseSvgToShapes(svgStr, fontPhase) {
   if (doc.querySelector('parsererror')) throw new Error('Ungültiges SVG/XML.');
   var svg = doc.querySelector('svg');
   if (!svg) return [];
+  /* [U1] use/symbol ausfalten: Kopie des Ziels in einer <g> an Stelle des Verweises (erbt Stil vom use). */
+  if (!window._vtU1Off) (function expandUse() {
+    var NS = 'http://www.w3.org/2000/svg', XL = 'http://www.w3.org/1999/xlink';
+    var skipUse = { href: 1, 'xlink:href': 1, x: 1, y: 1, width: 1, height: 1, transform: 1, id: 1 };
+    var skipSym = { id: 1, viewBox: 1, preserveAspectRatio: 1, x: 1, y: 1, width: 1, height: 1, refX: 1, refY: 1 };
+    function num(v) { return /%/.test(v || '') ? NaN : (v == null || v === '' ? 0 : parseFloat(v)); }
+    for (var pass = 0; pass < 8; pass++) {
+      var uses = Array.prototype.slice.call(svg.getElementsByTagName('use')), changed = false;
+      uses.forEach(function (u) {
+        var ref = u.getAttribute('href') || u.getAttributeNS(XL, 'href') || u.getAttribute('xlink:href');
+        if (!ref || ref.charAt(0) !== '#' || !u.parentNode) return;
+        var target = doc.getElementById(ref.slice(1));
+        if (!target || target === u || target.contains(u)) return;
+        var x = num(u.getAttribute('x')), y = num(u.getAttribute('y'));
+        if (!isFinite(x) || !isFinite(y)) return;
+        var tf = (u.getAttribute('transform') || '') + (x || y ? ' translate(' + x + ',' + y + ')' : '');
+        var tag = target.tagName.toLowerCase(), inner, ai;
+        if (tag === 'symbol' || tag === 'svg') {
+          inner = doc.createElementNS(NS, 'g');
+          for (ai = 0; ai < target.attributes.length; ai++) if (!skipSym[target.attributes[ai].name]) inner.setAttribute(target.attributes[ai].name, target.attributes[ai].value);
+          var vb = (target.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+          if (vb.length === 4 && vb[2] > 0 && vb[3] > 0 && vb.every(isFinite)) {
+            var w = num(u.getAttribute('width') || target.getAttribute('width')), h = num(u.getAttribute('height') || target.getAttribute('height'));
+            if (!isFinite(w) || !isFinite(h)) return;
+            if (!(w > 0)) w = vb[2]; if (!(h > 0)) h = vb[3];
+            var par = (target.getAttribute('preserveAspectRatio') || 'xMidYMid meet').trim(), sx = w / vb[2], sy = h / vb[3], tx = 0, ty = 0;
+            if (par !== 'none') { var al = par.match(/^(xMin|xMid|xMax)(YMin|YMid|YMax)(?:\s+(meet|slice))?$/); if (!al || al[3] === 'slice') return;
+              sx = sy = Math.min(sx, sy); tx = (w - vb[2] * sx) * { xMin: 0, xMid: 0.5, xMax: 1 }[al[1]]; ty = (h - vb[3] * sy) * { YMin: 0, YMid: 0.5, YMax: 1 }[al[2]]; }
+            tf += ' translate(' + tx + ',' + ty + ') scale(' + sx + ',' + sy + ') translate(' + (-vb[0]) + ',' + (-vb[1]) + ')';
+          }
+          for (ai = 0; ai < target.childNodes.length; ai++) inner.appendChild(target.childNodes[ai].cloneNode(true));
+        } else inner = target.cloneNode(true);
+        inner.removeAttribute('id'); Array.prototype.forEach.call(inner.querySelectorAll('[id]'), function (e) { e.removeAttribute('id'); });
+        var g = doc.createElementNS(NS, 'g');
+        for (ai = 0; ai < u.attributes.length; ai++) if (!skipUse[u.attributes[ai].name]) g.setAttribute(u.attributes[ai].name, u.attributes[ai].value);
+        if (tf.trim()) g.setAttribute('transform', tf.trim());
+        g.appendChild(inner); u.parentNode.replaceChild(g, u); changed = true;
+      });
+      if (!changed) break;
+    }
+  })();
 
   var results = [];
   var fontRequests = [];
@@ -35444,7 +35485,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 267; /* r44: K19 kleine Flicke, M1b. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 268; /* r45: K24 Innenecken. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -39330,14 +39371,22 @@ function _fillSegmentsByDisjointRegion(segs, outline) {
     }
     return { minX: minX, minY: minY, maxX: maxX, maxY: maxY, area: Math.abs(a / 2) };
   });
-  var groups = {};
+  var groups = {}, k26 = rings.map(function (_, ix) { return ix; });
+  if (!window._vtK26Off) k26.sort(function (p, q) { return meta[p].area - meta[q].area || p - q; }); /* [K26] */
+  /* [K28] Raster der Ring-Rechtecke (hoechstens etwa 10 000 Felder), je Feld die Ringe in K26-Reihenfolge. */
+  var k28 = null, k28c = 1, k28x = 0, k28y = 0;
+  if (!window._vtK26Off && !window._vtK28Off && rings.length > 8) { var k28X0 = Infinity, k28Y0 = Infinity, k28X1 = -Infinity, k28Y1 = -Infinity;
+    meta.forEach(function (m) { k28X0 = Math.min(k28X0, m.minX); k28Y0 = Math.min(k28Y0, m.minY); k28X1 = Math.max(k28X1, m.maxX); k28Y1 = Math.max(k28Y1, m.maxY); });
+    k28c = Math.max(_mm2px(3), Math.sqrt((k28X1 - k28X0) * (k28Y1 - k28Y0) / 10000) || 1); k28x = k28X0; k28y = k28Y0; k28 = new Map();
+    k26.forEach(function (ri) { var m = meta[ri]; for (var gx = Math.floor((m.minX - k28x) / k28c); gx <= Math.floor((m.maxX - k28x) / k28c); gx++) for (var gy = Math.floor((m.minY - k28y) / k28c); gy <= Math.floor((m.maxY - k28y) / k28c); gy++) { var key = gx * 100003 + gy, l = k28.get(key); if (!l) k28.set(key, l = []); l.push(ri); } }); }
   for (var s = 0; s < segs.length; s++) {
     var mx = (segs[s].sx + segs[s].ex) / 2, my = (segs[s].sy + segs[s].ey) / 2;
     var bestRing = -1, bestArea = Infinity;
-    for (var r2 = 0; r2 < rings.length; r2++) {
+    var k26l = k28 ? (k28.get(Math.floor((mx - k28x) / k28c) * 100003 + Math.floor((my - k28y) / k28c)) || []) : k26;
+    for (var k26i = 0; k26i < k26l.length; k26i++) { var r2 = k26l[k26i];
       var mt = meta[r2];
       if (mx < mt.minX || mx > mt.maxX || my < mt.minY || my > mt.maxY) continue;
-      if (mt.area < bestArea && _fillRingContainsPoint(rings[r2], mx, my)) { bestArea = mt.area; bestRing = r2; }
+      if (mt.area < bestArea && _fillRingContainsPoint(rings[r2], mx, my)) { bestArea = mt.area; bestRing = r2; if (!window._vtK26Off) break; }
     }
     if (bestRing < 0) bestRing = 0;
     (groups[bestRing] = groups[bestRing] || []).push(segs[s]);
@@ -41303,7 +41352,13 @@ function _fillStraightStitches(p1, p2, maxStepPx) {
    versetzt. Ohne shape wie bisher (Spiralfüllung). Der letzte Punkt bleibt der Konturpunkt beim Ziel. */
 function _fillBoundaryArc(from, to, outline, maxStepPx, shape, geom) {
   if (!outline || outline.length < 4) return null;
-  function nearest(pt) { var bi = -1, bd = Infinity; for (var i = 0; i < outline.length; i++) { var dx = outline[i].x - pt.x, dy = outline[i].y - pt.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; bi = i; } } return { idx: bi, dist: Math.sqrt(bd) }; }
+  if (!window._vtK27Off) { var k27 = _fillBoundaryArc._k27 || (_fillBoundaryArc._k27 = new WeakMap()), k27g = k27.get(outline), k27c = _mm2px(1);
+    if (!k27g || k27g.n !== outline.length) { k27g = { n: outline.length, m: new Map() }; for (var k27i = 0; k27i < outline.length; k27i++) { var k27k = Math.floor(outline[k27i].x / k27c) + ',' + Math.floor(outline[k27i].y / k27c), k27l = k27g.m.get(k27k); if (!k27l) k27g.m.set(k27k, k27l = []); k27l.push(k27i); } k27.set(outline, k27g); }
+    var nearest = function (pt) { var bi = -1, bd = Infinity, cx = Math.floor(pt.x / k27c), cy = Math.floor(pt.y / k27c);
+      for (var gx = cx - 3; gx <= cx + 3; gx++) for (var gy = cy - 3; gy <= cy + 3; gy++) { var l = k27g.m.get(gx + ',' + gy); if (!l) continue;
+        for (var q = 0; q < l.length; q++) { var i = l[q], dx = outline[i].x - pt.x, dy = outline[i].y - pt.y, d = dx * dx + dy * dy; if (d < bd || (d === bd && i < bi)) { bd = d; bi = i; } } }
+      return { idx: bi, dist: Math.sqrt(bd) }; };
+  } else var nearest = function (pt) { var bi = -1, bd = Infinity; for (var i = 0; i < outline.length; i++) { var dx = outline[i].x - pt.x, dy = outline[i].y - pt.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; bi = i; } } return { idx: bi, dist: Math.sqrt(bd) }; };
   var a = nearest(from), b = nearest(to);
   if (a.idx < 0 || b.idx < 0) return null;
   if (a.dist > _mm2px(2.5) || b.dist > _mm2px(2.5)) return null;
@@ -42720,7 +42775,7 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
   if(shape.type==='text'&&shape.textStitch==='satin'&&!window._vtSatinUnterlageOff&&!(shape.stitch&&shape.stitch.params&&shape.stitch.params.underlay===false))pts=_vtSatinCenterWalk(pts);
   var geom=_stitchResolveFillGeometry(shape);
   if(!geom||!geom.outline||geom.outline.length<3)throw new Error('Stickfläche kann nicht gegen ihre Materialgrenze geprüft werden.');
-  var outline=geom.outline, edges=[],grid=new Map(),rows=new Map(),cell=_mm2px(3),epsilon=1e-8;
+  var outline=geom.outline, edges=[],grid=new Map(),rows=new Map(),cell=_mm2px(3),epsilon=1e-8,rowCell=window._vtK25Off?cell:_mm2px(0.5);
   function put(map,key,index){var arr=map.get(key);if(!arr){arr=[];map.set(key,arr);}arr.push(index);}
   for(var i=1;i<outline.length;i++){
     if(i%256===0)yield 'material-outline';
@@ -42733,14 +42788,16 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     var ei=edges.length;edges.push(edge);
     var x0=Math.floor(edge.l/cell),x1=Math.floor(edge.r/cell),y0=Math.floor(edge.t/cell),y1=Math.floor(edge.btt/cell);
     if((x1-x0+1)*(y1-y0+1)>100000)throw new Error('Stickkontur zu groß für sichere Materialprüfung.');
-    for(var gy=y0;gy<=y1;gy++){put(rows,gy,ei);for(var gx=x0;gx<=x1;gx++)put(grid,gx+','+gy,ei);}
+    for(var gy=y0;gy<=y1;gy++){if(window._vtK25Off)put(rows,gy,ei);for(var gx=x0;gx<=x1;gx++)put(grid,gx+','+gy,ei);}
+    if(!window._vtK25Off)for(var ry=Math.floor(edge.t/rowCell),ry1=Math.floor(edge.btt/rowCell);ry<=ry1;ry++)put(rows,ry,ei); /* [K25] */
   }
   if(!edges.length)throw new Error('Leere Materialkontur.');
+  if(!window._vtK25Off)rows.forEach(function(lst){lst.sort(function(p,q){return edges[q].r-edges[p].r;});}); /* [K25] */
   var evenodd=!!shape._stitchCleanActive || (shape.svgFillRule||'nonzero')==='evenodd';
   function inside(x,y){
-    var list=rows.get(Math.floor(y/cell))||[],winding=0,parity=false;
+    var list=rows.get(Math.floor(y/rowCell))||[],winding=0,parity=false,k25=!window._vtK25Off;
     for(var j=0;j<list.length;j++){
-      var e=edges[list[j]],a=e.a,b=e.b,dx=e.dx,dy=e.dy,cross=dx*(y-a.y)-dy*(x-a.x);
+      var e=edges[list[j]];if(k25&&e.r<x-1e-6)break;var a=e.a,b=e.b,dx=e.dx,dy=e.dy,cross=dx*(y-a.y)-dy*(x-a.x);
       if(x>=e.l-epsilon&&x<=e.r+epsilon&&y>=e.t-epsilon&&y<=e.btt+epsilon&&Math.abs(cross)<=e.boundaryEpsilon)return true;
       if((a.y>y)!==(b.y>y)&&x<a.x+(y-a.y)*dx/dy)parity=!parity;
       if(a.y<=y&&b.y>y&&cross>0)winding++;else if(a.y>y&&b.y<=y&&cross<0)winding--;
@@ -47373,6 +47430,29 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
   }
   /* Pixel-Position des letzten Stiches für Coverage-Tests verfolgen */
   var lastStitchPxX = 0, lastStitchPxY = 0;
+  /* [M1c] Liegt die Strecke a-b ueber Stichen derselben Farbe? Raster 1 mm, Toleranz 0.5 mm. */
+  var _m1cGrid = null, _m1cCell = _mm2px(1), _m1cTol = _mm2px(0.5);
+  function _m1cCovered(color, ax, ay, bx, by) {
+    if (!_m1cGrid) {
+      _m1cGrid = new Map();
+      for (var ge = 0; ge < exportShapes.length; ge++) { var gs = exportShapes[ge];
+        for (var gr = 0; gr < gs.runs.length; gr++) { var gq = gs.runs[gr];
+          for (var gk = 1; gk < gq.length; gk++) { var p0 = gq[gk - 1], p1 = gq[gk];
+            var x0 = Math.floor((Math.min(p0.x, p1.x) - _m1cTol) / _m1cCell), x1 = Math.floor((Math.max(p0.x, p1.x) + _m1cTol) / _m1cCell);
+            var y0 = Math.floor((Math.min(p0.y, p1.y) - _m1cTol) / _m1cCell), y1 = Math.floor((Math.max(p0.y, p1.y) + _m1cTol) / _m1cCell);
+            if ((x1 - x0) * (y1 - y0) > 400) continue;
+            for (var gx = x0; gx <= x1; gx++) for (var gy = y0; gy <= y1; gy++) { var gkey = gs.color + '|' + gx + ',' + gy, gl = _m1cGrid.get(gkey); if (!gl) _m1cGrid.set(gkey, gl = []); gl.push(p0.x, p0.y, p1.x, p1.y); }
+          } } }
+    }
+    var L = Math.hypot(bx - ax, by - ay), n = Math.max(2, Math.ceil(L / _mm2px(0.3))), t2 = _m1cTol * _m1cTol;
+    for (var si = 1; si < n; si++) { var px = ax + (bx - ax) * si / n, py = ay + (by - ay) * si / n;
+      var cl = _m1cGrid.get(color + '|' + Math.floor(px / _m1cCell) + ',' + Math.floor(py / _m1cCell)), hit = false;
+      if (cl) for (var ci = 0; ci < cl.length && !hit; ci += 4) { var sx = cl[ci + 2] - cl[ci], sy = cl[ci + 3] - cl[ci + 1], ll = sx * sx + sy * sy;
+        var tt = ll > 0 ? Math.max(0, Math.min(1, ((px - cl[ci]) * sx + (py - cl[ci + 1]) * sy) / ll)) : 0;
+        var ex = cl[ci] + sx * tt - px, ey = cl[ci + 1] + sy * tt - py; if (ex * ex + ey * ey <= t2) hit = true; }
+      if (!hit) return false; }
+    return true;
+  }
   /* GLOBAL Pre-Pass: optimale Forward/Reverse-Wahl für ALLE Shapes berechnen
      bevor Emission. Iteriere paarweise: für jedes Paar (A, B) wähle B's
      Richtung so dass B's Start-Position nahe bei A's End-Position liegt.
@@ -47602,7 +47682,8 @@ function _stitchExportDstBody(skipDownload, exportOptions) {
         var jumpDistUnits = Math.sqrt(dxJ*dxJ + dyJ*dyJ);
         var jumpDistMM = jumpDistUnits / 10;
         var sameColor = (lastColor !== null && es.color === lastColor);
-        var m1Stich = !window._vtM1Off && havePos && window._trimAnyStitch === true && (ri > 0 || sameColor) && jumpDistMM < (window._vtM1bOff ? 1 : 3); /* [M1, M1b] */
+        var m1Stich = !window._vtM1Off && havePos && window._trimAnyStitch === true && (ri > 0 || sameColor) && jumpDistMM < (window._vtM1bOff ? 1 : 3) /* [M1, M1b] */
+          && (jumpDistMM < 1 || window._vtM1cOff || _m1cCovered(es.color, lastStitchPxX, lastStitchPxY, firstPx.x, firstPx.y)); /* [M1c] */
         /* IMMER in window._dstLastJumpReport sammeln (unabhängig vom Flag).
            Der DST-Viewer rendert die Top-N Jumps direkt in der Sidebar. */
         try {
@@ -59732,6 +59813,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-03', t:'VT-20261103-local-r45', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r44', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r43', c:null},
     {d:'2026-10-28', t:'VT-20261028-local-r42', c:null},
@@ -60326,7 +60408,7 @@ function _contourUnderpath(a, b, loops, inkTest){
    Verlaengerungen werden unter sich nach Anteil gepaart. Luecken ueber dem Stichabstand werden aufgefuellt, staut sich
    eine Seite (Abstand unter 0.055 mm, enge Innenkurve), wird der Einstich wie bisher um 42 % nach innen gezogen (kurze
    Stiche statt Faecher ins selbe Loch). */
-function _k13PairStations(rail1, rail2, n0, p1, p2, pitchPx){
+function _k13PairStations(rail1, rail2, n0, p1, p2, pitchPx, inInk){
   function frac(r1,r2){ var o=[],n=Math.max(r1.length,r2.length),k; if(!r1.length||!r2.length) return o;
     for(k=0;k<n;k++){ var t=n>1?k/(n-1):0; o.push([r1[Math.round(t*(r1.length-1))],r2[Math.round(t*(r2.length-1))]]); } return o; }
   var R=frac(rail1.slice(0,p1),rail2.slice(0,p2)),i;
@@ -60344,6 +60426,16 @@ function _k13PairStations(rail1, rail2, n0, p1, p2, pitchPx){
   var thin=[all[0]];
   for(i=1;i<all.length;i++){ var q=thin[thin.length-1],c=all[i];
     if(i<all.length-1&&Math.hypot(c[0].x-q[0].x,c[0].y-q[0].y)<sp*0.5&&Math.hypot(c[1].x-q[1].x,c[1].y-q[1].y)<sp*0.5) continue; thin.push(c); }
+  if(!window._vtK24Off&&thin.length>6) for(var k24s=0;k24s<2;k24s++){ var k24o=1-k24s,k24N=thin.length,k24slow=[],k24z,k24e,k24k;
+    for(i=1;i<k24N;i++){ var k24ds=Math.hypot(thin[i][k24s].x-thin[i-1][k24s].x,thin[i][k24s].y-thin[i-1][k24s].y),k24dq=Math.hypot(thin[i][k24o].x-thin[i-1][k24o].x,thin[i][k24o].y-thin[i-1][k24o].y); k24slow.push(k24ds<0.4*k24dq&&k24dq>=0.6*sp); }
+    for(k24z=0;k24z<k24slow.length;){ if(!k24slow[k24z]){k24z++;continue;} for(k24e=k24z;k24e<k24slow.length&&k24slow[k24e];k24e++);
+      var k24m=k24e-k24z; if(k24m>=3){ var k24a=Math.max(0,k24z-Math.ceil(k24m*2)),k24b=Math.min(k24N-1,k24e+Math.ceil(k24m*2)),k24c=[0];
+        for(k24k=k24a+1;k24k<=k24b;k24k++) k24c.push(k24c[k24c.length-1]+Math.hypot(thin[k24k][k24s].x-thin[k24k-1][k24s].x,thin[k24k][k24s].y-thin[k24k-1][k24s].y));
+        var k24L=k24c[k24c.length-1],k24p=[]; if(k24L>sp){ for(k24k=k24a;k24k<=k24b;k24k++){ var k24t=(k24k-k24a)/(k24b-k24a)*k24L,k24j=1; while(k24j<k24c.length-1&&k24c[k24j]<k24t) k24j++;
+            var k24P=thin[k24a+k24j-1][k24s],k24Q=thin[k24a+k24j][k24s],k24f=(k24t-k24c[k24j-1])/((k24c[k24j]-k24c[k24j-1])||1); k24p.push({x:k24P.x+(k24Q.x-k24P.x)*k24f,y:k24P.y+(k24Q.y-k24P.y)*k24f}); }
+          var k24ok=!inInk; for(k24k=k24a;k24k<=k24b&&!k24ok;k24k++){ var k24A=thin[k24k][k24o],k24B=k24p[k24k-k24a],k24out=0; for(var k24r=1;k24r<=4;k24r++){ if(!inInk(k24A.x+(k24B.x-k24A.x)*k24r/5,k24A.y+(k24B.y-k24A.y)*k24r/5)) k24out++; } if(k24k>k24a){ var k24C=k24p[k24k-k24a-1]; if(!inInk(k24A.x*0.1+(k24B.x+k24C.x)*0.45,k24A.y*0.1+(k24B.y+k24C.y)*0.45)) k24out++; } if(k24out) break; if(k24k===k24b) k24ok=true; }
+          if(k24ok) for(k24k=k24a;k24k<=k24b;k24k++){ thin[k24k]=thin[k24k].slice(); thin[k24k][k24s]=k24p[k24k-k24a]; } } }
+      k24z=k24e; } }
   var pts=[],rungs=[];
   for(i=0;i<thin.length;i++){ var a0=thin[i][0],b0=thin[i][1],a=a0,b=b0,can=i>0&&i<thin.length-1;
     if(can&&lastA&&Math.hypot(a0.x-lastA.x,a0.y-lastA.y)<stau) a={x:a0.x+(b0.x-a0.x)*retr,y:a0.y+(b0.y-a0.y)*retr}; else lastA=a0;
@@ -61150,7 +61242,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
     var _bf=(typeof window!=='undefined'&&window._bowlFill)||'satin';
     if(_bf==='tatami') zz=_pairTatamiFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(2.2), staggers:4 });
     else if(_bf==='laengs') zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
-    else if(!window._vtK13Off&&_k13n0>=2) zz=_k13PairStations(rail1, rail2, _k13n0, _k13p1, _k13p2, _densPx);
+    else if(!window._vtK13Off&&_k13n0>=2) zz=_k13PairStations(rail1, rail2, _k13n0, _k13p1, _k13p2, _densPx, _inInk);
     else zz=_pairSatinSectioned(rail1, rail2, _densPx, _mm2px(2.0));
     cls.mode = (_bf==='tatami')?'tatami':(_bf==='laengs')?'contourFlow':'satinSectioned';
   } else {

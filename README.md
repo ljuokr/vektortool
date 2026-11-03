@@ -10,9 +10,11 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 3 November 2026 release uses the tested `VT-20261103-local-r44` build
+The 3 November 2026 release uses the tested `VT-20261103-local-r45` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `63dad2b0e3fd956c1f205d06e7d528996ec077d24f654ffcdb6294da5b3cd3e6`).
+to the tested file; SHA-256 `d6eb20f6c57827fec7a606076a6bec82191550859d076cbf890272b7529c3162`).
+r45 sews short jumps only over sewn area, imports SVG `use`/`symbol` references, spreads
+satin stitches at tight inner corners and roughly halves the fill calculation time in WebKit.
 r44 sews same-colour moves under 3 mm as stitches, drops tiny satin patches that cost a
 jump and speeds up the final routing check in WebKit.
 r43 keeps satin stitches parallel at obliquely cut stroke ends (no more fan into the corner).
