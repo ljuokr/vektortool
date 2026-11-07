@@ -1,5 +1,17 @@
 # Changelog
 
+## 7 November 2026 — r48
+
+Release build `VT-20261107-local-r48`, byte-identical to the tested local file
+(SHA-256 `98b15b03b211623d4e7ec6432d2349f986a67ee7151019e449dada8b43873d0f`).
+Font size slider. Stitches are unchanged and the stitch cache version stays at 270.
+
+- Font size: in the 180 px wide side panel the label "Schriftgrösse (px)" and the value left the slider only 15 px. Every click or drag ended at the left end, so text could be made smaller but hardly larger again (only the arrow keys still worked). The label now sits on its own line and the slider uses the full panel width, for the selected text and for the text tool. Other sliders in the side panel are at least 48 px wide and unchanged.
+
+Verification in isolated Chrome and WebKit profiles: clicking, dragging and arrow keys on the font
+size slider reach the full range from 8 to 200 px in both directions; all sliders of the ten drawing
+tools were measured. The full regression on this file was still running at release time.
+
 ## 3 November 2026 — r47
 
 Release build `VT-20261103-local-r47`, byte-identical to the tested local file

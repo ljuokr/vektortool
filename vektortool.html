@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261103-local-r47 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261107-local-r48 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -23667,7 +23667,7 @@ function makeTextSettings(s) {
     html += '<textarea id="rpTextEdit" rows="1" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:var(--space-3);resize:none;font-size:var(--fs-lg);font-family:inherit;margin-bottom:6px">'+(s.text||'').replace(/</g,'&lt;')+'</textarea>';
   }
   // Size
-  html += '<div class="rp-row"><label>Schriftgrösse (px)</label><input type="range" class="sset" data-prop="fontSize" min="8" max="200" value="'+(s.fontSize||24)+'"><span class="val">'+(s.fontSize||24)+'</span></div>';
+  html += '<div class="rp-row" style="flex-wrap:wrap"><label style="flex:1 0 100%">Schriftgrösse (px)</label><input type="range" class="sset" data-prop="fontSize" min="8" max="200" value="'+(s.fontSize||24)+'"><span class="val">'+(s.fontSize||24)+'</span></div>';
   /* Show measured ink, not the em size or padded text box. No stitch recalc. */
   if (!s.onPath && window._vtTextLayout) {
     try {
@@ -23742,7 +23742,7 @@ function makeTextSettingsGlobal() {
   var fonts = _getAllFonts();
   var html = '<div class="rp-section"><div class="rp-title">Text</div>';
   html += '<div style="font-size:var(--fs-xs);color:var(--fg2);margin-bottom:6px">Klick auf Canvas \u2192 Text platzieren<br>Klick auf Pfad/Linie \u2192 Pfadbeschriftung</div>';
-  html += '<div class="rp-row"><label>Schriftgrösse (px)</label><input type="range" class="gset" data-var="textSize" min="8" max="200" value="'+textSize+'"><span class="val">'+textSize+'</span></div>';
+  html += '<div class="rp-row" style="flex-wrap:wrap"><label style="flex:1 0 100%">Schriftgrösse (px)</label><input type="range" class="gset" data-var="textSize" min="8" max="200" value="'+textSize+'"><span class="val">'+textSize+'</span></div>';
   html += '<div class="rp-title" style="margin-top:6px">Schrift</div>';
   html += '<div style="max-height:117px;overflow-y:auto;margin-bottom:4px">';
   for (var fi = 0; fi < fonts.length; fi++) {
@@ -59828,6 +59828,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-07', t:'VT-20261107-local-r48', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r47', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r46', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r45', c:null},

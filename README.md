@@ -10,9 +10,10 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 3 November 2026 release uses the tested `VT-20261103-local-r47` build
+The 7 November 2026 release uses the tested `VT-20261107-local-r48` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `dc0f3e2142453a38249558cab2993d4aff32820559a84034eb8cf11888aa16a1`).
+to the tested file; SHA-256 `98b15b03b211623d4e7ec6432d2349f986a67ee7151019e449dada8b43873d0f`).
+r48 gives the font size slider the full panel width, so text can be enlarged again.
 r47 sews thin outlines as running stitch, splits satin only from 7 mm with alternating
 offsets and turns imported wide lines into satin bands, as drawn lines.
 r46 speeds up the fill-area checks (longest calculation block 2.1 s → 1.4 s in Chrome) and
