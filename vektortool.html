@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261107-local-r48 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261107-local-r49 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -35485,7 +35485,7 @@ var _STITCH_TYPE_PRESETS = {
   satincol:{ zigzagWidth: 2.5, stitchLength: 0.4, pullCompensation: 0, satinUnderlay: 'center', shortStitchInset: 0.15 },
   zigzag: { zigzagWidth: 2.5, stitchLength: 2.0 } /* [VT-STITCH-F5 v1] war 0.4 (= Satin); 2.0 mm = offenes Zickzack, sichtbar verschieden vom dichten Satin */
 };
-var _STITCH_CACHE_VERSION = 270; /* r47: K33-K35 Konturen, Satin-Teilung, importierte Linien. */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
+var _STITCH_CACHE_VERSION = 271; /* r49: Schrift-Satin neu (CAT-Strichzerlegung, K36-K45, TM1-TM5). */ /* Rebuild after S1: choice per part F3 or old path, reading order, fill micro jumps (S1 to S4). */
 /* Bulk controls may update live presets. Keep their original defaults for Reset. */
 var _STITCH_TYPE_DEFAULTS = {};
 Object.keys(_STITCH_TYPE_PRESETS).forEach(function(type) {
@@ -42706,7 +42706,7 @@ function _vtStitchDrain(iterator) {
    mindestens 60 % der Stichpaare die Richtung umkehren und die mittlere Stichlaenge (= Breite) ab 1.5 mm ist. */
 function _vtSatinCenterWalk(pts) {
   if (!pts || pts.length < 6) return pts;
-  var out = [], i = 0, wMin = _mm2px(1.5), lenMin = _mm2px(3), step = _mm2px(2.5), added = 0;
+  var out = [], i = 0, wMin = _mm2px(window._vtTM4Off ? 1.5 : 1.0), lenMin = _mm2px(3), step = _mm2px(2.5), added = 0; /* [TM4] */
   while (i < pts.length) {
     var j = i + 1; while (j < pts.length && !pts[j].jump) j++;
     var run = pts.slice(i, j), n = run.length, cw = null;
@@ -42727,7 +42727,7 @@ function _vtSatinCenterWalk(pts) {
     }
     if (cw) {
       out.push(run[0]);
-      for (k = 0; k < cw.length; k++) out.push({ x: cw[k].x, y: cw[k].y, _satinUnterlage: true });
+      for (k = 0; k < cw.length; k++) out.push({ x: cw[k].x, y: cw[k].y, _satinUnterlage: true, _tm4: sum / (n - 1) < _mm2px(1.5) }); /* [TM4] */
       var r0 = Object.assign({}, run[0]); delete r0.jump; out.push(r0);
       for (k = 1; k < n; k++) out.push(run[k]);
       added++;
@@ -42819,6 +42819,11 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
     }
     return evenodd?parity:winding!==0;
   }
+  if(!window._vtTM4Off&&pts.some(function(tq){return tq._tm4;})){ var tm4=[],tmb=null; /* [TM4] */
+    for(var tmj=0;tmj<pts.length;tmj++){ var tmq=pts[tmj]; if(tmq._tm4){ (tmb=tmb||[]).push(tmq); continue; }
+      if(tmb){ var tmc=tmb,tmok=true; for(var tmk=1;tmk<tmc.length&&tmok;tmk++) if(!segInside(tmc[tmk-1].x,tmc[tmk-1].y,tmc[tmk].x,tmc[tmk].y)) tmok=false; if(tmok) tm4=tm4.concat(tmb); tmb=null; }
+      tm4.push(tmq); }
+    if(tmb) tm4=tm4.concat(tmb); pts=tm4; }
   var out=[pts[0]],changed=0,outsideCount=0,clippedMM=0,longCount=0,checks=0;
   /* [r31] Ein Stich, dessen Enden im Material liegen, der aber dazwischen knapp ausserhalb läuft
      (Verbinder an nach innen gewölbten Kanten, ausgedünnte Konturwege), wurde bisher in Stücke
@@ -42946,6 +42951,10 @@ function* _fillFinalizeMaterialSteps(shape, pts, opts) {
       if(last&&last.material===material)last.hi=hi;else intervals.push({lo:lo,hi:hi,material:material});
       if(!material)bad=true;
     }
+    if(bad&&!window._vtTM2Off&&(q._vtZug||p._vtZug)){ var tmTol=Math.max(q._vtZug||0,p._vtZug||0)+_mm2px(0.2),tmOk=true; /* [TM2] */
+      var tmNear=function(x,y){ var gx=Math.floor(x/cell),gy=Math.floor(y/cell); for(var ox=-1;ox<=1;ox++)for(var oy=-1;oy<=1;oy++){ var c=grid.get((gx+ox)+','+(gy+oy))||[]; for(var k=0;k<c.length;k++){ var e=edges[c[k]],l2=e.dx*e.dx+e.dy*e.dy,t=l2?((x-e.a.x)*e.dx+(y-e.a.y)*e.dy)/l2:0; t=t<0?0:t>1?1:t; if(Math.hypot(x-e.a.x-e.dx*t,y-e.a.y-e.dy*t)<=tmTol) return true; } } return false; };
+      for(var tmi=0;tmi<intervals.length&&tmOk;tmi++){ var tiv=intervals[tmi]; if(tiv.material) continue; var tmn=Math.max(2,Math.ceil(len*(tiv.hi-tiv.lo)/_mm2px(0.05)));
+        for(var tms=0;tms<=tmn&&tmOk;tms++){ var tmt=tiv.lo+(tiv.hi-tiv.lo)*tms/tmn; if(!tmNear(q.x+dx*tmt,q.y+dy*tmt)) tmOk=false; } } if(tmOk) bad=false; }
     if(!bad){out.push(p);continue;}
     var bent=len<=_mm2px(6)?bendInside(q,p):null; /* [r31] */
     if(bent){for(var bi=0;bi<bent.length;bi++)out.push(bent[bi]);out.push(p);changed++;continue;}
@@ -59828,6 +59837,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-07', t:'VT-20261107-local-r49', c:null},
     {d:'2026-11-07', t:'VT-20261107-local-r48', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r47', c:null},
     {d:'2026-11-03', t:'VT-20261103-local-r46', c:null},
@@ -60402,8 +60412,23 @@ function _flowContourUnderpath(a,b,loops,inInk){
   }
   return null;
 }
-function _contourUnderpath(a, b, loops, inkTest){
+function _contourUnderpath(a, b, loops, inkTest, k41Ink){
   if(inkTest) return _flowContourUnderpath(a,b,loops,inkTest);
+  if(k41Ink&&!window._vtK41Off&&loops&&loops.length){ /* [K41] */
+    var qa=_projContourEdge(a.x,a.y,loops,_mm2px(2.5)), qb=_projContourEdge(b.x,b.y,loops,_mm2px(2.5));
+    if(!qa||!qb||qa.loop!==qb.loop) return null;
+    var qs=Math.hypot(b.x-a.x,b.y-a.y)||1, qw=_walkContourArc(loops[qa.loop], qa.k,qa.t, qb.k,qb.t);
+    if(qw.len > qs*3.5 || qw.len > _mm2px(20)) return null;
+    var P=qw.poly,qc=[0],qi; for(qi=1;qi<P.length;qi++) qc[qi]=qc[qi-1]+Math.hypot(P[qi].x-P[qi-1].x,P[qi].y-P[qi-1].y);
+    var qT=qc[qc.length-1]||1, inset=_mm2px(0.25);
+    var at=function(sv){ var lo=1; while(lo<P.length&&qc[lo]<sv) lo++; var A=P[lo-1],B=P[Math.min(lo,P.length-1)],sg=(qc[Math.min(lo,P.length-1)]-qc[lo-1])||1,f=Math.max(0,Math.min(1,(sv-qc[lo-1])/sg)),dx=B.x-A.x,dy=B.y-A.y,dl=Math.hypot(dx,dy)||1,x=A.x+dx*f,y=A.y+dy*f;
+      var p1={x:x-dy/dl*inset,y:y+dx/dl*inset},p2={x:x+dy/dl*inset,y:y-dx/dl*inset}; return k41Ink(p1.x,p1.y)?p1:(k41Ink(p2.x,p2.y)?p2:{x:x,y:y}); };
+    var ok=function(p,q){ var L=Math.hypot(q.x-p.x,q.y-p.y),m=Math.max(1,Math.ceil(L/_mm2px(0.05))),e=_mm2px(0.12),j; for(j=1;j<m;j++){ var d=L*j/m; if((p===a&&d<e)||(q===b&&L-d<e)) continue; if(!k41Ink(p.x+(q.x-p.x)*j/m,p.y+(q.y-p.y)*j/m)) return false; } return true; };
+    var res=[],prev=a,sv=0,big=_mm2px(1.5),small=_mm2px(0.4);
+    while(sv<qT){ var nx=Math.min(qT,sv+big),cand=nx>=qT?b:at(nx);
+      if(!ok(prev,cand)){ nx=Math.min(qT,sv+small); cand=nx>=qT?b:at(nx); if(!ok(prev,cand)) return null; }
+      if(cand!==b) res.push({x:cand.x,y:cand.y,travel:true}); prev=cand; sv=nx; }
+    return res; }
   if(!loops||!loops.length) return null;
   var pa=_projContourEdge(a.x,a.y,loops,_mm2px(2.5)), pb=_projContourEdge(b.x,b.y,loops,_mm2px(2.5));
   if(!pa||!pb||pa.loop!==pb.loop) return null;   /* beide Enden auf DEMSELBEN Loop */
@@ -60426,6 +60451,34 @@ function _contourUnderpath(a, b, loops, inkTest){
    Verlaengerungen werden unter sich nach Anteil gepaart. Luecken ueber dem Stichabstand werden aufgefuellt, staut sich
    eine Seite (Abstand unter 0.055 mm, enge Innenkurve), wird der Einstich wie bisher um 42 % nach innen gezogen (kurze
    Stiche statt Faecher ins selbe Loch). */
+function _tm3Short(pts){ /* [TM3] Kurzstich an gedraengter Seite, jeder zweite Einstich 20 % nach innen */
+  var o=pts.map(function(p){return Object.assign({},p);}),lim=_mm2px(0.12),cross=_mm2px(0.5),cnt=[0,0],i;
+  for(i=2;i<pts.length-1;i++){ var p=pts[i],a=pts[i-1],b=pts[i+1],q=pts[i-2]; if(p.jump||a.jump||b.jump) { cnt=[0,0]; continue; }
+    if(Math.hypot(p.x-a.x,p.y-a.y)<cross||Math.hypot(b.x-p.x,b.y-p.y)<cross) continue;
+    var sd=i&1; if(Math.hypot(p.x-q.x,p.y-q.y)>=lim){ cnt[sd]=0; continue; }
+    if((cnt[sd]++)%2===0) continue; var mx=(a.x+b.x)/2,my=(a.y+b.y)/2,dl=Math.hypot(mx-p.x,my-p.y)||1,f=Math.min(0.2,_mm2px(0.2)/dl); o[i].x=p.x+(mx-p.x)*f; o[i].y=p.y+(my-p.y)*f; o[i]._tm3=1; }
+  return _tm3Kreuz(o)<=_tm3Kreuz(pts)?o:pts; } /* nur, wenn keine neuen Kreuzungen entstehen */
+function _tm3Kreuz(q){ var w=[],c=0,i,j,o=function(p,r,t){return (r.x-p.x)*(t.y-p.y)-(r.y-p.y)*(t.x-p.x);}; for(i=1;i<q.length;i++) if(!q[i].jump) w.push([q[i-1],q[i]]);
+  for(i=0;i<w.length;i++) for(j=i+2;j<Math.min(w.length,i+13);j++){ var A=w[i],B=w[j]; if(o(B[0],B[1],A[0])*o(B[0],B[1],A[1])<0&&o(A[0],A[1],B[0])*o(A[0],A[1],B[1])<0) c++; } return c; }
+function _tm5Untangle(Q){ /* [TM5] jede Seite monoton in Laufrichtung der Mittellinie */
+  if(!Q||Q.length<3) return Q; var R=Q.map(function(r){return [r[0],r[1]];}),k,sd;
+  for(sd=0;sd<2;sd++){ var last=R[0][sd]; for(k=1;k<R.length-1;k++){ var k0=Math.max(0,k-1),k1=Math.min(R.length-1,k+1),
+      tx=(Q[k1][0].x+Q[k1][1].x-Q[k0][0].x-Q[k0][1].x)/2,ty=(Q[k1][0].y+Q[k1][1].y-Q[k0][0].y-Q[k0][1].y)/2,p=R[k][sd];
+      if((p.x-last.x)*tx+(p.y-last.y)*ty<0) R[k][sd]={x:last.x,y:last.y,_c:1}; else last=p; }
+    if(!window._vtK44Off) for(k=1;k<R.length-1;k++){ if(!R[k][sd]._c) continue; var m=k; while(m<R.length-1&&R[m][sd]._c) m++; var A=R[k-1][sd],B=R[m][sd]; for(var q=k;q<m;q++){ var f=(q-k+1)/(m-k+1); R[q][sd]={x:A.x+(B.x-A.x)*f,y:A.y+(B.y-A.y)*f}; } k=m; } /* [K44] */ }
+  return R; }
+function _tm2Mark(pts,W){ /* [TM2] Querrichtung und Breite je Einstich merken */
+  var i,j,lim=0.5*W; for(i=0;i<pts.length;i++){ var p=pts[i],ux=0,uy=0,w=0,n=0;
+    for(j=i-1;j<=i+1;j+=2){ if(j<0||j>=pts.length) continue; if((j>i?pts[j]:p).jump) continue; var q=pts[j],dx=p.x-q.x,dy=p.y-q.y,l=Math.hypot(dx,dy); if(l<lim) continue; ux+=dx/l; uy+=dy/l; w+=l; n++; }
+    var ul=Math.hypot(ux,uy); if(!n||ul<0.5) continue; p._vtZx=ux/ul; p._vtZy=uy/ul; p._vtZw=w/n; } }
+function _k36Zigzag(Q,sp){ /* [K36] Querschnitte [a,b] gleichmaessig je sp/2 (laengere Seite) neu verteilen -> a0 b0 a1 b2 a3 ... letzter voll */
+  var c=[0],j,k,P=[]; for(j=1;j<Q.length;j++) c.push(c[j-1]+Math.max(Math.hypot(Q[j][0].x-Q[j-1][0].x,Q[j][0].y-Q[j-1][0].y),Math.hypot(Q[j][1].x-Q[j-1][1].x,Q[j][1].y-Q[j-1][1].y)));
+  var T=c[c.length-1],n=Math.max(1,Math.round(T/(sp/2))),L=function(u,v,f){return {x:u.x+(v.x-u.x)*f,y:u.y+(v.y-u.y)*f};};
+  if((n%2)!==((Q.length-1)%2===0?1:0)) n++; /* gleiche Endseite wie die Leiter: Anschluss an die naechste Saeule bleibt */
+  if(Q.length<2||!(T>0)) P=Q.slice(); else for(k=0,j=1;k<=n;k++){ var t=T*k/n; while(j<c.length-1&&c[j]<t) j++; var f=(t-c[j-1])/((c[j]-c[j-1])||1); f=Math.max(0,Math.min(1,f)); P.push([L(Q[j-1][0],Q[j][0],f),L(Q[j-1][1],Q[j][1],f)]); }
+  var o=[],i,N=P.length; if(!N) return o; o.push(P[0][0]); o.push(P[0][1]); if(N===1) return o;
+  for(i=1;i<N-1;i++) o.push(i%2?P[i][0]:P[i][1]);
+  var e=(N-1)%2?[P[N-1][0],P[N-1][1]]:[P[N-1][1],P[N-1][0]]; o.push(e[0]); o.push(e[1]); return o; }
 function _k13PairStations(rail1, rail2, n0, p1, p2, pitchPx, inInk){
   function frac(r1,r2){ var o=[],n=Math.max(r1.length,r2.length),k; if(!r1.length||!r2.length) return o;
     for(k=0;k<n;k++){ var t=n>1?k/(n-1):0; o.push([r1[Math.round(t*(r1.length-1))],r2[Math.round(t*(r2.length-1))]]); } return o; }
@@ -61151,6 +61204,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
       }
     }
   }
+  if(!window._vtK39Off&&!_flowMode&&endKinds&&endKinds.zones) pairs.forEach(function(p){ endKinds.zones.forEach(function(z){ if(Math.hypot(p.mx-z.x,p.my-z.y)>z.r) return; var a=Math.min(p.dP,p.dN); if(p.dP>1.3*a) p.dP=1.1*a; if(p.dN>1.3*a) p.dN=1.1*a; }); }); /* [K39] */
   if(pairs.length<2) return null;
   if(_flowMode) return _longitudinalCrossSections(pairs,pairStations,cen,maxHw,_inInk,loopsF,nSteps);
   /* SPITZ-ZULAUFENDE FREIE ENDEN TRIMMEN (2026-06-20, Lukas "k hat noch diese spitze"): wo der
@@ -61186,6 +61240,12 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
   var _k13n0=rail1.length===rail2.length?rail1.length:0,_k13p1=0,_k13p2=0;
   if(!isLoop){
     function _ext(atStart){
+      if(!window._vtCATOff&&!window._vtK45Off&&endKinds&&endKinds[atStart?0:1]==='free') return; /* [K45] */
+      if(!window._vtK38Off&&endKinds&&endKinds[atStart?0:1]==='tee'){ /* [K38] Schienen gerade bis zum Mittellinien-Ende (Ueberlappung im anderen Strich) */
+        var ce=atStart?cen[0]:cen[n-1],ra=atStart?rail1[0]:rail1[rail1.length-1],rb=atStart?rail2[0]:rail2[rail2.length-1],cmx=(ra.x+rb.x)/2,cmy=(ra.y+rb.y)/2;
+        [rail1,rail2].forEach(function(r){ var i0=atStart?0:r.length-1,i1=atStart?1:r.length-2,b0={x:r[i0].x,y:r[i0].y},dx=r[i0].x-r[i1].x,dy=r[i0].y-r[i1].y,l=Math.hypot(dx,dy)||1; dx/=l; dy/=l;
+          var L=(ce.x-cmx)*dx+(ce.y-cmy)*dy; if(!(L>0)) return; var m=Math.max(1,Math.ceil(L/_mm2px(0.18))); for(var j=1;j<=m;j++){ var e={x:b0.x+dx*L*j/m,y:b0.y+dy*L*j/m}; if(!_inInk(e.x,e.y)) break; if(atStart) r.unshift(e); else r.push(e); } });
+        return; }
       /* [HEBEL 3 inkrementell, pro Rail UNABHAENGIG] Jede Rail einzeln so weit ins Ink
          hochkriechen, wie sie drin bleibt (Deckel 1.2x maxHw). Fuellt ASYMMETRISCHE
          Serifen-Cap-Loecher: am i/T-Stammkopf sitzt der Skelett-Knoten ~1 Halbbreite UNTER
@@ -61234,6 +61294,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
      Continuous Turning Satin (+Auto-Split+Short-Stitch je nach Kruemmung) vs.
      Contour-Flow-Fill (extreme Bowls). Loest den Kurven-Kamm strukturell. */
   var cls=_classifyRibbon(cen, hw, rail1, rail2);
+  if(!window._vtCATOff&&!window._vtK43Off&&cls.mode==='satin') cls.mode='satinSectioned'; /* [K43] */
   var zz;
   var _bfTop=(typeof window!=='undefined'&&window._bowlFill)||'satin';
   /* [VT-TEXT-DENSITY v1] Schrift-Dichte (Quer-/Reihenabstand) steuerbar: state.textDensityMM kommt
@@ -61262,9 +61323,29 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
     else if(_bf==='laengs') zz=_pairContourFlowFill(rail1, rail2, { rowSpacingPx:_densPx, stitchLenPx:_mm2px(1.1) });
     else if(!window._vtK13Off&&_k13n0>=2) zz=_k13PairStations(rail1, rail2, _k13n0, _k13p1, _k13p2, _densPx, _inInk);
     else zz=_pairSatinSectioned(rail1, rail2, _densPx, _mm2px(2.0));
+    if(!window._vtK36Off&&_bf!=='tatami'&&_bf!=='laengs'&&zz&&zz.rungs&&zz.rungs.length>=2){ /* [K36] Zickzack nur, wenn er nicht weiter aus der Form ragt und nicht mehr kreuzt als die Leiter */
+      var k36aus=function(q){ var n=0,i,t; for(i=1;i<q.length;i++){ var a=q[i-1],b=q[i]; if(b.jump) continue; var m=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/_mm2px(0.04)));
+        for(t=1;t<m;t++){ var x=a.x+(b.x-a.x)*t/m,y=a.y+(b.y-a.y)*t/m; if(!_inInk(x,y)&&!_projContourEdge(x,y,loopsF,_mm2px(0.12))) n++; } } return n; };
+      var k36=_k36Zigzag(zz.rungs,Math.max(_mm2px(0.15),_densPx));
+      var k36kreuz=function(q){ var w=[],c=0,i,j,o=function(p,r,t){return (r.x-p.x)*(t.y-p.y)-(r.y-p.y)*(t.x-p.x);}; for(i=1;i<q.length;i++) if(!q[i].jump) w.push([q[i-1],q[i]]);
+        for(i=0;i<w.length;i++) for(j=i+2;j<Math.min(w.length,i+13);j++){ var A=w[i],B=w[j]; if(o(B[0],B[1],A[0])*o(B[0],B[1],A[1])<0&&o(A[0],A[1],B[0])*o(A[0],A[1],B[1])<0) c++; } return c; };
+      var _k36a=k36aus(k36),_lda=k36aus(zz.stitches),_k36k=k36kreuz(k36),_ldk=k36kreuz(zz.stitches);
+      if(_k36a<=_lda&&_k36k<=_ldk) zz={stitches:window._vtTM3Off?k36:_tm3Short(k36),rungs:zz.rungs};
+      else if(!window._vtTM5Off){ /* [TM5] entwirrt + Kurzstich */
+        var tm5=_k36Zigzag(_tm5Untangle(zz.rungs),Math.max(_mm2px(0.15),_densPx)); if(!window._vtTM3Off) tm5=_tm3Short(tm5);
+        var tm5bad=function(a,b){ var m=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/_mm2px(0.04))); for(var t=1;t<m;t++){ var x=a.x+(b.x-a.x)*t/m,y=a.y+(b.y-a.y)*t/m; if(!_inInk(x,y)&&!_projContourEdge(x,y,loopsF,_mm2px(0.12))) return true; } return false; };
+        for(var t5i=1;t5i<tm5.length;t5i++){ if(tm5[t5i].jump||!tm5bad(tm5[t5i-1],tm5[t5i])) continue; [t5i-1,t5i].forEach(function(j){ if(j<=0||j>=tm5.length-1) return; /* lokal: Einstich bis 40 % nach innen statt Leiter fuer die ganze Saeule */
+          var p=tm5[j]=Object.assign({},tm5[j]),a=tm5[j-1],b=tm5[j+1],mx=(a.x+b.x)/2,my=(a.y+b.y)/2,x0=p.x,y0=p.y; for(var f=0.1;f<0.45;f+=0.1){ p.x=x0+(mx-x0)*f; p.y=y0+(my-y0)*f; if(!tm5bad(a,p)&&!tm5bad(p,b)) return; } p.x=x0; p.y=y0; }); }
+        var _t5a=k36aus(tm5),_t5k=k36kreuz(tm5);
+        var _t5l=0; for(var t5j=1;t5j<tm5.length;t5j++) _t5l=Math.max(_t5l,Math.hypot(tm5[t5j].x-tm5[t5j-1].x,tm5[t5j].y-tm5[t5j-1].y));
+        if(_t5a<=_lda&&_t5l<=_mm2px(7)&&_t5k<=Math.max(_ldk+Math.ceil(0.15*zz.rungs.length),Math.min(_k36k,_ldk))) zz={stitches:tm5,rungs:zz.rungs}; }
+    }
     cls.mode = (_bf==='tatami')?'tatami':(_bf==='laengs')?'contourFlow':'satinSectioned';
   } else {
-    zz=_pairTurningSatinContinuous(rail1, rail2, _densPx, cls);
+    var _tm1=!window._vtTM1Off&&cls.autoSplit&&_medW<_mm2px(7); /* [TM1] */
+    zz=_pairTurningSatinContinuous(rail1, rail2, _densPx, _tm1?Object.assign({},cls,{maxSplitLenPx:_mm2px(7),minSplitLenPx:_mm2px(1)}):cls);
+    if(_tm1){ var _tm1s=_pairTurningSatinContinuous(rail1, rail2, _densPx, cls); var _k1n=_tm3Kreuz(zz.stitches),_k1s=_tm3Kreuz(_tm1s.stitches); if(_k1n>_k1s+Math.max(4,0.25*zz.stitches.length)) zz=_tm1s; /* Ecke mit Faecher: Split bleibt */
+      else if(!window._vtTM3Off) zz={stitches:_tm3Short(zz.stitches),rungs:zz.rungs}; } /* [TM3] statt Split */
   }
   /* Restored taper stations must also produce safe final sewn chords. A
      rejected ray station / concave cap can otherwise be bridged by smoothing
@@ -61282,6 +61363,7 @@ function _satinByCrossSection(cen, loops, pitchPx, hw, endKinds, inkTest, legacy
     }
     if(!taperSafe)return _satinByCrossSection(cen,loops,pitchPx,hw,endKinds,inkTest,true);
   }
+  if(!window._vtTM2Off&&!_flowMode&&(cls.mode==='satin'||cls.mode==='satinSectioned')) _tm2Mark(zz.stitches,_medW); /* [TM2] */
   return { stitches:zz.stitches, rail1:rail1, rail2:rail2, rungs:zz.rungs, ribbonMode:cls.mode };
 }
 /* Marching-Squares (aus font-import-test.html) - fuer Fuellung/Outline. */
@@ -61324,7 +61406,7 @@ function _k17Spur(cen, hw, endKinds, inInk){
     var d0=dir(0); if(d0.x*rx+d0.y*ry>Math.cos(15*Math.PI/180)) continue;
     /* Nur Spornen in spitze Ecken: dort schrumpft die Halbbreite zum Ende hin. An runden Enden (Nunito) laeuft das
        Skelett ins Zentrum der Rundung, die Halbbreite bleibt voll. */
-    if(H[0]>=0.7*Hm) continue;
+    var k37v=H[0]>=0.7*Hm; if(k37v&&window._vtK37Off) continue; /* [K37] */
     var k=-1; for(q=1;q<C.length-4&&cu[q]<=2.5*Hm;q++){ var dk=dir(q); if(dk.x*rx+dk.y*ry>Math.cos(8*Math.PI/180)){ k=q; break; } }
     if(k<0) continue;
     /* Verlaengerung hoechstens so lang wie der Sporn plus eine halbe Halbbreite, und nur solange die Form quer nicht
@@ -61335,7 +61417,7 @@ function _k17Spur(cen, hw, endKinds, inInk){
       if(!window._vtK31Off&&ws(px,py,1)<0.6*H[k]&&ws(px,py,-1)<0.6*H[k]) break; /* [K31] */ X.push({x:px,y:py}); }
     /* An V-Spitzen (W, K, X) ist der Sporn richtig: die Verlaengerung stoppt dort frueh (Form wird breit). Dann bleibt
        das Ende, wie es war (sonst bleibt die Spitze ungedeckt und die Notfuellung flickt sie mit Spruengen). */
-    var Lo=-((C[0].x-C[k].x)*rx+(C[0].y-C[k].y)*ry); if(X.length*st<0.6*Lo) continue;
+    var Lo=-((C[0].x-C[k].x)*rx+(C[0].y-C[k].y)*ry); if(X.length*st<(k37v?0.9:0.6)*Lo) continue;
     var nC=X.slice().reverse().concat(C.slice(k)),nH=X.map(function(){ return H[k]; }).concat(H.slice(k));
     if(e){ cen=nC.reverse(); hw=nH.reverse(); } else { cen=nC; hw=nH; } }
   return {c:cen,h:hw};
@@ -61424,6 +61506,967 @@ function rasterize(text, family, fontSizePx, bold, italic, outlineOnly){
   ctx.fillText(text, pad*S, baseY);
   return {img:ctx.getImageData(0,0,tw,th).data,W:tw,H:th,S:S,pad:pad,baseY:baseY};
 }
+/* [CAT] Strichzerlegung aus der Glyphenkontur (Chordal Axis), eigenes Modul */
+/* I1 2026-11-08: Strichzerlegung fuer Satin-Schrift aus der Glyphenkontur.
+   Verfahren: Kontur glaetten und gleichmaessig abtasten -> Delaunay mit erzwungenen Konturkanten
+   (Mittelpunkt-Einfuegen, bis alle Konturkanten vorhanden sind) -> Dreiecke nach Randkanten klassieren
+   (Endstueck/Aermel/Knoten) -> Sehnen-Mittelachse -> Sporne streichen -> Knotenzonen -> Arme nach guter
+   Fortsetzung paaren -> Striche (satin/run/dot/wide) mit Endtyp.
+   Eigenstaendig, ES5, ohne Abhaengigkeiten, selbst geschrieben.
+   Aufruf: _vtStrokesCAT(contour, inInk, {pxPerMM:3.7795}) -> {segs:[...], debug:{...}} */
+function _vtStrokesCAT(contour, inInk, opts) {
+  opts = opts || {};
+  var MM = opts.pxPerMM || 3.7795275591;
+  var T0 = Date.now();
+  var P = {
+    smoothPasses: opts.smoothPasses != null ? opts.smoothPasses : 4,
+    dpTol: 0.04 * MM,
+    maxStep: 0.25 * MM, minStep: 0.08 * MM,
+    spurJ: 1.25, spurB: 1.0,           /* Sporn: Laenge < spurJ*hKnoten + spurB*hAst */
+    zoneK: 1.0,                        /* Knoten zusammenfassen: Verbindung < zoneK*(h1+h2) */
+    pairDeg: 35, pairRatio: 1.8, pair2Deg: 60,
+    endGap: 0.15 * MM, spikeK: 0, spikeAbs: 0, endCut: 1.5,
+    kinkDeg: 135, yThrough: opts.yThrough !== false,                      /* Knick: Richtungsaenderung > 135 Grad (Schenkelwinkel < 45) -> teilen */
+    teeOv: 0.3 * MM,
+    outStep: 0.25 * MM,
+    runHw: 0.15 * MM,
+    wideFull: opts.wideMM != null ? opts.wideMM * MM : 7 * MM
+  };
+  var dbg = { tris: [], zones: [], pruned: [], loops: [], ms: {} };
+
+  /* ---------- Hilfen ---------- */
+  function dist(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+  function polyLen(pl) { var s = 0; for (var i = 1; i < pl.length; i++) s += dist(pl[i - 1], pl[i]); return s; }
+  function area(lp) { var a = 0; for (var i = 0, j = lp.length - 1; i < lp.length; j = i++) a += (lp[j].x * lp[i].y - lp[i].x * lp[j].y); return a / 2; }
+  function pip(p, lp) { var c = false; for (var i = 0, j = lp.length - 1; i < lp.length; j = i++) { var a = lp[i], b = lp[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) c = !c; } return c; }
+  function unit(dx, dy) { var l = Math.sqrt(dx * dx + dy * dy) || 1; return { x: dx / l, y: dy / l }; }
+
+  /* ---------- 1. Schleifen glaetten, vereinfachen, abtasten ---------- */
+  function smoothClosed(lp, passes) {
+    var a = lp.slice();
+    for (var k = 0; k < passes; k++) {
+      var b = new Array(a.length), n = a.length;
+      for (var i = 0; i < n; i++) { var p = a[(i - 1 + n) % n], c = a[i], q = a[(i + 1) % n]; b[i] = { x: (p.x + 2 * c.x + q.x) / 4, y: (p.y + 2 * c.y + q.y) / 4 }; }
+      a = b;
+    }
+    return a;
+  }
+  function dpOpen(pts, tol) {
+    var keep = new Uint8Array(pts.length); keep[0] = 1; keep[pts.length - 1] = 1;
+    var st = [[0, pts.length - 1]];
+    while (st.length) {
+      var r = st.pop(), i0 = r[0], i1 = r[1], a = pts[i0], b = pts[i1], dx = b.x - a.x, dy = b.y - a.y, L = Math.sqrt(dx * dx + dy * dy) || 1e-9, md = -1, mi = -1;
+      for (var i = i0 + 1; i < i1; i++) { var d = Math.abs((pts[i].x - a.x) * dy - (pts[i].y - a.y) * dx) / L; if (d > md) { md = d; mi = i; } }
+      if (md > tol) { keep[mi] = 1; st.push([i0, mi], [mi, i1]); }
+    }
+    var o = []; for (var j = 0; j < pts.length; j++) if (keep[j]) o.push(pts[j]); return o;
+  }
+  function dpClosed(lp, tol) {
+    /* an zwei weit entfernten Punkten aufschneiden */
+    var n = lp.length, far = 0, fd = -1;
+    for (var i = 0; i < n; i++) { var d = dist(lp[0], lp[i]); if (d > fd) { fd = d; far = i; } }
+    var A = lp.slice(0, far + 1), B = lp.slice(far).concat([lp[0]]);
+    var a = dpOpen(A, tol), b = dpOpen(B, tol);
+    return a.concat(b.slice(1, b.length - 1));
+  }
+  function resampleClosedUniform(lp, step) {
+    var n = lp.length, out = [], acc = 0, i;
+    var per = 0; for (i = 0; i < n; i++) per += dist(lp[i], lp[(i + 1) % n]);
+    var m = Math.max(8, Math.round(per / step)), st = per / m, next = 0;
+    for (i = 0; i < n; i++) {
+      var a = lp[i], b = lp[(i + 1) % n], L = dist(a, b);
+      while (next <= acc + L + 1e-9 && out.length < m) { var t = L > 0 ? (next - acc) / L : 0; out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); next += st; }
+      acc += L;
+    }
+    return out;
+  }
+  /* variable Abtastung: Schritt je Punkt aus hwEst (lineare Interpolation entlang der Kurve) */
+  function resampleClosedVar(lp, stepAt) {
+    var n = lp.length, cum = [0], i;
+    for (i = 0; i < n; i++) cum.push(cum[i] + dist(lp[i], lp[(i + 1) % n]));
+    var per = cum[n], out = [], s = 0, seg = 0, guard = 0;
+    while (s < per - 1e-9 && guard++ < 100000) {
+      while (seg < n - 1 && cum[seg + 1] < s) seg++;
+      var a = lp[seg], b = lp[(seg + 1) % n], L = cum[seg + 1] - cum[seg], t = L > 0 ? (s - cum[seg]) / L : 0;
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      var sa = stepAt[seg], sb = stepAt[(seg + 1) % n];
+      s += sa + (sb - sa) * t;
+    }
+    /* letzter Abstand zu kurz -> letzten Punkt weg */
+    if (out.length > 3 && dist(out[out.length - 1], out[0]) < 0.4 * stepAt[0]) out.pop();
+    return out;
+  }
+
+  var tA = Date.now();
+  var loops = [];
+  for (var li = 0; li < contour.length; li++) {
+    var raw = contour[li]; if (!raw || raw.length < 4) continue;
+    var sm = smoothClosed(raw, P.smoothPasses);
+    if (Math.abs(area(sm)) < (0.12 * MM) * (0.12 * MM)) continue;
+    var dp = dpClosed(sm, P.dpTol);
+    if (dp.length < 3) continue;
+    loops.push(dp);
+  }
+  /* lokale Halbbreite je Punkt grob: naechster "gegenueberliegender" Punkt (gleiche Schleife weit entlang der Kurve oder andere Schleife) */
+  var coarse = loops.map(function (lp) { return resampleClosedUniform(lp, P.maxStep); });
+  var cArc = coarse.map(function (lp) { var c = [0]; for (var i = 1; i < lp.length; i++) c.push(c[i - 1] + dist(lp[i - 1], lp[i])); c.per = c[c.length - 1] + dist(lp[lp.length - 1], lp[0]); return c; });
+  /* nur Gegenpunkte bis 1.2 mm zaehlen (breitere Stellen bekommen ohnehin den Hoechstschritt): Raster 1.2 mm */
+  var GC = 1.2 * MM, GRID = {};
+  coarse.forEach(function (lp, a) { lp.forEach(function (p, i) { var k = Math.floor(p.x / GC) + ',' + Math.floor(p.y / GC); (GRID[k] = GRID[k] || []).push(a, i); }); });
+  var hwEst = coarse.map(function (lp, a) {
+    return lp.map(function (p, i) {
+      var best = GC, gx = Math.floor(p.x / GC), gy = Math.floor(p.y / GC);
+      for (var ox = -1; ox <= 1; ox++) for (var oy = -1; oy <= 1; oy++) {
+        var cellL = GRID[(gx + ox) + ',' + (gy + oy)]; if (!cellL) continue;
+        for (var c = 0; c < cellL.length; c += 2) {
+          var b = cellL[c], j = cellL[c + 1], q = coarse[b][j];
+          var dx = q.x - p.x, dy = q.y - p.y, d2 = dx * dx + dy * dy;
+          if (d2 >= best * best) continue;
+          if (a === b) { var ad = Math.abs(cArc[a][i] - cArc[a][j]); ad = Math.min(ad, cArc[a].per - ad); if (ad < 1e-9 || Math.sqrt(d2) > 0.6 * ad) continue; }
+          best = Math.sqrt(d2);
+        }
+      }
+      return best / 2;
+    });
+  });
+  dbg.hwEst = hwEst; var R = [];
+  coarse.forEach(function (lp, a) {
+    /* Halbbreite glaetten (Minimum ueber Nachbarn), Schritt = hw/2 begrenzt */
+    var h = hwEst[a], n = lp.length, st = [];
+    for (var i = 0; i < n; i++) { var m = h[i]; for (var k = -2; k <= 2; k++) m = Math.min(m, h[(i + k + n) % n]); st.push(Math.max(P.minStep, Math.min(P.maxStep, m / 2))); }
+    var rs = resampleClosedVar(lp, st);
+    if (rs.length >= 3) R.push(rs);
+  });
+  loops = R;
+  /* Aussen/Loch ueber Verschachtelung; Umlauf normieren (aussen positiv, Loch negativ) */
+  var depth = loops.map(function (lp, a) { var d = 0; for (var b = 0; b < loops.length; b++) if (b !== a && pip(lp[0], loops[b])) d++; return d; });
+  loops = loops.map(function (lp, a) { var ar = area(lp), wantPos = depth[a] % 2 === 0; return (ar > 0) === wantPos ? lp : lp.slice().reverse(); });
+  dbg.loops = loops;
+  dbg.ms.prep = Date.now() - tA;
+
+  /* ---------- 2. Delaunay mit Zwangskanten ---------- */
+  var tB = Date.now();
+  var X = [], Y = [], NX = [], PV = [], LID = [];   /* Koordinaten, naechster/vorheriger Konturpunkt, Schleife */
+  var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+  loops.forEach(function (lp) { lp.forEach(function (p) { if (p.x < minx) minx = p.x; if (p.y < miny) miny = p.y; if (p.x > maxx) maxx = p.x; if (p.y > maxy) maxy = p.y; }); });
+  var cx0 = (minx + maxx) / 2, cy0 = (miny + maxy) / 2, span = Math.max(maxx - minx, maxy - miny, 1) * 20;
+  X.push(cx0 - span, cx0 + span, cx0); Y.push(cy0 - span, cy0 - span, cy0 + span);
+  NX.push(-1, -1, -1); PV.push(-1, -1, -1); LID.push(-1, -1, -1);
+  function jit(i) { var s = Math.sin(i * 12.9898 + 78.233) * 43758.5453; return (s - Math.floor(s) - 0.5) * 1e-4; }
+  loops.forEach(function (lp, a) {
+    var base = X.length;
+    for (var i = 0; i < lp.length; i++) {
+      X.push(lp[i].x + jit(base + i)); Y.push(lp[i].y + jit(base + i + 7));
+      NX.push(base + (i + 1) % lp.length); PV.push(base + (i - 1 + lp.length) % lp.length); LID.push(a);
+    }
+  });
+  var TV = [], TN = [];
+  function orient(a, b, c) { return (X[b] - X[a]) * (Y[c] - Y[a]) - (Y[b] - Y[a]) * (X[c] - X[a]); }
+  function inCirc(a, b, c, d) {
+    var adx = X[a] - X[d], ady = Y[a] - Y[d], bdx = X[b] - X[d], bdy = Y[b] - Y[d], cdx = X[c] - X[d], cdy = Y[c] - Y[d];
+    return (adx * adx + ady * ady) * (bdx * cdy - cdx * bdy) - (bdx * bdx + bdy * bdy) * (adx * cdy - cdx * ady) + (cdx * cdx + cdy * cdy) * (adx * bdy - bdx * ady) > 0;
+  }
+  TV.push(0, 1, 2); TN.push(-1, -1, -1);
+  if (orient(0, 1, 2) < 0) { TV[1] = 2; TV[2] = 1; }
+  function repl(n, o, w) { if (n < 0) return; for (var k = 0; k < 3; k++) if (TN[3 * n + k] === o) { TN[3 * n + k] = w; return; } }
+  var lastT = 0;
+  function locate(p) {
+    var t = lastT, steps = 0, nt = TV.length / 3;
+    while (steps++ < 4 * nt + 10) {
+      var moved = false;
+      for (var k = 0; k < 3; k++) {
+        var a = TV[3 * t + k], b = TV[3 * t + (k + 1) % 3];
+        if (orient(a, b, p) < 0) { var nb = TN[3 * t + k]; if (nb >= 0) { t = nb; moved = true; break; } }
+      }
+      if (!moved) return t;
+    }
+    for (t = 0; t < nt; t++) if (orient(TV[3 * t], TV[3 * t + 1], p) >= 0 && orient(TV[3 * t + 1], TV[3 * t + 2], p) >= 0 && orient(TV[3 * t + 2], TV[3 * t], p) >= 0) return t;
+    return 0;
+  }
+  function legalize(stack) {
+    var guard = 0;
+    while (stack.length && guard++ < 200000) {
+      var e = stack.pop(), t = e[0], i = e[1], u = TN[3 * t + i];
+      if (u < 0) continue;
+      var a = TV[3 * t + i], b = TV[3 * t + (i + 1) % 3], c = TV[3 * t + (i + 2) % 3];
+      var j = TN[3 * u] === t ? 0 : TN[3 * u + 1] === t ? 1 : 2;
+      var d = TV[3 * u + (j + 2) % 3];
+      if (CON && isCon(a, b)) continue;
+      if (!inCirc(a, b, c, d)) continue;
+      var nt1 = TN[3 * t + (i + 1) % 3], nt2 = TN[3 * t + (i + 2) % 3], nu1 = TN[3 * u + (j + 1) % 3], nu2 = TN[3 * u + (j + 2) % 3];
+      TV[3 * t] = c; TV[3 * t + 1] = a; TV[3 * t + 2] = d; TN[3 * t] = nt2; TN[3 * t + 1] = nu1; TN[3 * t + 2] = u;
+      TV[3 * u] = d; TV[3 * u + 1] = b; TV[3 * u + 2] = c; TN[3 * u] = nu2; TN[3 * u + 1] = nt1; TN[3 * u + 2] = t;
+      repl(nu1, u, t); repl(nt1, t, u);
+      stack.push([t, 1], [u, 0]);
+    }
+  }
+  var CON = false;
+  function isCon(a, b) { return NX[a] === b || NX[b] === a; }
+  function insert(p) {
+    var t = locate(p), a = TV[3 * t], b = TV[3 * t + 1], c = TV[3 * t + 2], n0 = TN[3 * t], n1 = TN[3 * t + 1], n2 = TN[3 * t + 2];
+    var t1 = TV.length / 3, t2 = t1 + 1;
+    TV[3 * t] = a; TV[3 * t + 1] = b; TV[3 * t + 2] = p; TN[3 * t] = n0; TN[3 * t + 1] = t1; TN[3 * t + 2] = t2;
+    TV.push(b, c, p); TN.push(n1, t2, t);
+    TV.push(c, a, p); TN.push(n2, t, t1);
+    repl(n1, t, t1); repl(n2, t, t2);
+    lastT = t;
+    legalize([[t, 0], [t1, 0], [t2, 0]]);
+  }
+  /* raeumlich sortiert einfuegen */
+  var order = []; for (var vi = 3; vi < X.length; vi++) order.push(vi);
+  var cell = Math.max((maxx - minx), (maxy - miny)) / Math.max(4, Math.sqrt(order.length) / 2);
+  order.sort(function (a, b) { var ra = Math.floor((Y[a] - miny) / cell), rb = Math.floor((Y[b] - miny) / cell); if (ra !== rb) return ra - rb; return (ra % 2 ? -1 : 1) * (X[a] - X[b]); });
+  for (var oi = 0; oi < order.length; oi++) insert(order[oi]);
+  /* Zwangskanten: fehlende Konturkante -> Mittelpunkt einfuegen (konform), wiederholen */
+  CON = true;
+  var steiner = 0;
+  for (var round = 0; round < 5; round++) {
+    var has = {}, nt = TV.length / 3, t, k;
+    for (t = 0; t < nt; t++) for (k = 0; k < 3; k++) { var a0 = TV[3 * t + k], b0 = TV[3 * t + (k + 1) % 3]; has[a0 < b0 ? a0 + ',' + b0 : b0 + ',' + a0] = 1; }
+    var miss = [];
+    for (var v = 3; v < X.length; v++) { var w = NX[v]; if (!has[v < w ? v + ',' + w : w + ',' + v]) miss.push(v); }
+    if (!miss.length) break;
+    for (var mi = 0; mi < miss.length; mi++) {
+      var va = miss[mi], vb = NX[va], m = X.length;
+      X.push((X[va] + X[vb]) / 2 + jit(m)); Y.push((Y[va] + Y[vb]) / 2 + jit(m + 3)); LID.push(LID[va]);
+      NX.push(vb); PV.push(va); NX[va] = m; PV[vb] = m; steiner++;
+      CON = false; insert(m); CON = true;
+    }
+  }
+  /* letzte Lawson-Runde mit Zwang (Kanten nach dem Einfuegen) */
+  (function () { var st = [], nt = TV.length / 3; for (var t = 0; t < nt; t++) for (var k = 0; k < 3; k++) st.push([t, k]); legalize(st); })();
+  dbg.ms.cdt = Date.now() - tB; dbg.steiner = steiner;
+
+  /* innen/aussen: Flutung, jede Konturkante wechselt die Tiefe */
+  var tC = Date.now();
+  var NT = TV.length / 3, dep = new Int32Array(NT).fill(-1), dq = [];
+  for (var t0 = 0; t0 < NT; t0++) if (TV[3 * t0] < 3 || TV[3 * t0 + 1] < 3 || TV[3 * t0 + 2] < 3) { dep[t0] = 0; dq.push(t0); }
+  var head = 0, missingCon = 0;
+  /* 0-1-BFS mit zwei Listen */
+  var cur = dq, lvl = 0;
+  while (cur.length) {
+    var nxt = [];
+    for (head = 0; head < cur.length; head++) {
+      var tt = cur[head];
+      if (dep[tt] !== lvl) continue;
+      for (var kk = 0; kk < 3; kk++) {
+        var nb = TN[3 * tt + kk]; if (nb < 0) continue;
+        var ea = TV[3 * tt + kk], eb = TV[3 * tt + (kk + 1) % 3], c = isCon(ea, eb) ? 1 : 0;
+        var nd = lvl + c;
+        if (dep[nb] < 0 || dep[nb] > nd) { dep[nb] = nd; if (c) nxt.push(nb); else cur.push(nb); }
+      }
+    }
+    cur = nxt; lvl++;
+  }
+  var inside = new Uint8Array(NT);
+  for (var ti = 0; ti < NT; ti++) inside[ti] = dep[ti] > 0 && dep[ti] % 2 === 1 ? 1 : 0;
+  /* Gegenprobe: Flaeche innen vs. Konturflaeche; bei Leck (fehlende Zwangskante) Schwerpunkt-Test */
+  (function () {
+    var ain = 0, aloop = 0;
+    for (var t = 0; t < NT; t++) if (inside[t]) ain += Math.abs(orient(TV[3 * t], TV[3 * t + 1], TV[3 * t + 2])) / 2;
+    loops.forEach(function (lp) { aloop += area(lp); });
+    aloop = Math.abs(aloop);
+    if (Math.abs(ain - aloop) > 0.05 * aloop) {
+      dbg.insideFallback = true;
+      for (var t2 = 0; t2 < NT; t2++) {
+        var a = TV[3 * t2], b = TV[3 * t2 + 1], c = TV[3 * t2 + 2];
+        if (a < 3 || b < 3 || c < 3) { inside[t2] = 0; continue; }
+        var g = { x: (X[a] + X[b] + X[c]) / 3, y: (Y[a] + Y[b] + Y[c]) / 3 }, par = false;
+        if (inInk) { inside[t2] = inInk(g.x, g.y) ? 1 : 0; continue; }
+        for (var q = 0; q < loops.length; q++) if (pip(g, loops[q])) par = !par;
+        inside[t2] = par ? 1 : 0;
+      }
+    }
+  })();
+
+  /* ---------- 3. Klassieren ---------- */
+  var nbr = new Int32Array(3 * NT).fill(-1), deg = new Int8Array(NT);
+  for (ti = 0; ti < NT; ti++) {
+    if (!inside[ti]) continue;
+    var dg = 0;
+    for (k = 0; k < 3; k++) { var u = TN[3 * ti + k]; if (u >= 0 && inside[u] && !isCon(TV[3 * ti + k], TV[3 * ti + (k + 1) % 3])) { nbr[3 * ti + k] = u; dg++; } }
+    deg[ti] = dg;
+    dbg.tris.push([X[TV[3 * ti]], Y[TV[3 * ti]], X[TV[3 * ti + 1]], Y[TV[3 * ti + 1]], X[TV[3 * ti + 2]], Y[TV[3 * ti + 2]], dg]);
+  }
+  function V(i) { return { x: X[i], y: Y[i] }; }
+  /* staerkste konkave Konturecke an den Ecken eines Dreiecks (Grad), Fenster +-0.5 mm entlang der Kontur */
+  function concaveAt(t) {
+    var best = 0;
+    for (var k = 0; k < 3; k++) {
+      var v = TV[3 * t + k]; if (v < 3) continue;
+      var a = v, b = v, la = 0, lb = 0, g = 0;
+      while (la < 0.5 * MM && g++ < 200) { var pa = PV[a]; la += Math.sqrt((X[pa] - X[a]) * (X[pa] - X[a]) + (Y[pa] - Y[a]) * (Y[pa] - Y[a])); a = pa; }
+      g = 0; while (lb < 0.5 * MM && g++ < 200) { var nb2 = NX[b]; lb += Math.sqrt((X[nb2] - X[b]) * (X[nb2] - X[b]) + (Y[nb2] - Y[b]) * (Y[nb2] - Y[b])); b = nb2; }
+      var u1 = unit(X[v] - X[a], Y[v] - Y[a]), u2 = unit(X[b] - X[v], Y[b] - Y[v]);
+      var cr = u1.x * u2.y - u1.y * u2.x, ang = Math.atan2(Math.abs(cr), u1.x * u2.x + u1.y * u2.y) * 180 / Math.PI;
+      if (cr < 0 && ang > best) best = ang;
+    }
+    return best;
+  }
+  function triCenter(t) {
+    var a = TV[3 * t], b = TV[3 * t + 1], c = TV[3 * t + 2];
+    var ax = X[a], ay = Y[a], bx = X[b], by = Y[b], cx = X[c], cy = Y[c];
+    var la = (bx - cx) * (bx - cx) + (by - cy) * (by - cy), lb = (ax - cx) * (ax - cx) + (ay - cy) * (ay - cy), lc = (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
+    var mx = Math.max(la, lb, lc);
+    if (2 * mx < la + lb + lc) { /* spitzwinklig: Umkreismitte */
+      var d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+      var ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+      var uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+      return { x: ux, y: uy, r: Math.sqrt((ax - ux) * (ax - ux) + (ay - uy) * (ay - uy)) };
+    }
+    if (mx === la) return { x: (bx + cx) / 2, y: (by + cy) / 2, r: Math.sqrt(la) / 2 };
+    if (mx === lb) return { x: (ax + cx) / 2, y: (ay + cy) / 2, r: Math.sqrt(lb) / 2 };
+    return { x: (ax + bx) / 2, y: (ay + by) / 2, r: Math.sqrt(lc) / 2 };
+  }
+
+  /* ---------- Aeste verfolgen ---------- */
+  /* Knoten: Dreiecke mit Grad 1 (Endstueck) oder 3 (Knoten). Ast = Kette ueber Aermel (Grad 2). */
+  var nodes = {};   /* key tri -> {id,tri,type,c,r,br:[]} */
+  var NODES = [];
+  function nodeOf(t) {
+    if (nodes[t]) return nodes[t];
+    var n = { id: NODES.length, tri: t, type: deg[t] === 1 ? 'T' : 'J', br: [], alive: true };
+    if (n.type === 'J') { var cc = triCenter(t); n.c = { x: cc.x, y: cc.y }; n.r = cc.r; }
+    else { /* Spitze: Punkt, an dem die zwei Randkanten zusammenstossen */
+      var k0 = nbr[3 * t] >= 0 ? 0 : nbr[3 * t + 1] >= 0 ? 1 : 2; var apex = TV[3 * t + (k0 + 2) % 3]; n.c = V(apex); n.r = 0; }
+    nodes[t] = n; NODES.push(n); return n;
+  }
+  var usedEdge = {};
+  var BR = [];
+  function trace(t, k, startNode) {
+    /* von Knoten-Dreieck t ueber Kante k */
+    var chords = [], cur = t, ck = k, guard = 0;
+    while (guard++ < 100000) {
+      var a = TV[3 * cur + ck], b = TV[3 * cur + (ck + 1) % 3];
+      usedEdge[a < b ? a + ',' + b : b + ',' + a] = 1;
+      chords.push({ l: b, r: a });
+      var nx = nbr[3 * cur + ck];
+      if (deg[nx] !== 2) { return { chords: chords, endTri: nx }; }
+      /* andere innere Kante von nx */
+      var nk = -1;
+      for (var q = 0; q < 3; q++) if (nbr[3 * nx + q] >= 0 && nbr[3 * nx + q] !== cur) nk = q;
+      if (nk < 0) { /* beide Nachbarn gleich (entartet) */ for (q = 0; q < 3; q++) if (nbr[3 * nx + q] >= 0 && !(TV[3 * nx + q] === b && TV[3 * nx + (q + 1) % 3] === a)) nk = q; }
+      cur = nx; ck = nk;
+      if (startNode == null && cur === t) return { chords: chords, endTri: -2 };
+    }
+    return { chords: chords, endTri: -1 };
+  }
+  function ekey(t, k) { var a = TV[3 * t + k], b = TV[3 * t + (k + 1) % 3]; return a < b ? a + ',' + b : b + ',' + a; }
+  for (ti = 0; ti < NT; ti++) {
+    if (!inside[ti] || (deg[ti] !== 1 && deg[ti] !== 3)) continue;
+    for (k = 0; k < 3; k++) {
+      if (nbr[3 * ti + k] < 0 || usedEdge[ekey(ti, k)]) continue;
+      var n0 = nodeOf(ti), tr = trace(ti, k, n0);
+      if (tr.endTri < 0) continue;
+      var n1 = nodeOf(tr.endTri);
+      var br = { id: BR.length, a: n0, b: n1, chords: tr.chords, alive: true };
+      BR.push(br); n0.br.push(br); n1.br.push(br);
+    }
+  }
+  /* reine Aermel-Ringe (o ohne Knoten) */
+  var CYC = [];
+  for (ti = 0; ti < NT; ti++) {
+    if (!inside[ti] || deg[ti] !== 2) continue;
+    var kf = -1; for (k = 0; k < 3; k++) if (nbr[3 * ti + k] >= 0 && !usedEdge[ekey(ti, k)]) { kf = k; break; }
+    if (kf < 0) continue;
+    var tc = trace(ti, kf, null);
+    if (tc.endTri === -2 && tc.chords.length > 3) CYC.push(tc.chords);
+  }
+
+  /* Achse eines Astes: Knotenmitte, Sehnenmitten, Knotenmitte (Halbbreite = halbe Sehne) */
+  function brAxis(br) {
+    var pts = [], hw = [], L = [], Rr = [];
+    pts.push(br.a.c); hw.push(br.a.type === 'J' ? br.a.r : 0); L.push(null); Rr.push(null);
+    br.chords.forEach(function (ch) { var l = V(ch.l), r = V(ch.r); pts.push({ x: (l.x + r.x) / 2, y: (l.y + r.y) / 2 }); hw.push(dist(l, r) / 2); L.push(l); Rr.push(r); });
+    pts.push(br.b.c); hw.push(br.b.type === 'J' ? br.b.r : 0); L.push(null); Rr.push(null);
+    return { pts: pts, hw: hw, l: L, r: Rr };
+  }
+  function median(a) { var s = a.filter(function (v) { return v > 0; }).sort(function (x, y) { return x - y; }); return s.length ? s[s.length >> 1] : 0; }
+  BR.forEach(function (br) { var ax = brAxis(br); br.len = polyLen(ax.pts); br.hm = median(ax.hw.slice(1, -1)); });
+
+  /* ---------- 4. Sporne streichen ---------- */
+  var tD = Date.now();
+  function aliveBr(n) { return n.br.filter(function (b) { return b.alive; }); }
+  function effT(n) { return n.type === 'T' || aliveBr(n).length <= 1; }
+  for (var it = 0; it < 30; it++) {
+    var changed = false;
+    NODES.forEach(function (jn) {
+      if (jn.type !== 'J') return;
+      var al = aliveBr(jn); if (al.length < 3) return;
+      /* Aeste zu (effektiven) Endstuecken, die als Sporn gelten */
+      var sp = al.filter(function (br) { var o = br.a === jn ? br.b : br.a; return o !== jn && effT(o) && br.len < P.spurJ * jn.r + P.spurB * br.hm; });
+      if (!sp.length) return;
+      sp.sort(function (a, b) { return a.len - b.len; });
+      /* hoechstens so viele streichen, dass 2 Aeste bleiben */
+      var nkill = Math.min(sp.length, al.length - 2);
+      for (var q = 0; q < nkill; q++) { sp[q].alive = false; changed = true; dbg.pruned.push(brAxis(sp[q]).pts.map(function (p) { return { x: p.x, y: p.y }; })); }
+    });
+    /* Knoten mit 2 Aesten -> zu einem Ast verschmelzen (Knotendreieck wird Aermel) */
+    NODES.forEach(function (n) {
+      if (n.type !== 'J') return;
+      var al = aliveBr(n); if (al.length !== 2 || al[0] === al[1]) return;
+      var b1 = al[0], b2 = al[1];
+      if (b1.a === b1.b || b2.a === b2.b || n.corner) return;
+      /* scharfe Ecke (Richtungswechsel > pair2Deg): nicht verschmelzen, als L-Ecke behandeln */
+      function legDir(br) {
+        var ax = brAxis(br), pts = br.a === n ? ax.pts : ax.pts.slice().reverse(), cum = cumArc(pts), Lb = cum[cum.length - 1];
+        var q0 = at(pts, cum, Math.min(n.r, 0.4 * Lb)), q1 = at(pts, cum, Math.min(n.r + 2 * br.hm + 0.3 * MM, 0.8 * Lb));
+        return unit(q1.x - q0.x, q1.y - q0.y);
+      }
+      var d1 = legDir(b1), d2 = legDir(b2), dv = Math.acos(Math.max(-1, Math.min(1, -(d1.x * d2.x + d1.y * d2.y)))) * 180 / Math.PI;
+      if (dv > P.pair2Deg && b1.len > 2 * n.r && b2.len > 2 * n.r && concaveAt(n.tri) > 75) { n.corner = true; return; }
+      function chordsTo(br, node) { return br.b === node ? br.chords : br.chords.slice().reverse().map(function (c) { return { l: c.r, r: c.l }; }); }
+      var c1 = chordsTo(b1, n), c2 = chordsTo(b2, n).slice().reverse().map(function (c) { return { l: c.r, r: c.l }; });
+      var A = b1.a === n ? b1.b : b1.a, B = b2.a === n ? b2.b : b2.a;
+      var nb = { id: BR.length, a: A, b: B, chords: c1.concat(c2), alive: true };
+      b1.alive = false; b2.alive = false; b1.merged = b2.merged = true; n.type = 'X';
+      BR.push(nb); A.br.push(nb); B.br.push(nb);
+      var ax = brAxis(nb); nb.len = polyLen(ax.pts); nb.hm = median(ax.hw.slice(1, -1));
+      changed = true;
+    });
+    if (!changed) break;
+  }
+  dbg.ms.prune = Date.now() - tD;
+
+  /* ---------- Zonen ---------- */
+  var J = NODES.filter(function (n) { return n.type === 'J' && (aliveBr(n).length >= 3 || (n.corner && aliveBr(n).length === 2)); });
+  var par = {}; J.forEach(function (n) { par[n.id] = n.id; });
+  function fnd(i) { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; }
+  BR.forEach(function (br) {
+    if (!br.alive || br.a.type !== 'J' || br.b.type !== 'J' || par[br.a.id] == null || par[br.b.id] == null) return;
+    if (br.a === br.b) return;
+    if (br.len < P.zoneK * (br.a.r + br.b.r) * 1.0 + 0.0) { br.internal = true; par[fnd(br.a.id)] = fnd(br.b.id); }
+  });
+  var ZM = {};
+  J.forEach(function (n) { var r = fnd(n.id); (ZM[r] = ZM[r] || { nodes: [] }).nodes.push(n); });
+  var ZONES = Object.keys(ZM).map(function (k) { return ZM[k]; });
+  ZONES.forEach(function (z, zi) {
+    var sx = 0, sy = 0, sw = 0;
+    z.nodes.forEach(function (n) { var w = n.r * n.r + 1e-6; sx += n.c.x * w; sy += n.c.y * w; sw += w; n.zone = z; });
+    z.c = { x: sx / sw, y: sy / sw }; z.r = 0;
+    z.nodes.forEach(function (n) { z.r = Math.max(z.r, dist(n.c, z.c) + n.r); });
+    z.id = zi;
+  });
+
+  /* ---------- Breitenmessung gegen die geglaettete Kontur ---------- */
+  var SEG = [];
+  loops.forEach(function (lp) { for (var i = 0; i < lp.length; i++) { var a = lp[i], b = lp[(i + 1) % lp.length]; SEG.push(a.x, a.y, b.x, b.y); } });
+  /* Raster ueber die Konturstrecken (1 mm), Strahl prueft nur Zellen im Huellrechteck */
+  var GS = 1.0 * MM, SG = {}, stamp = new Int32Array(SEG.length / 4), stampN = 0;
+  for (var si = 0; si < SEG.length; si += 4) {
+    var gx0 = Math.floor(Math.min(SEG[si], SEG[si + 2]) / GS), gx1 = Math.floor(Math.max(SEG[si], SEG[si + 2]) / GS);
+    var gy0 = Math.floor(Math.min(SEG[si + 1], SEG[si + 3]) / GS), gy1 = Math.floor(Math.max(SEG[si + 1], SEG[si + 3]) / GS);
+    for (var gx = gx0; gx <= gx1; gx++) for (var gy = gy0; gy <= gy1; gy++) { var kk = gx + ',' + gy; (SG[kk] = SG[kk] || []).push(si); }
+  }
+  function rayHit(p, d, maxD) {
+    var best = maxD; stampN++;
+    var ex0 = p.x + d.x * maxD, ey0 = p.y + d.y * maxD;
+    var cx0 = Math.floor(Math.min(p.x, ex0) / GS), cx1 = Math.floor(Math.max(p.x, ex0) / GS), cy0 = Math.floor(Math.min(p.y, ey0) / GS), cy1 = Math.floor(Math.max(p.y, ey0) / GS);
+    if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > 400) { cx0 = -1e9; }
+    for (var gx = cx0; gx <= cx1; gx++) {
+      if (cx0 === -1e9) break;
+      for (var gy = cy0; gy <= cy1; gy++) {
+        var L = SG[gx + ',' + gy]; if (!L) continue;
+        for (var q = 0; q < L.length; q++) {
+          var i = L[q]; if (stamp[i / 4] === stampN) continue; stamp[i / 4] = stampN;
+          var ax = SEG[i], ay = SEG[i + 1], ex = SEG[i + 2] - ax, ey = SEG[i + 3] - ay;
+          var den = d.x * ey - d.y * ex; if (Math.abs(den) < 1e-12) continue;
+          var wx = ax - p.x, wy = ay - p.y;
+          var t = (wx * ey - wy * ex) / den, s = (wx * d.y - wy * d.x) / den;
+          if (t > 1e-6 && t < best && s >= 0 && s <= 1) best = t;
+        }
+      }
+    }
+    if (cx0 !== -1e9) return best;
+    for (var i2 = 0; i2 < SEG.length; i2 += 4) {
+      var ax2 = SEG[i2], ay2 = SEG[i2 + 1], ex2 = SEG[i2 + 2] - ax2, ey2 = SEG[i2 + 3] - ay2;
+      var den2 = d.x * ey2 - d.y * ex2; if (Math.abs(den2) < 1e-12) continue;
+      var wx2 = ax2 - p.x, wy2 = ay2 - p.y, t2 = (wx2 * ey2 - wy2 * ex2) / den2, s2 = (wx2 * d.y - wy2 * d.x) / den2;
+      if (t2 > 1e-6 && t2 < best && s2 >= 0 && s2 <= 1) best = t2;
+    }
+    return best;
+  }
+
+  /* ---------- Arme an Zonen ---------- */
+  /* Ast als Achse mit Halbbreite, Richtung von Ende a nach b. Abschnitt in der Zone wird abgeschnitten. */
+  function cumArc(pts) { var c = [0]; for (var i = 1; i < pts.length; i++) c.push(c[i - 1] + dist(pts[i - 1], pts[i])); return c; }
+  function at(pts, cum, s) {
+    if (s <= 0) return { x: pts[0].x, y: pts[0].y, i: 0, t: 0 };
+    for (var i = 1; i < pts.length; i++) if (cum[i] >= s) { var L = cum[i] - cum[i - 1], t = L > 0 ? (s - cum[i - 1]) / L : 0; return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * t, i: i - 1, t: t }; }
+    var z = pts[pts.length - 1]; return { x: z.x, y: z.y, i: pts.length - 2, t: 1 };
+  }
+  var ARMS = [];
+  BR.forEach(function (br) {
+    if (!br.alive || br.internal) return;
+    var ax = brAxis(br); br.ax = ax;
+    [0, 1].forEach(function (side) {
+      var node = side === 0 ? br.a : br.b;
+      if (node.type !== 'J' || !node.zone) return;
+      var z = node.zone;
+      var pts = side === 0 ? ax.pts : ax.pts.slice().reverse(), hw = side === 0 ? ax.hw : ax.hw.slice().reverse();
+      var cum = cumArc(pts), L = cum[cum.length - 1];
+      var s0 = 0;
+      for (var i = 0; i < pts.length; i++) { if (dist(pts[i], z.c) >= z.r * 0.95) { s0 = cum[i]; break; } s0 = cum[i]; }
+      s0 = Math.min(s0, 0.45 * L);
+      var hA = median(hw.slice(1, Math.max(2, Math.min(hw.length - 1, 1 + Math.ceil(pts.length / 3)))));
+      var s1 = Math.max(Math.min(s0 + Math.max(2 * hA, 0.5 * MM), 0.6 * L), Math.min(s0 + 0.2 * MM, L));
+      var p0 = at(pts, cum, s0), p1 = at(pts, cum, s1);
+      var hs = []; for (i = 0; i < pts.length; i++) if (cum[i] >= s0 && cum[i] <= s1 + 1e-9 && i > 0 && i < pts.length - 1) hs.push(hw[i]);
+      var arm = { br: br, side: side, zone: z, s0: s0, p0: { x: p0.x, y: p0.y }, dir: (function () { var a = unit(p1.x - z.c.x, p1.y - z.c.y), b = unit(p1.x - p0.x, p1.y - p0.y); return unit(a.x + b.x, a.y + b.y); })(), hw: median(hs) || hA || br.hm, partner: null, endK: 'junc' };
+      ARMS.push(arm); (z.arms = z.arms || []).push(arm);
+      br['arm' + side] = arm;
+    });
+  });
+  /* ---------- 5. Paaren ---------- */
+  function devDeg(a, b) { var d = -(a.dir.x * b.dir.x + a.dir.y * b.dir.y); return Math.acos(Math.max(-1, Math.min(1, d))) * 180 / Math.PI; }
+  ZONES.forEach(function (z) {
+    var arms = z.arms || [];
+    var lim = arms.length === 2 ? P.pair2Deg : P.pairDeg + 20;
+    var cand = [];
+    for (var i = 0; i < arms.length; i++) for (var j = i + 1; j < arms.length; j++) {
+      if (arms[i].br === arms[j].br) continue;
+      var d = devDeg(arms[i], arms[j]), q = Math.max(arms[i].hw, arms[j].hw) / Math.max(1e-6, Math.min(arms[i].hw, arms[j].hw));
+      if (d < lim && q < P.pairRatio) cand.push([d + 40 * (q - 1), i, j]);
+    }
+    cand.sort(function (a, b) { return a[0] - b[0]; });
+    cand.forEach(function (c) {
+      var A = arms[c[1]], B = arms[c[2]]; if (A.partner || B.partner) return;
+      var d = devDeg(A, B);
+      if (d > P.pairDeg) { /* lockere Schwelle nur, wenn alle uebrigen Arme deutlich quer stehen */
+        var ok = arms.every(function (O) { return O === A || O === B || (devDeg(O, A) > d + 25 && devDeg(O, B) > d + 25); });
+        if (!ok) return;
+      }
+      A.partner = B; B.partner = A; A.endK = B.endK = 'cont'; });
+    /* T-Regel: 3 Arme ohne Paar, einer deutlich breiter (Stamm), die beiden anderen liegen beidseits davon -> diese paaren (Balken/Serife) */
+    if (arms.length === 3 && !arms.some(function (a) { return a.partner; })) {
+      for (var w = 0; w < 3; w++) {
+        var Wa = arms[w], A2 = arms[(w + 1) % 3], B2 = arms[(w + 2) % 3];
+        if (Wa.hw < 1.4 * Math.max(A2.hw, B2.hw)) continue;
+        var ca = Wa.dir.x * A2.dir.y - Wa.dir.y * A2.dir.x, cb = Wa.dir.x * B2.dir.y - Wa.dir.y * B2.dir.x;
+        if (ca * cb < 0 && devDeg(A2, B2) < 90 && Math.max(A2.hw, B2.hw) / Math.max(1e-6, Math.min(A2.hw, B2.hw)) < 2.2) { A2.partner = B2; B2.partner = A2; A2.endK = B2.endK = 'cont'; z.tRule = true; break; }
+      }
+    }
+    /* Y-Regel: 3+ Arme ganz ohne Paar -> glattestes Paar (Abweichung < 90 Grad, Breite gewichtet) laeuft durch, Rest stoesst an */
+    if (P.yThrough && arms.length >= 3 && !arms.some(function (a) { return a.partner; })) {
+      var bestY = null;
+      for (var yi = 0; yi < arms.length; yi++) for (var yj = yi + 1; yj < arms.length; yj++) {
+        var Ay = arms[yi], By = arms[yj]; if (Ay.br === By.br) continue;
+        var dy = devDeg(Ay, By), qy = Math.max(Ay.hw, By.hw) / Math.max(1e-6, Math.min(Ay.hw, By.hw));
+        if (dy > 90 || qy > 2.5) continue;
+        var sy = dy + 25 * (qy - 1) - 10 * (Ay.hw + By.hw) / Math.max(1e-6, arms.reduce(function (m, a) { return Math.max(m, a.hw); }, 0));
+        if (!bestY || sy < bestY[0]) bestY = [sy, Ay, By];
+      }
+      if (bestY) { bestY[1].partner = bestY[2]; bestY[2].partner = bestY[1]; bestY[1].endK = bestY[2].endK = 'cont'; z.yRule = true; }
+    }
+    z.through = arms.filter(function (a) { return a.partner; });
+    dbg.zones.push({ x: z.c.x, y: z.c.y, r: z.r, n: arms.length, pairs: z.through.length / 2 });
+  });
+
+  /* ---------- 6. Striche zusammensetzen ---------- */
+  function hermite(p0, d0, p1, d1, n) {
+    var L = dist(p0, p1), o = [];
+    for (var i = 1; i < n; i++) {
+      var t = i / n, t2 = t * t, t3 = t2 * t, h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+      o.push({ x: h00 * p0.x + h10 * L * d0.x + h01 * p1.x + h11 * L * d1.x, y: h00 * p0.y + h10 * L * d0.y + h01 * p1.y + h11 * L * d1.y });
+    }
+    return o;
+  }
+  /* Teilstueck eines Astes (in Richtung von Ende 'from'), ohne Zonenanteile */
+  function brPiece(br, from) {
+    var ax = br.ax, pts = ax.pts.slice(), hw = ax.hw.slice(), l = ax.l.slice(), r = ax.r.slice();
+    if (from === 1) { pts.reverse(); hw.reverse(); var tl = l.slice().reverse(); l = r.slice().reverse(); r = tl; }
+    var cum = cumArc(pts), L = cum[cum.length - 1];
+    var aS = br['arm' + from], aE = br['arm' + (1 - from)];
+    var s0 = aS ? aS.s0 : 0, s1 = aE ? L - aE.s0 : L;
+    var o = { pts: [], hw: [], l: [], r: [] };
+    var A = at(pts, cum, s0), B = at(pts, cum, s1);
+    function hAt(q) { var h0 = hw[q.i], h1 = hw[q.i + 1]; return h0 + (h1 - h0) * q.t; }
+    o.pts.push({ x: A.x, y: A.y }); o.hw.push(hAt(A)); o.l.push(null); o.r.push(null);
+    for (var i = 0; i < pts.length; i++) if (cum[i] > s0 + 1e-9 && cum[i] < s1 - 1e-9) { o.pts.push(pts[i]); o.hw.push(hw[i]); o.l.push(l[i]); o.r.push(r[i]); }
+    o.pts.push({ x: B.x, y: B.y }); o.hw.push(hAt(B)); o.l.push(null); o.r.push(null);
+    /* Knotenenden ohne Zone (Grad-2-Knoten etc.): Halbbreite dort nicht von Knotenradius nehmen */
+    if (o.hw[0] === 0 || (!aS && (from === 0 ? br.a : br.b).type === 'J')) o.hw[0] = o.hw[1] || br.hm;
+    if (!aE && (from === 0 ? br.b : br.a).type === 'J') o.hw[o.hw.length - 1] = o.hw[o.hw.length - 2] || br.hm;
+    return o;
+  }
+  var strokes = [];
+  var visitedBr = {};
+  function endInfo(br, endSide) { /* Knotentyp am Ende */
+    var n = endSide === 0 ? br.a : br.b, arm = br['arm' + endSide];
+    if (arm) return { kind: 'zone', arm: arm };
+    if (n.type === 'T' || aliveBr(n).length <= 1) return { kind: 'free' };
+    return { kind: 'node2', node: n };
+  }
+  /* Grad-2-Knoten ohne Zone (nach Streichen): Aeste dort durchlaufen lassen */
+  var node2 = {};
+  NODES.forEach(function (n) { if (n.type === 'J' && !n.zone) { var b = aliveBr(n); if (b.length === 2) node2[n.id] = b; } });
+  function walk(br, from) {
+    var parts = [], cur = br, f = from, guard = 0, startK = null, endK = null, zSeen = {};
+    var e0 = endInfo(br, from);
+    startK = e0.kind === 'zone' ? e0.arm : e0.kind;
+    while (cur && guard++ < 200) {
+      visitedBr[cur.id] = 1;
+      parts.push(brPiece(cur, f));
+      var to = 1 - f, ei = endInfo(cur, to);
+      if (ei.kind === 'zone' && ei.arm.partner) {
+        var pa = ei.arm.partner; if (visitedBr[pa.br.id]) { endK = { closed: true, arm: ei.arm }; break; }
+        /* derselbe Strich kreuzt dieselbe Zone ein zweites Mal (Schlaufe): hier teilen, beide Enden stossen an den ersten Durchgang */
+        if (zSeen[ei.arm.zone.id]) { ei.arm.partner = null; pa.partner = null; ei.arm.endK = pa.endK = 'tee'; endK = ei.arm; break; }
+        zSeen[ei.arm.zone.id] = 1;
+        parts.push({ conn: true, a: ei.arm, b: pa });
+        cur = pa.br; f = pa.side; continue;
+      }
+      if (ei.kind === 'node2') {
+        var nb2 = node2[ei.node.id]; var nxb = nb2 && (nb2[0] === cur ? nb2[1] : nb2[0]);
+        if (nxb && !visitedBr[nxb.id] && nxb !== cur) { cur = nxb; f = nxb.a === ei.node ? 0 : 1; continue; }
+        if (nxb && visitedBr[nxb.id]) { endK = { closed: true }; break; }
+        endK = 'junc'; break;
+      }
+      endK = ei.kind === 'zone' ? ei.arm : ei.kind; break;
+    }
+    return { parts: parts, k0: startK, k1: endK };
+  }
+  /* zuerst von Enden ohne Partner aus (wiederholt, weil Teilungen neue offene Enden erzeugen) */
+  for (var wr = 0; wr < 6; wr++) { var nBefore = strokes.length;
+  BR.forEach(function (br) {
+    if (!br.alive || br.internal || visitedBr[br.id]) return;
+    [0, 1].forEach(function (s) {
+      if (visitedBr[br.id]) return;
+      var ei = endInfo(br, s);
+      var open = ei.kind === 'free' || (ei.kind === 'zone' && !ei.arm.partner) || (ei.kind === 'node2' && !node2[ei.node.id]);
+      if (open) strokes.push(walk(br, s));
+    });
+  });
+  if (strokes.length === nBefore) break; }
+  BR.forEach(function (br) { if (br.alive && !br.internal && !visitedBr[br.id]) { var w = walk(br, 0); w.closed = true; strokes.push(w); } });
+
+  /* Teile zu einer Polylinie verbinden */
+  function assemble(st) {
+    var pts = [], hw = [], l = [], r = [];
+    st.parts.forEach(function (p) {
+      if (p.conn) {
+        var a = p.a, b = p.b;
+        var h = hermite(a.p0, { x: -a.dir.x, y: -a.dir.y }, b.p0, b.dir, Math.max(4, Math.ceil(dist(a.p0, b.p0) / (0.15 * MM))));
+        h.forEach(function (q, i) { pts.push(q); hw.push(a.hw + (b.hw - a.hw) * (i + 1) / (h.length + 1)); l.push(null); r.push(null); });
+        return;
+      }
+      for (var i = 0; i < p.pts.length; i++) {
+        if (pts.length && dist(pts[pts.length - 1], p.pts[i]) < 1e-6) continue;
+        pts.push(p.pts[i]); hw.push(p.hw[i]); l.push(p.l[i]); r.push(p.r[i]);
+      }
+    });
+    return { pts: pts, hw: hw, l: l, r: r };
+  }
+  /* Ringe ohne Knoten */
+  CYC.forEach(function (chords) {
+    var pts = [], hw = [], l = [], r = [];
+    chords.forEach(function (ch) { var a = V(ch.l), b = V(ch.r); pts.push({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }); hw.push(dist(a, b) / 2); l.push(a); r.push(b); });
+    strokes.push({ asm: { pts: pts, hw: hw, l: l, r: r }, k0: 'cont', k1: 'cont', closed: true, ring: true });
+  });
+
+  /* ---------- Enden ---------- */
+  function smoothPl(pts, it, fixEnds) {
+    var a = pts.map(function (p) { return { x: p.x, y: p.y }; });
+    for (var k = 0; k < it; k++) {
+      var b = a.map(function (p) { return { x: p.x, y: p.y }; });
+      for (var i = 1; i < a.length - 1; i++) { b[i].x = (a[i - 1].x + 2 * a[i].x + a[i + 1].x) / 4; b[i].y = (a[i - 1].y + 2 * a[i].y + a[i + 1].y) / 4; }
+      a = b;
+    }
+    return a;
+  }
+  function tangentEnd(pts, fromEnd, len) {
+    /* Richtung nach aussen am Ende */
+    var n = pts.length, cum = 0, i;
+    if (fromEnd) { for (i = n - 2; i > 0 && cum < len; i--) cum += dist(pts[i], pts[i + 1]); return unit(pts[n - 1].x - pts[i].x, pts[n - 1].y - pts[i].y); }
+    for (i = 1; i < n - 1 && cum < len; i++) cum += dist(pts[i], pts[i - 1]);
+    return unit(pts[0].x - pts[i].x, pts[0].y - pts[i].y);
+  }
+  function trimEnd(A, fromEnd, s) {
+    /* Laenge s am Ende wegnehmen */
+    var pts = fromEnd ? A.pts.slice().reverse() : A.pts.slice(), hw = fromEnd ? A.hw.slice().reverse() : A.hw.slice();
+    var l = fromEnd ? A.l.slice().reverse() : A.l.slice(), r = fromEnd ? A.r.slice().reverse() : A.r.slice();
+    var cum = cumArc(pts), q = at(pts, cum, s), o = { pts: [{ x: q.x, y: q.y }], hw: [hw[q.i] + (hw[q.i + 1] - hw[q.i]) * q.t], l: [null], r: [null] };
+    for (var i = q.i + 1; i < pts.length; i++) { if (cum[i] <= s + 1e-9) continue; o.pts.push(pts[i]); o.hw.push(hw[i]); o.l.push(l[i]); o.r.push(r[i]); }
+    if (fromEnd) { o.pts.reverse(); o.hw.reverse(); o.l.reverse(); o.r.reverse(); }
+    return o;
+  }
+  function extendFree(A, fromEnd) {
+    /* Endstueck: unsicheren Faecher zurueckschneiden, dann gerade bis zur Kontur fortsetzen */
+    var n = A.pts.length, L = polyLen(A.pts);
+    var hEnd = median(fromEnd ? A.hw.slice(Math.max(0, n - 12), n - 1) : A.hw.slice(1, 12)) || median(A.hw);
+    /* Endbreite robust: Faecher am Ende hat kurze Sehnen; Breite weiter innen (2 bis 8 h) mitnehmen */
+    (function () { var pl = fromEnd ? A.pts : A.pts.slice().reverse(), hh = fromEnd ? A.hw : A.hw.slice().reverse(), cu = cumArc(pl), Lq = cu[cu.length - 1], v = [];
+      for (var i = 1; i < pl.length - 1; i++) { var dE = Lq - cu[i]; if (dE > 2 * hEnd && dE < 8 * hEnd) v.push(hh[i]); }
+      if (false && v.length > 2) hEnd = Math.max(hEnd, Math.min(median(v), 2 * hEnd)); })();
+    var hCut = Math.max(hEnd, 0.7 * (median(A.hw) || 0)), cut = Math.min(P.endCut * hCut, 0.35 * L);
+    var B = trimEnd(A, fromEnd, cut);
+    /* eingerollte Enden (Tropfen/Kugel): solange das Ende stark dreht, weiter zuruecknehmen, dann gerade bis zur Kappe */
+    /* nur bei Verdickung am Ende (Kugel/Tropfen): Halbbreite nahe Ende > 1.3 x weiter innen */
+    var plA = fromEnd ? A.pts : A.pts.slice().reverse(), hwA2 = fromEnd ? A.hw : A.hw.slice().reverse(), cuA = cumArc(plA), LA = cuA[cuA.length - 1], hNear = 0, hFarL = [];
+    for (var qi = 1; qi < plA.length - 1; qi++) { var dE = LA - cuA[qi]; if (dE < 4 * hEnd) hNear = Math.max(hNear, hwA2[qi]); else if (dE < 10 * hEnd) hFarL.push(hwA2[qi]); }
+    var bulb = hFarL.length > 2 && hNear > 1.3 * median(hFarL);
+    for (var ki = 0; ki < (bulb ? 8 : 0); ki++) {
+      var pl = fromEnd ? B.pts : B.pts.slice().reverse(), cu = cumArc(pl), Lb = cu[cu.length - 1], w = Math.max(1.5 * hEnd, 0.3 * MM);
+      if (Lb < 4 * w) break;
+      var p0 = at(pl, cu, Lb - 2 * w), p1 = at(pl, cu, Lb - w), p2 = pl[pl.length - 1];
+      var u1 = unit(p1.x - p0.x, p1.y - p0.y), u2 = unit(p2.x - p1.x, p2.y - p1.y);
+      if (Math.acos(Math.max(-1, Math.min(1, u1.x * u2.x + u1.y * u2.y))) * 180 / Math.PI < 35) break;
+      B = trimEnd(B, fromEnd, w * 0.7); cut += w * 0.7;
+    }
+    var d = tangentEnd(B.pts, fromEnd, Math.max(2.5 * hCut, 0.4 * MM));
+    var e = fromEnd ? B.pts[B.pts.length - 1] : B.pts[0];
+    /* Richtung aus dem geraden Stueck weiter innen (2 bis 5 h vor dem gekuerzten Ende): an eckigen Enden ist die Achse
+       im Endfaecher in die Ecke verbogen. Dann den Endpunkt quer zur Richtung in die Mitte ruecken. */
+    var straightEnd = false;
+    (function () {
+      var pl = fromEnd ? B.pts : B.pts.slice().reverse(), cu = cumArc(pl), Lb = cu[cu.length - 1];
+      if (Lb > 1.0 * hCut) {
+        var pN = at(pl, cu, Lb - Math.min(2 * hCut, 0.4 * Lb)), pF = at(pl, cu, Lb - Math.min(5 * hCut, 0.95 * Lb));
+        var dd = unit(pN.x - pF.x, pN.y - pF.y), dot = dd.x * d.x + dd.y * d.y;
+        /* nur bei geradem Strich davor (Balken mit eckigem Ende), nicht bei Bogenenden */
+        var pFF = at(pl, cu, Math.max(0, Lb - Math.min(9 * hCut, 0.99 * Lb))), d0 = unit(pF.x - pFF.x, pF.y - pFF.y);
+        var straight = Lb > 6 * hCut && d0.x * dd.x + d0.y * dd.y > Math.cos(12 * Math.PI / 180);
+        /* nur rechtwinklige Enden: Abstand zur Endkante links und rechts der Mitte etwa gleich (schraege Schnitte wie Anton x: nein) */
+        if (straight) {
+          var nq = { x: -dd.y, y: dd.x }, lr = 8 * hCut + 2 * MM, eA = { x: e.x + nq.x * 0.6 * hCut, y: e.y + nq.y * 0.6 * hCut }, eB = { x: e.x - nq.x * 0.6 * hCut, y: e.y - nq.y * 0.6 * hCut };
+          var rA = rayHit(eA, dd, lr), rB = rayHit(eB, dd, lr);
+          if (!(rA < lr && rB < lr && Math.abs(rA - rB) < 0.35 * hCut)) straight = false;
+        }
+        straightEnd = false;
+      } else straightEnd = false;
+      var nn = { x: -d.y, y: d.x }, lim = 4 * hCut + MM, w1 = rayHit(e, nn, lim), w2 = rayHit(e, { x: -nn.x, y: -nn.y }, lim);
+      if (straightEnd && w1 < lim && w2 < lim) { var sh0 = Math.max(-hCut, Math.min(hCut, (w1 - w2) / 2)); e = { x: e.x + nn.x * sh0, y: e.y + nn.y * sh0 }; if (fromEnd) B.pts[B.pts.length - 1] = e; else B.pts[0] = e; }
+    })();
+    var reach = rayHit(e, d, cut + 6 * hEnd + 2 * MM);
+    if (reach >= cut + 6 * hEnd + 2 * MM) reach = cut;
+    var add = [], ah = [], step = 0.12 * MM, nrm = { x: -d.y, y: d.x };
+    var stop = Math.max(0, reach - P.endGap);
+    for (var s = step; s <= stop + 1e-9; s += step) {
+      var p = { x: e.x + d.x * s, y: e.y + d.y * s };
+      var h1 = rayHit(p, nrm, 3 * hEnd + MM), h2 = rayHit(p, { x: -nrm.x, y: -nrm.y }, 3 * hEnd + MM);
+      /* Spitze (Serife, Keil): nicht weiter, wenn der Querschnitt unter einen Bruchteil der Endbreite faellt */
+      if ((h1 + h2) / 2 < P.spikeK * hEnd || (h1 + h2) / 2 < P.spikeAbs) { stop = s; break; }
+      /* in die Mitte zwischen den Kanten ruecken (eckige Enden: Achse nicht in die Ecke ziehen) */
+      if (straightEnd && h1 < 3 * hEnd + MM && h2 < 3 * hEnd + MM) { var sh = Math.max(-hEnd, Math.min(hEnd, (h1 - h2) / 2)); p = { x: p.x + nrm.x * sh, y: p.y + nrm.y * sh }; }
+      add.push(p); ah.push(Math.min((h1 + h2) / 2, hEnd * 2.5));
+    }
+    var sLast = add.length * step;
+    if (stop > 0 && stop - sLast > 0.02 * MM) { var b0 = add.length ? add[add.length - 1] : e, pz = { x: b0.x + d.x * (stop - sLast), y: b0.y + d.y * (stop - sLast) }; add.push(pz); ah.push(ah.length ? ah[ah.length - 1] * 0.5 : hEnd * 0.5); }
+    if (fromEnd) { B.pts = B.pts.concat(add); B.hw = B.hw.concat(ah); B.l = B.l.concat(add.map(function () { return null; })); B.r = B.r.concat(add.map(function () { return null; })); }
+    else { B.pts = add.reverse().concat(B.pts); B.hw = ah.reverse().concat(B.hw); B.l = add.map(function () { return null; }).concat(B.l); B.r = add.map(function () { return null; }).concat(B.r); }
+    return B;
+  }
+  /* Schnitt Strahl mit Polylinie */
+  function rayPoly(p, d, pl, maxD) {
+    var best = maxD, bi = -1;
+    for (var i = 1; i < pl.length; i++) {
+      var ax = pl[i - 1].x, ay = pl[i - 1].y, ex = pl[i].x - ax, ey = pl[i].y - ay, den = d.x * ey - d.y * ex;
+      if (Math.abs(den) < 1e-12) continue;
+      var wx = ax - p.x, wy = ay - p.y, t = (wx * ey - wy * ex) / den, s = (wx * d.y - wy * d.x) / den;
+      if (t > -0.5 * MM && t < best && s >= 0 && s <= 1) { best = t; bi = i; }
+    }
+    return bi < 0 ? null : { t: best, i: bi };
+  }
+
+  /* jeden Strich zusammensetzen; Durchlaeufer zuerst, damit Stoesse daran enden koennen */
+  strokes.forEach(function (st) { if (!st.asm) st.asm = assemble(st); });
+  /* Zonen ohne Durchlaeufer mit 2 Armen (L-Ecke): Hauptarm bis zur Aussenkante, anderer Arm stoesst an */
+  var lMain = {};
+  ZONES.forEach(function (z) {
+    var arms = z.arms || [];
+    if (arms.length === 2 && !z.through.length) {
+      var a = arms[0], b = arms[1], ma = a.hw * Math.min(a.br.len, 6 * a.hw), mb = b.hw * Math.min(b.br.len, 6 * b.hw);
+      var M = ma >= mb ? a : b; lMain[ARMS.indexOf(M)] = 1; z.lMain = M;
+    }
+  });
+  function armEndKind(arm) {
+    var z = arm.zone;
+    if (arm.partner) return 'cont';
+    if (z.through.length) return 'tee';
+    if (z.lMain) return z.lMain === arm ? 'lfree' : 'tee';
+    return 'junc';
+  }
+  /* Polylinien der Durchlaeufer je Zone (fuer Stoesse) */
+  function throughLines(z) {
+    var o = [];
+    strokes.forEach(function (st) { st.parts.forEach && st.parts.forEach(function (p) { if (p.conn && p.a.zone === z) o.push({ st: st }); }); });
+    return o;
+  }
+  function finishEnd(st, fromEnd, k) {
+    var A = st.asm;
+    if (k === 'free') { st.asm = extendFree(A, fromEnd); return 'free'; }
+    if (!k || typeof k === 'string' || !k.zone) return k === 'cont' ? 'cont' : 'junc';
+    var arm = k, kind = armEndKind(arm), z = arm.zone, e = fromEnd ? A.pts[A.pts.length - 1] : A.pts[0];
+    var d = { x: -arm.dir.x, y: -arm.dir.y };
+    if (kind === 'junc') {
+      var add = []; var n = Math.max(1, Math.ceil(dist(e, z.c) / (0.15 * MM)));
+      for (var i = 1; i <= n; i++) add.push({ x: e.x + (z.c.x - e.x) * i / n, y: e.y + (z.c.y - e.y) * i / n });
+      appendPts(A, fromEnd, add, arm.hw); return 'junc';
+    }
+    if (kind === 'lfree') {
+      /* durch die Ecke bis zur Aussenkontur */
+      var reach = rayHit(e, d, 4 * z.r + 2 * MM), add2 = [], s;
+      for (s = 0.15 * MM; s < reach - 0.04 * MM; s += 0.15 * MM) add2.push({ x: e.x + d.x * s, y: e.y + d.y * s });
+      add2.push({ x: e.x + d.x * Math.max(0, reach - 0.04 * MM), y: e.y + d.y * Math.max(0, reach - 0.04 * MM) });
+      appendPts(A, fromEnd, add2, arm.hw); return 'free';
+    }
+    /* tee: bis zum Rand des Durchlaeufers plus Ueberlappung */
+    var best = null;
+    strokes.forEach(function (o) {
+      if (!o.asm) return;
+      var involved = o.parts && o.parts.some(function (p) { return p.conn && p.a.zone === z; });
+      if (z.lMain) involved = z.lMain.stroke === o;
+      /* K/k: schmalerer Arm darf am bereits gesetzten breiteren Nachbararm derselben Zone enden */
+      if (!involved && (z.arms || []).some(function (a2) { return a2 !== arm && a2.teeDone && a2.stroke === o; })) involved = true;
+      if (!involved) return;
+      var pl = o.asm.pts, off = 0;
+      if (o === st) { /* eigener Strich: nur den Teil fern vom aktuellen Ende */
+        var cu = cumArc(pl), Lc = cu[cu.length - 1], keep = 2 * z.r + 2 * arm.hw, i0 = 0, i1 = pl.length;
+        if (fromEnd) { while (i1 > 0 && Lc - cu[i1 - 1] < keep) i1--; } else { while (i0 < pl.length && cu[i0] < keep) i0++; }
+        if (i1 - i0 < 2) return; pl = pl.slice(i0, i1); off = i0;
+      }
+      var h = rayPoly(e, d, pl, 4 * z.r + 3 * MM); if (h) h.i += off;
+      if (h && (!best || h.t < best.t)) { best = h; best.o = o; }
+    });
+    if (best) { /* Stoss darf die Zone nicht verlassen und muss im Ink bleiben */
+      var tMax = dist(e, z.c) + z.r, okInk = true;
+      for (var sI = 0.2 * MM; sI < best.t; sI += 0.2 * MM) if (inInk && !inInk(e.x + d.x * sI, e.y + d.y * sI)) { okInk = false; break; }
+      if (best.t > tMax + arm.hw || !okInk) best = null;
+    }
+    if (!best) { /* Rueckfall: Zonenmitte */
+      var add3 = [], n3 = Math.max(1, Math.ceil(dist(e, z.c) / (0.15 * MM)));
+      for (var i3 = 1; i3 <= n3; i3++) add3.push({ x: e.x + (z.c.x - e.x) * i3 / n3, y: e.y + (z.c.y - e.y) * i3 / n3 });
+      appendPts(A, fromEnd, add3, arm.hw); return 'junc';
+    }
+    var hT = best.o.asm.hw[Math.min(best.i, best.o.asm.hw.length - 1)] || arm.hw;
+    var ov = Math.min(P.teeOv, 0.5 * hT, arm.hw), tEnd = best.t - hT + ov;
+    /* [K39-Zone fuer den Durchlaeufer] Die Engine deckelt in diesen Zonen die einseitig zu weiten Querschnitte (Oeffnung zum
+       anstossenden Arm). Ohne Zone liefen die Strahlen an der Innenecke vorbei und die Stiche faecherten um die Ecke. */
+    if (arm.hw > 0.6 * hT) (best.o.teeZones = best.o.teeZones || []).push({ x: e.x + d.x * best.t, y: e.y + d.y * best.t, r: 1.6 * arm.hw });
+    if (tEnd > 0.05 * MM) {
+      var add4 = [], s4; for (s4 = 0.15 * MM; s4 < tEnd; s4 += 0.15 * MM) add4.push({ x: e.x + d.x * s4, y: e.y + d.y * s4 });
+      add4.push({ x: e.x + d.x * tEnd, y: e.y + d.y * tEnd }); appendPts(A, fromEnd, add4, arm.hw);
+    } else if (tEnd < -0.05 * MM) {
+      st.asm = trimEnd(A, fromEnd, Math.min(-tEnd, 0.5 * polyLen(A.pts)));
+    }
+    return 'tee';
+  }
+  function strokeHasArm(o, arm) { return o.parts && o.parts.some(function (p) { return !p.conn && p.__br === arm.br; }); }
+  function appendPts(A, fromEnd, add, h) {
+    var hh = add.map(function () { return h; }), nn = add.map(function () { return null; });
+    if (fromEnd) { A.pts = A.pts.concat(add); A.hw = A.hw.concat(hh); A.l = A.l.concat(nn); A.r = A.r.concat(nn); }
+    else { add = add.slice().reverse(); A.pts = add.concat(A.pts); A.hw = hh.concat(A.hw); A.l = nn.concat(A.l); A.r = nn.concat(A.r); }
+  }
+  /* Stuecke dem Ast zuordnen (fuer L-Ecken) */
+  strokes.forEach(function (st) { if (st.parts) { var bi = 0; st.parts.forEach(function (p) { if (!p.conn) p.__br = null; }); } });
+  strokes.forEach(function (st) {
+    if (!st.parts) return; var cur = null;
+    /* Rekonstruktion: walk hat Aeste in Reihenfolge besucht; Zuordnung ueber Arme */
+    st.brs = [];
+  });
+  /* einfacher: Arm -> Strich direkt bei walk merken */
+  strokes.forEach(function (st) {
+    if (!st.parts) return;
+    st.parts.forEach(function (p) { if (p.conn) { p.a.stroke = st; p.b.stroke = st; } });
+    if (st.k0 && st.k0.zone) st.k0.stroke = st;
+    if (st.k1 && st.k1.zone) st.k1.stroke = st;
+  });
+  strokeHasArm = function (o, arm) { return arm.stroke === o; };
+  /* Reihenfolge: zuerst L-Hauptarme und freie Enden, dann Stoesse */
+  strokes.forEach(function (st) {
+    if (st.ring) return;
+    var k0 = st.k0, k1 = st.k1 && st.k1.closed ? 'cont' : st.k1;
+    if (st.k1 && st.k1.closed) st.closed = true;
+    if (!(k0 && k0.zone && armEndKind(k0) === 'tee')) st.endK0 = finishEnd(st, false, k0); else st.pend0 = k0;
+    if (!(k1 && k1.zone && armEndKind(k1) === 'tee')) st.endK1 = finishEnd(st, true, k1); else st.pend1 = k1;
+  });
+  /* Stoesse: breitere Arme zuerst, damit schmalere an ihnen enden koennen */
+  var pend = [];
+  strokes.forEach(function (st) { if (st.pend0) pend.push([st, false, st.pend0]); if (st.pend1) pend.push([st, true, st.pend1]); });
+  pend.sort(function (a, b) { return b[2].hw - a[2].hw; });
+  pend.forEach(function (q) { var k = finishEnd(q[0], q[1], q[2]); if (q[1]) q[0].endK1 = k; else q[0].endK0 = k; q[2].teeDone = true; });
+
+  /* ---------- 7. Ausgabe ---------- */
+  function resampleOpen(pts, hw, l, r, step) {
+    var cum = cumArc(pts), L = cum[cum.length - 1], n = Math.max(6, Math.round(L / step) + 1), o = [], oh = [];
+    for (var i = 0; i < n; i++) { var q = at(pts, cum, L * i / (n - 1)); o.push({ x: q.x, y: q.y }); var j = Math.min(q.i + 1, hw.length - 1); oh.push(hw[q.i] + (hw[j] - hw[q.i]) * q.t); }
+    return { center: o, hw: oh, len: L };
+  }
+  var segs = [];
+  /* Punkt-Erkennung: Schleife ohne Loch, kompakt, ohne Knoten */
+  function compact(lp) { var a = Math.abs(area(lp)), per = 0; for (var i = 0; i < lp.length; i++) per += dist(lp[i], lp[(i + 1) % lp.length]); return 4 * Math.PI * a / (per * per); }
+  var dotLoops = {};
+  loops.forEach(function (lp, a) {
+    if (depth[a] % 2) return;
+    var hasHole = loops.some(function (q, b) { return b !== a && depth[b] === depth[a] + 1 && pip(q[0], lp); });
+    if (hasHole) return;
+    var ar = Math.abs(area(lp)), r = Math.sqrt(ar / Math.PI);
+    if (compact(lp) > 0.72 && r < 2.5 * MM) {
+      var cx = 0, cy = 0; lp.forEach(function (p) { cx += p.x; cy += p.y; });
+      dotLoops[a] = { kind: 'dot', cx: cx / lp.length, cy: cy / lp.length, r: r };
+    }
+  });
+  Object.keys(dotLoops).forEach(function (k) { segs.push(dotLoops[k]); });
+  function inDot(p) { for (var k in dotLoops) if (pip(p, loops[k])) return true; return false; }
+
+  function railOf(A, side) { var o = []; var src = side ? A.r : A.l; for (var i = 0; i < src.length; i++) if (src[i]) o.push({ x: src[i].x, y: src[i].y }); return o; }
+  function kinkSplit(A) {
+    /* Knick mit Schenkelwinkel < 45 Grad -> an der Spitze teilen */
+    var pts = A.pts, cum = cumArc(pts), L = cum[cum.length - 1], out = [];
+    var hm = median(A.hw) || MM * 0.3, win = Math.max(2 * hm, 0.5 * MM), best = -1, bd = 0;
+    for (var i = 1; i < pts.length - 1; i++) {
+      if (cum[i] < win || L - cum[i] < win) continue;
+      var p = at(pts, cum, cum[i] - win), q = at(pts, cum, cum[i] + win);
+      var d1 = unit(pts[i].x - p.x, pts[i].y - p.y), d2 = unit(q.x - pts[i].x, q.y - pts[i].y);
+      var ang = Math.acos(Math.max(-1, Math.min(1, d1.x * d2.x + d1.y * d2.y))) * 180 / Math.PI;
+      if (ang > P.kinkDeg && ang > bd) { bd = ang; best = i; }
+    }
+    if (best < 0) return null;
+    function sl(a, b) { return { pts: A.pts.slice(a, b), hw: A.hw.slice(a, b), l: A.l.slice(a, b), r: A.r.slice(a, b) }; }
+    return [sl(0, best + 1), sl(best, pts.length)];
+  }
+  var outStrokes = [];
+  strokes.forEach(function (st) {
+    var A = st.asm; if (!A || A.pts.length < 2) return;
+    var parts = [{ A: A, k0: st.endK0 || 'cont', k1: st.endK1 || 'cont' }];
+    if (!st.closed) { var ks = kinkSplit(A); if (ks) parts = [{ A: ks[0], k0: st.endK0, k1: 'junc' }, { A: ks[1], k0: 'junc', k1: st.endK1 }]; }
+    parts.forEach(function (pp) { var cl = st.closed && parts.length === 1; outStrokes.push({ A: pp.A, k0: cl ? 'cont' : pp.k0, k1: cl ? 'cont' : pp.k1, closed: cl, teeZones: st.teeZones }); });
+  });
+  outStrokes.forEach(function (st) {
+    var A = st.A;
+    if (!st.closed && A.pts.length > 4 && st.k0 !== 'free' && st.k1 !== 'free' && st.k0 !== 'tee' && st.k1 !== 'tee' && dist(A.pts[0], A.pts[A.pts.length - 1]) < 0.6 * (median(A.hw) || MM)) { st.closed = true; st.k0 = st.k1 = 'cont'; A.pts = A.pts.slice(0, -1); A.hw = A.hw.slice(0, -1); A.l = A.l.slice(0, -1); A.r = A.r.slice(0, -1); }
+    if (A.pts.length && inDot(A.pts[Math.floor(A.pts.length / 2)])) return;
+    var hm = median(A.hw) || 0;
+    var sm = smoothPl(A.pts, Math.max(2, Math.min(12, Math.round(2 * hm / (0.15 * MM)))), true);
+    if (st.closed && sm.length > 2) sm.push({ x: sm[0].x, y: sm[0].y });
+    var hwA = A.hw.slice(); if (st.closed) hwA.push(hwA[0]);
+    var L = polyLen(sm);
+    if (L < 0.3 * MM) return;
+    var rs = resampleOpen(sm, hwA, null, null, Math.min(P.outStep, L / 5));
+    /* Halbbreite nachmessen: Senkrechte auf die geglaettete Mittellinie bis zur Kontur; Minimum mit Sehnenwert
+       (Sehnen sind in breiten Strichen oft schraeg, Senkrechte laufen in Zonen in den Nachbarstrich) */
+    var cc = rs.center;
+    for (var q = 0; q < cc.length; q++) {
+      var pa = cc[Math.max(0, q - 2)], pb = cc[Math.min(cc.length - 1, q + 2)], tg = unit(pb.x - pa.x, pb.y - pa.y), nr = { x: -tg.y, y: tg.x };
+      var lim = 3 * rs.hw[q] + MM, h1 = rayHit(cc[q], nr, lim), h2 = rayHit(cc[q], { x: -nr.x, y: -nr.y }, lim);
+      if (h1 < lim && h2 < lim) rs.hw[q] = Math.min(rs.hw[q] > 0 ? rs.hw[q] : 1e9, (h1 + h2) / 2);
+    }
+    var mh = 0; rs.hw.forEach(function (h) { mh += h; }); mh /= rs.hw.length;
+    if (mh < P.runHw) { segs.push({ kind: 'run', center: rs.center }); return; }
+    var hs = rs.hw.slice().sort(function (a, b) { return a - b; }), h70 = hs[Math.floor(0.7 * (hs.length - 1))];
+    if (2 * h70 > P.wideFull) {
+      var r1 = railOf(A, 0), r2 = railOf(A, 1);
+      if (r1.length > 2 && r2.length > 2) { segs.push({ kind: 'wide', loop: r1.concat(r2.reverse()), center: rs.center, hw: rs.hw }); return; }
+    }
+    var sg = { kind: 'satin', center: rs.center, hw: rs.hw, endK0: st.k0 || 'cont', endK1: st.k1 || 'cont', rail1: railOf(A, 0), rail2: railOf(A, 1) };
+    if (st.teeZones && st.teeZones.length && !P.noTeeZones) sg.teeZones = st.teeZones;
+    segs.push(sg);
+  });
+  dbg.ms.total = Date.now() - T0;
+  dbg.counts = { pts: X.length - 3, tris: dbg.tris.length, nodes: NODES.length, branches: BR.length, zones: ZONES.length, strokes: segs.length };
+  return { segs: segs, debug: dbg };
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = _vtStrokesCAT;
 function extractSegments(text, family, fontSizePx, bold, italic, outlineOnly){
   var out = { segs:[], fineDetailAxes:[], W:0, H:0, S:1, pad:0, baseLocalY:0, mask:null, contour:[] };
   var r=environment?environment.raster(text,family,fontSizePx,bold,italic,outlineOnly):rasterize(text,family,fontSizePx,bold,italic,outlineOnly);
@@ -61442,6 +62485,10 @@ function extractSegments(text, family, fontSizePx, bold, italic, outlineOnly){
   /* Contextual reference only: never replace per-glyph satin skeletons with a
      whole-line skeleton (connected-script junctions need their own routing). */
   if(outlineOnly) return out;
+  if(!window._vtCATOff){ var catR=null; try{ catR=_vtStrokesCAT(out.contour,out.inInk,{pxPerMM:PXMM}); }catch(eCat){ catR=null; } /* [CAT] */
+    if(catR&&catR.segs&&catR.segs.length){ out.segs=catR.segs.map(function(sg){ if(sg.kind==='wide'&&(!sg.center||!sg.center.length)) sg.center=[{x:sg.loop[0].x,y:sg.loop[0].y},{x:sg.loop[0].x,y:sg.loop[0].y}]; return sg; }); out.cat=true;
+      var cMR=0,cML=0; out.segs.forEach(function(sg){ if(sg.kind==='satin'&&sg.center&&sg.center.length>=2&&sg.hw){ var r=_segCurveRatio(sg.center,sg.hw); if(r>cMR)cMR=r; var lc=_segMaxLocalCurve(sg.center,sg.hw); if(lc>cML)cML=lc; } });
+      out.maxCurveRatio=cMR; out.maxLocalCurve=cML; return out; } }
   var dist=_astDistT(mask,W,H);
   var comp=_labelComponents(mask,W,H,dist);
   var minSatinHalf=_mm2px(0.15), pruneLen=_mm2px(0.5), dotLen=_mm2px(1.3), minHalf=_mm2px(0.3);
@@ -61627,6 +62674,21 @@ function extractSegments(text, family, fontSizePx, bold, italic, outlineOnly){
     [0,1].forEach(function(e){ if(ek[e]!=='free') return; var P=e?sg.center[sg.center.length-1]:sg.center[0];
       segs.forEach(function(o,oi){ if(oi===si||!o.center) return; for(var j=0;j<o.center.length;j++) if(Math.hypot(o.center[j].x-P.x,o.center[j].y-P.y)<1.5*hm){ ek[e]='nah'; return; } }); });
     var r17=_k17Spur(sg.center,sg.hw,ek,out.inInk); sg.center=r17.c; sg.hw=r17.h; });
+  if(!window._vtK38Off) segs.forEach(function(sg,si){ if(sg.kind!=='satin'||!sg.center||sg.center.length<6) return; /* [K38] */
+    var near=function(o,P){ var b=null,arc=0,j; for(j=1;j<o.length;j++){ var a=o[j-1],c=o[j],dx=c.x-a.x,dy=c.y-a.y,l=Math.hypot(dx,dy),t=l?Math.max(0,Math.min(1,((P.x-a.x)*dx+(P.y-a.y)*dy)/(l*l))):0,d=Math.hypot(P.x-a.x-dx*t,P.y-a.y-dy*t); if(!b||d<b.d) b={d:d,arc:arc+l*t,tx:l?dx/l:0,ty:l?dy/l:0}; arc+=l; } b.total=arc; return b; };
+    var med=function(h){ return h.slice().sort(function(a,b){ return a-b; })[h.length>>1]||1; };
+    [0,1].forEach(function(e){ if((e?sg.endK1:sg.endK0)!=='junc') return; var C=sg.center,P=e?C[C.length-1]:C[0],best=null;
+      segs.forEach(function(o,oi){ if(oi===si||o.kind!=='satin'||!o.center||o.center.length<6) return; var oh=med(o.hw),q=near(o.center,P);
+        if(q.d<=1.2*oh&&q.arc>oh&&q.total-q.arc>oh&&(!best||q.d<best.q.d)) best={o:o,oh:oh,q:q}; });
+      if(!best) return; var Q=e?C[Math.max(0,C.length-1-Math.min(8,C.length>>1))]:C[Math.min(C.length-1,Math.min(8,C.length>>1))],ux=P.x-Q.x,uy=P.y-Q.y,ul=Math.hypot(ux,uy)||1;
+      if(Math.abs((ux*best.q.tx+uy*best.q.ty)/ul)>0.5) return; /* nur Stoesse ab 60 Grad: spitze Ansaetze (K, k, x) behalten den Keil */
+      var lim=best.oh-Math.min(_mm2px(0.3),0.5*best.oh),n=0,i;
+      while(n<C.length-2&&near(best.o.center,C[e?C.length-1-n:n]).d<lim) n++;
+      if(!n) { if(e) sg.endK1='tee'; else sg.endK0='tee'; return; }
+      var rest=0; for(i=1;i<C.length-n;i++){ var a=C[e?i-1:n+i-1],c=C[e?i:n+i]; rest+=Math.hypot(c.x-a.x,c.y-a.y); }
+      if(C.length-n<6||rest<2*med(sg.hw)) return;
+      (best.o.teeZones=best.o.teeZones||[]).push({x:P.x,y:P.y,r:1.6*med(sg.hw)}); /* [K39] */
+      if(e){ sg.center=C.slice(0,C.length-n); sg.hw=sg.hw.slice(0,sg.hw.length-n); sg.endK1='tee'; } else { sg.center=C.slice(n); sg.hw=sg.hw.slice(n); sg.endK0='tee'; } }); });
   out.segs=segs;
   /* Degenerations-Mass: max Halbbreite/Kruemmungsradius ueber alle Satin-Segmente.
      Hoch (>~0.5) = Strich zu dick fuer seine Kurve -> Satin-Saeule faechert auf
@@ -61714,7 +62776,7 @@ function _resolveMode(ext){
    Aenderungen (Pitch, Stichart) die Vorschau schnell neu rendern. */
 var _segCache={};
 function extractSegmentsCached(ch, fontSizePx){
-  var key=state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0)+'|'+(window._vtK9Off?1:0)+(window._vtK11Off?1:0)+(window._vtK11TrimOff?1:0)+(window._vtK17Off?1:0);
+  var key=(window._vtCATOff?'o':'c')+state.font+'|'+ch+'|'+fontSizePx+'|'+!!state.bold+'|'+!!state.italic+'|'+(window._vtFontRevision||0)+'|'+(window._vtK9Off?1:0)+(window._vtK11Off?1:0)+(window._vtK11TrimOff?1:0)+(window._vtK17Off?1:0);
   if(_segCache[key]) return _segCache[key];
   if(Object.keys(_segCache).length>200) _segCache={};
   var r=extractSegments(ch, state.font, fontSizePx, !!state.bold, !!state.italic);
@@ -62221,7 +63283,8 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
   var out=[],prevEnd=null,oi, runLen=_mm2px(2.0), scLen=Math.max(0.1, pitchMM/2), scInset=0.15;
   for(oi=0;oi<order.length;oi++){ var sg=order[oi].seg, rev=order[oi].rev, segPts=[];
     if(flowDeadlineMs&&Date.now()>flowDeadlineMs)throw new Error('Text zu gross für die Stickberechnung. Bitte in kleinere Textobjekte aufteilen.');
-    if(sg.kind==='dot'){
+    if(sg.kind==='wide'){ segPts=_tatamiContourFill([sg.loop].concat(sg.holes||[]),{rowSpacingPx:_mm2px(Math.max(0.2,state.textDensityMM||0.3)),stitchLenPx:_mm2px(2.5),staggers:4}); } /* [CAT] */
+    else if(sg.kind==='dot'){
       var r=sg.r;segPts=_astSatinFromRail([{x:sg.cx-r,y:sg.cy},{x:sg.cx+r,y:sg.cy}],[r,r],_mm2px(scLen),0.1);
       /* Tiny serifs can collapse to a dot in the skeleton. Its estimated
          radius is not the glyph boundary; clip it like every Längs run. */
@@ -62238,7 +63301,7 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
     else { var cc2=rev?sg.center.slice().reverse():sg.center.slice(), hh2=rev?sg.hw.slice().reverse():sg.hw.slice(), eK0=rev?sg.endK1:sg.endK0, eK1=rev?sg.endK0:sg.endK1;
       /* Satin aus echter Kontur (kein Faecher); Fallback aufs Mittellinien-Offset nur wenn keine Kontur.
          endKinds [Anfang,Ende] passend zur (evtl. gedrehten) cc2 durchreichen -> Junction-Hebel-Drosselung. */
-      var cs=contour&&_satinByCrossSection(cc2,contour,_mm2px(scLen),hh2,[eK0,eK1],inInk,legacyTaper);
+      var cs=contour&&_satinByCrossSection(cc2,contour,_mm2px(scLen),hh2,(function(a){ a.zones=sg.teeZones||null; return a; })([eK0,eK1]),inInk,legacyTaper);
       /* Kein separater Edge-Walk noetig: der Boustrophedon-Satin (_pairSatinSectioned) fuehrt
          seine Verbinder schon ENTLANG der Rails (Laufstich je ~0.8mm/Seite) = definiert die
          Kante UND vermeidet die diagonalen Querstiche des Standard-Satins. */
@@ -62277,12 +63340,12 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
                 t-Boden->Querbalken (~15mm) werden so unter der Stamm-Kante versteckt statt als sichtbarer Sprung.
                 _contourUnderpath hat eigene Schutz-Limits (gleicher Loop, Bogen <20mm UND <3.5x Luftlinie, Enden
                 <2.5mm von der Kante) -> tuckt nur sinnvoll, sonst weiterhin Sprung. KEIN Risiko fuer Punzen-Querung. */
-        var up = (contour && gd<_mm2px(20)) ? _contourUnderpath(prevEnd, segPts[0], contour, _flowMode?_ink:null) : null;
+        var up = (contour && gd<_mm2px(20)) ? _contourUnderpath(prevEnd, segPts[0], contour, _flowMode?_ink:null, _ink) : null;
         if(up && (up.length||_flowMode)){
           for(var up_i=0; up_i<up.length; up_i++) out.push(up[up_i]);
           if(_flowMode) segPts[0]=Object.assign({},segPts[0],{travel:true,textAnchor:true});
         }
-        else segPts[0]={x:segPts[0].x,y:segPts[0].y,jump:true};
+        else segPts[0]=(function(q){ var r={x:q.x,y:q.y,jump:true}; if(q._vtZx!==undefined){ r._vtZx=q._vtZx; r._vtZy=q._vtZy; r._vtZw=q._vtZw; } return r; })(segPts[0]); /* [TM2] Markierung behalten */
       }
     }
     for(var kk=0;kk<segPts.length;kk++) out.push(segPts[kk]);
@@ -62292,7 +63355,7 @@ function segsToStitches(segs, pitchMM, contour, inInk, startPos, detailAxes, leg
   if(contour){ var _bs=_coverageBackstop(out, contour, _ink, window._bowlFill==='laengs'?segs:null, false, null, flowDeadlineMs);
     if(!window._vtK19Off&&_bs.length&&out.length){ var k19L=0; for(var k19=1;k19<_bs.length;k19++) if(!_bs[k19].jump) k19L+=Math.hypot(_bs[k19].x-_bs[k19-1].x,_bs[k19].y-_bs[k19-1].y); /* [K19] */
       var k19e=out[out.length-1]; if(k19L<_mm2px(1.5)&&Math.hypot(_bs[0].x-k19e.x,_bs[0].y-k19e.y)>_mm2px(3)) _bs=[]; }
-    if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(_bs[_bsi]); } }
+    if(_bs.length){ if(out.length) _bs[0]=Object.assign({},_bs[0],{jump:true}); for(var _bsi=0;_bsi<_bs.length;_bsi++) out.push(window._vtK40Off?_bs[_bsi]:Object.assign({},_bs[_bsi],{k40:1})); } }
   /* Preserve primary Satin and its existing routing. Add only uncovered fine
      axis seams before it, retaining the original endpoint for the next glyph. */
   if(!_flowMode && window._bowlFill==='satin'){
@@ -62893,14 +63956,20 @@ function _k12Score(pts, ext){
   function o3(p,q,r){ return (q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x); }
   for(ci=0;ci<sw.length;ci++) for(cj=ci+2;cj<Math.min(sw.length,ci+13);cj++){ var P=sw[ci],Q=sw[cj];
     if(o3(Q[0],Q[1],P[0])*o3(Q[0],Q[1],P[1])<0&&o3(P[0],P[1],Q[0])*o3(P[0],P[1],Q[1])<0) cr++; }
-  return { score:j+0.5*lng+2*outMM+gapPct+0.25*cr, j:j, lng:lng, outMM:outMM, gapPct:gapPct, cross:cr };
+  var k40=window._vtK40Off?0:pts.filter(function(q){ return q.k40; }).length; /* [K40] */
+  if(!window._vtK42Off){ var k42c={},k42cell=_mm2px(0.15); pts.forEach(function(q){ if(q.jump) return; var kk=Math.floor(q.x/k42cell)+','+Math.floor(q.y/k42cell); k42c[kk]=(k42c[kk]||0)+1; }); Object.keys(k42c).forEach(function(kk){ if(k42c[kk]>3) k40+=Math.min(3,k42c[kk]-3); }); } /* [K42] Keile */
+  return { score:j+0.5*lng+2*outMM+gapPct+0.25*cr+0.3*k40, k40:k40, j:j, lng:lng, outMM:outMM, gapPct:gapPct, cross:cr };
 }
 function _k12Glyph(ch, fontSizePx){
   var KEYS=['_vtK9Off','_vtK10Off','_vtK11Off'],saved=KEYS.map(function(k){return window[k];}),best=null;
   function one(){ var ext=extractSegmentsCached(ch, fontSizePx);
     var pts=_resolveMode(ext)==='fill' ? _tatamiContourFill(ext.contour, { rowSpacingPx:_mm2px(0.24), stitchLenPx:_mm2px(2.2), staggers:4 }) : segsToStitches(ext.segs, state.pitch, ext.contour, ext.inInk, null, ext.fineDetailAxes);
     return {pts:pts,ext:ext}; }
-  if(window._vtK12Off){ return one().pts; }
+  if(window._vtK12Off) return one().pts;
+  if(!window._vtCATOff){ var k42n=one(); if(window._vtK42Off) return k42n.pts; var k42s=_k12Score(k42n.pts,k42n.ext),k42a; /* [K42] */
+    if(k42s.j<=2&&k42s.outMM<0.3&&k42s.k40<=2&&k42s.gapPct<0.5) return k42n.pts; /* gute Fassung: alter Weg nicht noetig (Rechenzeit) */
+    window._vtCATOff=true; try{ k42a=_k12Glyph(ch,fontSizePx); } finally { window._vtCATOff=false; }
+    return (_k12Score(k42a,k42n.ext).score+3<k42s.score)?k42a:k42n.pts; } /* [CAT] K9-K11 betreffen nur das Raster-Skelett */
   try{
     for(var vi=0;vi<_K12_VARIANTS.length;vi++){ var V=_K12_VARIANTS[vi]; KEYS.forEach(function(k){ window[k]=!!V[k]; });
       var r=one(), sc=_k12Score(r.pts, r.ext); if(!best||sc.score<best.sc.score-2){ best={pts:r.pts,sc:sc,v:vi}; } }
@@ -62922,7 +63991,7 @@ function wordStitches(){
       window._vtTextGraphemes(line).forEach(function(ch){prefix+=ch;if(ch.trim())glyphs.push({ch:ch,x:mctx.measureText(prefix).width-mctx.measureText(ch).width,y:row*fontSizePx*1.2});});
     });
   }
-  var penX=0, penY=0, all=[], allG=[], ci, k;
+  var penX=0, penY=0, all=[], allG=[], zugG=[], ci, k;
   for(ci=0; ci<glyphs.length; ci++){
     var ch=glyphs[ci].ch;
     var ext=extractSegmentsCached(ch, fontSizePx), sp=Math.max(0.35,state.pitch);
@@ -62940,8 +64009,9 @@ function wordStitches(){
        minimal (Boustrophedon-Satin deckt selbst). */
     if(state.underlay){ var ud=_contourWalk(ext, 1.5);
       if(ud.length){ ud[0]=Object.assign({},ud[0],{jump:true}); if(pts.length) pts[0]=Object.assign({},pts[0],{jump:true}); pts=ud.concat(pts); } }
-    for(k=0;k<pts.length;k++) all.push({ x:pts[k].x+penX, y:pts[k].y+penY, jump:(k===0)||!!pts[k].jump, travel:!!pts[k].travel, textAnchor:!!pts[k].textAnchor });
-    if(ext.contour){ var _gp=penX, _gy=penY, _gl=ext.contour.map(function(lp){ return lp.map(function(p){ return {x:p.x+_gp, y:p.y+_gy}; }); }), _b=[1e9,1e9,-1e9,-1e9]; _gl.forEach(function(lp){ lp.forEach(function(p){ if(p.x<_b[0])_b[0]=p.x; if(p.y<_b[1])_b[1]=p.y; if(p.x>_b[2])_b[2]=p.x; if(p.y>_b[3])_b[3]=p.y; }); }); allG.push({bb:_b, loops:_gl}); }
+    for(k=0;k<pts.length;k++){ all.push({ x:pts[k].x+penX, y:pts[k].y+penY, jump:(k===0)||!!pts[k].jump, travel:!!pts[k].travel, textAnchor:!!pts[k].textAnchor });
+      if(pts[k]._vtZx!==undefined&&!pts[k].travel){ var _zl=all[all.length-1]; _zl._vtZx=pts[k]._vtZx; _zl._vtZy=pts[k]._vtZy; _zl._vtZw=pts[k]._vtZw; } } /* [TM2] */
+    if(ext.contour){ var _gp=penX, _gy=penY, _gl=ext.contour.map(function(lp){ return lp.map(function(p){ return {x:p.x+_gp, y:p.y+_gy}; }); }), _b=[1e9,1e9,-1e9,-1e9]; _gl.forEach(function(lp){ lp.forEach(function(p){ if(p.x<_b[0])_b[0]=p.x; if(p.y<_b[1])_b[1]=p.y; if(p.x>_b[2])_b[2]=p.x; if(p.y>_b[3])_b[3]=p.y; }); }); allG.push({bb:_b, loops:_gl}); if(ext.inInk) zugG.push({ink:ext.inInk,ox:_gp,oy:_gy,bb:_b}); }
   }
   /* Keep glyph routing, but check its edge/void safety against the same shaped
      whole lines shown in the editor. Isolated glyph outlines miss contextual
@@ -63010,6 +64080,13 @@ function wordStitches(){
   if(state.referenceLayout && window._bowlFill==='satin') {
     var wordRepair=_satinWordCoverageRepair(filtered,allG);
     if(wordRepair.length){wordRepair[0].jump=true;filtered=filtered.concat(wordRepair);}
+  }
+  if(!window._vtTM2Off&&zugG.length&&state.stitch!=='pen'&&state.stitch!=='pencross'&&window._bowlFill!=='laengs'){ /* [TM2] */
+    var _zc=_mm2px(0.2),_zs=_mm2px(0.03),_zg=_mm2px(0.1),_zi=function(x,y){ for(var g=0;g<zugG.length;g++){ var G=zugG[g],b=G.bb; if(x<b[0]||x>b[2]||y<b[1]||y>b[3]) continue; if(G.ink(x-G.ox,y-G.oy)) return true; } return false; };
+    filtered.forEach(function(P){ if(P._vtZx===undefined) return; var ux=P._vtZx,uy=P._vtZy,c=Math.min(_zc,0.075*P._vtZw); delete P._vtZx; delete P._vtZy; delete P._vtZw; if(P.textAnchor||!(c>0)) return;
+      var tOut=-1,tIn=-1,t,T=2*c+_zg+_zs; for(t=0;t<=T;t+=_zs){ var ink=_zi(P.x+ux*t,P.y+uy*t); if(tOut<0){ if(!ink) tOut=t; } else if(ink){ tIn=t; break; } }
+      if(tOut>=0&&tIn>=0) c=Math.min(c,tOut+Math.max(0,(tIn-tOut-_zg)/2));
+      P.x+=ux*c; P.y+=uy*c; P._vtZug=c; });
   }
   return filtered;
 }

@@ -10,9 +10,13 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 7 November 2026 release uses the tested `VT-20261107-local-r48` build
+The 8 November 2026 release uses the tested `VT-20261107-local-r49` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `98b15b03b211623d4e7ec6432d2349f986a67ee7151019e449dada8b43873d0f`).
+to the tested file; SHA-256 `f362d408c4dcf118909aed8395466964f05787274ea15a169402aadc7fd41751`).
+r49 rebuilds satin lettering: strokes come from a triangulation of the glyph outline
+(chordal axis) instead of a pixel skeleton, columns are a true zigzag, narrow columns are
+no longer split, and satin text gets 0.2 mm pull compensation and underlay from 1.0 mm
+(252 letters in 12 fonts: jumps 784 → 525, stitches outside 43.6 → 4.2 mm).
 r48 gives the font size slider the full panel width, so text can be enlarged again.
 r47 sews thin outlines as running stitch, splits satin only from 7 mm with alternating
 offsets and turns imported wide lines into satin bands, as drawn lines.

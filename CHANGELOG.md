@@ -1,5 +1,32 @@
 # Changelog
 
+## 8 November 2026 — r49
+
+Release build `VT-20261107-local-r49`, byte-identical to the tested local file
+(SHA-256 `f362d408c4dcf118909aed8395466964f05787274ea15a169402aadc7fd41751`).
+Satin lettering rebuilt. The stitch cache version changes from 270 to 271, so existing designs are recalculated once.
+
+- Stroke decomposition: satin text no longer derives its columns from a thinned pixel skeleton. The glyph outline is now triangulated (constrained Delaunay) and the strokes are taken from its chordal axis: sleeve triangles give stroke axis and width, junction triangles give the junction zones, end triangles the caps. At a junction the best-continuing arms run through as one column, the other arms end at the edge of the through stroke with 0.3 mm overlap (T joints such as the H crossbar or the bowl of the "a"). Parts wider than 7 mm are filled instead of satin-stitched. The old skeleton path stays as fallback and is used per glyph only when the new result scores clearly worse.
+- Zigzag instead of ladder: satin columns were partly sewn as a ladder (cross stitch, 0.3 mm along the edge, cross stitch back), which the micro-stitch filter turned into a sawtooth. Columns are now a true zigzag, paired cross-section by cross-section. The inner rail is untangled in tight curves without piling needle points into one spot.
+- No split below 7 mm: narrow satin columns (3 mm) were split into several stitches per row and looked like tatami (a 30 mm Nunito "T" had 1014 stitches, now 382).
+- Pull compensation: satin text is now widened by 0.2 mm per side (at most 7.5 % of the column width), so the sewn column matches the letter instead of 0.96 of it. Counters and gaps are not bridged.
+- Underlay: the centre-walk underlay now starts at 1.0 mm column width (was 1.5 mm), so small text gets underlay too.
+- Stroke ends and joints: square feet (Nunito "a") are no longer sewn as a diagonal spur with horizontal filler rows, and filler rows from the coverage backstop now count against a glyph variant.
+- Travel along the outline now runs 0.25 mm inside the letter and is checked every 0.05 mm, so it no longer cuts across concave corners (serif to stem).
+
+Measured on 252 letters in 12 fonts at 15 mm against the r48 path (pull compensation off for the
+outside measure): jumps 784 → 525, stitches outside the letter 43.6 → 4.2 mm, uncovered area
+10.3 → 8.4, calculation time 11.3 → 10.1 s. 44 letters have clearly fewer jumps, 9 are slightly
+worse. In an audit of all glyphs at 30 mm the letters with a visible fault fall from 977 to 582
+(ladders 323 → 23, filler rows 366 → 165, fans 414 → 142).
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. The known deviation remains one check in T03 per engine. One T01b run (Chrome) failed
+the download check once, the repeated run passed all 9 checks. T23 "outside" now reports satin text
+up to 0.3 mm (in a few places 0.5 mm) outside the exact letter outline, which is the intended pull
+compensation; with 0.5 mm tolerance all satin cases pass. Traced motifs (T08) and the stroke test
+matrix (T21) are identical to r48.
+
 ## 7 November 2026 — r48
 
 Release build `VT-20261107-local-r48`, byte-identical to the tested local file
