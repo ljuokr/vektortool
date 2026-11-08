@@ -10,9 +10,13 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 8 November 2026 release uses the tested `VT-20261107-local-r49` build
+The 8 November 2026 release uses the tested `VT-20261108-local-r50` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `f362d408c4dcf118909aed8395466964f05787274ea15a169402aadc7fd41751`).
+to the tested file; SHA-256 `d6009c71d726c4a3dc15c5670efb7215f945a361b58f2131f4a6177a3b68eb5b`).
+r50 brings usability fixes from a structured test of r48: multiple selection, focus and
+shortcuts, open drawings, double click in Chromium and on touch, text editing, panel values,
+undo, Escape and keyboard focus, zoom, boolean operations, node tool, import and export,
+image tracer, pattern generator and toasts. Stitches are unchanged.
 r49 rebuilds satin lettering: strokes come from a triangulation of the glyph outline
 (chordal axis) instead of a pixel skeleton, columns are a true zigzag, narrow columns are
 no longer split, and satin text gets 0.2 mm pull compensation and underlay from 1.0 mm

@@ -1,5 +1,39 @@
 # Changelog
 
+## 8 November 2026 — r50
+
+Release build `VT-20261108-local-r50`, byte-identical to the tested local file
+(SHA-256 `d6009c71d726c4a3dc15c5670efb7215f945a361b58f2131f4a6177a3b68eb5b`).
+Usability fixes from a structured test of r48 (179 confirmed findings, headless in Chromium and WebKit). Stitches are unchanged and the stitch cache version stays at 271.
+
+- Focus: a focused slider or number field no longer swallows shortcuts, undo, Delete and Escape.
+- Multiple selection: position and size, colour and font size now show and change the whole selection instead of only the first object.
+- Drawing: Ctrl+Z, Enter and switching tools while a line or shape is still open now act on the open drawing.
+- Double click now works in Chromium and on touch. It is recognised as in the operating system: in the selection it acts on the second release without dragging, so clicking an object and dragging it right away still moves it. A double click on a group member enters the group instead of converting the shape to a path.
+- Text: undo inside text editing, empty invisible text objects and empty mirrored text are fixed. Text scales, mirrors and takes width and height like other shapes where possible.
+- Panel values follow dragging, scaling, rotating and node dragging. Position and size fields accept Enter, Escape and Tab and check their range. Stroke and number fields use even steps and accept a decimal comma.
+- Undo keeps the selection, and colour picker and font size no longer create one undo step per tiny change.
+- Escape closes popups, dialogs and generators one level at a time. Ctrl+Z and tool keys no longer act behind the open image tracer or overlays. Keyboard focus no longer gets trapped and popups can be reached by keyboard.
+- Tabs ask before closing a tab with changes, and the layers panel follows changes immediately.
+- Zoom: mouse wheel steps, pinch, zoom centre, rulers and top bar.
+- Boolean operations keep the outline instead of a solid area, and the fields stay editable.
+- Node and pen tool: paths no longer break, nodes move instead of the whole shape, delete sequences and the mirror switch are fixed.
+- Import and export: SVG text that cannot be imported is skipped with a message instead of rejecting the whole file, DXF can be dropped, file names and placement are fixed, pasting works in WebKit.
+- Image tracer: preview state, mouse wheel zoom, colour undo and the two-colour mode.
+- Pattern generator: filling, limits, width and height, no layout jump.
+- Toasts no longer pile up, stay longer and pause on hover. Camera errors now show a readable message instead of the raw browser error.
+- Texts, translations, spelling and units, the custom format label shows tenths of a millimetre.
+
+Not included: small traced images are still only scaled down, not up to the drawing area (an enlarged low-resolution image gives a coarse embroidery file). A newly drawn shape stays unselected.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. Traced motifs (T08), the fill bucket (T15) and the stroke test matrix (T21) are identical
+to r49. The known deviations remain one check in T03 per engine and T23 "outside" from the satin pull
+compensation. The usability fixes were checked with the test scripts of the usability study in
+Chromium and WebKit, the double click additionally with 22 checks for click, drag and touch.
+Tests for the camera message, the format label and the new import message were updated to the
+intended behaviour, and the import message is translated into all 13 languages.
+
 ## 8 November 2026 — r49
 
 Release build `VT-20261107-local-r49`, byte-identical to the tested local file
