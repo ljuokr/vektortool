@@ -1,5 +1,19 @@
 # Changelog
 
+## 9 November 2026 — r51a
+
+Release build `VT-20261109-local-r51a`, byte-identical to the tested local file
+(SHA-256 `b1b60b375d463e430121b3930bb2272e599ffb06639565eaf0b58dee96e6db24`).
+Hotfix for the laser export. Stitches are unchanged and the stitch cache version stays at 272.
+
+- Pattern generator: parts inserted from the pattern generator are cut lines in the laser and plotter export again. Since r51, filled black areas without an outline are engraved, and pattern cells are such areas, so whole patterns (for example Starshade, hexagons, Miura) were exported as engraving instead of cutting. Pattern parts are now marked as cut when inserted. Patterns inserted with r51 keep their old state; insert them again to export them as cuts.
+
+Verification in isolated Chrome and WebKit profiles on this file: the new pattern laser test (T25: Starshade,
+hexagons and Miura, normal, filled and inverted) passes 6/6 in both engines, while r51 exported all of them as
+engraving. Laser (T24 and the r51 laser checks), pattern scales (T19), format catalog (T12), import hints (T13),
+colours (T01) and languages (T07b) pass all checks, and traced motifs (T08) are identical to r51. The change is
+one line in the pattern generator's insert function.
+
 ## 9 November 2026 — r51
 
 Release build `VT-20261108-local-r51`, byte-identical to the tested local file

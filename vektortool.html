@@ -1,6 +1,6 @@
 <!--
   Vektortool - vom Vektor zum Objekt
-  rev: VT-20261108-local-r51 · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
+  rev: VT-20261109-local-r51a · ref: VTX-7Q31 · © 2026 Lukas Jordi · https://vektortool.app
 
   Kostenloser Vektorgrafik-Editor, der komplett im Browser läuft: ohne
   Installation, ohne Build-Step, ohne Server. Diese eine HTML-Datei enthält
@@ -55248,6 +55248,7 @@ $$('gen3dInsertBtn').addEventListener('click', function(){
   if(clearanceWarning&&typeof window._vtToast==='function')window._vtToast(clearanceWarning);
   /* Preview wegnehmen, dann commit */
   if (window.previewShapes) { window.previewShapes = null; }
+  for (var _r51a = 0; _r51a < shapes.length; _r51a++) if (!shapes[_r51a].laserRole) shapes[_r51a].laserRole = 'cut'; /* [r51a] Muster-Teile im Laser-Export als Schnitt, nicht als Gravur */
   if (typeof window.pu === 'function') window.pu('3D-Muster: ' + G.pat);
   if (typeof window.addShapeWithMirror === 'function') {
     for (var i=0;i<shapes.length;i++) window.addShapeWithMirror(shapes[i]);
@@ -60933,6 +60934,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   var REPO = 'https://github.com/ljuokr/vektortool';
   var RAW  = 'https://raw.githubusercontent.com/ljuokr/vektortool';
   var ENTRIES = [
+    {d:'2026-11-09', t:'VT-20261109-local-r51a', c:null},
     {d:'2026-11-08', t:'VT-20261108-local-r51', c:null},
     {d:'2026-11-08', t:'VT-20261108-local-r50', c:null},
     {d:'2026-11-07', t:'VT-20261107-local-r49', c:null},

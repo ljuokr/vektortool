@@ -10,9 +10,10 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 9 November 2026 release uses the tested `VT-20261108-local-r51` build
+The 9 November 2026 release uses the tested `VT-20261109-local-r51a` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `0a603b60daaab25baf483e4929c55921b764f83ec675816ed8334d3615ddac39`).
+to the tested file; SHA-256 `b1b60b375d463e430121b3930bb2272e599ffb06639565eaf0b58dee96e6db24`).
+r51a exports pattern generator parts as laser cuts again instead of engraving.
 r51 fixes the embroidery window (Ctrl+Z no longer deletes the last shape), mirroring with
 tilt, mirror copies in the layers panel, touch context menu and handles, and the laser export,
 and keeps satin lettering within 0.25 mm of the letter outline.
