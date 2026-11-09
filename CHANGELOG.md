@@ -1,5 +1,29 @@
 # Changelog
 
+## 9 November 2026 — r51
+
+Release build `VT-20261108-local-r51`, byte-identical to the tested local file
+(SHA-256 `0a603b60daaab25baf483e4929c55921b764f83ec675816ed8334d3615ddac39`).
+Fixes for the embroidery window, mirroring, layers, touch and laser export, and tighter satin lettering. The stitch cache version changes from 271 to 272, so designs with satin text are recalculated once. All other stitch types are unchanged.
+
+- Embroidery window: Ctrl+Z no longer deletes the last drawn shape. Every embroidery setting now creates one undo step per slider gesture. The preview is recalculated after reordering, sliders follow undo and the gear menu, Escape first closes an open gear popover, the hoop and format choice update the preview, fine direct entries keep two decimals and clamped values are reported. PES and EXP exports carry the document name like DST.
+- Satin lettering: stitches no longer stand more than 0.25 mm outside the letter (before up to 0.5 mm). Pull compensation is kept, but points more than 0.15 mm outside are pulled back to the outline. On 252 letters in 12 fonts jumps fall from 525 to about 508, three of the nine weaker letters from r49 are fixed.
+- Mirroring with tilt: the drawn shape stays exactly under the pointer and the copy is a true mirror image at the displayed axis. Editing the original no longer makes the copy jump. Repeat patterns start from the cell the shape is drawn in, the chosen direction is kept when the mirror is switched on again, an imported project no longer leaves mirroring invisibly active, and the axis spacing shows the real millimetres.
+- Layers: eye, lock, delete and reordering act on mirror copies too. Group members are listed in stacking order, dropping a group on its own member does nothing, locking updates the panel. Changing the format can be undone. Undo keeps up to 300 steps and says once when older steps are dropped.
+- Tabs and saving: a second browser tab without own changes takes over the newer state instead of reporting a conflict, renamed tabs are saved, the restore hint can be dismissed, and saved states are listed with type, local time and content.
+- Touch: submenus in the context menu open with a tap, a long press opens the context menu, and selection handles have larger touch targets. Mouse behaviour is unchanged.
+- Laser export: a single shape with a self-intersection or line effect no longer blocks the whole export. It is skipped and named. Black filled areas without an outline are engraved as promised, coloured ones stay cut lines.
+- Box generator: the box and the test strip are inserted as one group and ignore active mirroring.
+- Image tracer: small vector images (SVG) are scaled up to the drawing area, raster images are still only scaled down.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all
+completed. Traced motifs (T08) and the stroke test matrix (T21) are identical to r50, the fill
+bucket (T15) passes all 56 checks, and satin text (T23) now passes all 11 checks in both engines.
+The known deviation remains one check in T03 per engine. The tests of all six work streams
+(embroidery window, satin, mirroring, layers, touch, laser) were repeated on this combined build
+with the same results as on their single builds; DST and PES output of non-satin designs is
+byte-identical to r50. Touch was tested with emulated touch events, not on a physical iPad.
+
 ## 8 November 2026 — r50
 
 Release build `VT-20261108-local-r50`, byte-identical to the tested local file

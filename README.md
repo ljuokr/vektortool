@@ -10,9 +10,12 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 8 November 2026 release uses the tested `VT-20261108-local-r50` build
+The 9 November 2026 release uses the tested `VT-20261108-local-r51` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `d6009c71d726c4a3dc15c5670efb7215f945a361b58f2131f4a6177a3b68eb5b`).
+to the tested file; SHA-256 `0a603b60daaab25baf483e4929c55921b764f83ec675816ed8334d3615ddac39`).
+r51 fixes the embroidery window (Ctrl+Z no longer deletes the last shape), mirroring with
+tilt, mirror copies in the layers panel, touch context menu and handles, and the laser export,
+and keeps satin lettering within 0.25 mm of the letter outline.
 r50 brings usability fixes from a structured test of r48: multiple selection, focus and
 shortcuts, open drawings, double click in Chromium and on touch, text editing, panel values,
 undo, Escape and keyboard focus, zoom, boolean operations, node tool, import and export,
