@@ -10,9 +10,13 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 9 November 2026 release uses the tested `VT-20261109-local-r51a` build
+The 9 November 2026 release uses the tested `VT-20261109-local-r52` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `b1b60b375d463e430121b3930bb2272e599ffb06639565eaf0b58dee96e6db24`).
+to the tested file; SHA-256 `1cda360589274b6162363e31819cf31cc56bb6bdeebc7a2c901e6d98cac7bc4d`).
+r52 plans satin lettering word by word (jumps 310 → 257, trims 218 → 182 on 30 words),
+fixes the satin offset at its root, drops the white background in the image tracer,
+engraves black areas and cuts their outline in the laser export, and brings all new
+texts to all 31 languages.
 r51a exports pattern generator parts as laser cuts again instead of engraving.
 r51 fixes the embroidery window (Ctrl+Z no longer deletes the last shape), mirroring with
 tilt, mirror copies in the layers panel, touch context menu and handles, and the laser export,

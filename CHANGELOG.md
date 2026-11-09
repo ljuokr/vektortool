@@ -1,5 +1,29 @@
 # Changelog
 
+## 9 November 2026 — r52
+
+Release build `VT-20261109-local-r52`, byte-identical to the tested local file
+(SHA-256 `1cda360589274b6162363e31819cf31cc56bb6bdeebc7a2c901e6d98cac7bc4d`).
+Satin lettering, image tracer, pattern and box generator, laser export, translations and a review of r51. The stitch cache version changes from 272 to 274, so designs are recalculated once.
+
+- Satin lettering: the stroke calculation sampled the letter mask at pixel corners instead of pixel centres, so satin columns sat about 0.05 mm up and to the left. Fixed at the root. Letters now start where the previous one ended, connecting pieces are sewn in place instead of at the end of the word, and short jumps inside a word run as hidden running stitches under satin that is sewn later. On 30 words in 5 fonts jumps fall from 310 to 257, trims from 218 to 182 and stitches outside the letter from 35 to 11 mm; on 252 letters jumps fall from 509 to about 393 and the calculation is about 20 % faster.
+- Embroidery export: no extra trim right after a colour change (gecko: 15 to 12 jump records). Fill calculation runs in shorter blocks (longest block 55 to 73 % shorter in Chrome) with byte-identical stitches.
+- Image tracer: a white image background is no longer taken over and is shown dimmed in the preview. Antialiasing seams no longer become colour layers of their own. The detail slider starts at 25. Lost manual colour work is announced with an undo button. Small vector images are scaled up to the drawing area.
+- Laser export: a black area with an outline is engraved and its outline is cut; a black area without an outline is engraved, coloured areas stay cut lines. Gradients get a clear reason when skipped, and colour formats such as #rrggbbaa, hsl() and rgb(%) are recognised. Pattern generator parts stay cut lines.
+- Pattern and box generator: fixes from a structured test of the tracer, outline, pattern and box tools (inserted parts selected and focused, layout, Starshade cell spacing with a 0.4 mm minimum, rounded box parts, alignment).
+- Review fixes for r51: small shapes can be moved on touch and with the mouse instead of being scaled, mirroring stays off after taking over the state of another browser tab, eye and lock no longer hit mirror copies of other duplicates, duplicating a single mirror copy makes it independent, and redo of a format change survives a selection click.
+- Smaller fixes: the embroidery preview updates for the unlimited format, eye tooltips in the embroidery window are translated, the mirror popup shows stored values after import, text on a path is one undo step, the hoop field follows undo of a format change, and smoothing in the outline tracer is consistent after leaving the colour mode.
+- Translations: all new texts since r50 are now available in all 31 interface languages (before 12). They have not yet been reviewed by native speakers.
+
+Verification in isolated Chrome and WebKit profiles: full regression on this file (48 runs), all completed.
+The known deviation remains one check in T03 per engine; the fill bucket test (T15) now restarts WebKit every
+ten cases because Playwright's WebKit stops loading pages after 64 pages per browser, and passes 56/56 in both
+engines. Compared with r51, the stroke test matrix (T21) has the same stitches and jumps with 51 → 45 trims, and
+traced motifs (T08) have fewer stitches (Chrome 615 780 → 509 236) because the white background is no longer
+taken over. Satin lettering (T23) passes all checks. The tests of all work streams were repeated on combined
+builds, and an independent code review and an adversarial test of the new features were done; their findings
+are fixed in this release. Satin lettering has not yet been checked on a physical machine.
+
 ## 9 November 2026 — r51a
 
 Release build `VT-20261109-local-r51a`, byte-identical to the tested local file
