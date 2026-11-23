@@ -10,9 +10,11 @@ entirely in your browser - a single HTML file, no server.
 
 ## Release status
 
-The 9 November 2026 release uses the tested `VT-20261109-local-r52` build
+The 24 November 2026 release uses the tested `VT-20261109-local-r53` build
 (the local identifier is retained so the released application stays byte-identical
-to the tested file; SHA-256 `1cda360589274b6162363e31819cf31cc56bb6bdeebc7a2c901e6d98cac7bc4d`).
+to the tested file; SHA-256 `161544b331613db6a28b3db886a28d87ee090cfc752cad1191a2452a4b0793f8`).
+r53 makes embroidery reproducible on every device (work-based limits, software letter raster),
+cuts the fill bucket exactly at line centres and adds smaller usability fixes.
 r52 plans satin lettering word by word (jumps 310 → 257, trims 218 → 182 on 30 words),
 fixes the satin offset at its root, drops the white background in the image tracer,
 engraves black areas and cuts their outline in the laser export, and brings all new

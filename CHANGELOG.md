@@ -1,5 +1,31 @@
 # Changelog
 
+## 24 November 2026 — r53
+
+Release build `VT-20261109-local-r53`, byte-identical to the tested local file
+(SHA-256 `161544b331613db6a28b3db886a28d87ee090cfc752cad1191a2452a4b0793f8`).
+Reproducible embroidery, exact fill bucket and smaller usability fixes. The stitch cache version changes from 274 to 275, so designs are recalculated once.
+
+- Reproducible embroidery: the same design now gives the same embroidery file on every device and under load. Decisions that depended on measured calculation time (corner variants, abort limits, lettering limits) now depend on counted work, and letters are rasterised in software instead of on the graphics card. In r52, 16 of 75 test cases could give a different file when calculated again; now 0 of 75 in 450 runs. Satin and tatami lettering changes slightly as a result.
+- Calculation limit: a very large object stops with a message after counted work instead of after 5 s, and no incomplete embroidery file is written. The limit is set so that the largest test motif still finishes in every browser: Safari/WebKit traces that photo into different shapes, which need about twice as much work as in Chrome and Firefox (60 of 90 million units). The same test objects stop as in r52, no new ones.
+- Fill bucket: the fill now ends exactly at the centre of the surrounding lines instead of a pixel staircase (overhang 0.5 → at most 0.03 px, gaps at corners up to 1.8 → 0 px). Embroidered bucket fills have 93 % fewer short stitches and no needle points outside the area. In WebKit a bucket click takes about 45 to 60 % longer.
+- Embroidery window: arrow keys on a slider within one second are one undo step, playback of small designs lasts at least about 3 s.
+- Laser export: a «Select» button in the dialog selects and shows the shapes that were skipped.
+- Mirroring: a small arrow next to the active mirror button opens its settings without switching mirroring off.
+- Tabs: zooming or panning in a second browser tab no longer causes a save conflict.
+- Text and lines: Escape leaves the text field in the panel, dragging with the line tool draws a two-point line.
+
+Verification: full regression on the release file in Chrome, WebKit and Firefox (68 test runs, 23 and 24 November 2026).
+Traced motifs (T08) and the shape matrix (T21) give the same embroidery files as r52 in Chrome and WebKit, and the
+largest photo motif finishes in all three browsers. Known deviations are unchanged from r52: one SVG text layout
+case per browser (T03) and the travel length of one small tatami text in Firefox (T23). Before the release an
+independent code review and five test strands (texts, usability, embroidery, browser comparison, clipboard) were
+run on the candidate. They found two defects, both fixed and retested in this release: the two new texts were not
+translated, and a save race between two tabs could drop a shape. Reproducibility was confirmed on 28 further
+designs (504 files, also with a throttled CPU and a second calculating page). Copy and paste to and from other
+programs is unchanged from r52. Embroidery has not yet been checked on a physical machine, and the new texts have
+not been reviewed by native speakers.
+
 ## 9 November 2026 — r52
 
 Release build `VT-20261109-local-r52`, byte-identical to the tested local file
